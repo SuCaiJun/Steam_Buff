@@ -240,7 +240,7 @@
     if (until <= now()) {
       return;
     }
-    throw providerError("PROVIDER_RATE_LIMITED", "ITAD 请求已触发限流，请稍后再试。", {
+    throw providerError("PROVIDER_RATE_LIMITED", globalThis.STI18n.text("settings_thirdParty_rateLimited", "ITAD 请求已触发限流，请稍后再试。"), {
       status: 429,
       retryAfterMs: until - now(),
       endpointKey,
@@ -258,7 +258,7 @@
     try {
       return value ? JSON.parse(String(value)) : null;
     } catch {
-      throw providerError("RESPONSE_PARSE_FAILED", "ITAD 响应解析失败。", {
+      throw providerError("RESPONSE_PARSE_FAILED", globalThis.STI18n.text("itad.parse", "ITAD 响应解析失败。"), {
         status: response?.status,
         retryable: false,
         endpointKey,
@@ -275,10 +275,10 @@
   }
 
   function statusMessage(status) {
-    if (status === 401 || status === 403) return "ITAD API Key 验证失败，请检查密钥是否正确或权限是否可用。";
-    if (status === 429) return "ITAD 请求已触发限流，请稍后再试。";
-    if (status >= 500) return "ITAD 服务暂时不可用，请稍后重试。";
-    return status ? `ITAD 接口返回状态码 ${status}。` : "ITAD 请求失败，请稍后重试。";
+    if (status === 401 || status === 403) return globalThis.STI18n.text("settings_thirdParty_authFailed", "ITAD API Key 验证失败，请检查密钥是否正确或权限是否可用。");
+    if (status === 429) return globalThis.STI18n.text("settings_thirdParty_rateLimited", "ITAD 请求已触发限流，请稍后再试。");
+    if (status >= 500) return globalThis.STI18n.text("settings_thirdParty_unavailable", "ITAD 服务暂时不可用，请稍后重试。");
+    return status ? globalThis.STI18n.text("itad.status", "ITAD 接口返回状态码 $status$。", { status }) : globalThis.STI18n.text("itad.failed", "ITAD 请求失败，请稍后重试。");
   }
 
   async function requestJson(endpointKey, request = {}, config = {}) {
@@ -350,7 +350,7 @@
         requestId: id,
         errorCode: code,
       }));
-      throw providerError(code, code === "PROVIDER_TIMEOUT" ? "ITAD 请求超时，请稍后重试。" : "ITAD 网络请求失败，请稍后重试。", {
+      throw providerError(code, code === "PROVIDER_TIMEOUT" ? globalThis.STI18n.text("itad.timeout", "ITAD 请求超时，请稍后重试。") : globalThis.STI18n.text("itad.network", "ITAD 网络请求失败，请稍后重试。"), {
         status: error?.status || 0,
         retryable: true,
         endpointKey,
@@ -716,7 +716,7 @@
       requestId: id,
       errorCode: "RESPONSE_SHAPE_INVALID",
     }));
-    return providerError("RESPONSE_SHAPE_INVALID", "ITAD 响应格式异常。", {
+    return providerError("RESPONSE_SHAPE_INVALID", globalThis.STI18n.text("itad.format", "ITAD 响应格式异常。"), {
       status,
       retryable: false,
       endpointKey,
@@ -735,7 +735,7 @@
     });
     return providerError(
       "PROVIDER_CURRENCY_MISMATCH",
-      `ITAD ${text(country)} 区域价格币种不一致：预期 ${expected}，实际 ${actual}。`,
+      globalThis.STI18n.text("itad.currency", "ITAD $country$ 区域价格币种不一致：预期 $expected$，实际 $actual$。", { country: text(country), expected, actual }),
       {
         status,
         retryable: false,

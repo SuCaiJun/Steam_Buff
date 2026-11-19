@@ -18,7 +18,6 @@
   const insertModule = api.dom.insertModule;
   const isUsableExistingModule = api.dom.isUsableExistingModule;
   const fetchPlayersInfo = api.net.fetchPlayersInfo;
-  const parseResponse = api.format.parseResponse;
   const log = window.STLoggerFactory?.createLogger?.("store", "family-sharing");
   const RESULT_EVENT = "st:family-sharing-result";
   const supportState = window.__stFamilySharingSupportState || {};
@@ -140,23 +139,9 @@ function addFamilySharingNotice(appId, protocol) {
     api.dom.loading.afterPaint(valid).then(ready => ready ? fetchPlayersInfo(appId, protocol) : null).then(function(response) {
         if (!valid()) return;
         api.dom.detailLoading.clear(placeholderElement);
-        let data = response;
-        if (typeof data === 'string') {
-            try {
-                data = JSON.parse(data);
-            } catch (e) {
-                log?.warn?.("family-sharing-parse-failed", "家庭共享检查响应解析失败", {
-                    appid: Number(appId) || 0,
-                    durationMs: Date.now() - startedAt,
-                    error: e,
-                });
-                placeholderElement.remove();
-                publishSupportState(appIdText, "unknown");
-                return;
-            }
-        }
-        
-        if (data && !data.family_sharing) {
+        const data = typeof response === "string" ? JSON.parse(response) : response;
+        if (typeof data?.family_sharing !== "boolean") throw new TypeError("家庭共享响应中的 family_sharing 不是布尔值");
+        if (!data.family_sharing) {
             const familySharingContainer = unsupportedCard(appIdText);
             if (placeholderElement.parentNode) {
                 placeholderElement.parentNode.replaceChild(familySharingContainer, placeholderElement);

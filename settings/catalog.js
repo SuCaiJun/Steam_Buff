@@ -64,6 +64,7 @@
     [TRANSLATE_KEYS.newsPopupService]: "follow",
     [TRANSLATE_KEYS.local]: "chinese_simplified",
     [TRANSLATE_KEYS.to]: "chinese_simplified",
+    aiTarget: "target",
     [TRANSLATE_KEYS.service]: "client.edge",
     [TRANSLATE_KEYS.aiPerformance]: true,
     [TRANSLATE_KEYS.force]: false,
@@ -87,6 +88,10 @@
   ]);
 
   const TRANSLATE_FIELDS = Object.freeze([
+    {
+      type: "select", key: "aiTarget", label: "AI 翻译目标",
+      options: [{ value: "display", label: "跟随显示语言" }, { value: "target", label: "使用指定的翻译目标" }],
+    },
     {
       type: "select",
       key: TRANSLATE_KEYS.scope,
@@ -1359,6 +1364,7 @@
     translateDefaults,
     translateFields,
     reviewFilterDefaults,
+    reviewRuleTypes: Object.freeze(["keyword", "regex", "nickname"]),
     reviewFilterFields,
     searchSuggestionDefaults,
     searchSuggestionFields,

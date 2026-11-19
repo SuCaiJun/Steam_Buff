@@ -182,7 +182,7 @@
   /** 只读取本入口当前绑定的公开标识，缓存命中也必须先确认可用配置 */
   async function resolveBinding(surface, options = {}) {
     const response = await globalThis.STMessageBus.request({
-      type: "AI_CHAT_COMPLETIONS", action: "resolve-translation", translationSurface: surface,
+      type: "AI_CHAT_COMPLETIONS", action: "resolve-translation", translationSurface: surface, displayLocale: options.displayLocale,
     }, { signal: options.signal, logFailures: false });
     if (response?.success !== true) throw new Error(response?.error || "无法读取 AI 翻译配置");
     return response.value;
@@ -262,7 +262,7 @@
     const { serviceId, serviceRevision, promptId, promptRevision } = options.binding;
     const payload = {
       type: "AI_CHAT_COMPLETIONS", translationSurface: options.surface,
-      serviceId, serviceRevision, promptId, promptRevision, promptContext: options.promptContext,
+      serviceId, serviceRevision, promptId, promptRevision, displayLocale: options.binding.displayLocale, promptContext: options.promptContext,
     };
     if (timeoutMs) payload.timeoutMs = timeoutMs;
     const response = await globalThis.STMessageBus.send(payload, {
@@ -417,6 +417,7 @@
       promptMode(data) === globalThis.STTranslateAIPrompts.STEAM_NEWS_MODE ? "news" : "page"
     );
     const binding = options.binding || await resolveBinding(surface, options);
+    if (binding.targetLanguage) data = { ...data, to: binding.targetLanguage };
     checkCancelled(options);
     const meta = promptMeta(data);
     options = {

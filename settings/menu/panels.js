@@ -36,7 +36,7 @@
       translate: {},
       thirdPartyServices: {},
       storePriceChart: {},
-      gameLinks: root.STGameLinks.defaults(),
+      gameLinks: root.STGameLinks.empty(),
       ...(options.configs || {}),
     };
     const instances = {};
@@ -90,6 +90,7 @@
           fieldInput,
           masterItemHtml: deps.masterItemHtml,
           onConfigChange: (next) => setConfig("reviewFilter", next),
+          render,
         });
       }
       return instances.review;

@@ -123,19 +123,21 @@
     if (request.action === "load") {
       const unavailable = (scene) => {
         const binding = settings.workflow.bindings[scene];
-        const service = root.STAI.boundService(settings.ai, binding.serviceId);
+        const service = root.STAI.findService(settings.ai, binding.serviceId);
         const plan = settings.workflow.prompts.find((item) => item.id === binding.promptId);
-        if (!plan?.enabled) return "请在客户端增强中重新选择提示词方案";
-        if (!settings.ai.enabled) return "请在第三方服务中启用 AI 模块";
-        if (!service?.enabled) return "请在客户端增强中选择可用的 AI 服务";
+        if (!plan?.enabled) return { code: "planMissing", message: "请在客户端增强中重新选择提示词方案" };
+        if (!settings.ai.enabled) return { code: "aiDisabled", message: "请在第三方服务中启用 AI 模块" };
+        if (!service?.enabled) return { code: "serviceUnavailable", message: "请在客户端增强中选择可用的 AI 服务" };
         if (!service.host || !service.model) return service.id === root.STAI.DEFAULT_SERVICE_ID
-          ? "请在第三方服务中配置默认 AI 服务" : "请在第三方服务中补全 AI 连接配置";
-        return "";
+          ? { code: "defaultMissing", message: "请在第三方服务中配置默认 AI 服务" } : { code: "connectionMissing", message: "请在第三方服务中补全 AI 连接配置" };
+        return null;
       };
-      const aiErrors = { achievement: unavailable("achievement"), group: unavailable("achievement-group") };
+      const issues = { achievement: unavailable("achievement"), group: unavailable("achievement-group") };
+      const aiErrors = Object.fromEntries(Object.entries(issues).map(([kind, issue]) => [kind, issue?.message || ""]));
+      const aiErrorCodes = Object.fromEntries(Object.entries(issues).map(([kind, issue]) => [kind, issue?.code || ""]));
       const aiReadyByKind = { achievement: !aiErrors.achievement, group: !aiErrors.group };
       const [records, groupRecords] = await Promise.all([load(request.appId, language), load(request.appId, language, "group")]);
-      return { language, aiReady: aiReadyByKind.achievement || aiReadyByKind.group, aiReadyByKind, aiErrors, records, groupRecords };
+      return { language, aiReady: aiReadyByKind.achievement || aiReadyByKind.group, aiReadyByKind, aiErrors, aiErrorCodes, records, groupRecords };
     }
     if (request.action === "save") return save(request.appId, language, request.entries, entityKind);
     if (request.action !== "translate") throw new TypeError("成就翻译操作无效");

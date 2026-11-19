@@ -18,7 +18,7 @@
 
   const MODULE_CLASSES = api.dom.MODULE_CLASSES;
   const apiCache = api.cache;
-  const CLAIM_EVT = 'STStoreFreeDLCClaim';
+  let claimingFreeDLC = false;
   const dlcBridge = api.features.dlcBridge;
   const scan = api.features.dlcScan;
   const log = window.STLoggerFactory.createLogger("store", "dlc-checkboxes");
@@ -173,7 +173,8 @@ function addSelectionPanel(dlcSection, options = {}) {
     const panel = document.createElement("div");
     panel.id = "es_dlc_option_panel";
     actions.forEach((action) => {
-        const item = document.createElement("div");
+        const item = document.createElement(action.id === "free_dlc_claim" ? "button" : "div");
+        if (item.tagName === "BUTTON") item.type = "button";
         item.id = action.id;
         item.className = `es_dlc_option${action.className ? ` ${action.className}` : ""}`;
         item.textContent = action.label;
@@ -190,8 +191,20 @@ function addSelectionPanel(dlcSection, options = {}) {
         selectWishlistedDLC(dlcSection);
     });
 
-    panel.querySelector("#free_dlc_claim")?.addEventListener("click", () => {
-        claimAllFreeDLC(dlcSection);
+    panel.querySelector("#free_dlc_claim")?.addEventListener("click", async event => {
+        const button = event.currentTarget;
+        if (claimingFreeDLC || document.getElementById('es_free_dlc_status')) return;
+        claimingFreeDLC = true;
+        button.disabled = true;
+        try {
+            await claimAllFreeDLC(dlcSection);
+        } catch (error) {
+            showDLCNotice(t("common_operationFailed", "操作失败"), error.message, true);
+            log.error("dlc-free-claim-failed", "免费 DLC 领取失败", { error });
+        } finally {
+            claimingFreeDLC = false;
+            button.disabled = false;
+        }
     });
 
     panel.querySelector("#no_dlc_check")?.addEventListener("click", () => {
@@ -229,16 +242,15 @@ function markCarted(subids) {
 }
 
 function markClaimed(results) {
-    const ids = new Set((results || [])
-        .filter(item => item?.ok)
-        .map(item => String(item.appid || item.subid || '')));
-    if (ids.size === 0) return;
-
+    const confirmed = results.filter(item => item.status === 'confirmed' || item.status === 'owned');
+    if (!confirmed.length) return;
+    const apps = new Set(confirmed.map(item => item.appid).filter(Boolean).map(String));
+    const packages = new Set(confirmed.map(item => String(item.subid)));
     document.querySelectorAll(".game_area_dlc_row").forEach(row => {
         const href = row.href || row.querySelector('a[href*="/app/"]')?.href || '';
         const appid = (href.match(/\/app\/(\d+)/) || [])[1] || '';
         const subid = row.querySelector("input[name^=subid]")?.value || '';
-        if (!ids.has(appid) && !ids.has(subid)) return;
+        if (!apps.has(appid) && !packages.has(subid)) return;
 
         row.classList.remove('es_dlc_checked');
         row.classList.add('ds_owned', 'es_dlc_claimed');
@@ -258,13 +270,6 @@ function cacheNotice() {
     return t("store_dlc_cacheNotice", "若近几分钟领取、购买过此游戏或调整过愿望单，Steam 页面可能仍是旧结果；建议先点“刷新DLC状态”再操作此功能。");
 }
 
-function removeDLCDialog(id) {
-    const el = document.getElementById(id);
-    if (el) {
-        el.remove();
-    }
-}
-
 function appendDLCText(parent, className, value) {
     const el = document.createElement('div');
     if (className) {
@@ -276,7 +281,7 @@ function appendDLCText(parent, className, value) {
 }
 
 function showDLCNotice(title, detail = '', bad = false, timeout = 3200) {
-    removeDLCDialog('es_dlc_notice');
+    document.getElementById('es_dlc_notice')?.remove();
 
     const notice = document.createElement('div');
     notice.id = 'es_dlc_notice';
@@ -300,64 +305,6 @@ function showDLCNotice(title, detail = '', bad = false, timeout = 3200) {
             }
         }, timeout);
     }
-}
-
-function showDLCConfirm(title, detail = '') {
-    removeDLCDialog('es_dlc_confirm');
-
-    return new Promise((resolve) => {
-        const overlay = document.createElement('div');
-        overlay.id = 'es_dlc_confirm';
-        overlay.className = 'es_dlc_confirm_overlay';
-
-        const panel = document.createElement('div');
-        panel.className = 'es_dlc_confirm_panel';
-        appendDLCText(panel, 'es_dlc_confirm_title', title);
-        if (detail) {
-            appendDLCText(panel, 'es_dlc_confirm_detail', detail);
-        }
-
-        const footer = document.createElement('div');
-        footer.className = 'es_dlc_confirm_footer';
-
-        const cancel = document.createElement('button');
-        cancel.type = 'button';
-        cancel.className = 'es_dlc_confirm_btn';
-        cancel.textContent = t("store_dlc_cancel", "取消");
-
-        const okBtn = document.createElement('button');
-        okBtn.type = 'button';
-        okBtn.className = 'es_dlc_confirm_btn es_dlc_confirm_btn_primary';
-        okBtn.textContent = t("store_dlc_claim", "领取");
-
-        const close = (value) => {
-            document.removeEventListener('keydown', onKeyDown);
-            overlay.remove();
-            resolve(value);
-        };
-
-        const onKeyDown = (event) => {
-            if (event.key === 'Escape') {
-                close(false);
-            }
-        };
-
-        cancel.addEventListener('click', () => close(false));
-        okBtn.addEventListener('click', () => close(true));
-        overlay.addEventListener('click', (event) => {
-            if (event.target === overlay) {
-                close(false);
-            }
-        });
-
-        footer.appendChild(cancel);
-        footer.appendChild(okBtn);
-        panel.appendChild(footer);
-        overlay.appendChild(panel);
-        document.body.appendChild(overlay);
-        document.addEventListener('keydown', onKeyDown);
-        okBtn.focus();
-    });
 }
 
 function showDLCStoreCacheNotice() {
@@ -415,15 +362,10 @@ async function refreshDLCSection() {
     const url = new URL(location.href);
     url.searchParams.set('st_dlcts', Date.now().toString());
 
-    const response = await fetchSameOriginHtml(url, {
+    const html = await fetchSameOriginHtml(url, {
         credentials: 'include',
         cache: 'no-store'
     });
-    if (!response.ok) {
-        throw new Error(t("store_dlc_requestFailed", "请求失败，HTTP 状态码：$status$", { status: response.status }));
-    }
-
-    const html = await response.text();
     const doc = new DOMParser().parseFromString(html, 'text/html');
     const nextSection = doc.querySelector(".game_area_dlc_section");
     if (!nextSection) {
@@ -442,22 +384,10 @@ async function fetchSameOriginHtml(input, init = {}) {
         throw new Error(t("store_dlc_sameOriginRejected", "DLC同源请求被拒绝"));
     }
 
-    const options = { ...init };
-    let timer = null;
-    if (typeof AbortController === "function") {
-        const controller = new AbortController();
-        timer = setTimeout(() => controller.abort(), SAME_ORIGIN_FETCH_TIMEOUT_MS);
-        options.signal = controller.signal;
-    }
-
-    try {
-        // ⚠️ 例外：DLC 状态和免费领取参数只在 Steam 同源 HTML 中可见，无法安全走后台跨域代理。
-        return await fetch(url.toString(), options);
-    } finally {
-        if (timer) {
-            clearTimeout(timer);
-        }
-    }
+    // ⚠️ 例外：DLC 状态和免费领取参数只在 Steam 同源 HTML 中可见，时限含正文读取。
+    const response = await fetch(url.toString(), { ...init, signal: AbortSignal.timeout(SAME_ORIGIN_FETCH_TIMEOUT_MS) });
+    if (!response.ok) throw new Error(t("store_dlc_requestFailed", "请求失败，HTTP 状态码：$status$", { status: response.status }));
+    return response.text();
 }
 
 function selectUnownedDLC(dlcSection) {
@@ -496,96 +426,51 @@ function deselectAllDLC(dlcSection) {
     updateCartButton(dlcSection);
 }
 
-async function fetchSubidFromDLCPage(dlcUrl) {
-    try {
-        const response = await fetchSameOriginHtml(dlcUrl, {
-            credentials: "include"
-        });
-        const html = await response.text();
-        
-        // Steam 免费 DLC 按钮只在详情页暴露 AddFreeLicense 参数。
-        const match = html.match(/AddFreeLicense\s*\(\s*(\d+)\s*,/);
-        if (match && match[1]) {
-            return match[1];
-        }
-        
-        return null;
-    } catch (error) {
-        return null;
+async function fetchSubidFromDLCPage({ url, appid }) {
+    if (!/^[1-9]\d*$/.test(appid)) return null;
+    const html = await fetchSameOriginHtml(url, { credentials: "include" });
+    const page = new DOMParser().parseFromString(html, 'text/html');
+    const sections = page.querySelectorAll('#game_area_purchase .game_area_purchase_game[aria-labelledby="game_area_purchase_section_free_' + appid + '"]');
+    if (sections.length !== 1) return null;
+
+    // 只读该 DLC 购买区内按钮声明的原生动作，忽略下载链接、描述及其他商品的动作。
+    const buttons = sections[0].querySelectorAll('.game_purchase_action .btn_addtocart :is(a, button)');
+    const matches = [];
+    for (const button of buttons) {
+        if (button.closest('.game_area_purchase_game') !== sections[0]) continue;
+        const action = button.hasAttribute('onclick') ? button.getAttribute('onclick') :
+            button.getAttribute('href')?.match(/^javascript:([\s\S]*)$/i)?.[1];
+        const match = action?.match(/^\s*AddFreeLicense\s*\(\s*([1-9]\d*)\s*,/);
+        if (match) matches.push(match[1]);
     }
-}
-
-function subidFromSection(section) {
-    const freeLicenseBtn = section.querySelector('[onclick*="AddFreeLicense"]');
-    if (!freeLicenseBtn) return null;
-
-    const onclick = freeLicenseBtn.getAttribute('onclick') || '';
-    const match = onclick.match(/AddFreeLicense\s*\(\s*(\d+)/);
-    return match && match[1] ? match[1] : null;
+    return matches.length === 1 ? matches[0] : null;
 }
 
 async function resolveFreeDLCSubids(freeUrls, loadingDiv) {
     const freeDLCs = [];
+    const skipped = [];
     const seenSubids = new Set();
 
     for (let i = 0; i < freeUrls.length; i++) {
-        const { url, name } = freeUrls[i];
+        const item = freeUrls[i];
         if (loadingDiv) {
             loadingDiv.querySelector('.es_free_dlc_count').textContent = `${i + 1} / ${freeUrls.length}`;
         }
 
-        try {
-            const subid = await fetchSubidFromDLCPage(url);
-            if (subid && !seenSubids.has(subid)) {
-                seenSubids.add(subid);
-                freeDLCs.push({ subid, name, appid: freeUrls[i].appid || '' });
-            }
-        } catch (error) {
+        const subid = await fetchSubidFromDLCPage(item);
+        if (!subid) {
+            skipped.push({ name: item.name, status: 'unattempted', labelId: 'noButton' });
+        } else if (!seenSubids.has(subid)) {
+            seenSubids.add(subid);
+            freeDLCs.push({ subid, name: item.name, appid: item.appid });
         }
     }
 
-    return freeDLCs;
+    return { freeDLCs, skipped };
 }
 
 async function claimAllFreeDLC(dlcSection) {
     const freeUrls = scan.freeRows(dlcSection);
-    
-    if (freeUrls.length === 0) {
-        const freeGameSections = document.querySelectorAll('.game_area_purchase_game');
-        const freeDLCs = [];
-        
-        freeGameSections.forEach(section => {
-            const priceNode = section.querySelector('.game_purchase_price');
-            if (!priceNode) return;
-            
-            const priceText = priceNode.textContent.trim();
-            
-            if (priceText.includes('免费') || 
-                priceText.toLowerCase().includes('free') ||
-                priceText.includes('無料')) {
-                
-                const subid = subidFromSection(section);
-                if (subid) {
-                    const titleNode = section.querySelector('.title');
-                    freeDLCs.push({
-                        subid,
-                        name: titleNode ? titleNode.textContent.trim().replace(/^下载\s+/, '') : t("store_dlc_unknownItem", "未知项目")
-                    });
-                }
-            }
-        });
-        
-        if (freeDLCs.length > 0) {
-            const confirmMessage = t("store_dlc_claimConfirm", "找到$count$个免费DLC，是否立即领取？", {
-                count: freeDLCs.length,
-            });
-            const detail = `${freeDLCs.slice(0, 5).map(d => d.name).join('\n')}${freeDLCs.length > 5 ? '\n...' : ''}`;
-            if (await showDLCConfirm(confirmMessage, detail)) {
-                claimFreeDLCsBatch(freeDLCs);
-            }
-            return;
-        }
-    }
     
     if (freeUrls.length === 0) {
         showDLCNotice(t("store_dlc_noFreeDlc", "没有找到可领取的免费DLC"), '', false, 2400);
@@ -595,167 +480,100 @@ async function claimAllFreeDLC(dlcSection) {
     const loadingDiv = document.createElement('div');
     loadingDiv.className = 'es_free_dlc_overlay';
     appendDLCText(loadingDiv, '', t("store_dlc_loadingFreeInfo", "正在获取免费DLC信息..."));
-    const countEl = appendDLCText(loadingDiv, 'es_free_dlc_count', `0 / ${freeUrls.length}`);
+    appendDLCText(loadingDiv, 'es_free_dlc_count', `0 / ${freeUrls.length}`);
     document.body.appendChild(loadingDiv);
     
-    const freeDLCs = await resolveFreeDLCSubids(freeUrls, loadingDiv);
-    
-    document.body.removeChild(loadingDiv);
-    
-    if (freeDLCs.length === 0) {
-        showDLCNotice(
-            t("store_dlc_loadFreeInfoFailed", "无法获取免费DLC信息"),
-            t("store_dlc_tryLater", "请稍后重试"),
-            true,
-            2600
-        );
-        return;
+    let resolved;
+    try {
+        resolved = await resolveFreeDLCSubids(freeUrls, loadingDiv);
+    } catch (error) {
+        throw new Error(error.message + ' · ' + t("dlcClaim_unattempted", "未执行：$count$", { count: freeUrls.length }), { cause: error });
+    } finally {
+        loadingDiv.remove();
     }
     
-    claimFreeDLCsBatch(freeDLCs);
+    await claimFreeDLCsBatch(resolved.freeDLCs, resolved.skipped);
 }
 
-function claimFreeDLCsBatch(freeDLCs) {
-    let successCount = 0;
-    let failCount = 0;
-    let currentIndex = 0;
-    const failedItems = [];
-    const batchId = `free_dlc_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+async function claimFreeDLCsBatch(freeDLCs, skipped = []) {
     const startedAt = Date.now();
-
-    log.info("dlc-free-claim-start", "开始批量领取免费 DLC", {
-        count: Array.isArray(freeDLCs) ? freeDLCs.length : 0,
-    });
-    
+    const count = freeDLCs.length + skipped.length;
     const statusDiv = document.createElement('div');
     statusDiv.id = 'es_free_dlc_status';
     statusDiv.className = 'es_free_dlc_overlay';
     document.body.appendChild(statusDiv);
-    
-    function updateStatus(currentName = '') {
-        statusDiv.replaceChildren();
-        appendDLCText(statusDiv, '', t("store_dlc_claimingFree", "正在领取免费DLC..."));
-        appendDLCText(statusDiv, 'es_free_dlc_progress', `${currentIndex} / ${freeDLCs.length}`);
-        if (currentName) {
-            appendDLCText(statusDiv, 'es_free_dlc_current', currentName);
-        }
-        appendDLCText(statusDiv, 'es_free_dlc_success', t("store_dlc_claimSuccessCount", "成功: $count$", { count: successCount }));
-        appendDLCText(statusDiv, 'es_free_dlc_error', t("store_dlc_claimFailedCount", "失败: $count$", { count: failCount }));
-    }
+    const heading = appendDLCText(statusDiv, '', t("store_dlc_claimingFree", "正在领取免费DLC..."));
+    const progress = appendDLCText(statusDiv, 'es_free_dlc_progress', '');
+    progress.setAttribute('role', 'status');
+    log.info("dlc-free-claim-start", "开始批量领取免费 DLC", { count });
 
-    function renderFinished() {
-        statusDiv.replaceChildren();
-        appendDLCText(statusDiv, 'es_free_dlc_done', t("store_dlc_claimComplete", "领取完成！"));
-        appendDLCText(statusDiv, '', t("store_dlc_claimSuccessCount", "成功: $count$", { count: successCount }));
-        appendDLCText(statusDiv, '', t("store_dlc_claimFailedCount", "失败: $count$", { count: failCount }));
-        if (failedItems.length > 0) {
-            const failedText = t("store_dlc_claimFailedItems", "失败项：$items$", {
-                items: `${failedItems.slice(0, 5).map(item => `${item.name}（${item.message}）`).join(t("store_dlc_failedItemSeparator", "；"))}${failedItems.length > 5 ? t("store_dlc_moreFailedItems", "；...") : ""}`,
-            });
-            appendDLCText(statusDiv, 'es_free_dlc_failed_items', failedText);
-        }
-        appendDLCText(statusDiv, 'es_free_dlc_cache_notice', cacheNotice());
-        const footer = appendDLCText(statusDiv, 'es_free_dlc_footer', '');
-        const closeBtn = document.createElement('button');
-        closeBtn.className = 'es_free_dlc_close';
-        closeBtn.type = 'button';
-        closeBtn.textContent = t("store_dlc_close", "关闭");
-        closeBtn.addEventListener("click", () => statusDiv.remove());
-        footer.appendChild(closeBtn);
-    }
-
-    function cleanup(script) {
-        document.removeEventListener(CLAIM_EVT, onClaimEvent);
-        if (script && script.parentNode) script.remove();
-    }
-
-    function onClaimEvent(event) {
-        const detail = event.detail || {};
-        if (detail.batchId !== batchId) return;
-
-        if (detail.type === 'progress') {
-            currentIndex = detail.index || currentIndex;
-            updateStatus(detail.item?.name || '');
-            return;
-        }
-
-        if (detail.type === 'item') {
-            currentIndex = detail.index || currentIndex;
-            const result = detail.result || {};
-            if (result.ok) {
-                successCount++;
-            } else {
-                failCount++;
-                failedItems.push({
-                    name: result.name || t("store_dlc_unknownItem", "未知项目"),
-                    message: result.message || t("store_dlc_unknownError", "未知错误")
-                });
+    let checking = false;
+    let outcome;
+    try {
+        outcome = freeDLCs.length ? await dlcBridge.claimBatch(freeDLCs, detail => {
+            if (detail.type === 'progress') progress.textContent = `${detail.index} / ${freeDLCs.length}　${detail.name}`;
+            if (detail.type === 'checking') {
+                checking = true;
+                progress.textContent = t("dlcClaim_checking", "正在核对 Steam 库…");
             }
-            updateStatus(result.name || '');
-            return;
-        }
-
-        if (detail.type === 'done') {
-            cleanup(document.getElementById(batchId));
-            markClaimed(detail.results);
-            renderFinished();
-            log[failCount > 0 ? "warn" : "info"]("dlc-free-claim-success", "批量领取免费 DLC 完成", {
-                count: freeDLCs.length,
-                successCount,
-                failCount,
-                durationMs: Date.now() - startedAt,
-            });
-            setTimeout(() => {
-                refreshDLCSection().catch(error => {
-                    log.warn("dlc-refresh-after-claim-failed", "领取完成后刷新DLC区块失败", {
-                        count: freeDLCs.length,
-                        successCount,
-                        failCount,
-                        error,
-                    });
-                });
-            }, 1200);
-            return;
-        }
-
-        if (detail.type === 'error') {
-            cleanup(document.getElementById(batchId));
-            failCount = Math.max(failCount, freeDLCs.length - successCount);
-            failedItems.push({
-                name: t("store_dlc_batchClaim", "批量领取"),
-                message: detail.message || t("store_dlc_executionFailed", "执行失败")
-            });
-            renderFinished();
-            log.error("dlc-free-claim-failed", "批量领取免费 DLC 失败", {
-                count: freeDLCs.length,
-                successCount,
-                failCount,
-                durationMs: Date.now() - startedAt,
-                error: detail.message || t("store_dlc_executionFailed", "执行失败"),
-            });
-        }
+        }) : { results: [] };
+    } catch (error) {
+        statusDiv.remove();
+        throw new Error(t("store_dlc_scriptInjectionFailed", "脚本注入失败") + ' · ' +
+            t("dlcClaim_unattempted", "未执行：$count$", { count }), { cause: error });
     }
 
-    document.addEventListener(CLAIM_EVT, onClaimEvent);
-
-    updateStatus();
-    dlcBridge.claimBatch(freeDLCs, batchId)
-        .catch(error => {
-            document.removeEventListener(CLAIM_EVT, onClaimEvent);
-            failCount = freeDLCs.length;
-            failedItems.push({
-                name: t("store_dlc_batchClaim", "批量领取"),
-                message: error.message || t("store_dlc_scriptInjectionFailed", "脚本注入失败")
-            });
-            renderFinished();
-            log.error("dlc-free-claim-failed", "批量领取免费 DLC 失败", {
-                count: freeDLCs.length,
-                successCount,
-                failCount,
-                durationMs: Date.now() - startedAt,
-                error,
-            });
+    const results = [...outcome.results, ...skipped];
+    const confirmed = results.filter(item => item.status === 'confirmed').length;
+    const owned = results.filter(item => item.status === 'owned').length;
+    const failed = results.filter(item => item.status === 'failed').length;
+    const unconfirmed = results.filter(item => item.status === 'unconfirmed').length;
+    const unattempted = count - confirmed - owned - failed - unconfirmed;
+    const partial = !!(failed || unconfirmed || unattempted || outcome.error);
+    const meta = { count, successCount: confirmed, ownedCount: owned, failCount: failed,
+        unconfirmedCount: unconfirmed, unattemptedCount: unattempted, durationMs: Date.now() - startedAt };
+    if (partial) {
+        const stopped = results.find(item => item.stop);
+        log.warn("dlc-free-claim-incomplete", "免费 DLC 批次未全部确认入库", {
+            ...meta, reason: outcome.labelId || stopped?.labelId, status: stopped?.http,
+            error: outcome.error || stopped?.error,
+            ...(outcome.error && stopped?.error ? { requestError: stopped.error } : {}),
         });
+    } else {
+        log.info("dlc-free-claim-success", "免费 DLC 批次已确认入库", meta);
+    }
+    progress.remove();
+    heading.textContent = t("dlcClaim_results", "领取结果");
+    const counts = [
+        [confirmed, 'dlcClaim_confirmed', '已确认在库：$count$'],
+        [owned, 'dlcClaim_owned', '此前已拥有：$count$'],
+        [failed, 'store_dlc_claimFailedCount', '失败：$count$'],
+        [unconfirmed, 'dlcClaim_unconfirmedCount', '无法确认：$count$'],
+        [unattempted, 'dlcClaim_unattempted', '未执行：$count$'],
+    ];
+    for (const [count, key, label] of counts) {
+        if (count) appendDLCText(statusDiv, '', t(key, label, { count }));
+    }
+    if (unconfirmed) appendDLCText(statusDiv, '', t("dlcClaim_unknownResponse", "无法确认是否已领取，请到 Steam 库核对。"));
+    if (outcome.labelId) appendDLCText(statusDiv, '', t('dlcClaim.' + outcome.labelId, ''));
+    if (outcome.error) appendDLCText(statusDiv, 'es_free_dlc_error', checking ?
+        t("dlcClaim_checkFailed", "无法读取 Steam 库。") : outcome.error.message);
+    const problems = results.filter(item => item.status === 'unconfirmed' || item.status === 'failed' || item.labelId === 'noButton');
+    if (problems.length) {
+        const list = appendDLCText(statusDiv, 'es_free_dlc_failed_items', '');
+        for (const item of problems) {
+            const reason = item.labelId ? t('dlcClaim.' + item.labelId, '', { status: item.http }) : '';
+            appendDLCText(list, '', reason ? `${item.name} · ${reason}` : item.name);
+        }
+    }
+    const footer = appendDLCText(statusDiv, 'es_free_dlc_footer', '');
+    const closeBtn = document.createElement('button');
+    closeBtn.className = 'es_free_dlc_close';
+    closeBtn.type = 'button';
+    closeBtn.textContent = t("store_dlc_close", "关闭");
+    closeBtn.addEventListener("click", () => statusDiv.remove());
+    footer.appendChild(closeBtn);
+    markClaimed(results);
 }
 
 function addCartButton(dlcSection) {
@@ -933,7 +751,7 @@ function stopDLCCheckboxes() {
     });
 
     document.querySelectorAll(".es_dlc_label").forEach(label => label.remove());
-    document.querySelectorAll("#es_dlc_option_panel, #es_selected_btn, #es_dlc_notice, #es_dlc_confirm, #es_free_dlc_status, .es_free_dlc_overlay").forEach(node => node.remove());
+    document.querySelectorAll("#es_dlc_option_panel, #es_selected_btn, #es_dlc_notice, #es_free_dlc_status, .es_free_dlc_overlay").forEach(node => node.remove());
     document.querySelectorAll(".game_area_dlc_row").forEach(row => {
         row.classList.remove("es_dlc_checked", "es_dlc_in_cart", "es_dlc_claimed");
     });

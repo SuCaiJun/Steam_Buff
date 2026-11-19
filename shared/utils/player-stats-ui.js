@@ -27,9 +27,31 @@
     `,
   });
   function text(value) { return String(value ?? "").trim(); }
-  function formatMonth(monthKey) { const match = text(monthKey).match(/^(\d{4})-(\d{2})$/); return match ? `${match[1]}年${Number(match[2])}月` : "--"; }
-  function formatPlaytime(value) { if (value === null || value === undefined || value === "") return "--"; const minutes = Number(value); if (!Number.isFinite(minutes) || minutes < 0) return "--"; return `${(minutes / 60).toFixed(1)} 小时`; }
-  function compactNumber(value) { const n = Number(value); if (!Number.isFinite(n)) return "--"; if (n >= 10000) return `${(n / 10000).toFixed(1).replace(/\.0$/, "")}万`; if (n >= 1000) return `${(n / 1000).toFixed(1).replace(/\.0$/, "")}千`; return String(Math.round(n)); }
+  const uiLocale = () => root.STI18n?.intlLocale() || "zh-CN";
+  function uiText(key, fallback, params) {
+    if (root.STI18n) return root.STI18n.text(key, fallback, params);
+    return fallback.replace(/\$(\w+)\$/g, (_, name) => params[name]);
+  }
+  let chartLocale, chartFormatters;
+  function formats() {
+    const locale = uiLocale();
+    if (chartLocale !== locale) {
+      chartFormatters = {
+        month: new Intl.DateTimeFormat(locale, { year: "numeric", month: "long", timeZone: "UTC" }),
+        day: new Intl.DateTimeFormat(locale, { month: "numeric", day: "numeric", timeZone: "UTC" }),
+        date: new Intl.DateTimeFormat(locale, { year: "numeric", month: "numeric", day: "numeric", timeZone: "UTC" }),
+        time: new Intl.DateTimeFormat(locale, { hour: "2-digit", minute: "2-digit", timeZone: "UTC" }),
+        dateTime: new Intl.DateTimeFormat(locale, { dateStyle: "short", timeStyle: "short", timeZone: "UTC" }),
+        compact: new Intl.NumberFormat(locale, { notation: "compact", maximumFractionDigits: 1 }),
+        percent: new Intl.NumberFormat(locale, { style: "percent", minimumFractionDigits: 1, maximumFractionDigits: 1, signDisplay: "exceptZero" }),
+      };
+      chartLocale = locale;
+    }
+    return chartFormatters;
+  }
+  function formatMonth(monthKey) { const match = text(monthKey).match(/^(\d{4})-(\d{2})$/); return match ? formats().month.format(Date.UTC(Number(match[1]), Number(match[2]) - 1)) : "--"; }
+  function formatPlaytime(value) { if (value === null || value === undefined || value === "") return "--"; const minutes = Number(value); if (!Number.isFinite(minutes) || minutes < 0) return "--"; return uiText("playerStats.hours", "$hours$ 小时", { hours: (minutes / 60).toLocaleString(uiLocale(), { minimumFractionDigits: 1, maximumFractionDigits: 1 }) }); }
+  function compactNumber(value) { const n = Number(value); if (!Number.isFinite(n)) return "--"; return formats().compact.format(n); }
   function dailyPeaks(samples, limit = PREVIEW_DAY_COUNT) { if (!Array.isArray(samples)) throw new TypeError("在线人数趋势样本不是数组"); if (!Number.isInteger(limit) || limit <= 0) throw new TypeError("在线人数趋势天数无效"); const byDay = new Map(); for (const sample of samples) { if (!Number.isFinite(sample?.timestamp) || !Number.isFinite(sample?.players) || typeof sample?.collected_at !== "string") throw new TypeError("在线人数趋势样本无效"); const date = new Date(sample.timestamp); const day = Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()); const current = byDay.get(day); if (!current || sample.players > current.players) byDay.set(day, sample); } return [...byDay.entries()].sort(([a], [b]) => a - b).slice(-limit).map(([, sample]) => sample); }
   function createController(options = {}) {
     const statsApi = options.statsApi || root.STPlayerStats, requestBus = options.requestBus || root.STMessageBus;
@@ -62,12 +84,12 @@
     let activeAppId = 0, activeCard = null, activeData = null, activeLoad = null, activeCurrent = null, activeModal = null, modalKeyHandler = null, tooltip = null;
     // 页面会话内保留每个 AppID 的请求终态；stop/start 只卸载卡片，不触发自动重试。
     const loadStates = new Map();
-    function formatNumber(value) { if (value === null || value === undefined || value === "") return "--"; const n = Number(value); if (!Number.isFinite(n)) return "--"; try { return new Intl.NumberFormat(root.document?.documentElement?.lang || "zh-CN", { maximumFractionDigits:0 }).format(Math.round(n)); } catch (error) {
+    function formatNumber(value) { if (value === null || value === undefined || value === "") return "--"; const n = Number(value); if (!Number.isFinite(n)) return "--"; try { return new Intl.NumberFormat(uiLocale(), { maximumFractionDigits:0 }).format(Math.round(n)); } catch (error) {
       globalThis.STLoggerFactory.reportError(error, { domain: "shared", feature: "utils-player-stats-ui", event: "format-number-failed", message: "共享功能处理失败", level: "warn", phase: "formatNumber" }); return String(Math.round(n)); } }
     function removeTooltip() { tooltip?.remove?.(); tooltip = null; }
     function moveTooltip(event) { if (tooltip && Number.isFinite(event?.clientX) && Number.isFinite(event?.clientY)) { tooltip.style.left = `${event.clientX + 12}px`; tooltip.style.top = `${event.clientY - 12}px`; } }
-    function showTooltip(label, value, event, accent = "blue") { removeTooltip(); const node = root.document.createElement("div"), date = root.document.createElement("span"), number = root.document.createElement("strong"); node.className = "st-player-stats__tooltip"; node.dataset.accent = accent; date.textContent = label; number.textContent = `${formatNumber(value)} 人`; node.append(date, number); root.document.body?.appendChild(node); tooltip = node; moveTooltip(event); }
-    function removeCard() { removeTooltip(); activeCard?.remove?.(); root.document?.getElementById?.(rootId)?.remove?.(); activeCard = null; }
+    function showTooltip(label, value, event, accent = "blue") { removeTooltip(); const node = root.document.createElement("div"), date = root.document.createElement("span"), number = root.document.createElement("strong"); node.className = "st-player-stats__tooltip"; node.dataset.accent = accent; date.textContent = label; number.textContent = uiText("playerStats.players", "$count$ 人", { count: formatNumber(value) }); node.append(date, number); root.document.body?.appendChild(node); tooltip = node; moveTooltip(event); }
+    function removeCard() { if (activeCard && root.STI18n?.CHANGE_EVENT) root.removeEventListener?.(root.STI18n.CHANGE_EVENT, onLocaleChange); removeTooltip(); activeCard?.remove?.(); root.document?.getElementById?.(rootId)?.remove?.(); activeCard = null; }
     function closeModal() { removeTooltip(); activeModal?.remove?.(); activeModal = null; if (modalKeyHandler) { root.removeEventListener?.("keydown", modalKeyHandler); modalKeyHandler = null; } }
     function statCell(label, key) { const cell = root.document.createElement("div"), caption = root.document.createElement("span"), value = root.document.createElement("div"); cell.className = `as_stat st-player-stats__stat st-player-stats__stat--${key}`; caption.className = "st-player-stats__label"; caption.textContent = label; value.className = "st-player-stats__value"; value.dataset.stPlayerStat = key; value.textContent = "--"; cell.append(caption, value); return cell; }
     function playtimeCell(label, key) { const cell = root.document.createElement("div"), caption = root.document.createElement("span"), value = root.document.createElement("div"); cell.className = "st-player-stats__playtime-stat"; caption.className = "st-player-stats__playtime-label"; caption.textContent = label; value.className = "st-player-stats__playtime-value"; value.dataset.stPlayerPlaytime = key; value.textContent = "--"; cell.append(caption, value); return cell; }
@@ -92,17 +114,17 @@
       const playtimeGrid = root.document.createElement("div");
       const preview = root.document.createElement("div");
       title.className = steam ? "_3A_c3YHYd4YIjA8Y-olnPl _1Q2q_tQ9_Eq8YdEHNAHS3F _3jY6xWI4URhFyYsanh9VKL st-player-stats__title" : "block responsive_apppage_details_right heading st-player-stats__title";
-      title.textContent = steam ? "Steam Buff · 玩家统计" : "玩家统计";
+      title.textContent = steam ? uiText("playerStats.brandedTitle", "Steam Buff · 玩家统计") : uiText("settings_feature_steam_player_stats_name", "玩家统计");
       panel.className = steam ? "_31ptFGGMZrSQc5BCX1e5lm _2G5B7o_YoI__u11--EFjal _3KfxIwlXEvum7FCD_AM2_t Panel st-player-stats__panel" : "block responsive_apppage_details_right st-player-stats__panel";
       content.className = steam ? "st-player-stats__content" : "block_content_inner as_players st-player-stats__content";
       grid.className = "st-player-stats__grid";
       grid.append(
-        statCell("正在游玩", "current"),
-        statCell("今日巅峰", "todayPeak"),
-        statCell("昨日巅峰", "yesterdayPeak"),
-        statCell("本月巅峰", "monthlyPeak"),
-        statCell("上月巅峰", "lastMonthPeak"),
-        statCell("历史巅峰", "historicalPeak"),
+        statCell(uiText("playerStats.playing", "正在游玩"), "current"),
+        statCell(uiText("playerStats.today", "今日巅峰"), "todayPeak"),
+        statCell(uiText("playerStats.yesterday", "昨日巅峰"), "yesterdayPeak"),
+        statCell(uiText("playerStats.month", "本月巅峰"), "monthlyPeak"),
+        statCell(uiText("playerStats.lastMonth", "上月巅峰"), "lastMonthPeak"),
+        statCell(uiText("playerStats.allTime", "历史巅峰"), "historicalPeak"),
       );
       divider.className = "st-player-stats__divider";
       divider.hidden = true;
@@ -111,9 +133,9 @@
       playtime.hidden = true;
       playtimeGrid.className = "st-player-stats__playtime-grid";
       playtimeGrid.append(
-        playtimeCell("主线通关", "story"),
-        playtimeCell("主线&支线全清", "extras"),
-        playtimeCell("全收集", "complete"),
+        playtimeCell(uiText("playerStats.story", "主线通关"), "story"),
+        playtimeCell(uiText("playerStats.extras", "主线&支线全清"), "extras"),
+        playtimeCell(uiText("playerStats.complete", "全收集"), "complete"),
       );
       playtime.appendChild(playtimeGrid);
       preview.className = "st-player-stats__preview";
@@ -124,10 +146,10 @@
       return card;
     }
     function isCurrentCard(card) { return !!card && card.id === rootId && card.classList.contains("st-player-stats") && !!card.querySelector(".st-player-stats__title") && !!card.querySelector(".st-player-stats__content") && !!card.querySelector(".st-player-stats__panel") && !!card.querySelector("[data-st-player-stat=\"current\"]") && !!card.querySelector("[data-st-player-stats-preview=\"15d\"]") && (cardLayout !== "steam-library" || !!card.querySelector(".st-player-stats__surface[role=\"region\"]")); }
-    function renderLoading() { if (!activeCard) return; const grid = activeCard.querySelector(".st-player-stats__grid"), preview = activeCard.querySelector("[data-st-player-stats-preview=\"15d\"]"); if (!preview) return; if (grid) { grid.hidden = false; for (const value of grid.querySelectorAll("[data-st-player-stat]")) { value.dataset.loading = "1"; value.textContent = ""; } } const title = root.document.createElement("div"), shell = root.document.createElement("div"), chart = root.document.createElement("div"), bars = root.document.createElement("div"), message = root.document.createElement("p"); title.className = "st-player-stats__preview-title"; title.textContent = "15日在线趋势"; shell.className = "st-player-stats__loading-preview"; chart.className = "st-player-stats__loading-chart"; bars.className = "st-player-stats__loading-bars"; for (let index = 0; index < 6; index += 1) { const bar = root.document.createElement("span"); bar.className = "st-player-stats__loading-bar"; bars.appendChild(bar); } chart.appendChild(bars); message.className = "st-player-stats__loading-text"; message.textContent = "正在请求数据中..."; shell.append(chart, message); preview.replaceChildren(title, shell); activeCard.dataset.status = "loading"; }
+    function renderLoading() { if (!activeCard) return; const grid = activeCard.querySelector(".st-player-stats__grid"), preview = activeCard.querySelector("[data-st-player-stats-preview=\"15d\"]"); if (!preview) return; if (grid) { grid.hidden = false; for (const value of grid.querySelectorAll("[data-st-player-stat]")) { value.dataset.loading = "1"; value.textContent = ""; } } const title = root.document.createElement("div"), shell = root.document.createElement("div"), chart = root.document.createElement("div"), bars = root.document.createElement("div"), message = root.document.createElement("p"); title.className = "st-player-stats__preview-title"; title.textContent = uiText("playerStats.preview", "15日在线趋势"); shell.className = "st-player-stats__loading-preview"; chart.className = "st-player-stats__loading-chart"; bars.className = "st-player-stats__loading-bars"; for (let index = 0; index < 6; index += 1) { const bar = root.document.createElement("span"); bar.className = "st-player-stats__loading-bar"; bars.appendChild(bar); } chart.appendChild(bars); message.className = "st-player-stats__loading-text"; message.textContent = uiText("playerStats.loading", "正在请求数据中..."); shell.append(chart, message); preview.replaceChildren(title, shell); activeCard.dataset.status = "loading"; }
     function svg(tag) { return root.document.createElementNS("http://www.w3.org/2000/svg", tag); }
-    function previewChartSvg(samples) { const width = 400, height = 120, left = 10, right = 390, top = 12, bottom = 88, node = svg("svg"); node.setAttribute("viewBox", `0 0 ${width} ${height}`); node.setAttribute("preserveAspectRatio", "none"); node.setAttribute("role", "img"); node.setAttribute("aria-label", "15日在线人数趋势折线图"); node.classList.add("st-player-stats__preview-svg"); const values = samples.map((sample) => sample.players), max = Math.max(...values), min = Math.min(...values), range = max - min || 1, points = samples.map((sample, index) => ({ sample, x:samples.length > 1 ? left + index * ((right - left) / (samples.length - 1)) : 200, y:bottom - ((sample.players - min) / range) * (bottom - top) })), dateLabelIndexes = new Set(labelIndexes(points.length, 8)); const line = svg("polyline"); line.setAttribute("points", points.map(({x,y}) => `${x.toFixed(1)},${y.toFixed(1)}`).join(" ")); line.setAttribute("fill", "none"); line.setAttribute("stroke", "#66c0f4"); line.setAttribute("stroke-width", "2"); line.setAttribute("stroke-linejoin", "round"); node.appendChild(line); for (const [index, point] of points.entries()) { const value = svg("text"), circle = svg("circle"), target = svg("circle"); value.setAttribute("x", point.x); value.setAttribute("y", Math.max(10, point.y - 7)); value.setAttribute("text-anchor", "middle"); value.setAttribute("fill", "#8f98a0"); value.setAttribute("font-size", "9"); value.textContent = compactNumber(point.sample.players); circle.setAttribute("cx", point.x); circle.setAttribute("cy", point.y); circle.setAttribute("r", "3"); circle.setAttribute("fill", "#66c0f4"); target.setAttribute("cx", point.x); target.setAttribute("cy", point.y); target.setAttribute("r", "12"); target.setAttribute("fill", "transparent"); target.style.cursor = "pointer"; target.addEventListener("mouseenter", (event) => { showTooltip(point.sample.collected_at.slice(0, 10), point.sample.players, event); circle.setAttribute("r", "5"); }); target.addEventListener("mousemove", moveTooltip); target.addEventListener("mouseleave", () => { removeTooltip(); circle.setAttribute("r", "3"); }); node.append(value, circle, target); if (dateLabelIndexes.has(index)) { const date = svg("text"); date.setAttribute("x", point.x); date.setAttribute("y", "108"); date.setAttribute("text-anchor", "middle"); date.setAttribute("fill", "#556772"); date.setAttribute("font-size", "8"); date.textContent = point.sample.collected_at.slice(5, 10).replace("-", "/"); node.appendChild(date); } } return node; }
-    function renderPreview(container, samples) { container.replaceChildren(); const title = root.document.createElement("div"), chart = root.document.createElement("div"); title.className = "st-player-stats__preview-title"; title.textContent = "15日在线趋势"; chart.className = "st-player-stats__preview-chart"; container.append(title, chart); const peaks = dailyPeaks(samples); if (!peaks.length) { const empty = root.document.createElement("p"); empty.className = "st-player-stats__chart-empty"; empty.textContent = "没有可显示的15日趋势数据"; chart.appendChild(empty); return; } chart.appendChild(previewChartSvg(peaks)); const footer = root.document.createElement("div"), minimum = root.document.createElement("span"), more = root.document.createElement("button"), maximum = root.document.createElement("span"); footer.className = "st-player-stats__preview-footer"; minimum.textContent = `最低: ${formatNumber(Math.min(...peaks.map((sample) => sample.players)))}`; more.type = "button"; more.className = "st-player-stats__more"; more.textContent = "查看更多"; more.addEventListener("click", (event) => { event.stopPropagation(); showModal(); }); maximum.textContent = `最高: ${formatNumber(Math.max(...peaks.map((sample) => sample.players)))}`; footer.append(minimum, more, maximum); container.appendChild(footer); }
+    function previewChartSvg(samples) { const width = 400, height = 120, left = 10, right = 390, top = 12, bottom = 88, node = svg("svg"); node.setAttribute("viewBox", `0 0 ${width} ${height}`); node.setAttribute("preserveAspectRatio", "none"); node.setAttribute("role", "img"); node.setAttribute("aria-label", uiText("playerStats.plot", "15日在线人数趋势折线图")); node.classList.add("st-player-stats__preview-svg"); const values = samples.map((sample) => sample.players), max = Math.max(...values), min = Math.min(...values), range = max - min || 1, points = samples.map((sample, index) => ({ sample, x:samples.length > 1 ? left + index * ((right - left) / (samples.length - 1)) : 200, y:bottom - ((sample.players - min) / range) * (bottom - top) })), dateLabelIndexes = new Set(labelIndexes(points.length, 8)); const line = svg("polyline"); line.setAttribute("points", points.map(({x,y}) => `${x.toFixed(1)},${y.toFixed(1)}`).join(" ")); line.setAttribute("fill", "none"); line.setAttribute("stroke", "#66c0f4"); line.setAttribute("stroke-width", "2"); line.setAttribute("stroke-linejoin", "round"); node.appendChild(line); for (const [index, point] of points.entries()) { const value = svg("text"), circle = svg("circle"), target = svg("circle"); value.setAttribute("x", point.x); value.setAttribute("y", Math.max(10, point.y - 7)); value.setAttribute("text-anchor", "middle"); value.setAttribute("fill", "#8f98a0"); value.setAttribute("font-size", "9"); value.textContent = compactNumber(point.sample.players); circle.setAttribute("cx", point.x); circle.setAttribute("cy", point.y); circle.setAttribute("r", "3"); circle.setAttribute("fill", "#66c0f4"); target.setAttribute("cx", point.x); target.setAttribute("cy", point.y); target.setAttribute("r", "12"); target.setAttribute("fill", "transparent"); target.style.cursor = "pointer"; target.addEventListener("mouseenter", (event) => { showTooltip(formats().date.format(point.sample.timestamp), point.sample.players, event); circle.setAttribute("r", "5"); }); target.addEventListener("mousemove", moveTooltip); target.addEventListener("mouseleave", () => { removeTooltip(); circle.setAttribute("r", "3"); }); node.append(value, circle, target); if (dateLabelIndexes.has(index)) { const date = svg("text"); date.setAttribute("x", point.x); date.setAttribute("y", "108"); date.setAttribute("text-anchor", "middle"); date.setAttribute("fill", "#556772"); date.setAttribute("font-size", "8"); date.textContent = formats().day.format(point.sample.timestamp); node.appendChild(date); } } return node; }
+    function renderPreview(container, samples) { container.replaceChildren(); const title = root.document.createElement("div"), chart = root.document.createElement("div"); title.className = "st-player-stats__preview-title"; title.textContent = uiText("playerStats.preview", "15日在线趋势"); chart.className = "st-player-stats__preview-chart"; container.append(title, chart); const peaks = dailyPeaks(samples); if (!peaks.length) { const empty = root.document.createElement("p"); empty.className = "st-player-stats__chart-empty"; empty.textContent = uiText("playerStats.noPreview", "没有可显示的15日趋势数据"); chart.appendChild(empty); return; } chart.appendChild(previewChartSvg(peaks)); const footer = root.document.createElement("div"), minimum = root.document.createElement("span"), more = root.document.createElement("button"), maximum = root.document.createElement("span"); footer.className = "st-player-stats__preview-footer"; minimum.textContent = uiText("playerStats.low", "最低: $count$", { count: formatNumber(Math.min(...peaks.map(sample => sample.players))) }); more.type = "button"; more.className = "st-player-stats__more"; more.textContent = uiText("about_update_viewMore", "查看更多"); more.addEventListener("click", (event) => { event.stopPropagation(); showModal(); }); maximum.textContent = uiText("playerStats.peak", "最高: $count$", { count: formatNumber(Math.max(...peaks.map(sample => sample.players))) }); footer.append(minimum, more, maximum); container.appendChild(footer); }
     function renderMetric(key, value) { const node = activeCard?.querySelector?.(`[data-st-player-stat="${key}"]`); if (!node) return; delete node.dataset.loading; node.textContent = formatNumber(value); }
     function renderPlaytime(hltb, status = "ready") { const section = activeCard?.querySelector?.(".st-player-stats__playtime"), divider = activeCard?.querySelector?.(".st-player-stats__divider"); if (!section || !divider) return; const ready = status === "ready" && hltb && typeof hltb === "object"; section.hidden = !ready; divider.hidden = !ready; if (!ready) return; for (const key of ["story", "extras", "complete"]) { const node = section.querySelector(`[data-st-player-playtime="${key}"]`); if (node) node.textContent = formatPlaytime(hltb[key]); } }
     function renderCard(data, loadState = activeLoad) {
@@ -143,35 +165,117 @@
       if (preview) renderPreview(preview, data?.ranges?.["30d"]);
       activeCard.dataset.status = "ready";
     }
-    function renderGmChartsError(error) { if (!activeCard) return; const grid = activeCard.querySelector(".st-player-stats__grid"); if (grid) grid.hidden = false; for (const key of ["todayPeak", "yesterdayPeak", "monthlyPeak", "lastMonthPeak"]) renderMetric(key, null); renderMetric("current", activeCurrent?.value ?? null); if (activeLoad?.augmentedPeak === "error") renderMetric("historicalPeak", null); renderPlaytime(activeLoad?.hltb, activeLoad?.augmentedPeak); const preview = activeCard.querySelector("[data-st-player-stats-preview=\"15d\"]"); if (preview) { const message = root.document.createElement("p"); message.className = "st-player-stats__chart-empty"; message.textContent = "暂无在线人数数据"; preview.replaceChildren(message); } activeCard.dataset.status = activeCurrent?.source === "steam" ? "partial" : "error"; logger?.warn?.("player-stats-gmcharts-load-failed", "gmCharts 在线人数数据加载失败", { appid:activeAppId, path:root.location?.pathname || "", error }); }
-    function renderCurrentError(error) { renderMetric("current", activeCurrent?.value ?? null); logger?.warn?.("player-stats-steam-current-load-failed", "Steam 实时在线人数加载失败", { appid:activeAppId, path:root.location?.pathname || "", error }); }
+    function renderGmChartsError() {
+      const grid = activeCard.querySelector(".st-player-stats__grid");
+      grid.hidden = false;
+      for (const key of ["todayPeak", "yesterdayPeak", "monthlyPeak", "lastMonthPeak"]) renderMetric(key, null);
+      renderMetric("current", activeCurrent?.value ?? null);
+      activeCard.querySelector("[data-st-player-stats-preview]").replaceChildren();
+      activeCard.dataset.status = activeCurrent?.source === "steam" ? "partial" : "error";
+    }
     function parseGmChartsResponse(response) { if (!response || response.success !== true) throw new Error(text(response?.error) || "gmCharts 在线人数请求失败"); if (typeof response.data !== "string") throw new TypeError("gmCharts 响应不是 JSON 文本"); let payload; try { payload = JSON.parse(response.data); } catch (error) { const result = new Error("gmCharts 响应解析失败"); result.cause = error; throw result; } if (!statsApi?.buildStats) throw new Error("在线人数统计工具未就绪"); return statsApi.buildStats(payload); }
     function parseCurrentResponse(response) { if (!response || response.success !== true) throw new Error(text(response?.error) || "Steam 实时在线人数请求失败"); const currentPlayers = response.currentPlayers; if (typeof currentPlayers !== "number" || !Number.isFinite(currentPlayers) || currentPlayers < 0) throw new TypeError("Steam 实时在线人数无效"); return currentPlayers; }
     function parseAugmentedPeakResponse(response) { if (!response || response.success !== true) throw new Error(text(response?.error) || "Augmented Steam 历史巅峰请求失败"); const historicalPeak = response.historicalPeak; if (typeof historicalPeak !== "number" || !Number.isFinite(historicalPeak) || historicalPeak < 0) throw new TypeError("Augmented Steam 历史巅峰无效"); const rawHltb = response.hltb; if (rawHltb === undefined || rawHltb === null) return { historicalPeak, hltb:null }; if (typeof rawHltb !== "object" || typeof rawHltb.story !== "number" || !Number.isFinite(rawHltb.story) || rawHltb.story < 0 || typeof rawHltb.extras !== "number" || !Number.isFinite(rawHltb.extras) || rawHltb.extras < 0 || typeof rawHltb.complete !== "number" || !Number.isFinite(rawHltb.complete) || rawHltb.complete < 0) throw new TypeError("Augmented Steam 游玩统计无效"); return { historicalPeak, hltb:{ story:rawHltb.story, extras:rawHltb.extras, complete:rawHltb.complete } }; }
-    function isActiveLoad(loadState) { return activeLoad === loadState && activeAppId === loadState.appId; }
+    function isActiveLoad(loadState) { return activeLoad === loadState && activeAppId === loadState.appId && activeCard?.isConnected; }
     function renderSummaryMetric(key, value, formatter = formatNumber) { const node = activeModal?.querySelector?.(`[data-st-player-summary="${key}"]`); if (node) node.textContent = formatter(value); }
     function applyGmChartsData(data, loadState) { loadState.data = data; if (loadState.currentSource !== "steam") { loadState.currentSource = "gmcharts"; loadState.current = data.metrics.current; } if (!isActiveLoad(loadState)) return; activeCurrent = loadState.currentSource === "steam" ? { source:"steam", value:loadState.current } : { source:"gmcharts", value:data.metrics.current }; const metrics = { ...data.metrics, current: activeCurrent.value }; if (loadState.augmentedPeak === "ready" || loadState.augmentedPeak === "error") metrics.historicalPeak = loadState.historicalPeak ?? null; activeData = { ...data, metrics, hltb: loadState.hltb ?? null }; renderCard(activeData, loadState); logger?.info?.("player-stats-load-success", "gmCharts 在线人数数据加载完成", { appid:loadState.appId, route:text(getRoute(loadState.appId)), rangeCounts:Object.fromEntries(Object.entries(data.ranges).map(([key, samples]) => [key, samples.length])) }); }
     function applyCurrentData(value, loadState) { loadState.currentSource = "steam"; loadState.current = value; if (!isActiveLoad(loadState)) return; activeCurrent = { source:"steam", value }; if (activeData) { activeData = { ...activeData, metrics: { ...activeData.metrics, current:value } }; } renderMetric("current", value); renderSummaryMetric("current", value); if (activeCard) activeCard.dataset.status = activeData ? "ready" : "partial"; }
     function applyAugmentedPeakData(value, loadState) { loadState.historicalPeak = value.historicalPeak; loadState.hltb = value.hltb; if (!isActiveLoad(loadState)) return; if (activeData) activeData = { ...activeData, metrics: { ...activeData.metrics, historicalPeak:value.historicalPeak }, hltb:value.hltb }; renderMetric("historicalPeak", value.historicalPeak); renderPlaytime(value.hltb, "ready"); renderSummaryMetric("historicalPeak", value.historicalPeak); for (const key of ["story", "extras", "complete"]) renderSummaryMetric(key, value.hltb?.[key], formatPlaytime); if (activeCard && activeData) activeCard.dataset.status = "ready"; }
-    function restoreLoadState(loadState) { activeLoad = loadState; activeCurrent = loadState.currentSource ? { source:loadState.currentSource, value:loadState.current } : null; if (loadState.data) { const metrics = { ...loadState.data.metrics, current:loadState.current }; if (loadState.augmentedPeak === "ready" || loadState.augmentedPeak === "error") metrics.historicalPeak = loadState.historicalPeak ?? null; activeData = { ...loadState.data, metrics, hltb:loadState.hltb ?? null }; renderCard(activeData, loadState); return; } if (loadState.gmCharts === "error") { renderGmChartsError(loadState.gmChartsError); } else { renderLoading(); if (activeCurrent) renderMetric("current", activeCurrent.value); } if (loadState.augmentedPeak === "ready" || loadState.augmentedPeak === "error") { renderMetric("historicalPeak", loadState.historicalPeak ?? null); renderPlaytime(loadState.hltb, loadState.augmentedPeak); } }
-    function load(appId) { const existing = loadStates.get(appId); if (existing) return existing; const loadState = { appId, gmCharts: "pending", steamCurrent: "pending", augmentedPeak: "pending", hltb:null }; loadStates.set(appId, loadState); activeLoad = loadState; const requestPart = (part) => Promise.resolve().then(() => requestStats({ type:"PLAYER_STATS_FETCH", part, appid:String(appId), route:text(getRoute(appId)), timeoutMs:12000, service:part === "gmcharts" ? "gmcharts" : part === "steam-current" ? "steam-api" : "augmented-steam", endpointKey:part === "gmcharts" ? "gmcharts-chart-data" : part === "steam-current" ? "steam-current-players" : "augmented-steam-app" })); loadState.gmChartsPromise = requestPart("gmcharts").then(parseGmChartsResponse).then((data) => { loadState.gmCharts = "ready"; applyGmChartsData(data, loadState); return data; }).catch((error) => {
-      globalThis.STLoggerFactory.reportError(error, { domain: "shared", feature: "utils-player-stats-ui", event: "load-failed", message: "加载功能数据失败", level: "error", phase: "load" }); loadState.gmCharts = "error"; loadState.gmChartsError = error; if (isActiveLoad(loadState)) renderGmChartsError(error); return null; }); loadState.steamCurrentPromise = requestPart("steam-current").then(parseCurrentResponse).then((value) => { loadState.steamCurrent = "ready"; loadState.currentSource = "steam"; loadState.current = value; applyCurrentData(value, loadState); return value; }).catch((error) => {
-      globalThis.STLoggerFactory.reportError(error, { domain: "shared", feature: "utils-player-stats-ui", event: "load-failed", message: "加载功能数据失败", level: "error", phase: "load" }); loadState.steamCurrent = "error"; loadState.currentError = error; if (isActiveLoad(loadState)) renderCurrentError(error); return null; }); loadState.augmentedPeakPromise = requestPart("augmented-peak").then(parseAugmentedPeakResponse).then((value) => { loadState.augmentedPeak = "ready"; applyAugmentedPeakData(value, loadState); return value; }).catch((error) => {
-      globalThis.STLoggerFactory.reportError(error, { domain: "shared", feature: "utils-player-stats-ui", event: "load-failed", message: "加载功能数据失败", level: "error", phase: "load" }); loadState.augmentedPeak = "error"; loadState.augmentedPeakError = error; loadState.historicalPeak = null; loadState.hltb = null; if (isActiveLoad(loadState)) { if (activeData) activeData = { ...activeData, metrics: { ...activeData.metrics, historicalPeak:null }, hltb:null }; renderMetric("historicalPeak", null); renderPlaytime(null, "error"); for (const key of ["story", "extras", "complete"]) renderSummaryMetric(key, null, formatPlaytime); } return null; }); return loadState; }
-    function rangeLabel(value, mode) { const source = text(value); if (mode === "24h") return source.slice(11, 16) || source.slice(0, 16); return source.slice(5, 10).replace("-", "/"); }
-    function tooltipLabel(value) { return text(value).replace(" ", "  ").slice(0, 16); }
+    function restoreLoadState(state) {
+      activeLoad = state;
+      renderFailures(state);
+      activeCurrent = state.currentSource ? { source: state.currentSource, value: state.current } : null;
+      const peakFinished = state.augmentedPeak === "ready" || state.augmentedPeak === "error";
+      if (state.data) {
+        const metrics = { ...state.data.metrics, current: state.current };
+        if (peakFinished) metrics.historicalPeak = state.historicalPeak ?? null;
+        activeData = { ...state.data, metrics, hltb: state.hltb ?? null };
+        renderCard(activeData, state);
+        return;
+      }
+      if (state.gmCharts === "error") renderGmChartsError();
+      else {
+        renderLoading();
+        if (activeCurrent) renderMetric("current", activeCurrent.value);
+      }
+      if (peakFinished) {
+        renderMetric("historicalPeak", state.historicalPeak ?? null);
+        renderPlaytime(state.hltb, state.augmentedPeak);
+      }
+    }
+    const parts = [
+      { key: "gmCharts", part: "gmcharts", service: "gmcharts", endpoint: "gmcharts-chart-data", parse: parseGmChartsResponse, apply: applyGmChartsData, label: "loadGm", fallback: "无法加载 gmCharts 玩家数据。" },
+      { key: "steamCurrent", part: "steam-current", service: "steam-api", endpoint: "steam-current-players", parse: parseCurrentResponse, apply: applyCurrentData, label: "loadSteam", fallback: "无法加载 Steam 实时玩家数据。" },
+      { key: "augmentedPeak", part: "augmented-peak", service: "augmented-steam", endpoint: "augmented-steam-app", parse: parseAugmentedPeakResponse, apply: applyAugmentedPeakData, label: "loadAugmented", fallback: "无法加载 Augmented Steam 的历史峰值和游玩时长。" },
+    ];
+
+    function renderFailures(state) {
+      const failed = parts.filter(part => state[part.key] === "error");
+      let box = activeCard?.querySelector("[data-player-stats-failures]");
+      if (!failed.length) { box?.remove(); return; }
+      if (!box) {
+        box = root.document.createElement("div");
+        box.dataset.playerStatsFailures = "";
+        activeCard.querySelector(".st-player-stats__content").appendChild(box);
+        const message = root.document.createElement("p");
+        message.className = "st-player-stats__chart-empty";
+        message.setAttribute("role", "status");
+        const retry = root.document.createElement("button");
+        retry.type = "button";
+        retry.className = "st-player-stats__more";
+        retry.addEventListener("click", () => {
+          for (const part of parts) if (state[part.key] === "error") void requestPart(state, part);
+          restoreLoadState(state);
+        });
+        box.append(message, retry);
+      }
+      const failure = failed.map(part => uiText("playerStats." + part.label, part.fallback)).join(" ");
+      if (box.firstElementChild.textContent !== failure) box.firstElementChild.textContent = failure;
+      const retryLabel = uiText("common.retry", "重试");
+      if (box.lastElementChild.textContent !== retryLabel) box.lastElementChild.textContent = retryLabel;
+    }
+
+    async function requestPart(state, part) {
+      state[part.key] = "pending";
+      let value;
+      try {
+        const response = await requestStats({ type: "PLAYER_STATS_FETCH", part: part.part, appid: String(state.appId),
+          route: text(getRoute(state.appId)), timeoutMs: 12000, service: part.service, endpointKey: part.endpoint });
+        value = part.parse(response);
+      } catch (error) {
+        state[part.key] = "error";
+        logger?.warn?.("player-stats-load-failed", "玩家统计数据源加载失败", { appid: state.appId, part: part.part, error });
+        if (isActiveLoad(state)) restoreLoadState(state);
+        return;
+      }
+      state[part.key] = "ready";
+      part.apply(value, state);
+      if (isActiveLoad(state)) renderFailures(state);
+    }
+
+    function load(appId) {
+      const existing = loadStates.get(appId);
+      if (existing) return existing;
+      const state = { appId, hltb: null };
+      loadStates.set(appId, state);
+      activeLoad = state;
+      for (const part of parts) void requestPart(state, part);
+      return state;
+    }
+    function rangeLabel(timestamp, mode) { return (mode === "24h" ? formats().time : formats().day).format(timestamp); }
+    function tooltipLabel(timestamp) { return formats().dateTime.format(timestamp); }
     function labelIndexes(length, limit = 7) { if (length <= 0) return []; if (length <= limit) return Array.from({ length }, (_, index) => index); const indexes = [0]; for (let index = 1; index < limit - 1; index += 1) indexes.push(Math.round(index * (length - 1) / (limit - 1))); indexes.push(length - 1); return [...new Set(indexes)]; }
-    function plotSvg(points, mode) { const width = 820, height = 220, left = 48, right = 804, top = 18, bottom = 166, values = points.map((point) => point.players), maximum = Math.max(...values), minimum = Math.min(...values), floor = minimum > 0 ? Math.floor(minimum * .9) : 0, ceiling = maximum > 0 ? Math.ceil(maximum * 1.05) : 1, range = ceiling - floor || 1, node = svg("svg"); node.setAttribute("viewBox", `0 0 ${width} ${height}`); node.classList.add("st-player-stats-modal__svg"); for (let index = 0; index <= 4; index += 1) { const y = top + ((bottom - top) * index / 4), guide = svg("line"), label = svg("text"); guide.setAttribute("x1", left); guide.setAttribute("x2", right); guide.setAttribute("y1", y); guide.setAttribute("y2", y); guide.setAttribute("stroke", "rgba(58,74,86,.7)"); label.setAttribute("x", left - 8); label.setAttribute("y", y + 3); label.setAttribute("text-anchor", "end"); label.setAttribute("fill", "#8f98a0"); label.setAttribute("font-size", "10"); label.textContent = compactNumber(ceiling - ((ceiling - floor) * index / 4)); node.append(guide, label); } const coordinates = points.map((point, index) => ({ point, x: points.length > 1 ? left + index * ((right - left) / (points.length - 1)) : (left + right) / 2, y: bottom - ((point.players - floor) / range) * (bottom - top) })); const line = svg("polyline"); line.setAttribute("points", coordinates.map(({ x, y }) => `${x.toFixed(1)},${y.toFixed(1)}`).join(" ")); line.setAttribute("fill", "none"); line.setAttribute("stroke", "#66c0f4"); line.setAttribute("stroke-width", "2"); line.setAttribute("stroke-linejoin", "round"); line.setAttribute("stroke-linecap", "round"); node.appendChild(line); const highest = maximum, lowest = minimum; for (const [index, coordinate] of coordinates.entries()) { const point = coordinate.point, circle = svg("circle"), target = svg("circle"); const isHigh = point.players === highest, isLow = point.players === lowest; circle.setAttribute("cx", coordinate.x); circle.setAttribute("cy", coordinate.y); circle.setAttribute("r", isHigh || isLow ? "5" : "3"); circle.setAttribute("fill", isHigh ? "#ff8c42" : isLow ? "#ff6b6b" : "#66c0f4"); circle.setAttribute("stroke", "#1b2838"); circle.setAttribute("stroke-width", "2"); if (isHigh) circle.classList.add("st-player-stats-modal__point--high"); if (isLow) circle.classList.add("st-player-stats-modal__point--low"); target.setAttribute("cx", coordinate.x); target.setAttribute("cy", coordinate.y); target.setAttribute("r", "12"); target.setAttribute("fill", "transparent"); target.style.cursor = "pointer"; const label = tooltipLabel(point.collected_at); target.addEventListener("mouseenter", (event) => showTooltip(label, point.players, event)); target.addEventListener("mousemove", moveTooltip); target.addEventListener("mouseleave", removeTooltip); node.appendChild(circle); node.appendChild(target); }
-      for (const index of labelIndexes(points.length)) { const coordinate = coordinates[index], date = svg("text"); date.setAttribute("x", coordinate.x); date.setAttribute("y", "188"); date.setAttribute("text-anchor", "middle"); date.setAttribute("fill", "#8f98a0"); date.setAttribute("font-size", "9"); date.textContent = rangeLabel(coordinate.point.collected_at, mode); node.appendChild(date); } return node; }
+    function plotSvg(points, mode) { const width = 820, height = 220, left = 48, right = 804, top = 18, bottom = 166, values = points.map((point) => point.players), maximum = Math.max(...values), minimum = Math.min(...values), floor = minimum > 0 ? Math.floor(minimum * .9) : 0, ceiling = maximum > 0 ? Math.ceil(maximum * 1.05) : 1, range = ceiling - floor || 1, node = svg("svg"); node.setAttribute("viewBox", `0 0 ${width} ${height}`); node.classList.add("st-player-stats-modal__svg"); for (let index = 0; index <= 4; index += 1) { const y = top + ((bottom - top) * index / 4), guide = svg("line"), label = svg("text"); guide.setAttribute("x1", left); guide.setAttribute("x2", right); guide.setAttribute("y1", y); guide.setAttribute("y2", y); guide.setAttribute("stroke", "rgba(58,74,86,.7)"); label.setAttribute("x", left - 8); label.setAttribute("y", y + 3); label.setAttribute("text-anchor", "end"); label.setAttribute("fill", "#8f98a0"); label.setAttribute("font-size", "10"); label.textContent = compactNumber(ceiling - ((ceiling - floor) * index / 4)); node.append(guide, label); } const coordinates = points.map((point, index) => ({ point, x: points.length > 1 ? left + index * ((right - left) / (points.length - 1)) : (left + right) / 2, y: bottom - ((point.players - floor) / range) * (bottom - top) })); const line = svg("polyline"); line.setAttribute("points", coordinates.map(({ x, y }) => `${x.toFixed(1)},${y.toFixed(1)}`).join(" ")); line.setAttribute("fill", "none"); line.setAttribute("stroke", "#66c0f4"); line.setAttribute("stroke-width", "2"); line.setAttribute("stroke-linejoin", "round"); line.setAttribute("stroke-linecap", "round"); node.appendChild(line); const highest = maximum, lowest = minimum; for (const [index, coordinate] of coordinates.entries()) { const point = coordinate.point, circle = svg("circle"), target = svg("circle"); const isHigh = point.players === highest, isLow = point.players === lowest; circle.setAttribute("cx", coordinate.x); circle.setAttribute("cy", coordinate.y); circle.setAttribute("r", isHigh || isLow ? "5" : "3"); circle.setAttribute("fill", isHigh ? "#ff8c42" : isLow ? "#ff6b6b" : "#66c0f4"); circle.setAttribute("stroke", "#1b2838"); circle.setAttribute("stroke-width", "2"); if (isHigh) circle.classList.add("st-player-stats-modal__point--high"); if (isLow) circle.classList.add("st-player-stats-modal__point--low"); target.setAttribute("cx", coordinate.x); target.setAttribute("cy", coordinate.y); target.setAttribute("r", "12"); target.setAttribute("fill", "transparent"); target.style.cursor = "pointer"; const label = tooltipLabel(point.timestamp); target.addEventListener("mouseenter", (event) => showTooltip(label, point.players, event)); target.addEventListener("mousemove", moveTooltip); target.addEventListener("mouseleave", removeTooltip); node.appendChild(circle); node.appendChild(target); }
+      for (const index of labelIndexes(points.length)) { const coordinate = coordinates[index], date = svg("text"); date.setAttribute("x", coordinate.x); date.setAttribute("y", "188"); date.setAttribute("text-anchor", "middle"); date.setAttribute("fill", "#8f98a0"); date.setAttribute("font-size", "9"); date.textContent = rangeLabel(coordinate.point.timestamp, mode); node.appendChild(date); } return node; }
     function summaryItem(label, value, formatter = formatNumber, key = "") { const item = root.document.createElement("div"), caption = root.document.createElement("span"), number = root.document.createElement("div"); item.className = "st-player-stats-modal__summary-item"; caption.className = "st-player-stats-modal__summary-label"; caption.textContent = label; number.className = "st-player-stats-modal__summary-value"; if (key) number.dataset.stPlayerSummary = key; number.textContent = formatter(value); item.append(caption, number); return item; }
-    function signedNumber(value) { const number = Number(value); if (!Number.isFinite(number)) return "--"; return `${number > 0 ? "+" : ""}${formatNumber(number)}`; }
-    function signedPercent(value) { const number = Number(value); if (!Number.isFinite(number)) return "--"; return `${number > 0 ? "+" : ""}${number.toFixed(1)}%`; }
-    function renderMonths(container) { const title = root.document.createElement("h3"), head = root.document.createElement("div"); title.className = "st-player-stats-modal__months-title"; title.textContent = "每月玩家统计"; head.className = "st-player-stats-modal__months-head"; for (const label of ["月份", "平均玩家数", "增长", "增长率", "峰值"]) { const cell = root.document.createElement("div"); cell.textContent = label; head.appendChild(cell); } container.append(title, head); for (const month of activeData.monthlyStats) { const row = root.document.createElement("div"), values = [formatMonth(month.monthKey), formatNumber(month.average), signedNumber(month.growth), signedPercent(month.growthPct), formatNumber(month.peak)]; row.className = "st-player-stats-modal__month"; values.forEach((value, index) => { const cell = root.document.createElement("div"); cell.textContent = value; if (index === 1 || index === 4) cell.className = "st-player-stats-modal__month-value"; if (index === 2 || index === 3) { const number = index === 2 ? month.growth : month.growthPct; if (Number.isFinite(number)) cell.className = number >= 0 ? "st-player-stats-modal__growth--up" : "st-player-stats-modal__growth--down"; } row.appendChild(cell); }); container.appendChild(row); } }
-    function renderTrendPlot(container, view) { container.replaceChildren(); const title = root.document.createElement("h3"), points = activeData.ranges[view] || []; title.className = "st-player-stats-modal__plot-title"; title.textContent = ({ "24h":"24小时在线趋势", "7d":"7天在线趋势", "30d":"30天在线趋势" })[view]; container.appendChild(title); if (points.length) { const caption = root.document.createElement("p"); container.appendChild(plotSvg(points, view)); caption.className = "st-player-stats-modal__caption"; caption.textContent = `${points.length} 个数据点`; container.appendChild(caption); } else { const empty = root.document.createElement("p"); empty.className = "st-player-stats__chart-empty"; empty.textContent = "没有可显示的数据"; container.appendChild(empty); } }
+    function signedNumber(value) { return Number.isFinite(value) ? `${value > 0 ? "+" : ""}${formatNumber(value)}` : "--"; }
+    function signedPercent(value) { return Number.isFinite(value) ? formats().percent.format(value / 100) : "--"; }
+    function renderMonths(container) { const title = root.document.createElement("h3"), head = root.document.createElement("div"); title.className = "st-player-stats-modal__months-title"; title.textContent = uiText("playerStats.monthly", "每月玩家统计"); head.className = "st-player-stats-modal__months-head"; for (const label of [uiText("playerStats.monthCol", "月份"), uiText("playerStats.average", "平均玩家数"), uiText("playerStats.gain", "增长"), uiText("playerStats.rate", "增长率"), uiText("playerStats.peakCol", "峰值")]) { const cell = root.document.createElement("div"); cell.textContent = label; head.appendChild(cell); } container.append(title, head); for (const month of activeData.monthlyStats) { const row = root.document.createElement("div"), values = [formatMonth(month.monthKey), formatNumber(month.average), signedNumber(month.growth), signedPercent(month.growthPct), formatNumber(month.peak)]; row.className = "st-player-stats-modal__month"; values.forEach((value, index) => { const cell = root.document.createElement("div"); cell.textContent = value; if (index === 1 || index === 4) cell.className = "st-player-stats-modal__month-value"; if (index === 2 || index === 3) { const number = index === 2 ? month.growth : month.growthPct; if (Number.isFinite(number)) cell.className = number >= 0 ? "st-player-stats-modal__growth--up" : "st-player-stats-modal__growth--down"; } row.appendChild(cell); }); container.appendChild(row); } }
+    function renderTrendPlot(container, view) { container.replaceChildren(); const title = root.document.createElement("h3"), points = activeData.ranges[view] || []; title.className = "st-player-stats-modal__plot-title"; title.textContent = ({ "24h":uiText("playerStats.dayTrend", "24小时在线趋势"), "7d":uiText("playerStats.weekTrend", "7天在线趋势"), "30d":uiText("playerStats.monthTrend", "30天在线趋势") })[view]; container.appendChild(title); if (points.length) { const caption = root.document.createElement("p"); container.appendChild(plotSvg(points, view)); caption.className = "st-player-stats-modal__caption"; caption.textContent = uiText("playerStats.points", "$count$ 个数据点", { count: points.length }); container.appendChild(caption); } else { const empty = root.document.createElement("p"); empty.className = "st-player-stats__chart-empty"; empty.textContent = uiText("playerStats.empty", "没有可显示的数据"); container.appendChild(empty); } }
     // Steam 库主窗口顶部有原生拖拽命中层；库布局必须退出 app-region 并加大顶部内边距，避免 7/30 天和关闭按钮被标题栏截获
-    function showModal() {
+    function showModal(selectedView, focusClose = true) {
       if (!activeData || activeModal) return;
-      const views = [["24h", "24小时"], ["7d", "7天"], ["30d", "30天"]].filter(([view]) => Array.isArray(activeData.ranges[view]) && activeData.ranges[view].length > 0);
+      const views = [["24h", uiText("playerStats.day", "24小时")], ["7d", uiText("settings_field_familyLibrary_refreshInterval_option_7d", "7天")], ["30d", uiText("settings_field_familyLibrary_refreshInterval_option_30d", "30天")]].filter(([view]) => Array.isArray(activeData.ranges[view]) && activeData.ranges[view].length > 0);
       if (!views.length) return;
       const modal = root.document.createElement("div"), dialog = root.document.createElement("div"), head = root.document.createElement("div"), title = root.document.createElement("h2"), brandName = root.document.createElement("span"), brandHighlight = root.document.createElement("em"), tagline = root.document.createElement("span"), actions = root.document.createElement("div"), body = root.document.createElement("div"), summary = root.document.createElement("div"), plot = root.document.createElement("section");
       modal.id = modalId;
@@ -188,11 +292,11 @@
       brandName.append("Steam ", brandHighlight);
       brandHighlight.textContent = "Buff";
       tagline.className = "st-player-stats-modal__brand-tagline";
-      tagline.textContent = "ENHANCE · TRACK · SAVE";
+      tagline.textContent = uiText("playerStats.tagline", "增强 · 追踪 · 记录");
       title.append(brandName, tagline);
       actions.className = "st-player-stats-modal__actions";
       summary.className = "st-player-stats-modal__summary";
-      summary.append(summaryItem("正在游玩", activeData.metrics.current, formatNumber, "current"), summaryItem("今日巅峰", activeData.metrics.todayPeak, formatNumber, "todayPeak"), summaryItem("昨日巅峰", activeData.metrics.yesterdayPeak, formatNumber, "yesterdayPeak"), summaryItem("本月巅峰", activeData.metrics.monthlyPeak, formatNumber, "monthlyPeak"), summaryItem("上月巅峰", activeData.metrics.lastMonthPeak, formatNumber, "lastMonthPeak"), summaryItem("历史巅峰", activeData.metrics.historicalPeak, formatNumber, "historicalPeak"), summaryItem("主线通关", activeData.hltb?.story, formatPlaytime, "story"), summaryItem("主线&支线全清", activeData.hltb?.extras, formatPlaytime, "extras"), summaryItem("全收集", activeData.hltb?.complete, formatPlaytime, "complete"));
+      summary.append(summaryItem(uiText("playerStats.playing", "正在游玩"), activeData.metrics.current, formatNumber, "current"), summaryItem(uiText("playerStats.today", "今日巅峰"), activeData.metrics.todayPeak, formatNumber, "todayPeak"), summaryItem(uiText("playerStats.yesterday", "昨日巅峰"), activeData.metrics.yesterdayPeak, formatNumber, "yesterdayPeak"), summaryItem(uiText("playerStats.month", "本月巅峰"), activeData.metrics.monthlyPeak, formatNumber, "monthlyPeak"), summaryItem(uiText("playerStats.lastMonth", "上月巅峰"), activeData.metrics.lastMonthPeak, formatNumber, "lastMonthPeak"), summaryItem(uiText("playerStats.allTime", "历史巅峰"), activeData.metrics.historicalPeak, formatNumber, "historicalPeak"), summaryItem(uiText("playerStats.story", "主线通关"), activeData.hltb?.story, formatPlaytime, "story"), summaryItem(uiText("playerStats.extras", "主线&支线全清"), activeData.hltb?.extras, formatPlaytime, "extras"), summaryItem(uiText("playerStats.complete", "全收集"), activeData.hltb?.complete, formatPlaytime, "complete"));
       plot.className = "st-player-stats-modal__plot";
       const select = (view) => {
         for (const button of actions.querySelectorAll("[data-player-stats-view]")) button.dataset.active = button.dataset.playerStatsView === view ? "1" : "0";
@@ -210,7 +314,7 @@
       const close = root.document.createElement("button");
       close.type = "button";
       close.className = "st-player-stats-modal__close";
-      close.setAttribute("aria-label", "关闭");
+      close.setAttribute("aria-label", uiText("settings_shell_close", "关闭"));
       close.textContent = "×";
       close.addEventListener("click", closeModal);
       actions.appendChild(close);
@@ -224,10 +328,35 @@
       activeModal = modal;
       modalKeyHandler = (event) => { if (event.key === "Escape") closeModal(); };
       root.addEventListener?.("keydown", modalKeyHandler);
-      select(views[0][0]);
-      close.focus?.();
+      select(views.some(([view]) => view === selectedView) ? selectedView : views[0][0]);
+      if (focusClose) close.focus?.();
     }
-    function start(appId, targetOverride = null) { const parsed = Number.parseInt(String(appId || ""), 10); if (!Number.isInteger(parsed) || parsed <= 0 || Number(getCurrentAppId()) !== parsed) return null; if (activeAppId !== parsed) { closeModal(); removeCard(); activeAppId = parsed; activeData = null; activeLoad = null; activeCurrent = null; } const target = targetOverride || getTarget(parsed); if (!target?.isConnected) { removeCard(); return null; } const existing = root.document.getElementById(rootId); if (existing && existing.parentElement === target && isCurrentCard(existing)) activeCard = existing; else { removeCard(); activeCard = createCard(); insertCard(activeCard, target); } restoreLoadState(load(parsed)); return activeCard; }
+    function onLocaleChange() {
+      if (!activeCard?.isConnected || !activeLoad) return;
+      const focused = root.document.activeElement;
+      const retryFocused = activeCard.contains(focused) && focused.closest("[data-player-stats-failures]");
+      const moreFocused = activeCard.contains(focused) && focused.classList.contains("st-player-stats__more");
+      const tab = activeModal?.querySelector('[data-player-stats-view][data-active="1"]')?.dataset.playerStatsView;
+      const modalFocus = activeModal?.contains(focused);
+      const modalScroll = activeModal?.querySelector(".st-player-stats-modal__dialog")?.scrollTop ?? 0;
+      removeTooltip();
+      activeCard.replaceChildren(...createCard().childNodes);
+      restoreLoadState(activeLoad);
+      if (activeModal) {
+        closeModal();
+        showModal(tab, false);
+        const panel = activeModal?.querySelector(".st-player-stats-modal__dialog");
+        if (panel) panel.scrollTop = modalScroll;
+        if (modalFocus) {
+          const button = focused.dataset.playerStatsView
+            ? activeModal?.querySelector(`[data-player-stats-view="${focused.dataset.playerStatsView}"]`)
+            : activeModal?.querySelector(".st-player-stats-modal__close");
+          button?.focus({ preventScroll: true });
+        }
+      } else if (retryFocused) activeCard.querySelector("[data-player-stats-failures] button")?.focus({ preventScroll: true });
+      else if (moreFocused) activeCard.querySelector(".st-player-stats__more")?.focus({ preventScroll: true });
+    }
+    function start(appId, targetOverride = null) { const parsed = Number.parseInt(String(appId || ""), 10); if (!Number.isInteger(parsed) || parsed <= 0 || Number(getCurrentAppId()) !== parsed) return null; if (activeAppId !== parsed) { closeModal(); removeCard(); activeAppId = parsed; activeData = null; activeLoad = null; activeCurrent = null; } const target = targetOverride || getTarget(parsed); if (!target?.isConnected) { removeCard(); return null; } const existing = root.document.getElementById(rootId); if (existing && existing.parentElement === target && isCurrentCard(existing)) activeCard = existing; else { removeCard(); activeCard = createCard(); insertCard(activeCard, target); if (root.STI18n?.CHANGE_EVENT) root.addEventListener?.(root.STI18n.CHANGE_EVENT, onLocaleChange); } restoreLoadState(load(parsed)); return activeCard; }
     function stop() { closeModal(); removeCard(); activeAppId = 0; activeData = null; activeLoad = null; activeCurrent = null; return true; }
     return Object.freeze({ start, stop });
   }

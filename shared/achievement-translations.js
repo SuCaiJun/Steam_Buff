@@ -71,7 +71,7 @@
       if (!Number.isSafeInteger(group.id) || group.id < 0 || groupIds.has(group.id) || !Array.isArray(group.achievements)) throw new Error("Steam 成就分组结构无效");
       groupIds.add(group.id);
       const name = text(group.name ?? "", 1000, "Steam 成就分组名称", group.id === 0);
-      groups.push({ id: group.id, name: name || "基础游戏" });
+      groups.push({ id: group.id, name: name || "基础游戏", ...(!name ? { defaultName: true } : {}) });
       for (const achievement of group.achievements) {
         const id = text(achievement.api_name, 256, "Steam 分组成就 ID");
         if (membership.has(id) || membership.size >= 20000) throw new Error("Steam 成就分组重复或超过处理上限");

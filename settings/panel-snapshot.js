@@ -47,9 +47,9 @@
     return !!value && typeof value === "object" && !Array.isArray(value);
   }
 
-  function localeOf(value) {
+  function localeOf(value, fallback = "zh_CN") {
     if (typeof root.STI18n?.normalizeLocale === "function") {
-      return root.STI18n.normalizeLocale(value);
+      return root.STI18n.normalizeLocale(value, fallback);
     }
     const raw = String(value || "").trim().replace("-", "_");
     if (LOCALES.includes(raw)) {
@@ -68,7 +68,7 @@
     if (lower === "ko" || lower.startsWith("ko_")) {
       return "ko";
     }
-    return "zh_CN";
+    return fallback;
   }
 
   function sectionDefaults(name) {
@@ -162,7 +162,6 @@
           out.uiLocale = localeOf(src.uiLocale);
           box.imported += 1;
         } else {
-          out.uiLocale = localeOf();
           box.defaulted += 1;
         }
         continue;
@@ -211,12 +210,12 @@
     return out;
   }
 
-  async function pack() {
+  async function pack(options = {}) {
     const store = storage();
     if (typeof store.getPanelSettings !== "function") {
       throw new Error("设置面板读取接口不可用");
     }
-    return normalize(await store.getPanelSettings({ workflow: true }));
+    return normalize(await store.getPanelSettings({ ...options, workflow: true }));
   }
 
   async function write(settingsValue, diagnostics = {}) {

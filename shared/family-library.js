@@ -136,7 +136,9 @@
   }
   function build(owner, group, values, nicknames, interval, now) {
     const membersBySteamId = {}, appsById = {};
-    group.members.forEach((member, index) => { membersBySteamId[member.steamid] = { name: nicknames[member.steamid] || root.chrome?.i18n?.getMessage("store_familyLibrary_memberFallback", [String(index + 1)]) || `家庭成员 ${index + 1}`, role: Number(member.role) || 0 }; });
+    group.members.forEach((member, index) => {
+      membersBySteamId[member.steamid] = { name: nicknames[member.steamid] || "", number: index + 1, role: Number(member.role) || 0 };
+    });
     for (const app of values) appsById[String(app.appid)] = { appid: app.appid, ownerSteamids: app.owner_steamids,
       excludeReason: Number(app.exclude_reason) || 0, appType: Number(app.app_type) || 0, acquiredAt: Number(app.rt_time_acquired) || 0 };
     return { version: 1, accountSteamId: owner, familyGroupId: group.id, familyName: group.name,

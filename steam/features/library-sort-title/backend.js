@@ -456,39 +456,29 @@
   }
 
   function collectionName(collection) {
-    return typeof collection?.m_strName === "string" ? collection.m_strName : "";
+    if (typeof collection?.m_strName !== "string") throw new TypeError("Steam 收藏夹名称格式无效");
+    return collection.m_strName;
   }
 
   function collectionApps(collection) {
     if (!collection?.m_setApps || typeof collection.m_setApps[Symbol.iterator] !== "function") {
-      return [];
+      throw new TypeError("Steam 收藏夹成员列表格式无效");
     }
-    try {
-      return Array.from(collection.m_setApps, (appid) => Number(appid) || 0).filter(Boolean);
-    } catch {
-      return [];
-    }
+    return Array.from(collection.m_setApps, (appid) => Number(appid) || 0).filter(Boolean);
   }
 
   function userCollections(store = window.collectionStore) {
     if (!store || (typeof store !== "object" && typeof store !== "function")) {
       return null;
     }
-    let descriptor;
-    try {
-      descriptor = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(store), "userCollections");
-    } catch {
-      return null;
-    }
+    const descriptor = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(store), "userCollections");
     if (typeof descriptor?.get !== "function") {
       return null;
     }
-    try {
-      const collections = descriptor.get.call(store);
-      return Array.isArray(collections) ? collections : null;
-    } catch {
-      return null;
-    }
+    const collections = descriptor.get.call(store);
+    if (collections == null) return null;
+    if (!Array.isArray(collections)) throw new TypeError("Steam 收藏夹列表格式无效");
+    return collections;
   }
 
   function groupIndex(rt) {
@@ -546,50 +536,53 @@
     if (!rt.groupLabelsEnabled) {
       return [];
     }
-    const next = groupIndex(rt);
+    let next;
+    try {
+      next = groupIndex(rt);
+    } catch (error) {
+      if (!rt.stableFailureKeys.has("collection-index")) {
+        rt.stableFailureKeys.add("collection-index");
+        log.error("library-sort-title-stable-failed", "读取收藏夹索引失败，保留上次显示结果", { error });
+      }
+      return [];
+    }
     if (!next) {
       return [];
     }
+    rt.stableFailureKeys.delete("collection-index");
     return applyGroupIndex(rt, next).changed;
   }
 
   function labelsForApp(appid) {
-    const id = Number(appid) || 0;
-    if (!id || typeof window.collectionStore?.GetCollectionListForAppID !== "function") {
-      return [];
+    const result = window.collectionStore.GetCollectionListForAppID(appid);
+    if (!Array.isArray(result)) throw new TypeError("Steam 收藏夹列表格式无效");
+    const labels = [];
+    for (const collection of result) {
+      labels.push(...parseCollectionName(collectionName(collection)).tags);
     }
-    try {
-      const result = window.collectionStore.GetCollectionListForAppID(id);
-      const labels = [];
-      for (const collection of Array.isArray(result) ? result : []) {
-        labels.push(...parseCollectionName(collectionName(collection)).tags);
-      }
-      return uniqueLabels(labels);
-    } catch {
-      return [];
-    }
+    return uniqueLabels(labels);
   }
 
   function refreshTargetLabels(rt, appids, reason) {
     if (!rt.groupLabelsEnabled || !rt.groupIndexReady) {
       return false;
     }
-    const changed = [];
-    for (const rawId of Array.from(appids || [])) {
-      const id = Number(rawId) || 0;
-      if (!id) continue;
+    // 这一批都读取成功后再更新缓存，避免部分条目已经改动却没能通知界面
+    const changes = new Map();
+    for (const value of appids || []) {
+      const id = Number(value);
+      if (!(id > 0)) continue;
       const next = labelsForApp(id);
       const previous = rt.groupTagsByApp.get(id) || [];
-      if (sameLabels(previous, next)) continue;
+      if (!sameLabels(previous, next)) changes.set(id, next);
+    }
+    for (const [id, next] of changes) {
       if (next.length) rt.groupTagsByApp.set(id, next);
       else rt.groupTagsByApp.delete(id);
       rt.model.delete(id);
-      changed.push(id);
     }
-    if (changed.length) {
-      invalidate(rt, changed, reason);
-    }
-    return changed.length > 0;
+    if (changes.size) invalidate(rt, Array.from(changes.keys()), reason);
+    return changes.size > 0;
   }
 
   function groupedMode() {
@@ -1484,7 +1477,15 @@
     if (!store) return false;
     const membershipReady = patch(store, "AddOrRemoveApp", COLLECTION_FLAG, (original) => function addOrRemoveHook(...args) {
       const result = original.apply(this, args);
-      if (window[RT]?.scheduled === true) refreshTargetLabels(window[RT], args[0], "collection-membership");
+      if (window[RT]?.scheduled === true) {
+        try {
+          refreshTargetLabels(window[RT], args[0], "collection-membership");
+        } catch (error) {
+          log.error("library-sort-title-stable-failed", "读取收藏夹标签失败，保留上次显示结果", {
+            phase: "collection-membership", error,
+          });
+        }
+      }
       return result;
     });
     // 当前 Steam 版本实测只有以下收藏分组变化入口可写；不保留未取证的

@@ -11,6 +11,10 @@
 ((root) => {
   "use strict";
   // 两版文件共享解码、首行映射与校验；策略只声明本版本可编辑的字段。
+  function uiText(key, fallback, params = {}) {
+    if (root.STI18n) return root.STI18n.text(key, fallback, params);
+    return (root.STNameTransferLabels?.[key] || fallback).replace(/\$(\w+)\$/g, (match, name) => String(params[name] ?? ""));
+  }
   function createPolicy(mode) {
   const free=mode==="steam-sort";
   const fields=Object.freeze(free?["native_sort_name","mnemonic"]:["custom_name","aliases","mnemonic","pinyin","native_sort_name"]);
@@ -20,13 +24,13 @@
 
   // 每项必须使用英文双引号；引号中的逗号属于别名，双引号用两个连续引号转义。
   function parseAliases(input) {
-    if (typeof input !== "string") throw new TypeError("别名必须是文本");
+    if (typeof input !== "string") throw new TypeError(uiText("nameImport.aliasText", "别名必须是文本"));
     const output = [];
     let index = 0;
     const spaces = () => { while (/\s/.test(input[index] || "") && index < input.length) index += 1; };
     spaces();
     while (index < input.length) {
-      if (input[index++] !== '"') throw new Error('每个别名必须用双引号包裹，例如："别名一","别名二"');
+      if (input[index++] !== '"') throw new Error(uiText("nameImport.aliasQuote", "每个别名必须用双引号包裹，例如：\"别名一\",\"别名二\""));
       let value = "", closed = false;
       while (index < input.length) {
         const char = input[index++];
@@ -34,45 +38,45 @@
         else if (input[index] === '"') { value += '"'; index += 1; }
         else { closed = true; break; }
       }
-      if (!closed) throw new Error("别名双引号未闭合");
+      if (!closed) throw new Error(uiText("nameImport.aliasUnclosed", "别名双引号未闭合"));
       output.push(value);
       spaces();
       if (index === input.length) break;
-      if (![",", "，"].includes(input[index++])) throw new Error("别名之间必须使用中英文逗号");
+      if (![",", "，"].includes(input[index++])) throw new Error(uiText("nameImport.comma", "别名之间必须使用中英文逗号"));
       spaces();
-      if (index === input.length) throw new Error("最后一个逗号后缺少别名");
+      if (index === input.length) throw new Error(uiText("nameImport.trailing", "最后一个逗号后缺少别名"));
     }
     return output;
   }
 
   function clean(value, field, max = 200) {
-    if (typeof value !== "string") throw new TypeError(`${field}必须是文本`);
-    if (/[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/.test(value)) throw new Error(`${field}包含非法控制字符`);
+    if (typeof value !== "string") throw new TypeError(uiText("nameImport.fieldText", "$field$必须是文本", { field }));
+    if (/[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/.test(value)) throw new Error(uiText("nameImport.control", "$field$包含非法控制字符", { field }));
     const text = value.trim().replace(/\s+/gu, " ");
-    if (Number.isFinite(max) && Array.from(text).length > max) throw new Error(`${field}长度超过 ${max} 个字符`);
-    if (/[<>]|&(?:lt|gt);|&#(?:0*(?:60|62)|x0*3[ce]);/i.test(text)) throw new Error(`${field}不能包含尖括号`);
+    if (Number.isFinite(max) && Array.from(text).length > max) throw new Error(uiText("nameImport.length", "$field$长度超过 $max$ 个字符", { field, max }));
+    if (/[<>]|&(?:lt|gt);|&#(?:0*(?:60|62)|x0*3[ce]);/i.test(text)) throw new Error(uiText("nameImport.angles", "$field$不能包含尖括号", { field }));
     return text;
   }
 
   function normalizeAliases(values) {
-    if (!Array.isArray(values)) throw new TypeError("JSON 别名必须是数组");
+    if (!Array.isArray(values)) throw new TypeError(uiText("nameImport.array", "JSON 别名必须是数组"));
     const result = [], seen = new Set();
     for (const value of values) {
-      const alias = clean(value, "别名", 100);
+      const alias = clean(value, uiText("nameImport.alias", "别名"), 100);
       const key = root.STUserNamesSnapshot.aliasKey(alias);
       if (!key || seen.has(key)) continue;
       seen.add(key); result.push(alias);
     }
-    if (result.length > 10) throw new Error("每个游戏最多 10 个别名");
+    if (result.length > 10) throw new Error(uiText("nameImport.limit", "每个游戏最多 10 个别名"));
     return result;
   }
 
   function jsonRecords(value, legacyMode=mode) {
-    if (!value || typeof value !== "object" || !Array.isArray(value.items)) throw new TypeError("JSON 顶层必须包含 items 数组");
-    if(value.type!==undefined && (value.type!=="steam-buff-names" || value.version!==2 || !["independent","steam-sort"].includes(value.mode))) throw new TypeError("名称 JSON 格式标记无效");
-    if(!["independent","steam-sort"].includes(legacyMode)) throw new TypeError("请选择旧 JSON 名称字段含义");
+    if (!value || typeof value !== "object" || !Array.isArray(value.items)) throw new TypeError(uiText("nameImport.items", "JSON 顶层必须包含 items 数组"));
+    if(value.type!==undefined && (value.type!=="steam-buff-names" || value.version!==2 || !["independent","steam-sort"].includes(value.mode))) throw new TypeError(uiText("nameImport.invalidFormat", "名称 JSON 格式标记无效"));
+    if(!["independent","steam-sort"].includes(legacyMode)) throw new TypeError(uiText("nameImport.legacy", "请选择旧 JSON 名称字段含义"));
     return value.items.map((item, index) => {
-      if (!item || typeof item !== "object" || Array.isArray(item)) return { line: index + 1, values: {}, issues: [{ field: "appid", message: "记录必须是对象" }], format: "json" };
+      if (!item || typeof item !== "object" || Array.isArray(item)) return { line: index + 1, values: {}, issues: [{ field: "appid", message: uiText("nameImport.object", "记录必须是对象") }], format: "json" };
       const input={...item};
       // 旧版免费文件明确使用 custom_name 存放 Steam 排序名称，由预览中的显式选项指定含义。
       if(value.type===undefined && legacyMode==="steam-sort" && own(input,"custom_name")) { input.native_sort_name=input.custom_name; delete input.custom_name; }
@@ -82,7 +86,7 @@
   }
 
   function sheetRecords(sheet, XLSX) {
-    if (!sheet["!ref"]) throw new Error("工作表为空");
+    if (!sheet["!ref"]) throw new Error(uiText("nameImport.emptySheet", "工作表为空"));
     const range = XLSX.utils.decode_range(sheet["!ref"]);
     const columns = new Map();
     for (let col = range.s.c; col <= range.e.c; col += 1) {
@@ -91,11 +95,11 @@
       const header = label.toUpperCase() === "APPID" ? "APPID" : label;
       const position = headers.indexOf(header);
       if (position < 0) continue;
-      if (columns.has(position)) throw new Error(`首行标题重复：${header}`);
-      if (cell.f) throw new Error("首行标题必须为普通文本");
+      if (columns.has(position)) throw new Error(uiText("nameImport.duplicateHeader", "首行标题重复：$header$", { header }));
+      if (cell.f) throw new Error(uiText("nameImport.headerText", "首行标题必须为普通文本"));
       columns.set(position, col);
     }
-    if (!columns.has(0) || !Array.from(columns.keys()).some(position=>position>0)) throw new Error("首行必须包含 APPID，以及本版本支持的至少一个名称字段");
+    if (!columns.has(0) || !Array.from(columns.keys()).some(position=>position>0)) throw new Error(uiText("nameImport.headers", "首行必须包含 APPID，以及本版本支持的至少一个名称字段"));
     const result = [];
     for (let row = 1; row <= range.e.r; row += 1) {
       const values = {}, issues = [];
@@ -105,8 +109,8 @@
         const cell = sheet[XLSX.utils.encode_cell({ r: row, c: col })];
         values[field] = cell ? cell.v : "";
         if (cell && cell.v !== undefined && cell.v !== "") data = true;
-        if (cell?.f) { data = true; issues.push({ field, message: "公式单元格请先转换为值，或在预览中修改" }); }
-        else if (cell && !["s", "n", "z"].includes(cell.t)) issues.push({ field, message: "单元格必须是文本或数字" });
+        if (cell?.f) { data = true; issues.push({ field, message: uiText("nameImport.formula", "公式单元格请先转换为值，或在预览中修改") }); }
+        else if (cell && !["s", "n", "z"].includes(cell.t)) issues.push({ field, message: uiText("nameImport.cellType", "单元格必须是文本或数字") });
         if (position > 0 && cell?.t === "n") values[field] = String(cell.v);
         if (values[field] === undefined) values[field] = "";
       }
@@ -125,7 +129,7 @@
     const next = free?{...base}:{ ...base, aliases: base.aliases.slice() };
     let appid = 0;
     try {
-      if (!/^\d{1,10}$/.test(String(values.appid)) || !Number.isSafeInteger(Number(values.appid)) || Number(values.appid) <= 0) throw new Error("APPID 必须是正整数");
+      if (!/^\d{1,10}$/.test(String(values.appid)) || !Number.isSafeInteger(Number(values.appid)) || Number(values.appid) <= 0) throw new Error(uiText("nameImport.appid", "APPID 必须是正整数"));
       appid = Number(values.appid);
     } catch (error) { capture(error); }
     const normalized = {};
@@ -133,13 +137,13 @@
       try {
         normalized[field] = field === "aliases"
           ? normalizeAliases(typeof values[field] === "string" && (record.format === "xlsx" || own(manual, field)) ? parseAliases(values[field]) : values[field])
-          : clean(values[field], headers[fields.indexOf(field) + 1],field==="native_sort_name"?Infinity:200);
+          : clean(values[field], uiText("nameImport." + (field === "native_sort_name" ? "sortName" : field), headers[fields.indexOf(field) + 1]),field==="native_sort_name"?Infinity:200);
       } catch (error) { capture(error); }
     }
-    for (const field of ["mnemonic_locked", "pinyin_locked"]) if (own(values, field) && !own(manual, field.replace("_locked", "")) && typeof values[field] !== "boolean") errors.push("JSON 锁定状态必须是布尔值");
+    for (const field of ["mnemonic_locked", "pinyin_locked"]) if (own(values, field) && !own(manual, field.replace("_locked", "")) && typeof values[field] !== "boolean") errors.push(uiText("nameImport.locked", "JSON 锁定状态必须是布尔值"));
     const apply = field => own(normalized, field) && (clearEmpty || own(manual, field) || (field === "aliases" ? normalized[field].length > 0 : normalized[field] !== ""));
     if(apply("native_sort_name")) {
-      if(base.native_sort_ready===false) capture(new Error("Steam 排序名称尚未读取成功，请先重新读取"));
+      if(base.native_sort_ready===false) capture(new Error(uiText("nameImport.sortNotReady", "Steam 排序名称尚未读取成功，请先重新读取")));
       else next.native_sort_name=normalized.native_sort_name;
     }
     if(free) {
@@ -147,10 +151,10 @@
       if(apply("mnemonic")) {
         try {
           const value=normalized.mnemonic;
-          if(value && !/^[A-Za-z0-9]+(?:\s*[,，]\s*[A-Za-z0-9]+)*$/.test(value)) throw new Error("助记符只能包含英文字母、数字，多个助记符用逗号分隔");
+          if(value && !/^[A-Za-z0-9]+(?:\s*[,，]\s*[A-Za-z0-9]+)*$/.test(value)) throw new Error(uiText("nameImport.mnemonics", "助记符只能包含英文字母、数字，多个助记符用逗号分隔"));
           const codes=value?value.split(/[,，]/).map(code=>code.trim()):[];
           next.native_sort_name=core.replaceMnemonics(next.native_sort_name,codes);
-          clean(next.native_sort_name,"自定义排序名称",Infinity);
+          clean(next.native_sort_name,uiText("nameImport.sortName", "自定义排序名称"),Infinity);
         } catch(error) { capture(error); }
       }
       next.mnemonic=core.mnemonicCodes(next.native_sort_name).join(",");
@@ -166,7 +170,7 @@
       next[field + "_locked"] = own(manual, field) || record.format === "xlsx" ? true : values[field + "_locked"] === true;
     }
     if (!next.custom_name) {
-      if (next.mnemonic || next.pinyin) errors.push("自定义名称为空，不能保存助记符或拼音全拼");
+      if (next.mnemonic || next.pinyin) errors.push(uiText("nameImport.emptyName", "自定义名称为空，不能保存助记符或拼音全拼"));
       next.mnemonic_locked = false; next.pinyin_locked = false;
     }
     return { appid, next, errors, validationErrors };
@@ -190,25 +194,33 @@
       } else task.resolve(event.data.result);
     };
     worker.onerror = event => {
-      event.preventDefault(); failure = new Error(event.message || "文件处理 Worker 加载失败");
+      event.preventDefault(); failure = new Error(event.message || uiText("nameImport.worker", "文件处理 Worker 加载失败"));
       worker.terminate(); rejectAll(failure);
     };
     return {
       request(job) {
-        if (closed) return Promise.reject(new Error("文件处理已取消"));
+        if (closed) return Promise.reject(new Error(uiText("nameImport.cancelled", "文件处理已取消")));
         if (failure) return Promise.reject(failure);
         return new Promise((resolve, reject) => {
           const id = ++sequence; pending.set(id, { resolve, reject });
-          try { worker.postMessage({ id, job: {mode,...job}, base: urlFor("") }); }
+          try {
+            const labels = id === 1 && root.STI18n ? Object.fromEntries([
+              "items", "invalidFormat", "legacy", "object", "emptySheet", "duplicateHeader", "headerText", "headers", "formula", "cellType", "fileFormat", "missingSheet", "unsupportedJob", "mode"
+            ].map(name => {
+              const key = "nameImport." + name;
+              return [key, root.STI18n.text(key, key, { header: "$header$" })];
+            })) : undefined;
+            worker.postMessage({ id, job: {mode,...job}, base: urlFor(""), labels });
+          }
           catch (error) { pending.delete(id); reject(error); }
         });
       },
-      close() { closed = true; worker.terminate(); rejectAll(new Error("文件处理已取消")); },
+      close() { closed = true; worker.terminate(); rejectAll(new Error(uiText("nameImport.cancelled", "文件处理已取消"))); },
     };
   }
   // 所有格式使用同一字段校验和草稿合并，只有文件解码/编码由各自适配器处理；不写存储。
   return Object.freeze({mode, fields, headers, quoteAliases, parseAliases, normalizeAliases, jsonRecords, sheetRecords, compile, createSession});
   }
   const policies=Object.freeze({independent:createPolicy("independent"),"steam-sort":createPolicy("steam-sort")});
-  root.STNameTransfer=Object.freeze({...policies.independent,forMode(mode){if(!Object.hasOwn(policies,mode)) throw new TypeError("未知名称文件模式");return policies[mode];}});
+  root.STNameTransfer=Object.freeze({...policies.independent,uiText,forMode(mode){if(!Object.hasOwn(policies,mode)) throw new TypeError(uiText("nameImport.mode", "未知名称文件模式"));return policies[mode];}});
 })(typeof window === "undefined" ? self : window);

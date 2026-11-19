@@ -29,31 +29,39 @@
     });
   }
 
-  function claimBatch(freeDLCs, batchId) {
+  // 进度事件只更新界面；页面脚本交回本批结果后，领取操作才结束。
+  function claimBatch(freeDLCs, onProgress) {
     return new Promise((resolve, reject) => {
       const scriptPath = 'store/page/dlc-freelicense-inject.js';
+      const script = document.createElement('script');
+      const batchId = crypto.randomUUID();
+      function cleanup() {
+        document.removeEventListener('STStoreFreeDLCClaim', onEvent);
+        script.remove();
+      }
+      function onEvent(event) {
+        const detail = event.detail;
+        if (detail?.batchId !== batchId) return;
+        if (detail.type === 'done' || detail.type === 'error') {
+          cleanup();
+          resolve(detail);
+        } else {
+          onProgress(detail);
+        }
+      }
+      document.addEventListener('STStoreFreeDLCClaim', onEvent);
       try {
-        const script = document.createElement('script');
-        script.id = batchId;
         script.src = chrome.runtime.getURL(scriptPath);
         script.dataset.batchId = batchId;
         script.dataset.items = JSON.stringify(freeDLCs);
-        script.dataset.delayMs = '900';
-        script.dataset.maxRetries = '2';
-        script.onload = () => resolve();
+        script.dataset.userdataBase = USERDATA_BASE;
         script.onerror = () => {
-          script.remove();
-          logInjectFailed(scriptPath, "load-error", {
-            count: Array.isArray(freeDLCs) ? freeDLCs.length : 0,
-          });
-          reject(new Error('脚本加载失败'));
+          cleanup();
+          reject(new Error('DLC 领取脚本加载失败'));
         };
         (document.head || document.documentElement).appendChild(script);
       } catch (error) {
-        logInjectFailed(scriptPath, "exception", {
-          count: Array.isArray(freeDLCs) ? freeDLCs.length : 0,
-          error,
-        });
+        cleanup();
         reject(error);
       }
     });

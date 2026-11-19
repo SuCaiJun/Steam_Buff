@@ -20,7 +20,6 @@
     url: "https://isthereanydeal.com/",
   });
   const DEFAULT_HISTORY_SINCE = "1996-07-01T00:00:00Z";
-  const UNSUPPORTED_MESSAGE = "当前平台暂不支持该能力。";
   const READY_CAPABILITIES = Object.freeze(new Set(["stable", "optional"]));
   const FESTIVAL_DEFAULT_BEFORE_MONTHS = 36;
   const FESTIVAL_DEFAULT_AFTER_MONTHS = 12;
@@ -332,19 +331,19 @@
     const provider = providerOf(providerId);
     if (!provider) {
       logConfigMissing(providerId, capability, "PROVIDER_UNSUPPORTED");
-      return { config, provider, state: failure("PROVIDER_UNSUPPORTED", "当前第三方数据服务暂不支持。", { provider: providerId, capability }) };
+      return { config, provider, state: failure("PROVIDER_UNSUPPORTED", globalThis.STI18n.text("priceService.unsupported", "当前第三方数据服务暂不支持。"), { provider: providerId, capability }) };
     }
     if (!providerEnabled(config)) {
       logConfigMissing(providerId, capability, "PROVIDER_DISABLED");
-      return { config, provider, state: failure("PROVIDER_DISABLED", "第三方数据服务已关闭", { provider: providerId, capability, source: source(provider) }) };
+      return { config, provider, state: failure("PROVIDER_DISABLED", globalThis.STI18n.text("store_priceHistory_providerDisabled", "第三方数据服务已关闭"), { provider: providerId, capability, source: source(provider) }) };
     }
     const key = text(config.isthereanydeal?.key);
     if (!key) {
       logConfigMissing(providerId, capability, "PROVIDER_CONFIG_MISSING");
-      return { config, provider, state: failure("PROVIDER_CONFIG_MISSING", "请先在第三方服务中配置 API Key。", { provider: providerId, capability, source: source(provider) }) };
+      return { config, provider, state: failure("PROVIDER_CONFIG_MISSING", globalThis.STI18n.text("priceService.setup", "请先在第三方服务中配置 API Key。"), { provider: providerId, capability, source: source(provider) }) };
     }
     if (!READY_CAPABILITIES.has(provider.capabilities?.[capability])) {
-      return { config, provider, state: failure("CAPABILITY_UNSUPPORTED", UNSUPPORTED_MESSAGE, { provider: providerId, capability, source: source(provider) }) };
+      return { config, provider, state: failure("CAPABILITY_UNSUPPORTED", globalThis.STI18n.text("priceService.capability", "当前平台暂不支持该能力。"), { provider: providerId, capability, source: source(provider) }) };
     }
     return { config, provider, state: null };
   }
@@ -362,7 +361,7 @@
   }
 
   function errorState(error, capability, provider) {
-    return failure(error?.code || "PROVIDER_REQUEST_FAILED", error?.message || "第三方数据加载失败，请稍后重试。", {
+    return failure(error?.code || "PROVIDER_REQUEST_FAILED", error?.message || globalThis.STI18n.text("priceService.loadFailed", "第三方数据加载失败，请稍后重试。"), {
       provider: provider?.id || DEFAULT_PROVIDER,
       capability,
       source: source(provider),
@@ -637,7 +636,7 @@
     const { config, provider } = status;
     const items = provider.normalizeSteamItems(options.items || []);
     if (!items.length) {
-      return failure("STEAM_ITEM_MISSING", "当前页面没有可查询的 Steam 商品 ID。", {
+      return failure("STEAM_ITEM_MISSING", globalThis.STI18n.text("priceService.noSteamId", "当前页面没有可查询的 Steam 商品 ID。"), {
         provider: provider.id,
         capability: "prices",
         source: source(provider),
@@ -648,7 +647,7 @@
       const lookup = await provider.lookupSteamItems(items, config, opt);
       const ids = lookup.data.ids || [];
       if (!ids.length) {
-        return failure("PROVIDER_GAME_NOT_FOUND", "ITAD 暂未收录当前 Steam 商品。", {
+        return failure("PROVIDER_GAME_NOT_FOUND", globalThis.STI18n.text("store_priceHistory_providerGameNotFound", "ITAD 暂未收录当前 Steam 商品。"), {
           provider: provider.id,
           capability: "prices",
           source: source(provider),
@@ -914,7 +913,7 @@
       ? text(options.pageCountry || "CN").toUpperCase()
       : text(config.isthereanydeal?.country || "CN").toUpperCase();
     if (!globalThis.STPriceComparisonCatalog?.getSteamPriceRegion?.(mainCountry)) {
-      return failure("STORE_PRICE_REGION_UNSUPPORTED", "当前主定价区不在价格图表固定目录中，请先在设置里重新选择。", {
+      return failure("STORE_PRICE_REGION_UNSUPPORTED", globalThis.STI18n.text("priceService.region", "当前主定价区不在价格图表固定目录中，请先在设置里重新选择。"), {
         provider: provider.id,
         capability: "prices",
         source: source(provider),
@@ -951,7 +950,7 @@
       const lookup = reuse ? cachedPart(previous.data.lookup) : await provider.lookupSteamItems(items, config, lookupOptions);
       const id = providerGameId({ lookup: lookup.data }, items[0]);
       if (!id) {
-        return failure("PROVIDER_GAME_NOT_FOUND", "ITAD 暂未收录当前 Steam 商品。", {
+        return failure("PROVIDER_GAME_NOT_FOUND", globalThis.STI18n.text("store_priceHistory_providerGameNotFound", "ITAD 暂未收录当前 Steam 商品。"), {
           provider: provider.id,
           capability: "prices",
           source: source(provider),
@@ -1151,7 +1150,7 @@
     const { config, provider } = status;
     const id = text(providerGameId);
     if (!id) {
-      return failure("PROVIDER_GAME_ID_MISSING", "缺少 ITAD 游戏 ID，无法查询价格历史。", {
+      return failure("PROVIDER_GAME_ID_MISSING", globalThis.STI18n.text("priceService.noGameId", "缺少 ITAD 游戏 ID，无法查询价格历史。"), {
         provider: provider.id,
         capability: "history",
         source: source(provider),

@@ -19,7 +19,7 @@
     text: value?.expression ? literal("") : clone(value), code: value?.expression ? clone(value) : { expression: [""] } };
   function activeValue(value) {
     if (!value || !Object.hasOwn(value, "mode")) return value;
-    if (!["text", "expression"].includes(value.mode)) throw configurationError("输入模式无效");
+    if (!["text", "expression"].includes(value.mode)) throw configurationError("输入模式无效", "workflow_error_input_mode");
     return value[value.mode === "text" ? "text" : "code"];
   }
   const data = root.STWorkflowData;
@@ -62,10 +62,20 @@
     if (root.STWorkflowFields.personalNames.includes(effect?.gameField || effect?.nameField)) return "customNames";
     return null;
   }
-  const permissionNotice = permission => `此指令需要「${permissionLabels[permission]}」权限。`;
-  function permissionDenial(permission, membership) {
-    if (permission === "workflowAdvanced" && !Object.hasOwn(membership?.permissions ?? {}, permission)) return "自动化高级指令权限尚未同步，请在用户中心刷新权益。";
-    return `当前账号缺少「${permissionLabels[permission]}」权限，无法执行此指令。`;
+  const localPermission = (permission, text) => text
+    ? text(permission === "workflowAdvanced" ? "workflow.permission.advanced" : "workflow.output.steam-custom-name", permissionLabels[permission])
+    : permissionLabels[permission];
+  function permissionNotice(permission, text) {
+    const name = localPermission(permission, text), message = "此指令需要「" + name + "」权限。";
+    return text ? text("workflow.permission.required", message, { name }) : message;
+  }
+  function permissionDenial(permission, membership, text) {
+    if (permission === "workflowAdvanced" && !Object.hasOwn(membership?.permissions ?? {}, permission)) {
+      const message = "自动化高级指令权限尚未同步，请在用户中心刷新权益。";
+      return text ? text("workflow.permission.sync", message) : message;
+    }
+    const name = localPermission(permission, text), message = "当前账号缺少「" + name + "」权限，无法执行此指令。";
+    return text ? text("workflow.permission.missing", message, { name }) : message;
   }
   const httpMethods = Object.freeze(["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD"]);
   const httpMaxTimeout = 30;
@@ -152,28 +162,28 @@
   }
   function foldLayout(workflow, nodeIds) {
     if (workflow.folds === undefined) return [];
-    if (!Array.isArray(workflow.folds)) throw configurationError("折叠区域布局无效");
+    if (!Array.isArray(workflow.folds)) throw configurationError("折叠区域布局无效", "workflow_error_fold_layout");
     const lists = new Map(), ids = new Set(nodeIds || [...walk(workflow.steps)].map(node => node.id));
     visitSequences(workflow.steps, ["steps"], (list, path) => lists.set(JSON.stringify(path), list));
     return workflow.folds.map(layout => {
       const key = JSON.stringify(layout?.path), list = lists.get(key);
-      if (!list || !Array.isArray(layout.markers)) throw configurationError("折叠区域位置无效");
+      if (!list || !Array.isArray(layout.markers)) throw configurationError("折叠区域位置无效", "workflow_error_fold_location");
       lists.delete(key);
       let previous = 0, depth = 0;
       for (const marker of layout.markers) {
         if (!marker || typeof marker.id !== "string" || !/^fold-\d+$/.test(marker.id) || ids.has(marker.id) ||
           !Number.isSafeInteger(marker.index) || marker.index < previous || marker.index > list.length ||
           !["start", "end"].includes(marker.edge) || marker.edge === "start" && typeof marker.name !== "string")
-          throw configurationError("折叠区域标记无效");
+          throw configurationError("折叠区域标记无效", "workflow_error_fold_marker");
         ids.add(marker.id); previous = marker.index;
         depth += marker.edge === "start" ? 1 : -1;
-        if (depth < 0) throw configurationError("折叠结束缺少对应的折叠开始");
+        if (depth < 0) throw configurationError("折叠结束缺少对应的折叠开始", "workflow_error_fold_open");
       }
-      if (depth) throw configurationError("折叠开始缺少对应的折叠结束");
+      if (depth) throw configurationError("折叠开始缺少对应的折叠结束", "workflow_error_fold_close");
       return { list, markers: layout.markers };
     });
   }
-  function createNode(key, workflow) {
+  function createNode(key, workflow, text = (_key, fallback) => fallback) {
     const id = numericId("step-", [...walk(workflow.steps)]);
     if (key === "if" || key === "if-many") return { id, kind: "if", branches: [{ condition: key === "if-many" ? { op: "all", children: [comparison()] } : comparison(), steps: [] }], otherwise: null };
     if (loops.has(key)) {
@@ -183,46 +193,53 @@
       if (key === "forever") node.seconds = literal(1);
       if (key === "foreach" || key === "entries") {
         node.value = literal(key === "foreach" ? [] : {});
-        node.item = variable(workflow, key === "entries" ? "当前值" : "当前项目");
-        node.index = variable(workflow, key === "entries" ? "当前键" : "当前序号", key === "entries" ? "text" : "number");
+        node.item = variable(workflow, key === "entries" ? text("workflow_ui_current_value", "当前值") : text("seed_variable_item", "当前项目"));
+        node.index = variable(workflow, key === "entries" ? text("workflow_ui_current_key", "当前键") : text("seed_variable_index", "当前序号"), key === "entries" ? "text" : "number");
       }
       return node;
     }
-    if (key === "try") return { id, kind: "try", body: [], catch: null, finally: [], error: variable(workflow, "异常", "object") };
+    if (key === "try") return { id, kind: "try", body: [], catch: null, finally: [], error: variable(workflow, text("workflow_ui_exception", "异常"), "object") };
     if (markers.has(key)) throw new TypeError("请在所属流程块中添加分支或定位结束标记");
     const node = { id, kind: "action", action: key };
     const values = {
-      receive: { value: reference("input"), output: variableIf("输入数据", "any") },
-      set: { value: literal(""), output: variableIf("变量") },
-      list: { value: literal([]), output: variableIf("列表", "list") },
-      record: { value: literal({}), output: variableIf("字典", "object") },
-      get: { value: literal({}), key: literal(""), output: variableIf("项目") },
-      json: { value: literal(""), output: variableIf("JSON 数据") },
+      receive: { value: reference("input"), output: variableIf("receive", "seed_variable_input", "输入数据", "any") },
+      set: { value: literal(""), output: variableIf("set", "workflow_ui_variable", "变量") },
+      list: { value: literal([]), output: variableIf("list", "seed_variable_list", "列表", "list") },
+      record: { value: literal({}), output: variableIf("record", "seed_variable_record", "字典", "object") },
+      get: { value: literal({}), key: literal(""), output: variableIf("get", "workflow_ui_item", "项目") },
+      json: { value: literal(""), output: variableIf("json", "seed_variable_json", "JSON 数据") },
       wait: { seconds: literal(1) }, log: { value: literal(""), level: "info" },
-      comment: { text: "" }, raise: { value: literal("流程主动抛出异常") },
+      comment: { text: "" }, raise: { value: literal(text("workflow_ui_exception_raised_by_workflow", "流程主动抛出异常")) },
     };
-    function variableIf(name, kind) { return key === ({ 输入数据: "receive", 变量: "set", 列表: "list", 字典: "record", 项目: "get", "JSON 数据": "json" }[name]) ? variable(workflow, name, kind) : ""; }
+    function variableIf(action, labelKey, fallback, kind) {
+      return key === action ? variable(workflow, text(labelKey, fallback), kind) : "";
+    }
     if (values[key]) return Object.assign(node, values[key]);
     if (definitions[key]) {
       const definition = definitions[key];
+      const command = text("workflow.command." + key + ".name", definition.name);
+      const outputName = definition.outputName
+        ? text("workflow.output." + key, definition.outputName)
+        : text("workflow.format.result_var", command + "结果", { command });
       Object.assign(node, Object.fromEntries(definition.fields.map(field => [field.key, field.key === "game" ? reference("input", "", ["game"]) : literal(clone(field.value))])), {
-        output: variable(workflow, definition.outputName || definition.name + "结果", definition.outputType),
+        output: variable(workflow, outputName, definition.outputType),
       });
       if (key === "family-refresh") node.requestTimeoutSeconds = 12;
       if (key === http.id) Object.assign(node, { method: "GET", origin: "", requestTimeoutSeconds: httpMaxTimeout });
       return node;
     }
-    if (key === "script") return Object.assign(node, { code: [""], seconds: 10, output: variable(workflow, "脚本结果") });
-    if (key === "ai-call") Object.assign(node, { serviceId: root.STAI.DEFAULT_SERVICE_ID, promptId: "", requestTimeoutSeconds: 60, inputs: {}, output: variable(workflow, "AI 回复", "text") });
+    if (key === "script") return Object.assign(node, { code: [""], seconds: 10, output: variable(workflow, text("workflow_ui_script_result", "脚本结果")) });
+    if (key === "ai-call") Object.assign(node, { serviceId: root.STAI.DEFAULT_SERVICE_ID, promptId: "", requestTimeoutSeconds: 60, inputs: {}, output: variable(workflow, text("seed_variable_ai", "AI 回复"), "text") });
     else if (key === "notify" || key === "interactive") {
       node.action = "notify";
-      Object.assign(node, { messageType: key === "interactive" ? "interactive" : "notification", body: literal(""), level: "info", delivery: "center", scope: "account", output: variable(workflow, "消息结果", "result") });
-      if (key === "interactive") Object.assign(node, { buttons: [{ id: "button-1", label: "继续", icon: "view" }, { id: "button-2", label: "取消", icon: "mute" }], timeout: { seconds: 60 } });
+      Object.assign(node, { messageType: key === "interactive" ? "interactive" : "notification", body: literal(""), level: "info", delivery: "center", scope: "account", output: variable(workflow, text("seed_variable_message", "消息结果"), "result") });
+      if (key === "interactive") Object.assign(node, { buttons: [{ id: "button-1", label: text("common_continue", "继续"), icon: "view" }, { id: "button-2", label: text("common_cancel", "取消"), icon: "mute" }], timeout: { seconds: 60 } });
     }
     return node;
   }
   function validId(value) { return typeof value === "string" && /^[a-zA-Z][a-zA-Z0-9_-]*$/.test(value); }
-  const configurationError = message => Object.assign(new TypeError(message), { code: "WORKFLOW_CONFIG_INVALID" });
+  const configurationError = (message, messageKey, messageParams) =>
+    Object.assign(new TypeError(message), { code: "WORKFLOW_CONFIG_INVALID", messageKey, messageParams });
   /** URL 中的账号密码和非 HTTP(S) 协议不能进入授权或请求链 */
   function httpUrl(value) {
     if (typeof value !== "string") return null;
@@ -241,44 +258,44 @@
     return "";
   }
   function validateValue(value, variables, allowExpression = true) {
-    if (!value || typeof value !== "object" || Array.isArray(value)) throw configurationError("请选择固定值或变量");
+    if (!value || typeof value !== "object" || Array.isArray(value)) throw configurationError("请选择固定值或变量", "workflow_error_value");
     if (Object.hasOwn(value, "mode")) {
-      if (Object.keys(value).length !== 3 || !Object.hasOwn(value, "text") || !Object.hasOwn(value, "code")) throw configurationError("输入模式内容无效");
+      if (Object.keys(value).length !== 3 || !Object.hasOwn(value, "text") || !Object.hasOwn(value, "code")) throw configurationError("输入模式内容无效", "workflow_error_input_content");
       clone(value);
       validateValue(activeValue(value), variables, allowExpression);
       return;
     }
     if (Object.hasOwn(value, "expression")) {
-      if (!allowExpression) throw configurationError("触发器输入不执行表达式，请在工作流指令中处理");
-      if (Object.keys(value).length !== 1 || !Array.isArray(value.expression) || !value.expression.length || !value.expression.some(part => typeof part === "string" && part.trim() || part?.source)) throw configurationError("请填写表达式");
+      if (!allowExpression) throw configurationError("触发器输入不执行表达式，请在工作流指令中处理", "workflow_error_trigger_expression");
+      if (Object.keys(value).length !== 1 || !Array.isArray(value.expression) || !value.expression.length || !value.expression.some(part => typeof part === "string" && part.trim() || part?.source)) throw configurationError("请填写表达式", "workflow_error_expression");
       for (const part of value.expression) if (typeof part !== "string") {
-        if (!part?.source) throw configurationError("表达式变量引用无效");
+        if (!part?.source) throw configurationError("表达式变量引用无效", "workflow_error_expression_ref");
         validateValue(part, variables);
       }
       return;
     }
     if (Object.hasOwn(value, "template")) {
-      if (!Array.isArray(value.template)) throw configurationError("文本模板无效");
+      if (!Array.isArray(value.template)) throw configurationError("文本模板无效", "workflow_error_text_template");
       for (const part of value.template) if (typeof part !== "string") validateValue(part, variables, allowExpression);
       return;
     }
     if (Object.hasOwn(value, "literal")) {
-      if (Object.keys(value).some(key => !["literal", "display"].includes(key)) || value.literal === undefined || value.display !== undefined && (typeof value.display !== "string" || !value.display.trim())) throw configurationError("固定值无效");
+      if (Object.keys(value).some(key => !["literal", "display"].includes(key)) || value.literal === undefined || value.display !== undefined && (typeof value.display !== "string" || !value.display.trim())) throw configurationError("固定值无效", "workflow_error_literal");
       clone(value.literal);
       return;
     }
     if (!["input", "variable", "meta"].includes(value.source) || !Array.isArray(value.path) ||
       value.path.some(key => !(typeof key === "string" || Number.isSafeInteger(key)) || ["__proto__", "prototype", "constructor"].includes(key)))
-      throw configurationError("变量引用无效");
-    if (value.source === "variable" && !variables.has(value.id)) throw configurationError("引用的变量已删除：" + value.id);
+      throw configurationError("变量引用无效", "workflow_error_variable_ref");
+    if (value.source === "variable" && !variables.has(value.id)) throw configurationError("引用的变量已删除：" + value.id, "workflow_error_deleted_variable", { id: value.id });
   }
   function validateCondition(value, variables) {
-    if (!value || typeof value !== "object") throw configurationError("判断条件无效");
+    if (!value || typeof value !== "object") throw configurationError("判断条件无效", "workflow_error_condition");
     if (value.op === "all" || value.op === "any") {
-      if (!Array.isArray(value.children) || !value.children.length) throw configurationError("IF 或 While 需要至少一个条件");
+      if (!Array.isArray(value.children) || !value.children.length) throw configurationError("IF 或 While 需要至少一个条件", "workflow_error_required_condition");
       value.children.forEach(child => validateCondition(child, variables));
     } else {
-      if (!Object.hasOwn(operations, value.op)) throw configurationError("判断关系无效");
+      if (!Object.hasOwn(operations, value.op)) throw configurationError("判断关系无效", "workflow_error_operator");
       validateValue(value.left, variables);
       if (!unary.has(value.op)) validateValue(value.right, variables);
     }
@@ -287,27 +304,27 @@
   function validate(workflow, { target = null, loopDepth = 0, assigned = [] } = {}) {
     if (!workflow || !validId(workflow.id) || typeof workflow.name !== "string" || !workflow.name.trim() ||
       !Number.isSafeInteger(workflow.revision) || workflow.revision < 1 || !Array.isArray(workflow.variables) || !Array.isArray(workflow.steps))
-      throw configurationError("工作流结构无效");
+      throw configurationError("工作流结构无效", "workflow_error_workflow");
     const vars = new Set(), labels = new Set(), ids = new Set();
     for (const item of workflow.variables) {
       if (!validId(item.id) || vars.has(item.id) || typeof item.name !== "string" || !item.name.trim() || labels.has(item.name) ||
-        !["any", "text", "number", "boolean", "list", "object", "result"].includes(item.type)) throw configurationError("变量 ID、名称或类型无效");
+        !["any", "text", "number", "boolean", "list", "object", "result"].includes(item.type)) throw configurationError("变量 ID、名称或类型无效", "workflow_error_variable");
       vars.add(item.id); labels.add(item.name);
     }
     function output(id, required = false) {
-      if ((!id && required) || (id && !vars.has(id))) throw configurationError("请选择保存结果的变量");
+      if ((!id && required) || (id && !vars.has(id))) throw configurationError("请选择保存结果的变量", "workflow_error_output");
     }
     function sequence(list, depth) {
-      if (!Array.isArray(list)) throw configurationError("流程块需要步骤列表");
+      if (!Array.isArray(list)) throw configurationError("流程块需要步骤列表", "workflow_error_steps");
       for (const node of list) {
         if (target && node !== target) continue;
-        if (!node || !validId(node.id) || ids.has(node.id) || !Object.hasOwn(names, type(node)) || markers.has(type(node))) throw configurationError("指令 ID 或类型无效");
+        if (!node || !validId(node.id) || ids.has(node.id) || !Object.hasOwn(names, type(node)) || markers.has(type(node))) throw configurationError("指令 ID 或类型无效", "workflow_error_action");
         ids.add(node.id);
         try {
-          if (node.disabled !== undefined && typeof node.disabled !== "boolean") throw configurationError("指令禁用状态无效");
-          if (node.kind === "if" && (node.endDisabled !== undefined && typeof node.endDisabled !== "boolean" || !!node.disabled !== !!node.endDisabled)) throw configurationError("IF 与 End IF 的启用状态必须一致，请分别设置这两行");
+          if (node.disabled !== undefined && typeof node.disabled !== "boolean") throw configurationError("指令禁用状态无效", "workflow_error_disabled");
+          if (node.kind === "if" && (node.endDisabled !== undefined && typeof node.endDisabled !== "boolean" || !!node.disabled !== !!node.endDisabled)) throw configurationError("IF 与 End IF 的启用状态必须一致，请分别设置这两行", "workflow_error_if_enabled");
           if (node.kind === "if") {
-            if (!Array.isArray(node.branches) || !node.branches.length) throw configurationError("IF 至少需要一个分支");
+            if (!Array.isArray(node.branches) || !node.branches.length) throw configurationError("IF 至少需要一个分支", "workflow_error_branch");
             for (const branch of node.branches) { validateCondition(branch.condition, vars); sequence(branch.steps, depth); }
             if (node.otherwise !== null) sequence(node.otherwise, depth);
           } else if (loops.has(node.kind)) {
@@ -317,76 +334,76 @@
             if (["foreach", "entries"].includes(node.kind)) { validateValue(node.value, vars); output(node.item, true); output(node.index, true); }
             sequence(node.body, depth + 1);
           } else if (node.kind === "try") {
-            if (node.catch === null && node.finally === null) throw configurationError("Try 需要 Catch 或 Finally");
+            if (node.catch === null && node.finally === null) throw configurationError("Try 需要 Catch 或 Finally", "workflow_error_try");
             output(node.error, node.catch !== null);
             sequence(node.body, depth);
             if (node.catch !== null) sequence(node.catch, depth);
             if (node.finally !== null) sequence(node.finally, depth);
           } else {
-            if (node.kind !== "action") throw configurationError("指令结构无效");
+            if (node.kind !== "action") throw configurationError("指令结构无效", "workflow_error_action_structure");
             const required = definitions[node.action]?.fields.map(field => field.key).filter(key => node.action !== http.id || key !== "body" || hasHttpBody(node.method)) || { raise: ["value"], log: ["value"], wait: ["seconds"], notify: ["body"] }[node.action] || [];
-            if (required.some(key => !Object.hasOwn(node, key))) throw configurationError("指令缺少必填输入");
-            if (["break", "continue"].includes(node.action) && !depth) throw configurationError("该指令只能放在循环内");
+            if (required.some(key => !Object.hasOwn(node, key))) throw configurationError("指令缺少必填输入", "workflow_error_action_input");
+            if (["break", "continue"].includes(node.action) && !depth) throw configurationError("该指令只能放在循环内", "workflow_error_loop");
             for (const key of new Set([...required, "game", "source", "body"])) if (Object.hasOwn(node, key)) validateValue(node[key], vars);
             output(node.output);
             if (definitions[node.action]) {
               output(node.output, true);
-              if (node.action === "set" && node.valueType !== undefined && !["any", "text", "number", "boolean", "list", "object"].includes(node.valueType)) throw configurationError("变量类型无效");
+              if (node.action === "set" && node.valueType !== undefined && !["any", "text", "number", "boolean", "list", "object"].includes(node.valueType)) throw configurationError("变量类型无效", "workflow_error_var_type");
             }
             if (node.action === "script") {
-              if (!Number.isSafeInteger(node.seconds) || node.seconds < 1 || node.seconds * 1000 > 2147483647) throw configurationError("请设置有效的脚本执行超时秒数");
-              if (Object.hasOwn(node, "inputs") || !Array.isArray(node.code) || !node.code.some(part => typeof part !== "string" || part.trim())) throw configurationError("请填写 JavaScript 代码");
+              if (!Number.isSafeInteger(node.seconds) || node.seconds < 1 || node.seconds * 1000 > 2147483647) throw configurationError("请设置有效的脚本执行超时秒数", "workflow_error_script_timeout");
+              if (Object.hasOwn(node, "inputs") || !Array.isArray(node.code) || !node.code.some(part => typeof part !== "string" || part.trim())) throw configurationError("请填写 JavaScript 代码", "workflow_error_script");
               for (const part of node.code) if (typeof part !== "string") {
-                if (part?.source !== "variable") throw configurationError("脚本变量引用无效");
+                if (part?.source !== "variable") throw configurationError("脚本变量引用无效", "workflow_error_script_ref");
                 validateValue(part, vars, false);
               }
             }
             if (node.action === http.id) {
               const known = staticHttpOrigin(node.url), url = activeValue(node.url);
-              if (!["any", "object"].includes(workflow.variables.find(item => item.id === node.output).type)) throw configurationError("HTTP 响应需要保存到字典或任意数据变量");
-              if (Object.hasOwn(url, "literal") && !known) throw configurationError("请输入有效的 HTTP 或 HTTPS URL");
-              if (!node.origin || node.origin !== httpUrl(node.origin)?.origin || known && known !== node.origin) throw configurationError("请选择与 URL 一致的请求站点");
-              if (!httpMethods.includes(node.method) || !Number.isSafeInteger(node.requestTimeoutSeconds) || node.requestTimeoutSeconds < 1 || node.requestTimeoutSeconds > httpMaxTimeout) throw configurationError(`请选择 HTTP 方法，并将超时设置为 1–${httpMaxTimeout} 秒`);
+              if (!["any", "object"].includes(workflow.variables.find(item => item.id === node.output).type)) throw configurationError("HTTP 响应需要保存到字典或任意数据变量", "workflow_error_http_output");
+              if (Object.hasOwn(url, "literal") && !known) throw configurationError("请输入有效的 HTTP 或 HTTPS URL", "workflow_error_http_url");
+              if (!node.origin || node.origin !== httpUrl(node.origin)?.origin || known && known !== node.origin) throw configurationError("请选择与 URL 一致的请求站点", "workflow_error_http_origin");
+              if (!httpMethods.includes(node.method) || !Number.isSafeInteger(node.requestTimeoutSeconds) || node.requestTimeoutSeconds < 1 || node.requestTimeoutSeconds > httpMaxTimeout) throw configurationError(`请选择 HTTP 方法，并将超时设置为 1–${httpMaxTimeout} 秒`, "workflow_error_http_method", { max: httpMaxTimeout });
             }
             if (node.onError !== undefined) {
-              if (!failable(node) || !["throw", "continue"].includes(node.onError)) throw configurationError("错误处理方式无效");
+              if (!failable(node) || !["throw", "continue"].includes(node.onError)) throw configurationError("错误处理方式无效", "workflow_error_error_mode");
             }
             output(node.errorOutput);
-            if (node.errorOutput && (node.errorOutput === node.output || !["any", "result"].includes(workflow.variables.find(item => item.id === node.errorOutput).type))) throw configurationError("执行结果需要独立的指令结果变量");
+            if (node.errorOutput && (node.errorOutput === node.output || !["any", "result"].includes(workflow.variables.find(item => item.id === node.errorOutput).type))) throw configurationError("执行结果需要独立的指令结果变量", "workflow_error_error_output");
             for (const [key, value] of Object.entries(node.action === "ai-call" ? node.inputs || {} : {})) {
-              if (!key.trim() || ["__proto__", "constructor", "prototype"].includes(key)) throw configurationError("输入字段名称无效");
+              if (!key.trim() || ["__proto__", "constructor", "prototype"].includes(key)) throw configurationError("输入字段名称无效", "workflow_error_input_name");
               validateValue(value, vars);
             }
-            if (node.action === "log" && !["info", "success", "warning", "error"].includes(node.level)) throw configurationError("日志级别无效");
+            if (node.action === "log" && !["info", "success", "warning", "error"].includes(node.level)) throw configurationError("日志级别无效", "workflow_error_log_level");
             if (node.action === "ai-call") {
-              if (Object.hasOwn(node, "game") || Object.hasOwn(node, "format")) throw configurationError("旧 AI 组合参数需要重新配置为显式输入与独立 JSON 指令");
+              if (Object.hasOwn(node, "game") || Object.hasOwn(node, "format")) throw configurationError("旧 AI 组合参数需要重新配置为显式输入与独立 JSON 指令", "workflow_error_legacy_ai");
               if (!root.STAI.isServiceId(node.serviceId) || !root.STAI.isPromptId(node.promptId) ||
                 !node.inputs || typeof node.inputs !== "object" || Array.isArray(node.inputs) ||
                 !Number.isSafeInteger(node.requestTimeoutSeconds) || node.requestTimeoutSeconds < 1 || node.requestTimeoutSeconds > 120)
-                throw configurationError("请选择 AI 服务、提示词并配置请求超时");
+                throw configurationError("请选择 AI 服务、提示词并配置请求超时", "workflow_error_ai_settings");
               output(node.output, true);
               if (node.context !== undefined) validateValue(node.context, vars);
               output(node.contextOutput);
               if (node.contextOutput && (node.contextOutput === node.output || node.contextOutput === node.errorOutput ||
                 !["any", "list"].includes(workflow.variables.find(item => item.id === node.contextOutput).type)))
-                throw configurationError("对话上下文需要保存到独立的列表或动态变量");
+                throw configurationError("对话上下文需要保存到独立的列表或动态变量", "workflow_error_chat_output");
             }
-            if (node.action === "family-refresh" && (!Number.isSafeInteger(node.requestTimeoutSeconds) || node.requestTimeoutSeconds < 1 || node.requestTimeoutSeconds > 3600)) throw configurationError("家庭库刷新超时无效");
-            if (node.action === "family-refresh" && (Object.hasOwn(node, "retryCount") || Object.hasOwn(node, "retrySeconds"))) throw configurationError("旧家庭库重试参数需要改为显式循环和等待");
-            if (node.action === "append" && Object.hasOwn(node, "target")) throw configurationError("旧列表追加需要改为输入列表、项目和输出变量");
+            if (node.action === "family-refresh" && (!Number.isSafeInteger(node.requestTimeoutSeconds) || node.requestTimeoutSeconds < 1 || node.requestTimeoutSeconds > 3600)) throw configurationError("家庭库刷新超时无效", "workflow_error_family_timeout");
+            if (node.action === "family-refresh" && (Object.hasOwn(node, "retryCount") || Object.hasOwn(node, "retrySeconds"))) throw configurationError("旧家庭库重试参数需要改为显式循环和等待", "workflow_error_legacy_family");
+            if (node.action === "append" && Object.hasOwn(node, "target")) throw configurationError("旧列表追加需要改为输入列表、项目和输出变量", "workflow_error_legacy_list");
             if (node.action === "notify") {
               if (!["notification", "interactive"].includes(node.messageType) || !["info", "success", "warning", "error"].includes(node.level) ||
-                !["center", "popup"].includes(node.delivery) || !["account", "device"].includes(node.scope)) throw configurationError("消息配置无效");
-              if (node.messageType === "notification" && ["buttons", "timeout"].some(key => Object.hasOwn(node, key))) throw configurationError("通知不能包含交互属性");
+                !["center", "popup"].includes(node.delivery) || !["account", "device"].includes(node.scope)) throw configurationError("消息配置无效", "workflow_error_message");
+              if (node.messageType === "notification" && ["buttons", "timeout"].some(key => Object.hasOwn(node, key))) throw configurationError("通知不能包含交互属性", "workflow_error_notification");
               if (node.messageType === "interactive") {
-                if (node.scope !== "account" || !Array.isArray(node.buttons) || !node.buttons.length) throw configurationError("交互消息需要账号范围及操作按钮");
+                if (node.scope !== "account" || !Array.isArray(node.buttons) || !node.buttons.length) throw configurationError("交互消息需要账号范围及操作按钮", "workflow_error_buttons");
                 const buttons = new Set();
                 for (const button of node.buttons) {
                   if (!validId(button.id) || ["timeout", "delivery-failed"].includes(button.id) || buttons.has(button.id) || typeof button.label !== "string" || !button.label.trim() ||
-                    !["view", "mute", "read", "retry", "upgrade"].includes(button.icon)) throw configurationError("交互按钮配置无效");
+                    !["view", "mute", "read", "retry", "upgrade"].includes(button.icon)) throw configurationError("交互按钮配置无效", "workflow_error_button");
                   buttons.add(button.id);
                 }
-                if (node.timeout !== null && (!Number.isSafeInteger(node.timeout?.seconds) || node.timeout.seconds < 1 || !Number.isSafeInteger(Date.now() + node.timeout.seconds * 1000))) throw configurationError("交互超时秒数无效");
+                if (node.timeout !== null && (!Number.isSafeInteger(node.timeout?.seconds) || node.timeout.seconds < 1 || !Number.isSafeInteger(Date.now() + node.timeout.seconds * 1000))) throw configurationError("交互超时秒数无效", "workflow_error_message_timeout");
               }
             }
           }
@@ -399,15 +416,13 @@
     for (const node of walk(target ? [target] : workflow.steps, true)) {
       if (target && node !== target) continue;
       const ready = available.get(node.id);
-      if (!ready) throw Object.assign(configurationError("当前指令不属于工作流"), { nodeId: node.id });
-      const check = value => {
-        for (const ref of references(value)) if (ref.source === "variable" && !ready.has(ref.id)) {
+      if (!ready) throw Object.assign(configurationError("当前指令不属于工作流", "workflow_error_not_in_flow"), { nodeId: node.id });
+      for (const ref of nodeReferences(node)) {
+        if (ref.source === "variable" && !ready.has(ref.id)) {
           const name = workflow.variables.find(item => item.id === ref.id)?.name || ref.id;
-          throw Object.assign(configurationError(`变量“${name}”尚未在此前指令中创建`), { nodeId: node.id });
+          throw Object.assign(configurationError(`变量“${name}”尚未在此前指令中创建`, "workflow_error_unassigned", { name }), { nodeId: node.id });
         }
-      };
-      for (const [, value] of inputs(node)) check(value);
-      for (const value of conditionInputs(node)) check(value);
+      }
     }
     return workflow;
   }
@@ -417,6 +432,10 @@
     if (!value || Object.hasOwn(value, "literal")) return;
     if (value.source) yield value;
     else for (const part of value.template || value.expression || []) if (typeof part !== "string") yield* references(part);
+  }
+  function* nodeReferences(node) {
+    for (const [, value] of inputs(node)) yield* references(value);
+    for (const value of conditionInputs(node)) yield* references(value);
   }
   /** 指令公开输出的成员目录；只描述真实返回字段，不给动态值补造结果包装 */
   function outputFields(node, slot = "output") {
@@ -843,6 +862,6 @@
   const previewable = node => node.kind === "if" || !!(data.byId[node.action] || effects[node.action]?.gameField || ["script", "ai-call", http.id].includes(node.action));
   root.STWorkflow = Object.freeze({ catalog: Object.freeze(catalog), definitions, effects, failable, previewable, names: Object.freeze(names), loops, markers, operations, clone, literal, constant, reference,
     httpMethods, httpMaxTimeout, hasHttpBody, httpUrl, staticHttpOrigin, instructionPermission, permissionNotice, permissionDenial,
-    numericId, variable, condition, comparison, multiple, unary, inputs, conditionInputs, inputValue, activeValue, references, scopes, outputFields, evaluateValues, type, walk, createNode, validate, validateValue, validateCondition, read, write, matches, state, next, local, failed,
+    numericId, variable, condition, comparison, multiple, unary, inputs, conditionInputs, inputValue, activeValue, references, nodeReferences, scopes, outputFields, evaluateValues, type, walk, createNode, validate, validateValue, validateCondition, read, write, matches, state, next, local, failed,
     complete, currentNode, raise, transfer, rows, foldPairs, foldLayout, visitSequences, pathGet, errorData, errorObject });
 })(globalThis);

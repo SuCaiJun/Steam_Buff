@@ -16,16 +16,58 @@
   const MAX_CLOUD_PAGE_COUNT = 20;
   const MESSAGES = Object.freeze({
     openLocalPage: "STEAM_BUFF_ONBOARDING_OPEN_LOCAL_PAGE",
+    getLocale: "STEAM_BUFF_ONBOARDING_GET_LOCALE",
+    setLocale: "STEAM_BUFF_ONBOARDING_SET_LOCALE",
+    complete: "STEAM_BUFF_ONBOARDING_COMPLETE",
     openSettings: "STEAM_BUFF_ONBOARDING_OPEN_SETTINGS",
   });
-  const LOCAL_STEPS = Object.freeze([
-    Object.freeze({ id: "account", title: "登录账号", copy: "登录素材君账号，也可暂时跳过。", note: "未登录也可使用大部分功能。", nextLabel: "下一步" }),
-    Object.freeze({ id: "client", title: "客户端增强", copy: "选择需要的功能，下一步保存。", note: "部分增强需要重启 Steam 后生效。", nextLabel: "保存并继续" }),
-    Object.freeze({ id: "name-mode", title: "名称方案", copy: "按你的使用习惯，选择一种名称方案。", note: "以后可以在设置中心切换。", nextLabel: "保存并继续" }),
-    Object.freeze({ id: "third-party", title: "价格数据", copy: "填入自己的 ITAD API Key，再测试连接。", note: "还没有密钥？可以稍后配置。", nextLabel: "保存并继续" }),
-    Object.freeze({ id: "ai", title: "AI 服务", copy: "填写服务商提供的地址、模型和密钥。", note: "暂时不需要 AI？可以稍后配置。", nextLabel: "保存并继续" }),
-    Object.freeze({ id: "complete", title: "一切就绪", copy: "看看这次保存的设置。", note: "需要调整时，打开 Steam Buff 设置中心。", nextLabel: "开始使用" }),
-  ]);
+  function localizedSteps(text) {
+    return Object.freeze([
+      Object.freeze({
+        id: "account",
+        title: text("onboarding_signIn", "登录账号"),
+        copy: text("onboarding_accountStepCopy", "登录素材君账号，也可暂时跳过。"),
+        note: text("onboarding_guestAccessHint", "未登录也可使用大部分功能。"),
+        nextLabel: text("onboarding_next", "下一步"),
+      }),
+      Object.freeze({
+        id: "client",
+        title: text("settings_category_client_name", "客户端增强"),
+        copy: text("onboarding_chooseFeaturesAndSave", "选择需要的功能，下一步保存。"),
+        note: text("onboarding_restartSomeFeatures", "部分增强需要重启 Steam 后生效。"),
+        nextLabel: text("onboarding_saveAndContinue", "保存并继续"),
+      }),
+      Object.freeze({
+        id: "name-mode",
+        title: text("onboarding_namingMethod", "名称方案"),
+        copy: text("onboarding_namingStepCopy", "按你的使用习惯，选择一种名称方案。"),
+        note: text("onboarding_changeLaterInSettings", "以后可以在设置中心切换。"),
+        nextLabel: text("onboarding_saveAndContinue", "保存并继续"),
+      }),
+      Object.freeze({
+        id: "third-party",
+        title: text("onboarding_priceData", "价格数据"),
+        copy: text("onboarding_enterItadKeyAndTest", "填入自己的 ITAD API Key，再测试连接。"),
+        note: text("onboarding_deferPriceSetup", "还没有密钥？可以稍后配置。"),
+        nextLabel: text("onboarding_saveAndContinue", "保存并继续"),
+      }),
+      Object.freeze({
+        id: "ai",
+        title: text("onboarding_aiServices", "AI 服务"),
+        copy: text("onboarding_enterAiCredentials", "填写服务商提供的地址、模型和密钥。"),
+        note: text("onboarding_deferAiSetup", "暂时不需要 AI？可以稍后配置。"),
+        nextLabel: text("onboarding_saveAndContinue", "保存并继续"),
+      }),
+      Object.freeze({
+        id: "complete",
+        title: text("onboarding_allSet", "一切就绪"),
+        copy: text("onboarding_reviewSavedSettings", "看看这次保存的设置。"),
+        note: text("onboarding_openSettingsToModify", "需要调整时，打开 Steam Buff 设置中心。"),
+        nextLabel: text("onboarding_getStarted", "开始使用"),
+      }),
+    ]);
+  }
+  const LOCAL_STEPS = localizedSteps((_key, source) => source);
 
   // 校验服务器允许发布的云端页数范围
   function validCloudPageCount(value) {
@@ -83,6 +125,7 @@
 
   root.STOnboardingContract = Object.freeze({
     LOCAL_STEPS,
+    localizedSteps,
     MESSAGES,
     MAX_CLOUD_PAGE_COUNT,
     validCloudPageCount,

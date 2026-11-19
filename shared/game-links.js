@@ -92,7 +92,7 @@
       const entry = { id: item.id, enabled: item.enabled, type, scope };
       if (!builtin || Object.hasOwn(item, "name")) {
         if (typeof item.name !== "string" || !item.name.trim()) throw invalid("NAME_REQUIRED");
-        entry.name = item.name.trim();
+        entry.name = item.name;
       }
       if (!builtin || Object.hasOwn(item, "urlTemplate")) entry.urlTemplate = validateTemplate(item.urlTemplate);
       return entry;
@@ -112,9 +112,22 @@
     return next;
   }
 
-  function resetBuiltins(value) {
+  function empty() {
+    return { columns: 1, items: [], removedBuiltins: presets.map(item => item.id) };
+  }
+
+  function seedNames(value, text) {
+    const next = normalize(value);
+    for (const item of next.items) {
+      const preset = byId.get(item.id);
+      if (preset && !Object.hasOwn(item, "name")) item.name = text("gameLinks.preset." + item.id, preset.name);
+    }
+    return next;
+  }
+
+  function resetBuiltins(value, text) {
     const current = normalize(value);
-    return { columns: current.columns, items: [...defaults().items, ...current.items.filter(item => !byId.has(item.id))] };
+    return { columns: current.columns, items: [...(text ? seedNames(undefined, text) : defaults()).items, ...current.items.filter(item => !byId.has(item.id))] };
   }
 
   function tokenValue(key, context) {
@@ -155,7 +168,7 @@
     return { ...entry, url: expand(entry.urlTemplate, context) };
   }
 
-  root.STGameLinks = Object.freeze({ KEY, TOKENS, presets, defaults, normalize, remove, resetBuiltins, validateTemplate, expand, expandName, definition, resolve,
+  root.STGameLinks = Object.freeze({ KEY, TOKENS, presets, defaults, empty, seedNames, normalize, remove, resetBuiltins, validateTemplate, expand, expandName, definition, resolve,
     TYPES, SCOPES, visible: (item, surface) => item.enabled && (item.scope === "all" || item.scope === surface),
     isValidationError: error => error?.name === "TypeError" && validationCodes.has(error.code),
   });

@@ -13,7 +13,7 @@
 
   const MATCH = globalThis.STConfig?.matchers;
   const MARK = "steamBuffInjected";
-  const MARK_VALUE = "steam-buff-runtime-v77";
+  const MARK_VALUE = "steam-buff-runtime-v78";
 
   if (globalThis.STGuard?.ready && globalThis.STGuard.version === MARK_VALUE) {
     return;

@@ -21,7 +21,7 @@
   const MEMBERSHIP_KEY = globalThis.STSettingsMembership?.KEY || "steam_buff_membership";
 
 
-  let settings = {};
+  let settings;
   let membership = { active: false, features: {} };
   let watchingSettings = false;
   let refreshQueue = Promise.resolve();
@@ -38,36 +38,24 @@
 
   async function load() {
     const startedAt = Date.now();
-    try {
-      const storage = globalThis.STSettings?.storage || {};
-      const [nextSettings, nextMembership] = await Promise.all([
-        storage.getAll?.(),
-        storage.getMembership?.(),
-      ]);
-      settings = nextSettings || {};
-      membership = nextMembership || { active: false, features: {} };
-      globalThis.STPageContext?.setSettingsSnapshot?.(settings);
-      log("info", "settings-load-success", "商店页设置快照加载完成", {
-        count: Object.keys(settings).length,
-        membershipActive: membership.active === true,
-        durationMs: Date.now() - startedAt,
-        path: location.pathname,
-      });
-    } catch (error) {
-      settings = {};
-      membership = { active: false, features: {} };
-      globalThis.STPageContext?.setSettingsSnapshot?.(settings);
-      log("warn", "settings-load-failed", "商店页设置快照加载失败，已使用默认配置", {
-        durationMs: Date.now() - startedAt,
-        path: location.pathname,
-        error,
-      });
-    }
+    const storage = globalThis.STSettings.storage;
+    // getAll 会发布功能快照，先确认会员设置读取成功。
+    const nextMembership = await storage.getMembership({ strict: true });
+    const nextSettings = await storage.getAll({ strict: true });
+    settings = nextSettings;
+    membership = nextMembership;
+    globalThis.STPageContext?.setSettingsSnapshot?.(settings);
+    log("info", "settings-load-success", "商店页设置快照加载完成", {
+      count: Object.keys(settings).length,
+      membershipActive: membership.active === true,
+      durationMs: Date.now() - startedAt,
+      path: location.pathname,
+    });
   }
 
   function on(id) {
     const item = globalThis.STSettings?.catalog?.featureById?.(id);
-    if (item?.disabled === true) {
+    if (!settings || item?.disabled === true) {
       return false;
     }
     if (settings[id] === false) {

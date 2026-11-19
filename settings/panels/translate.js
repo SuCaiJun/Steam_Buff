@@ -214,9 +214,9 @@
         </span>
       </label>`;
       const scene = surface === "news" ? "steam-news" : "steam-content";
-      return control("AI 服务", keys.service) +
-        control(keys.webPrompt ? "Steam 提示词方案" : "提示词方案", keys.prompt, scene) +
-        (keys.webPrompt ? control("网页提示词方案", keys.webPrompt, "web-translate") : "");
+      return control(uiText("onboarding_aiServices", "AI 服务"), keys.service) +
+        control(keys.webPrompt ? uiText("settings.translate.steamPrompt", "Steam 提示词方案") : uiText("settings.translate.prompt", "提示词方案"), keys.prompt, scene) +
+        (keys.webPrompt ? control(uiText("settings.translate.webPrompt", "网页提示词方案"), keys.webPrompt, "web-translate") : "");
     }
 
     function syncBindings(shadow) {
@@ -288,7 +288,7 @@
       return `
         ${cat.items.map((item) => options.masterItemHtml?.(item) || "").join("")}
         <div class="translate-form">
-          ${section("整页翻译", base, "page")}
+          ${section(uiText("settings.translate.wholePage", "整页翻译"), base, "page")}
           ${section(uiText("settings.translate.selection", "划词翻译"), selection, "selection")}
           ${section(uiText("settings.translate.newsPopup", "Steam 新闻弹窗翻译"), news, "news")}
           <div class="translate-actions form-footer">
@@ -359,6 +359,7 @@
           });
         })
         .finally(() => {
+          shadow.querySelectorAll("[data-translate]").forEach(root.STSettingsFields.acceptEdit);
           setInputsDisabled(shadow, false);
           save.disabled = false;
           save.textContent = oldText;

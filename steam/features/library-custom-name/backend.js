@@ -310,7 +310,7 @@
 
     // 只重建通信监听；正在执行或暂停的保存队列继续使用同一 rt
     rt.recover = () => {
-      if (window[RT] !== rt) throw new Error("名称管理后台已停止");
+      if (window[RT] !== rt) throw new Error(i18n("steam.libraryCustomName.backendStopped", "名称管理后台已停止"));
       channelHandle?.dispose?.();
       ch.removeEventListener("message", rt.onMsg);
       ch.close();

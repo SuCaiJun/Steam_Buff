@@ -18,6 +18,9 @@
   const running = new Map(), flushing = new Map(), requests = new Map(), previews = new Map();
   let services = null,
     initialization = null,
+    startup = null,
+    setupState = "waiting",
+    upgradeSource,
     configQueue = Promise.resolve(),
     alarmQueue = Promise.resolve(),
     reconciling = null,
@@ -280,7 +283,7 @@
     if (!job.outbox.some(item => item.id === id)) job.outbox.push({ id, createdAt: Date.now(), title: job.workflow.name, body: body.trim(), kind: node.messageType, level: node.level,
       scope: device ? "device" : "steam-account", ...(device ? {} : { steamAccountId: job.owner, group: job.id }),
       context: device ? {} : { jobId: job.id, step: job.step },
-      details: device ? [] : [{ label: "工作流", value: job.workflow.name }, { label: "触发器", value: job.trigger.name }, { label: "指令", value: node.id }],
+      details: device ? [] : [{ labelId: "workflow", label: "工作流", value: job.workflow.name }, { labelId: "trigger", label: "触发器", value: job.trigger.name }, { labelId: "instruction", label: "指令", value: node.id }],
       ...(node.messageType === "interactive" ? { actions: node.buttons.map(button => ({ ...button, kind: "command", target: "choose" })), interaction: { state: "preparing", deadline: 0, waiting: true } } : {}),
     });
     return id;
@@ -645,11 +648,13 @@
     await flow.evaluateValues(values, state, evaluate);
     const inputs = Object.fromEntries(entries.map(([name, value]) => [name, flow.read(value, state)]));
     const history = context ? flow.read(context, state) : undefined;
-    return prompts.prepare(prompt, ai, inputs, { history, captureTurn: !!node.contextOutput });
+    const displayLanguage = prompts.usesDisplay(prompt, ai.protocol)
+      ? root.STI18n.languageName(await root.STSettings.storage.getUiLocale({ strict: true })) : undefined;
+    return prompts.prepare(prompt, ai, inputs, { history, captureTurn: !!node.contextOutput, displayLanguage });
   }
   async function generateStep(job, node, bundle) {
     const prompt = root.STPromptPlans.resolve(bundle, node.promptId);
-    const ai = root.STAI.resolveService(await root.STSettings.storage.getAi(), node.serviceId, { bound: true });
+    const ai = await root.STAI.resolveService(await root.STSettings.storage.getAi(), node.serviceId);
     const promptBinding = { id: prompt.id, revision: prompt.revision };
     const serviceBinding = { id: ai.id, revision: ai.revision };
     const prepared = await prepareAi(node, prompt, ai, job.flow, request => expressionValues({ ...job, prompt: promptBinding, service: serviceBinding }, request));
@@ -940,6 +945,18 @@
     const current = await root.STSettings.storage.getWorkflow();
     return current.epoch === bundle.epoch && current.revision === bundle.revision;
   }
+  async function workflowState(workflow, inputs, triggerName, triggerType, nodes = flow.walk(workflow.steps, true)) {
+    const meta = { workflowName: workflow.name, triggerName, triggerType };
+    for (const node of nodes) {
+      for (const ref of flow.nodeReferences(node)) {
+        if (ref.source === "meta" && (!ref.path.length || ref.path[0] === "translationLanguage")) {
+          meta.translationLanguage = await root.STSettings.storage.getAiTargetLanguage();
+          return flow.state(inputs, meta, workflow);
+        }
+      }
+    }
+    return flow.state(inputs, meta, workflow);
+  }
   async function enqueue(trigger, event, ctx, owner, bundle, { startNow = true, checkRevision = false, binding, inputs: supplied, error = null } = {}) {
     if (!root.STBackgroundSteamAccount.current(binding)) return null;
     const workflow = bundle.workflows.find(item => item.id === trigger.workflowId);
@@ -952,7 +969,7 @@
     const job = { id: "automation:" + crypto.randomUUID(), definition: model.VERSION, eventKey: eventKey(owner, trigger, event),
       owner: owner || "", ownerBinding: { runtime: binding.runtime, accountEpoch: binding.accountEpoch }, epoch: bundle.epoch,
       trigger: copy(trigger), workflow: copy(workflow), type: "workflow",
-      appid: ctx?.game?.appid || 0, event: copy(event), flow: flow.state(inputs, { workflowName: workflow.name, triggerName: trigger.name, triggerType: event.type }, workflow),
+      appid: ctx?.game?.appid || 0, event: copy(event), flow: await workflowState(workflow, inputs, trigger.name, event.type),
       results: {}, entries: [], step: 0,
       status: startNow && !error ? "queued" : "held",
       deadline: startNow && !error && event.type === "schedule" ? trigger.event.endsAt ?? 0 : 0,
@@ -1030,8 +1047,11 @@
   }
 
 
-  function reviseServices(value, current, replace) {
+  function reviseServices(value, current, replace, onboardingOnly) {
     const next = root.STAI.normalizeServices(value);
+    // 向导只编辑连接；旧标签页提交时，也不能带回已经失效的服务名称。
+    if (onboardingOnly)
+      root.STAI.findService(next, root.STAI.DEFAULT_SERVICE_ID).name = root.STAI.findService(current, root.STAI.DEFAULT_SERVICE_ID).name;
     if (!replace && next.revision !== current.revision)
       throw new Error("AI 服务已在另一窗口修改，请重新打开设置后保存");
     for (const service of next.services) {
@@ -1048,7 +1068,8 @@
   }
   function reviseWorkflow(value, current, replace) {
     const next = model.normalize(value);
-    if (!replace && next.revision !== current.revision) throw new Error("配置已在另一窗口修改，请重新读取后保存");
+    if (!replace && next.revision !== current.revision)
+      throw Object.assign(new Error("配置已在另一窗口修改，请重新读取后保存"), { code: "WORKFLOW_REVISION_CONFLICT" });
     if (replace) next.epoch = crypto.randomUUID();
     next.revision = current.revision + 1;
     for (const section of ["prompts", "workflows", "triggers"]) for (const item of next[section]) {
@@ -1104,11 +1125,14 @@
     const [current, oldAi, oldTranslate] = await Promise.all([
       storage.getWorkflow(), storage.getAi(), storage.getTranslate(),
     ]);
-    const workflow = patch.familySettings
-      ? model.restoreFamilySchedule(current, patch.familySettings,
-        patch.familyFeature !== false && root.STClientEnvironment.isSteamClientRuntime(), current.epoch === "initial" && current.revision === 1)
-      : patch.workflow;
-    const ai = patch.ai ? reviseServices(patch.ai, oldAi, diagnostics.replace) : oldAi;
+    let workflow = patch.workflow;
+    if (patch.familySettings) {
+      const text = current.triggers.some(trigger => trigger.id === "trigger-0") ? undefined
+        : await storage.templateLanguage(await storage.getUiLocale({ strict: true }));
+      workflow = model.restoreFamilySchedule(current, patch.familySettings,
+        patch.familyFeature !== false && root.STClientEnvironment.isSteamClientRuntime(), current.epoch === "initial" && current.revision === 1, text);
+    }
+    const ai = patch.ai ? reviseServices(patch.ai, oldAi, diagnostics.replace, diagnostics.onboardingOnly) : oldAi;
     if (diagnostics.onboardingOnly) {
       const custom = (registry) => registry.services.filter((service) => service.id !== root.STAI.DEFAULT_SERVICE_ID);
       if (JSON.stringify(custom(ai)) !== JSON.stringify(custom(oldAi)))
@@ -1176,7 +1200,11 @@
     });
     return { ai, workflow: next, steamPending };
   }
-  function commitConfig(value, diagnostics) {
+  async function requireSetup() {
+    if (await startup === false) throw new Error("请先完成安装引导");
+  }
+  async function commitConfig(value, diagnostics) {
+    await requireSetup();
     return configExclusive(async () => {
       const { workflow, steamPending } = await persistSettings({ workflow: value }, diagnostics);
       return { workflow, steamPending };
@@ -1187,7 +1215,8 @@
   }
   /** 编辑器、引导与导入共用配置锁，旧快照无法覆盖其他窗口的保存 */
   async function configureAi(request, diagnostics = {}) {
-    await initialization;
+    if (!diagnostics.onboardingOnly) await requireSetup();
+    else await initialization;
     const options = { ...diagnostics, operationId: request.operationId };
     switch (request.action) {
       case "save-ai-services":
@@ -1242,9 +1271,9 @@
   function requestReconcile() {
     if (reconcileRequested) return;
     reconcileRequested = true;
-    void (reconciling || Promise.resolve()).then(() => {
+    void Promise.all([startup, reconciling]).then(([configured]) => {
       reconcileRequested = false;
-      return reconcile();
+      if (configured !== false) return reconcile();
     }, error => {
       reconcileRequested = false;
       throw error;
@@ -1281,7 +1310,9 @@
     return reconciling;
   }
   async function execute(request, sender) {
-    await initialization;
+    if (request.action === "settings-ready") return ready({ retry: request.retry === true });
+    // 恢复可以调用 Steam。握手只等配置读完，以免握手与恢复互相等待
+    await (request.action === "native-ready" ? initialization : startup);
     if (request.action === "schedule-clock") {
       const bundle = await root.STSettings.storage.getWorkflow();
       const trigger = bundle.triggers.find(item => item.id === request.triggerId && item.revision === request.revision && item.enabled && item.event.type === "schedule");
@@ -1303,7 +1334,7 @@
       flow.validate(workflow, { assigned: Object.keys(request.variables || {}) });
       const meta = request.meta || { triggerName: "指令试运行", triggerType: "manual" };
       if (typeof meta.triggerName !== "string" || !meta.triggerName.trim() || !model.isTriggerType(meta.triggerType)) throw new TypeError("试运行的触发器样例无效");
-      const state = flow.state(request.input || {}, { workflowName: workflow.name, triggerName: meta.triggerName.trim(), triggerType: meta.triggerType }, workflow);
+      const state = await workflowState(workflow, request.input || {}, meta.triggerName.trim(), meta.triggerType, [node]);
       for (const [id, value] of Object.entries(request.variables || {})) {
         if (!workflow.variables.some(item => item.id === id)) throw new TypeError("试运行变量不属于当前工作流");
         flow.write(state, id, value);
@@ -1321,7 +1352,7 @@
             const storage = root.STSettings.storage;
             const [bundle, registry] = await Promise.all([storage.getWorkflow(), storage.getAi()]);
             const prompt = root.STPromptPlans.resolve(bundle, node.promptId);
-            const ai = root.STAI.resolveService(registry, node.serviceId, { bound: true, preview: true });
+            const ai = await root.STAI.resolveService(registry, node.serviceId, { preview: true });
             ai.key = "";
             const prepared = await prepareAi(node, prompt, ai, state, evaluate);
             const result = root.STAI.chatRequest(ai, prepared.messages, prepared.body);
@@ -1355,10 +1386,6 @@
       } catch (error) { if (controller.signal.aborted) return { cancelled: true }; throw error; }
       finally { previews.delete(previewKey); }
     }
-    if (request.action === "settings-ready") {
-      await initialization;
-      return true;
-    }
     if (["save-ai-services", "save-translate", "apply-ai-settings"].includes(request.action))
       return configureAi(request);
     if (request.action === "prompt-references") {
@@ -1372,12 +1399,14 @@
     if (request.action === "preview") {
       await initialization;
       const registry = await root.STSettings.storage.getAi();
-      const ai = root.STAI.resolveService(registry, request.serviceId, { preview: true });
+      const ai = await root.STAI.resolveService(registry, request.serviceId, { preview: true });
       ai.key = "";
       const plan = root.STPromptPlans.validate(request.plan, ai.protocol);
       if (!request.values || typeof request.values !== "object" || Array.isArray(request.values))
         throw new TypeError("预览数据需要对象");
-      const prepared = root.STPromptPlans.prepare(plan, ai, request.values);
+      const displayLanguage = root.STPromptPlans.usesDisplay(plan, ai.protocol)
+        ? root.STI18n.languageName(await root.STSettings.storage.getUiLocale({ strict: true })) : undefined;
+      const prepared = root.STPromptPlans.prepare(plan, ai, request.values, { displayLanguage });
       const result = root.STAI.chatRequest(ai, prepared.messages, prepared.body);
       if (!result) throw new Error("请先填写预览用 AI 服务的网关与模型");
       return result.body;
@@ -1385,8 +1414,10 @@
     if (request.action === "save-config")
       return commitConfig(request.value, { operationId: request.operationId });
     if (request.action === "reset") {
+      await requireSetup();
       const current = await root.STSettings.storage.getWorkflow(),
-        next = model.defaults();
+        locale = await root.STSettings.storage.getUiLocale({ strict: true }),
+        next = model.defaults(await root.STSettings.storage.templateLanguage(locale), locale);
       for (const [scene, binding] of Object.entries(next.bindings))
         binding.serviceId = current.bindings[scene].serviceId;
       next.epoch = crypto.randomUUID();
@@ -1399,7 +1430,7 @@
       await chrome.storage.session.set({ [FRAME_KEY]: frame });
       accountBinding = null;
       const bundle = await root.STSettings.storage.getWorkflow();
-      requestReconcile();
+      if (await initialization !== false) requestReconcile();
       return {
         epoch: bundle.epoch,
         revision: bundle.revision,
@@ -1446,40 +1477,69 @@
     }
     throw new TypeError("自动化操作无效");
   }
+  function initializeWorkflow(complete = false) {
+    initialization = configExclusive(() => root.STSettings.storage.initializeWorkflow({ complete, previousVersion: upgradeSource }));
+    return startRecovery();
+  }
+  function startRecovery() {
+    setupState = "loading";
+    startup = initialization.then(async result => {
+      if (result === false) {
+        setupState = "waiting";
+        return false;
+      }
+      setupState = "recovering";
+      await recoverAutomation();
+      setupState = "ready";
+      return result;
+    });
+    // 后台可在无人打开设置时启动。记录失败，同时把同一份失败结果交给调用方
+    void startup.catch(error => {
+      setupState = setupState === "recovering" ? "recovery-failed" : "failed";
+      log.error("automation-recovery-failed", "自动化启动失败，已停止本次恢复", { error });
+    });
+    return startup;
+  }
+  function ready({ retry = false } = {}) {
+    if (retry && setupState === "failed") return initializeWorkflow();
+    if (retry && setupState === "recovery-failed") return startRecovery();
+    return startup;
+  }
   function start(dependencies) {
     if (services) return;
     services = dependencies;
-    initialization = configExclusive(() => root.STSettings.storage.initializeWorkflow());
+    initializeWorkflow();
     chrome.storage.onChanged.addListener((changes, area) => {
       if (area !== "local" || !Object.hasOwn(changes, root.STMessageCenter.IDENTITY_KEY)) return;
       const binding = root.STBackgroundSteamAccount.snapshot();
       if (binding.steamAccountId === null) return;
-      void initialization.then(() => acceptIdentity(binding)).then(arm).catch(error =>
+      void startup.then(async configured => {
+        if (configured === false) return;
+        await acceptIdentity(binding);
+        await arm();
+      }).catch(error =>
         log.error("automation-account-cleanup-failed", "账号变化后的自动化任务清理失败", { error }));
     });
     chrome.alarms.onAlarm.addListener((alarm) => {
       if (alarm.name === ALARM)
-        void reconcile().catch((error) =>
+        void startup.then(configured => configured !== false && reconcile()).catch((error) =>
           log.error("automation-schedule-failed", "自动化调度失败，已停止本轮处理", { error }),
         );
     });
-    void (async () => {
-      await initialization;
-      await chrome.alarms.clear(root.STFamilyLibrary.ALARM);
-      for (const job of await store.byStatus(["committing", "running-steam", "generating", "running-script", "preparing-notification"])) {
-        if (expiredRun(job) && await expireTimedJob(job.id, Date.now())) continue;
-        await finish(
-          job.id,
-          hasUnconfirmedRequest(job) ? "uncertain" : "failed",
-          new Error("上次运行已中断；未自动重复提交，请查看任务结果"),
-        );
-      }
-      for (const job of await store.byStatus(activeStates))
-        if (job.definition !== model.VERSION || !model.isTriggerType(job.trigger?.event?.type)) await finish(job.id, "expired");
-      await reconcile();
-    })().catch((error) =>
-      log.error("automation-recovery-failed", "自动化任务恢复失败，未继续执行", { error }),
-    );
+  }
+  async function recoverAutomation() {
+    await chrome.alarms.clear(root.STFamilyLibrary.ALARM);
+    for (const job of await store.byStatus(["committing", "running-steam", "generating", "running-script", "preparing-notification"])) {
+      if (expiredRun(job) && await expireTimedJob(job.id, Date.now())) continue;
+      await finish(
+        job.id,
+        hasUnconfirmedRequest(job) ? "uncertain" : "failed",
+        new Error("上次运行已中断；未自动重复提交，请查看任务结果"),
+      );
+    }
+    for (const job of await store.byStatus(activeStates))
+      if (job.definition !== model.VERSION || !model.isTriggerType(job.trigger?.event?.type)) await finish(job.id, "expired");
+    await reconcile();
   }
   async function reconcileSchedules() {
     scheduleDeadline = null;
@@ -1537,13 +1597,20 @@
     ALARM,
     execute,
     start,
-    ready: () => initialization,
+    ready,
+    async completeSetup() {
+      if (setupState === "loading") await startup;
+      if (setupState === "waiting" || setupState === "failed") return initializeWorkflow(true);
+      return ready({ retry: true });
+    },
     context,
     saveConfig,
     configureAi,
     async restoreReleasedDefaults(previousVersion) {
+      upgradeSource = previousVersion;
+      if (await startup === false && setupState === "waiting") initializeWorkflow();
+      await startup;
       if (!root.STFamilyLibrary.hasReleasedSchedule(previousVersion)) return;
-      await initialization;
       await configExclusive(async () => {
         const storage = root.STSettings.storage, family = root.STFamilyLibrary;
         const settingsKey = "st.settings.family-library-owned-marker.enabled";

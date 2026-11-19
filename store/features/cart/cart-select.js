@@ -19,8 +19,7 @@
   const REQ_EVT = "STStoreCartSelectRequest";
   const RES_EVT = "STStoreCartSelectResponse";
   const SEL_KEY = "st.store.cartSelect.selection";
-  const RESTORE_KEY = "st.store.cartSelect.restore";
-  const RESTORE_TTL_MS = 30 * 60 * 1000;
+  const cart = globalThis.STCartRestore;
   const SCAN_MS = 700;
   const OBSERVER_DEBOUNCE_MS = 1000;
   const EMPTY_SCAN_RETRY_MAX = 12;
@@ -39,7 +38,7 @@
   let pendingSelectionState = null;
   let selectionSaveTask = null;
   let items = [];
-  let meta = {};
+  let accountSteamId = null;
   let restoring = false;
   let lastBridgeFailureKey = "";
   let lastBridgeFailureAt = 0;
@@ -47,106 +46,20 @@
   let lastBulkAnchorMissing = false;
   let lastSideAnchorMissing = false;
   let observerTargetMissingLogged = false;
-  let restoreCleanupFailureLogged = false;
 
   function onCartPage() {
     return MATCH?.isSteamStoreHost?.(location.hostname) === true && /^\/cart\/?$/.test(location.pathname);
   }
 
-  function box() {
-    try {
-      return chrome.storage.local;
-    } catch {
-      return null;
-    }
-  }
-
-  function get(keys) {
-    const area = box();
-    if (!area) return Promise.resolve({});
-    return new Promise(resolve => {
-      area.get(keys, rt => resolve(chrome.runtime.lastError ? {} : rt || {}));
-    });
-  }
-
-  function put(data) {
-    const area = box();
-    if (!area) return Promise.reject(new Error("购物车本地存储不可用"));
-    return new Promise((resolve, reject) => {
-      area.set(data, () => {
-        const error = chrome.runtime.lastError;
-        if (error) {
-          reject(new Error(error.message || "购物车状态保存失败"));
-          return;
-        }
-        resolve(true);
-      });
-    });
-  }
-
-  function remove(keys) {
-    const area = box();
-    if (!area) return Promise.reject(new Error("购物车本地存储不可用"));
-    return new Promise((resolve, reject) => {
-      area.remove(keys, () => {
-        const error = chrome.runtime.lastError;
-        if (error) {
-          reject(new Error(error.message || "购物车状态清理失败"));
-          return;
-        }
-        resolve(true);
-      });
-    });
-  }
-
   async function loadState() {
-    const rt = await get([SEL_KEY, RESTORE_KEY]);
+    const rt = await chrome.storage.local.get([SEL_KEY, cart.KEY]);
     state = rt[SEL_KEY] && typeof rt[SEL_KEY] === "object" ? rt[SEL_KEY] : {};
-    const restore = validBatches(rt[RESTORE_KEY]);
-    if (Array.isArray(rt[RESTORE_KEY]) && restore.length !== rt[RESTORE_KEY].length) {
-      saveBatches(restore)
-        .then(() => {
-          restoreCleanupFailureLogged = false;
-        })
-        .catch((error) => {
-          if (restoreCleanupFailureLogged) {
-            return;
-          }
-          restoreCleanupFailureLogged = true;
-          log.warn("cart-select-restore-cleanup-failed", "购物车过期暂存数据清理失败", {
-            staleCount: Math.max(0, (rt[RESTORE_KEY] || []).length - restore.length),
-            error,
-          });
-        });
-    }
-    return {
-      selection: state,
-      restore,
-    };
+    return { selection: state, restore: await cart.read(rt[cart.KEY]) };
   }
 
   async function saveState(nextState) {
-    await put({ [SEL_KEY]: nextState });
+    await chrome.storage.local.set({ [SEL_KEY]: nextState });
     return true;
-  }
-
-  function expiredBatch(batch) {
-    const createdAt = Number(batch?.createdAt) || 0;
-    return !createdAt || Date.now() - createdAt > RESTORE_TTL_MS;
-  }
-
-  function validBatches(list) {
-    return (Array.isArray(list) ? list : [])
-      .filter(batch => batch?.id && Array.isArray(batch.items))
-      .filter(batch => !expiredBatch(batch));
-  }
-
-  async function saveBatches(batches) {
-    if (batches.length > 0) {
-      await put({ [RESTORE_KEY]: batches });
-    } else {
-      await remove([RESTORE_KEY]);
-    }
   }
 
   function checked(item) {
@@ -227,7 +140,6 @@
     pageReady = new Promise(resolve => {
       const script = document.createElement("script");
       script.src = chrome.runtime.getURL(scriptPath);
-      script.dataset.steamApiHost = window.STConfig?.vendors?.steamApi?.host || "";
       script.onload = () => {
         script.remove();
         log.info("cart-page-script-inject-success", "购物车页面脚本注入完成", {
@@ -253,7 +165,7 @@
   }
 
   function request(action, payload = {}) {
-    return new Promise(resolve => {
+    return new Promise((resolve, reject) => {
       const id = `cart_${Date.now()}_${Math.random().toString(36).slice(2)}`;
       const count = Math.max(
         1,
@@ -270,6 +182,14 @@
         done = true;
         clearTimeout(timer);
         window.removeEventListener(RES_EVT, onRes);
+        if (value?.ok === false && (value.error || value.code === "CART_ACCOUNT_CHANGED")) {
+          const error = new Error(value.message);
+          if (value.error?.name) error.name = value.error.name;
+          if (value.error?.stack) error.stack = value.error.stack;
+          if (value.code) error.code = value.code;
+          reject(value.code === "CART_ACCOUNT_CHANGED" ? cartAccountError(error) : error);
+          return;
+        }
         if (value?.ok === false) {
           logBridgeFailure(action, id, value, count, startedAt, shouldLogBridge);
         } else if (shouldLogBridge) {
@@ -860,6 +780,7 @@
     }
     panel.querySelector(".st_cart_restore_text").textContent = text;
     panel.classList.toggle("st_cart_restore_busy", state === "busy");
+    panel.querySelector(".st_cart_restore_btn").disabled = state === "busy";
     panel.classList.toggle("st_cart_restore_bad", state === "bad");
     const show = !!text && panel.dataset.stCartRestoreSized !== "0";
     setCartTitleTight(show);
@@ -878,25 +799,23 @@
 
   async function scan() {
     const res = await request("scan");
-    if (res.ok && Array.isArray(res.result?.items)) {
-      items = res.result.items;
-      if (items.length > 0) {
-        emptyScanRetries = 0;
-      } else if (items.length === 0 && shouldRetryEmptyScan()) {
-        emptyScanRetries += 1;
-        scheduleScan();
-      }
-      meta = {
-        token: res.result.token || meta.token || "",
-        country: res.result.country || meta.country || "CN",
-      };
-      renderRows();
-      if (!observer) {
-        observe();
-      }
-      showRestorePrompt().catch((error) => {
-        globalThis.STLoggerFactory.reportError(error, { domain: "store", feature: "cart", event: "scan-failed", message: "商店功能处理失败", level: "error", phase: "scan" });});
+    if (!res.ok || !Array.isArray(res.result?.items)) {
+      throw new Error(res.message || t("store_cartSelect_checkoutFailed", "购物车选择处理失败"));
     }
+    items = res.result.items;
+    if (items.length > 0) {
+      emptyScanRetries = 0;
+    } else if (items.length === 0 && shouldRetryEmptyScan()) {
+      emptyScanRetries += 1;
+      scheduleScan();
+    }
+    accountSteamId = cart.validAccount(res.result.accountSteamId) ? res.result.accountSteamId : null;
+    renderRows();
+    if (!observer) {
+      observe();
+    }
+    showRestorePrompt().catch((error) => {
+      globalThis.STLoggerFactory.reportError(error, { domain: "store", feature: "cart", event: "scan-failed", message: "商店功能处理失败", level: "error", phase: "scan" });});
     return items;
   }
 
@@ -918,15 +837,12 @@
   }
 
   async function saveRestoreBatch(unchecked) {
-    const rt = await get([RESTORE_KEY]);
+    if (!accountSteamId) throw cartAccountError();
     const now = Date.now();
-    const batches = validBatches(rt[RESTORE_KEY]);
-
     const batch = {
       id: `restore_${now}_${Math.random().toString(36).slice(2)}`,
       createdAt: now,
-      token: meta.token || "",
-      country: meta.country || "CN",
+      accountSteamId,
       items: unchecked.map(item => ({
         key: item.key,
         kind: item.kind,
@@ -937,8 +853,7 @@
       })),
     };
 
-    batches.push(batch);
-    await saveBatches(batches);
+    await cart.mutate("append", { batch });
     return batch;
   }
 
@@ -965,6 +880,18 @@
     }
   }
 
+  function currentBatches(batches) {
+    let session;
+    if (accountSteamId && batches.some(batch => !Object.hasOwn(batch, "accountSteamId") && batch.token)) {
+      session = cart.pageSession(document);
+    }
+    return cart.owned(batches, accountSteamId, session?.accountSteamId === accountSteamId ? session?.token : null);
+  }
+
+  function cartAccountError(cause) {
+    return new Error(t("store_cartSelect_accountUnavailable", "无法确认当前 Steam 账号，请确认登录后在购物车重试。"), { cause });
+  }
+
   function restoreNeed(batches) {
     const all = batches.flatMap(batch => batch.items || [])
       .filter(item => item?.key);
@@ -989,8 +916,10 @@
   }
 
   async function showRestorePrompt() {
+    if (restoring) return;
     const rt = await loadState();
-    const batches = validBatches(rt.restore);
+    if (restoring) return;
+    const batches = currentBatches(rt.restore);
 
     if (batches.length === 0) {
       setRestorePanel("");
@@ -1006,6 +935,14 @@
     setRestorePanel(t("store_cartSelect_restoreMissing", "有$count$件暂存购物车数据未恢复", { count: need.length }));
   }
 
+  // 恢复期间另一购物车页可能新增批次，只清理本次已确认的批次。
+  async function finishRestore(batches, keys) {
+    await clearSelection(keys);
+    const remaining = await cart.mutate("confirm", { ids: batches.map(batch => batch.id) });
+    setRestorePanel("");
+    if (remaining) scheduleRestorePrompt();
+  }
+
   async function manualRestoreMissing() {
     if (restoring) return;
     restoring = true;
@@ -1014,10 +951,11 @@
 
     try {
       const rt = await loadState();
-      const batches = validBatches(rt.restore);
+      if (rt.restore.length) await scan();
+      const batches = currentBatches(rt.restore);
       if (batches.length === 0) {
-        await remove([RESTORE_KEY]);
         setRestorePanel("");
+        if (rt.restore.length) throw new Error(t("store_cartCheckout_ownerUnconfirmed", "无法确认暂存商品属于当前 Steam 账号。请使用暂存时的账号，回到购物车核对。"));
         log.info("cart-select-restore-success", "没有需要恢复的暂存购物车数据", {
           count: 0,
           durationMs: Date.now() - startedAt,
@@ -1025,12 +963,9 @@
         return;
       }
 
-      await scan();
       const { need, allKeys } = restoreNeed(batches);
       if (need.length === 0) {
-        await clearSelection(allKeys);
-        await remove([RESTORE_KEY]);
-        setRestorePanel("");
+        await finishRestore(batches, allKeys);
         log.info("cart-select-restore-success", "暂存购物车数据已无需恢复", {
           batchCount: batches.length,
           count: 0,
@@ -1040,15 +975,17 @@
       }
 
       setRestorePanel(t("store_cartSelect_restoring", "正在恢复$count$件暂存购物车数据...", { count: need.length }), "busy");
-      const res = await request("restore", { items: need });
+      const res = await request("restore", { items: need, accountSteamId });
+      if (!res.ok && !res.result) throw new Error(res.message || t("store_cartSelect_restoreFailed", "恢复失败，请重试"));
       await scan();
-
+      if (currentBatches(batches).length !== batches.length) {
+        throw new Error(t("store_cartCheckout_ownerUnconfirmed", "无法确认暂存商品属于当前 Steam 账号。请使用暂存时的账号，回到购物车核对。"));
+      }
       const nowPresent = new Set(items.map(item => item.key));
-      const stillMissing = need.filter(item => !nowPresent.has(item.key));
-      if (res.ok || stillMissing.length === 0) {
-        await clearSelection(allKeys);
-        await remove([RESTORE_KEY]);
-        setRestorePanel("");
+      // 两次扫描之间，先前已有的商品也可能被另一页面移出购物车
+      const stillMissing = [...new Set(allKeys)].filter(key => !nowPresent.has(key));
+      if (stillMissing.length === 0) {
+        await finishRestore(batches, allKeys);
         await toast(t("store_cartSelect_restored", "已恢复上次未支付项目"));
         log.info("cart-select-restore-success", "暂存购物车数据恢复完成", {
           batchCount: batches.length,
@@ -1057,7 +994,6 @@
         });
         location.reload();
       } else {
-        await put({ [RESTORE_KEY]: batches });
         setRestorePanel(t("store_cartSelect_restoreStillMissing", "还有$count$件暂存购物车数据未恢复", { count: stillMissing.length }), "bad");
         toast(t("store_cartSelect_restorePartialFailed", "部分暂存购物车数据未恢复，请稍后重试"), true);
         log.warn("cart-select-restore-failed", "暂存购物车数据部分恢复失败", {
@@ -1068,6 +1004,7 @@
         });
       }
     } catch (error) {
+      setRestorePanel(t("store_cartSelect_restoreFailed", "恢复失败，请重试"), "bad");
       log.error("cart-select-restore-failed", "购物车批次恢复失败", {
         durationMs: Date.now() - startedAt,
         error,
@@ -1119,7 +1056,7 @@
 
       btn.setAttribute("aria-busy", "true");
       const batch = await saveRestoreBatch(skip);
-      const res = await request("remove", { lineIds: skip.map(item => item.lineId) });
+      const res = await request("remove", { lineIds: skip.map(item => item.lineId), accountSteamId: batch.accountSteamId });
 
       if (!res.ok) {
         await scan();
@@ -1174,7 +1111,7 @@
     goCheckout(btn).catch((error) => {
       globalThis.STLoggerFactory.reportError(error, { domain: "store", feature: "cart", event: "on-checkout-click-failed", message: "提交购物车选择失败", level: "error", phase: "onCheckoutClick" });
       busy = false;
-      toast(t("store_cartSelect_checkoutFailed", "购物车选择处理失败"), true);
+      toast(error.message || t("store_cartSelect_checkoutFailed", "购物车选择处理失败"), true);
     });
   }
 
@@ -1334,14 +1271,17 @@
     }
     started = true;
 
-    addStyles();
-    await loadState();
-    bindCheckout();
-    bindRemoveAllConfirm();
-    observe();
-    await scan();
-    showRestorePrompt().catch((error) => {
-      globalThis.STLoggerFactory.reportError(error, { domain: "store", feature: "cart", event: "start-failed", message: "启动功能失败", level: "error", phase: "start" });});
+    try {
+      addStyles();
+      await loadState();
+      bindCheckout();
+      bindRemoveAllConfirm();
+      observe();
+      await scan();
+    } catch (error) {
+      stop();
+      throw error;
+    }
     log.info("cart-select-start-success", "购物车选择功能已启动", {
       totalCount: items.length,
       selectedCount: selectedItems().length,

@@ -15,7 +15,7 @@
   const COMPLETE_MESSAGE = "AI_GATEWAY_PERMISSION_COMPLETE";
 
   function text(key, fallback) {
-    return root.chrome?.i18n?.getMessage?.(key) || fallback;
+    return root.STI18n.text(key, fallback);
   }
 
   function permissionOrigin(value) {
@@ -89,7 +89,7 @@
       target: doc.getElementById("target-label"),
     };
 
-    doc.documentElement.lang = root.chrome?.i18n?.getUILanguage?.() || "zh-CN";
+    doc.documentElement.lang = root.STI18n.intlLocale();
     doc.title = text("aiPermissionPageTitle", "Steam Buff - AI 网关授权");
     labels.product.textContent = text("aiPermissionPageSection", "AI 网关授权");
     labels.eyebrow.textContent = text("aiPermissionPageEyebrow", "访问权限");
@@ -128,10 +128,10 @@
       context.expiresAt = Number(response.expiresAt) || 0;
       origin.textContent = nextOrigin;
       if (response.purpose === "workflow-http") {
-        doc.title = "Steam Buff - HTTP 请求授权";
-        labels.product.textContent = "HTTP 请求授权";
-        labels.title.textContent = "允许工作流访问站点";
-        labels.copy.textContent = "Steam Buff 需要访问以下站点，才能运行 HTTP 请求指令。";
+        doc.title = text("aiPermissionHttp.title", "Steam Buff - HTTP 请求授权");
+        labels.product.textContent = text("aiPermissionHttp.section", "HTTP 请求授权");
+        labels.title.textContent = text("aiPermissionHttp.heading", "允许工作流访问站点");
+        labels.copy.textContent = text("aiPermissionHttp.description", "Steam Buff 需要访问以下站点，才能运行 HTTP 请求指令。");
       }
       return context;
     });
@@ -202,9 +202,15 @@
     module.exports = api;
   }
 
+  function start() {
+    void root.STI18n.ready().then(() => init()).catch(error => root.STLoggerFactory.reportError(error, {
+      domain: "settings", feature: "ai-permission", event: "permission-page-init-failed", message: "授权页面初始化失败",
+    }));
+  }
+
   if (root.document?.readyState === "loading") {
-    root.document.addEventListener("DOMContentLoaded", () => init(), { once: true });
+    root.document.addEventListener("DOMContentLoaded", start, { once: true });
   } else if (root.document) {
-    init();
+    start();
   }
 })(typeof globalThis !== "undefined" ? globalThis : window);

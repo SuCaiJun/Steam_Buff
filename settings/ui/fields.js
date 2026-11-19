@@ -19,8 +19,8 @@
     return globalThis.STSettingsHtml?.escAttr?.(value) || String(value ?? "");
   }
 
-  function text(key, fallback) {
-    return globalThis.STI18n.text(key, fallback);
+  function text(key, fallback, params) {
+    return globalThis.STI18n.text(key, fallback, params);
   }
 
   function label(field) {
@@ -118,7 +118,8 @@
     const selected = items.find(item => String(item.value) === String(value));
     return searchComboHtml(items, {
       id: "st-fixed-option-" + ++fixedSequence, label, text: selected?.label ?? value, value,
-      expandLabel: "展开" + label, emptyLabel: "暂无可选项", modal: true, fixed: { attribute, key },
+      expandLabel: text("settings.controls.expand", "展开$label$", { label }),
+      emptyLabel: text("settings.controls.empty", "暂无可选项"), modal: true, fixed: { attribute, key },
     });
   }
   const controlValue = input => input.hasAttribute("data-st-combo-fixed") ? input.dataset.stComboValue : input.value;
@@ -265,7 +266,23 @@
     scope.ownerDocument.defaultView.addEventListener("resize", reposition, { signal });
   }
 
-  const api = Object.freeze({ fieldInput, label, localizedField, optionHtml, searchComboHtml, handleSearchCombo, fixedComboHtml, bindSearchCombos, controlValue });
+  // 只记录用户动过的控件，异步填充下拉选项或回显已存数值不会产生草稿。
+  const editedControls = new WeakSet();
+  const editable = 'input, textarea, select, [contenteditable="true"]';
+  function recordEdit(control) {
+    if (control.matches?.(editable) &&
+        !control.matches('[data-ui-locale], [data-update-hours], [data-setting-mode-option], [data-game-links-columns]')) {
+      editedControls.add(control);
+    }
+  }
+  function acceptEdit(control) {
+    editedControls.delete(control);
+  }
+  function hasEdits(scope) {
+    return Array.from(scope.querySelectorAll(editable)).some(control => editedControls.has(control));
+  }
+
+  const api = Object.freeze({ fieldInput, label, localizedField, optionHtml, searchComboHtml, handleSearchCombo, fixedComboHtml, bindSearchCombos, controlValue, recordEdit, acceptEdit, hasEdits });
   globalThis.STSettingsFields = api;
 
   if (typeof module === "object" && module.exports) {

@@ -299,6 +299,7 @@
         });
         return false;
       } finally {
+        shadow.querySelectorAll("[data-third-party-services]").forEach(root.STSettingsFields.acceptEdit);
         setInputsDisabled(shadow, false);
         if (button) {
           button.disabled = false;

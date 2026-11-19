@@ -42,12 +42,76 @@
   let pageCount = 0;
   let loading = false;
 
+  const languageOptions = document.getElementById("wizard-language-options");
+  let localeState = "";
+  let confirmedLanguage = false;
+  function publishBridgeState(state) {
+    if (!languageOptions) return;
+    progress.dataset.bridgeState = state;
+    progress.dispatchEvent(new Event("wizard-bridge-state"));
+  }
+
+  function publishLocale(state, value = "") {
+    localeState = state;
+    if (state === "saved") confirmedLanguage = true;
+    if (state === "choose" || state === "read-error") confirmedLanguage = false;
+    languageOptions.dataset.sync = state;
+    languageOptions.dataset.value = value;
+    languageOptions.dispatchEvent(new Event("wizard-locale-state"));
+  }
+
+  function canOpenSettings() {
+    return !languageOptions || (confirmedLanguage && localeState !== "reading" && localeState !== "saving");
+  }
+
+  function setupLanguage() {
+    if (!languageOptions) return;
+    const buttons = Array.from(languageOptions.querySelectorAll("button[value]"));
+    // 捕获真实按钮操作并先标记写入中，网页收到保存回执后才可进入本地页
+    let pending = false;
+    async function sync(type, value) {
+      if (pending) return;
+      pending = true;
+      const write = type === contract.MESSAGES.setLocale;
+      publishLocale(write ? "saving" : "reading", value);
+      try {
+        const reply = await chrome.runtime.sendMessage(write ? { type, locale: value } : { type });
+        if (!reply?.success || !buttons.some(button => button.value === reply.locale)
+            || (write && reply.locale !== value)) throw new Error(reply?.error || "引导语言确认失败");
+        if (!write) languageOptions.dataset.setupComplete = String(reply.setupComplete === true);
+        publishLocale(!write && reply.confirmed === false ? "choose" : "saved", reply.locale);
+      } catch (error) {
+        globalThis.STLoggerFactory.reportError(error, { domain: "onboarding", feature: "bridge", event: "onboarding-locale-failed", message: "安装引导语言同步失败" });
+        publishLocale(write ? "error" : "read-error", value);
+      } finally {
+        pending = false;
+      }
+    }
+    const retry = document.getElementById("wizard-language-retry");
+    languageOptions.addEventListener("click", event => {
+      if (!event.isTrusted || pending || (retry && localeState === "read-error") || !buttons.includes(event.target)) return;
+      void sync(contract.MESSAGES.setLocale, event.target.value);
+    }, true);
+    retry?.addEventListener("click", event => {
+      if (event.isTrusted && localeState === "read-error") void sync(contract.MESSAGES.getLocale);
+    });
+    void sync(contract.MESSAGES.getLocale);
+  }
+
   function reportFailure(error) {
     globalThis.STLoggerFactory.reportError(error, { domain: "onboarding", feature: "bridge", event: "handoff-failed", message: "打开扩展本地引导页失败" });
-    void globalThis.STFeedback.show(document.body, { message: error.message });
+    const heading = progress.dataset.openFailed;
+    const message = heading || error.message;
+    void globalThis.STFeedback.show(document.body, {
+      message,
+      title: progress.dataset.noticeTitle,
+      closeLabel: progress.dataset.noticeClose,
+      confirmLabel: progress.dataset.noticeConfirm,
+    });
     note.replaceChildren(...noteContent.map(node => node.cloneNode(true)));
     note.classList.remove("is-pending", "error");
     handoff.disabled = false;
+    publishBridgeState("ready");
   }
 
   function sendLocal(page, index) {
@@ -60,7 +124,7 @@
       }, (response) => {
         const error = chrome.runtime.lastError;
         if (error || !response?.success) {
-          reportFailure(new Error(error?.message || response?.error || "扩展本地引导页打开失败，请重试。"));
+          reportFailure(new Error(error?.message || response?.error || progress.dataset.openFailed || "扩展本地引导页打开失败，请重试。"));
         }
       });
     } catch (error) {
@@ -75,6 +139,8 @@
       return;
     }
     const index = contract.localIndexForPage(page, pageCount);
+    if (index >= 0 && !canOpenSettings()
+        && contract.readPage(current.href).page <= pageCount) return;
     if (index >= 0) sendLocal(page, index);
   }
 
@@ -86,6 +152,7 @@
     button.dataset.page = String(page);
     const index = contract.localIndexForPage(page, pageCount);
     const title = index >= 0 ? contract.LOCAL_STEPS[index].title : "网页介绍";
+    if (index >= 0) button.dataset.localStep = contract.LOCAL_STEPS[index].id;
     button.setAttribute("aria-label", `第 ${page} 步：${title}`);
     button.classList.toggle("is-complete", page <= activePage);
     if (page === activePage) button.setAttribute("aria-current", "step");
@@ -122,6 +189,7 @@
     note.textContent = INVALID_NOTE;
     note.classList.remove("is-pending");
     note.classList.add("error");
+    publishBridgeState("invalid");
   }
 
   function setUnavailable() {
@@ -130,6 +198,7 @@
     note.textContent = "扩展导航暂不可用，点击“重试连接”重试。";
     note.classList.remove("is-pending");
     note.classList.add("error");
+    publishBridgeState("unavailable");
   }
 
   // 注: 只有 flow.json 验证成功后才追加本地进度；失败时不能猜云端页数。
@@ -137,6 +206,7 @@
     if (loading) return;
     loading = true;
     handoff.disabled = true;
+    publishBridgeState("loading");
     const abort = new AbortController();
     const timeout = window.setTimeout(() => abort.abort(), FLOW_TIMEOUT_MS);
     const requestId = globalThis.STLoggerFactory?.createRequestId?.();
@@ -166,8 +236,8 @@
       }
       const total = contract.totalPageCount(pageCount);
       if (result.page > total) {
-        showInvalid();
         renderProgress(0);
+        showInvalid();
         return;
       }
       renderProgress(result.page);
@@ -175,6 +245,7 @@
       handoff.textContent = handoffLabel;
       note.replaceChildren(...noteContent.map(node => node.cloneNode(true)));
       note.classList.remove("error");
+      publishBridgeState("ready");
       if (result.page > pageCount) routePage(result.page);
     } catch (error) {
       if (phase === "parse" && error?.name === "SyntaxError") globalThis.STLoggerSchema?.markJsonError?.(error);
@@ -195,13 +266,16 @@
       return;
     }
     const page = contract.pageForLocalIndex(0, pageCount);
+    if (!canOpenSettings()) return;
     if (page) {
       handoff.disabled = true;
       note.textContent = "正在打开本地配置…";
       note.classList.remove("error", "is-pending");
+      publishBridgeState("opening");
       routePage(page);
     }
   });
 
+  setupLanguage();
   loadFlow();
 })();

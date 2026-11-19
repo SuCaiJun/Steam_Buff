@@ -312,7 +312,7 @@
     const code = String(currency || "").trim().toUpperCase();
     if (!Number.isFinite(value) || !/^[A-Z]{3}$/.test(code)) return "--";
     try {
-      return new Intl.NumberFormat("zh-CN", {
+      return new Intl.NumberFormat(globalThis.STI18n.intlLocale(), {
         style: "currency",
         currency: code,
         currencyDisplay: "narrowSymbol",
@@ -504,7 +504,7 @@
   function monitorCurrencySymbol(currency) {
     const code = String(currency || "").trim().toUpperCase();
     try {
-      const part = new Intl.NumberFormat("zh-CN", {
+      const part = new Intl.NumberFormat(globalThis.STI18n.intlLocale(), {
         style: "currency",
         currency: code,
         currencyDisplay: "narrowSymbol",
@@ -1085,7 +1085,6 @@
     if (itemName) itemName.textContent = context.itemName || `${context.target.type.toUpperCase()} ${context.target.id}`;
 
     const amountInput = modal.querySelector("[name='target_amount']");
-    const discountInput = modal.querySelector("[name='target_discount']");
     const qqInput = modal.querySelector("[name='notify_qq']");
     const emailInput = modal.querySelector("[name='notify_email']");
     const amountRange = modal.querySelector("[data-monitor-range='amount']");

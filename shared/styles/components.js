@@ -11,7 +11,7 @@
 ((root) => {
   'use strict';
 
-  const COMPONENT_VERSION = 'steam-buff-components-v2';
+  const COMPONENT_VERSION = 'steam-buff-components-v3';
 
   if (root.STComponents?.version === COMPONENT_VERSION) {
     return;
@@ -867,10 +867,41 @@
     },
   });
 
+  // 只刷新显式注册的界面文案。输入值、Steam 数据与可编辑内容不参与取词。
+  const labelBindings = new WeakMap();
+  function bindLabel(node, attribute, read) {
+    let bindings = labelBindings.get(node);
+    if (!bindings) {
+      bindings = new Map();
+      labelBindings.set(node, bindings);
+      node.setAttribute('data-st-ui-label', '');
+    }
+    let write;
+    if (attribute === 'textContent') {
+      const label = node.ownerDocument.createTextNode('');
+      node.replaceChildren(label);
+      write = () => { if (label.parentNode === node) label.data = read(); };
+    } else {
+      if (!['aria-label', 'placeholder', 'title', 'data-label'].includes(attribute)) throw new TypeError('Unsupported UI label attribute');
+      write = () => node.setAttribute(attribute, read());
+    }
+    bindings.set(attribute, write);
+    write();
+  }
+
+  function refreshLabels(container) {
+    if (!container) return;
+    const refresh = node => labelBindings.get(node)?.forEach(write => write());
+    refresh(container);
+    container.querySelectorAll('[data-st-ui-label]').forEach(refresh);
+  }
+
   root.STComponents = deepFreeze({
     version: COMPONENT_VERSION,
     applyStyles,
     appendContent,
+    bindLabel,
+    refreshLabels,
     createStyledElement,
     ensureStyle,
     css,

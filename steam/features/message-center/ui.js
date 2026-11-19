@@ -19,6 +19,8 @@
   const ROW_HEIGHT = 96, OVERSCAN = 3;
   const MENU_VISIBLE_ROWS = 5;
   const READ_EXIT_MS = 160;
+  const text = model.text;
+  const { bindLabel, refreshLabels } = window.STComponents;
   const HELP = "该消息中心由 Steam Buff 创建，非 Steam 客户端自带的功能！\n消息中心内的消息均为 Steam Buff 发送，该消息中心内的消息与提醒与 Steam 、Valve、Steam客户端等均无任何关联性，这里也不会出现 Steam 或 Valve 官方的任何消息。";
   const log = window.STLoggerFactory.createLogger("steam", model.FEATURE);
 
@@ -65,7 +67,7 @@
         const rect = trigger.getBoundingClientRect();
         const width = kind === "menu" ? Math.min(360, innerWidth - 16) : Math.min(kind === "detail" ? 560 : 760, innerWidth - 48);
         const height = kind === "menu" ? 260 : Math.min(kind === "detail" ? 420 : 640, innerHeight - 64);
-        return { title: kind === "menu" ? "Steam Buff 消息" : kind === "detail" ? "Steam Buff 消息详情" : "Steam Buff 消息中心", modal: kind !== "menu", dimensions: { width, height, left: screenX + (kind === "menu" ? rect.right - width : (innerWidth - width) / 2), top: screenY + (kind === "menu" ? rect.bottom + 2 : (innerHeight - height) / 2) } };
+        return { title: kind === "menu" ? text("messageCenter.steamMessages", "Steam Buff 消息") : kind === "detail" ? text("messageCenter.steamDetails", "Steam Buff 消息详情") : text("messageCenter.steamCenter", "Steam Buff 消息中心"), modal: kind !== "menu", dimensions: { width, height, left: screenX + (kind === "menu" ? rect.right - width : (innerWidth - width) / 2), top: screenY + (kind === "menu" ? rect.bottom + 2 : (innerHeight - height) / 2) } };
       },
     });
   }
@@ -81,13 +83,13 @@
     const pendingReads = new Set(), exits = new Map(), motions = new Map();
     const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
     let unreadSnapshot = null, pendingReadAll = false, previewGeneration = 0;
-    const text = (key, fallback, value) => model.text(key, fallback, value);
     let stopped = false, current = null, generation = 0, detailRequest = 0, selection = null, busy = false;
     let detailRefresh = null, detailDirty = false;
     let popLoading = false, popDirty = false, fullLoading = false, fullDirty = false;
     let filter = "all", next = null, fullOpen = false, fullInitialized = false, fullFailed = false;
     let kindFilter = "", deleteSelection = null, deleteAnchor = null;
     let levelFilter = "", originFilter = "", searchQuery = "", searchTimer = 0, searchOpen = false, searchIndex = -1;
+    let searchedLocale;
     let fullRows = [], fullRevision = null, fullFrame = 0, fullFrameWindow = null, fullWindow = "", listRequest = 0;
     const fullIds = new Map(), errorStates = new WeakMap();
     let restorePoint = null, detailAnchor = null, detailMode = null, helpActive = null, helpTimer = 0;
@@ -98,7 +100,8 @@
     function element(tag, className, text) {
       const node = document.createElement(tag);
       if (className) node.className = className;
-      if (text !== undefined) node.textContent = text;
+      if (typeof text === "function") bindLabel(node, "textContent", text);
+      else if (text !== undefined) node.textContent = text;
       return node;
     }
     function button(label, action, className = "st-mc-button") {
@@ -118,9 +121,10 @@
       const node = element("button", "st-mc-icon-button st-mc-help"); node.type = "button";
       const tip = element("span", "st-mc-help-tip"), copy = element("span", "st-mc-help-copy"), count = element("span", "st-mc-help-storage");
       tip.id = DIALOG + "Help" + helpControls.length; tip.setAttribute("popover", "manual"); tip.setAttribute("role", "tooltip");
-      for (const paragraph of HELP.split("\n")) copy.appendChild(element("span", "st-mc-help-paragraph", paragraph));
-      tip.append(copy, element("span", "st-mc-help-note", "未读消息不占用已读条数额度。"), count);
-      node.setAttribute("aria-label", "关于消息中心"); node.setAttribute("aria-describedby", tip.id);
+      const paragraphs = () => text("messageCenter.help", HELP).split("\n");
+      paragraphs().forEach((_, index) => copy.appendChild(element("span", "st-mc-help-paragraph", () => paragraphs()[index])));
+      tip.append(copy, element("span", "st-mc-help-note", () => text("messageCenter.unreadQuota", "未读消息不占用已读条数额度。")), count);
+      bindLabel(node, "aria-label", () => text("messageCenter.about", "关于消息中心")); node.setAttribute("aria-describedby", tip.id);
       const entry = { node, tip, count };
       entry.show = () => showHelp(entry); entry.leave = event => { if (!node.contains(event.relatedTarget)) scheduleHelpClose(); };
       node.addEventListener("pointerenter", entry.show); node.addEventListener("focus", entry.show);
@@ -128,7 +132,7 @@
       node.append(sourceIcon("images/ui/message-help.svg"), tip); helpControls.push(entry);
       return node;
     }
-    function helpCount(entry) { entry.count.textContent = `已读消息最多保留 ${model.READ_LIMIT} 条，消息内容保留30天。等待交互的消息保留至任务结束。`; }
+    function helpCount(entry) { entry.count.textContent = text("messageCenter.retention", "已读消息最多保留 $value$ 条，消息内容保留30天。等待交互的消息保留至任务结束。", model.READ_LIMIT); }
     function closeHelp() {
       if (helpTimer) window.clearTimeout(helpTimer); helpTimer = 0;
       const entry = helpActive; helpActive = null;
@@ -158,9 +162,12 @@
       const retrying = node.dataset.icon === "retry" && running?.actionId === node.dataset.actionId;
       node.classList.toggle("st-mc-is-retrying", retrying);
       node.setAttribute("aria-busy", String(retrying));
-      const description = retrying ? text("messageCenter.retrying", "重试中") : node.dataset.label;
+      updateActionLabel(node);
+    }
+    function updateActionLabel(node) {
+      const description = node.getAttribute("aria-busy") === "true" ? text("messageCenter.retrying", "重试中") : node.dataset.label;
       node.setAttribute("aria-label", description);
-      if (node.dataset.available !== "false") node.title = description;
+      node.title = node.dataset.available === "false" ? text("messageCenter.unavailable", "此操作已结束或暂不可用") : description;
       const label = node.querySelector(".st-mc-retry-label");
       if (label) label.textContent = description;
     }
@@ -168,11 +175,11 @@
       const retry = action.icon === "retry", iconOnly = compact && action.icon;
       const node = button(iconOnly || retry ? "" : action.label, "message-action", iconOnly ? "st-mc-icon-button" : "st-mc-button");
       node.dataset.messageId = messageId; node.dataset.actionId = action.id;
-      node.title = action.label; node.setAttribute("aria-label", action.label);
+      if (typeof action.label === "function") bindLabel(node, "data-label", action.label);
+      else node.dataset.label = action.label;
       node.dataset.available = String(action.available !== false);
-      node.dataset.label = action.label; node.dataset.icon = action.icon || ""; node.dataset.kind = action.kind || "";
+      node.dataset.icon = action.icon || ""; node.dataset.kind = action.kind || "";
       if (retry && !iconOnly) node.appendChild(element("span", "st-mc-retry-label", action.label));
-      if (action.available === false) node.title = "此操作已结束或暂不可用";
       if (action.icon) {
         const image = element("span", "st-mc-action-icon"); image.setAttribute("aria-hidden", "true");
         image.style.setProperty("--st-mc-action-image", `url("${api.path.url(model.ICONS[action.icon])}")`);
@@ -187,30 +194,46 @@
       return node;
     }
     function clearUnreadButton() {
-      const node = actionButton({ id: "clear-unread", label: text("messageCenter.clearUnread", "清除未读"), icon: "clear" }, "", true);
+      const node = actionButton({ id: "clear-unread", label: () => text("messageCenter.clearUnread", "清除未读"), icon: "clear" }, "", true);
       node.dataset.action = "read-all"; node.disabled = true;
       return node;
     }
     function deleteAllButton() {
-      const node = actionButton({ id: "delete-all", label: "删除全部消息", icon: "delete" }, "", true);
+      const node = actionButton({ id: "delete-all", label: () => text("messageCenter.deleteAll", "删除全部消息"), icon: "delete" }, "", true);
       node.dataset.action = "delete-all"; node.disabled = true;
       return node;
     }
     function actionsFor(message, compact) {
       const group = element("div", compact ? "st-mc-inline-actions" : "st-mc-actions");
       for (const raw of message.actions || []) {
-        const action = raw;
+        let action = raw;
+        if (message.moduleId === "update") {
+          if (raw.id === "go-update") action = { ...raw, label: () => text("messageCenter.goUpdate", "去更新") };
+          if (raw.id === "ignore-version") action = { ...raw, label: () => text("messageCenter.ignoreVersion", "不再提醒") };
+          if (raw.id === "view-changelog") action = { ...raw, label: () => text("messageCenter.view", "查看") };
+        }
         const control = actionButton({ ...action, available: raw.available }, message.id, compact);
         group.appendChild(control);
       }
       return group;
     }
+    let dateFormatter, dateLocale;
     function date(time) {
-      const value = new Date(time), pad = number => String(number).padStart(2, "0");
-      return `${value.getFullYear()}-${pad(value.getMonth() + 1)}-${pad(value.getDate())} ${pad(value.getHours())}:${pad(value.getMinutes())}:${pad(value.getSeconds())}`;
+      const locale = window.STI18n?.intlLocale?.() || "zh-CN";
+      if (locale !== dateLocale) {
+        dateFormatter = new Intl.DateTimeFormat(locale, { dateStyle: "short", timeStyle: "medium" });
+        dateLocale = locale;
+      }
+      return dateFormatter.format(time);
     }
 
     // 已存消息共用卡片结构；业务结果与已读状态独立展示。
+    function cardView(message) {
+      return { ...model.presentation(message), preview: model.displayContent(message, true), createdAt: message.createdAt, level: message.level };
+    }
+    function updateCardLabel(card, message, view) {
+      card.open.setAttribute("aria-label", (message.readAt === null ? text("messageCenter.unreadPrefix", "未读：") : "") + view.title + text("messageCenter.detailLabel", "$value$：", "") + view.preview);
+    }
     function makeCard(view, action) {
       const node = element("article", "st-mc-card"), open = button("", action, "st-mc-open");
       const thumb = element("span", "st-mc-thumb"); thumb.appendChild(sourceIcon(view.icon, view.brand));
@@ -374,47 +397,47 @@
 
     const root = element("div"); root.id = ROOT; root.dataset.mode = navigation ? "navigation" : "toolbar";
     const trigger = button("", "toggle", "st-mc-trigger");
-    trigger.title = "Steam Buff 消息"; trigger.setAttribute("aria-label", "Steam Buff 消息");
+    bindLabel(trigger, "title", () => text("messageCenter.steamMessages", "Steam Buff 消息")); bindLabel(trigger, "aria-label", () => text("messageCenter.steamMessages", "Steam Buff 消息"));
     trigger.setAttribute("aria-expanded", "false"); trigger.setAttribute("aria-haspopup", "dialog");
-    const triggerIcon = icon(), triggerLabel = element("span", "st-mc-trigger-title", text("messageCenter.navigationLabel", "消息中心"));
+    const triggerIcon = icon(), triggerLabel = element("span", "st-mc-trigger-title", () => text("messageCenter.navigationLabel", "消息中心"));
     triggerIcon.hidden = navigation; triggerLabel.hidden = !navigation; trigger.append(triggerIcon, triggerLabel);
     const badge = element("span", "st-mc-badge"); badge.hidden = true; badge.setAttribute("aria-hidden", "true");
     trigger.appendChild(badge); root.appendChild(trigger);
 
-    const panel = element("section"); panel.id = PANEL; panel.tabIndex = -1; panel.setAttribute("role", "dialog"); panel.setAttribute("aria-label", "Steam Buff 消息中心");
+    const panel = element("section"); panel.id = PANEL; panel.tabIndex = -1; panel.setAttribute("role", "dialog"); bindLabel(panel, "aria-label", () => text("messageCenter.steamCenter", "Steam Buff 消息中心"));
     const popHead = element("header", "st-mc-head"), heading = element("div", "st-mc-heading");
     const clearUnread = clearUnreadButton();
-    heading.append(element("h2", "", "消息中心"), helpButton(), clearUnread); popHead.append(heading, button("查看全部", "all"));
+    heading.append(element("h2", "", () => text("messageCenter.navigationLabel", "消息中心")), helpButton(), clearUnread); popHead.append(heading, button(() => text("messageCenter.viewAll", "查看全部"), "all"));
     const popList = element("div", "st-mc-list");
     const popError = element("div", "st-mc-error"); popError.setAttribute("role", "status");
     panel.append(popHead, popList, popError);
 
     const dialog = element("section"); dialog.id = DIALOG; dialog.tabIndex = -1; dialog.setAttribute("role", "dialog"); dialog.setAttribute("aria-modal", "true"); dialog.setAttribute("aria-labelledby", `${DIALOG}Title`);
-    const fullHead = element("header", "st-mc-head"), fullHeading = element("div", "st-mc-heading"), fullTitle = element("h2", "", "Steam Buff · 消息中心"), fullRead = clearUnreadButton(), fullDeleteAll = deleteAllButton(); fullTitle.id = `${DIALOG}Title`;
+    const fullHead = element("header", "st-mc-head"), fullHeading = element("div", "st-mc-heading"), fullTitle = element("h2", "", () => text("messageCenter.fullTitle", "Steam Buff · 消息中心")), fullRead = clearUnreadButton(), fullDeleteAll = deleteAllButton(); fullTitle.id = `${DIALOG}Title`;
     fullHeading.append(fullTitle, helpButton(), fullRead, fullDeleteAll);
-    const close = button("×", "close", "st-mc-close"); close.setAttribute("aria-label", "关闭消息中心"); fullHead.append(fullHeading, close);
-    const tools = element("div", "st-mc-tools"), all = button("全部", "filter-all"), unread = button("未读", "filter-unread"), read = button("已读", "filter-read");
+    const close = button("×", "close", "st-mc-close"); bindLabel(close, "aria-label", () => text("messageCenter.closeCenter", "关闭消息中心")); fullHead.append(fullHeading, close);
+    const tools = element("div", "st-mc-tools"), all = button(() => text("messageCenter.all", "全部"), "filter-all"), unread = button(() => text("messageCenter.unread", "未读"), "filter-unread"), read = button(() => text("messageCenter.read", "已读"), "filter-read");
     const readFilters = element("div", "st-mc-filter-row"), levelFilters = element("div", "st-mc-filter-row");
-    readFilters.append(element("span", "st-mc-filter-label", "消息"), all, unread, read);
-    levelFilters.appendChild(element("span", "st-mc-filter-label", "级别"));
+    readFilters.append(element("span", "st-mc-filter-label", () => text("messageCenter.messages", "消息")), all, unread, read);
+    levelFilters.appendChild(element("span", "st-mc-filter-label", () => text("messageCenter.levels", "级别")));
     const levelButtons = new Map();
     for (const [value, label] of Object.entries(model.LEVELS)) {
-      const node = button(label, "level-" + value); node.setAttribute("aria-pressed", "false"); node.title = "再次点击取消此级别筛选"; levelButtons.set(value, node); levelFilters.appendChild(node);
+      const node = button(() => text(`messageCenter.level.${value}`, label), "level-" + value); node.setAttribute("aria-pressed", "false"); bindLabel(node, "title", () => text("messageCenter.clearLevel", "再次点击取消此级别筛选")); levelButtons.set(value, node); levelFilters.appendChild(node);
     }
     const kindFilters = element("div", "st-mc-filter-row"), kindButtons = new Map();
-    kindFilters.appendChild(element("span", "st-mc-filter-label", "类型"));
+    kindFilters.appendChild(element("span", "st-mc-filter-label", () => text("messageCenter.types", "类型")));
     for (const [value, label] of Object.entries(model.TYPES)) {
-      const node = button(label, "kind-" + value); node.setAttribute("aria-pressed", "false"); kindButtons.set(value, node); kindFilters.appendChild(node);
+      const node = button(() => text(`messageCenter.type.${value}`, label), "kind-" + value); node.setAttribute("aria-pressed", "false"); kindButtons.set(value, node); kindFilters.appendChild(node);
     }
     const fullCount = element("span", "st-mc-count");
     const searchField = element("div", "st-mc-search"), searchHead = element("div", "st-mc-search-head"), searchBox = element("div", "st-mc-search-box");
-    const searchInput = element("input", "st-mc-search-input"); searchInput.type = "search"; searchInput.maxLength = 200; searchInput.placeholder = "搜索来源或消息内容";
-    searchInput.setAttribute("aria-label", "搜索来源或消息内容"); searchInput.setAttribute("role", "combobox"); searchInput.setAttribute("aria-autocomplete", "list"); searchInput.setAttribute("aria-expanded", "false");
-    const sourceMenu = element("div", "st-mc-source-menu"); sourceMenu.id = DIALOG + "Sources"; sourceMenu.hidden = true; sourceMenu.setAttribute("role", "listbox"); sourceMenu.setAttribute("aria-label", "消息来源");
+    const searchInput = element("input", "st-mc-search-input"); searchInput.type = "search"; searchInput.maxLength = 200; bindLabel(searchInput, "placeholder", () => text("messageCenter.search", "搜索来源或消息内容"));
+    bindLabel(searchInput, "aria-label", () => text("messageCenter.search", "搜索来源或消息内容")); searchInput.setAttribute("role", "combobox"); searchInput.setAttribute("aria-autocomplete", "list"); searchInput.setAttribute("aria-expanded", "false");
+    const sourceMenu = element("div", "st-mc-source-menu"); sourceMenu.id = DIALOG + "Sources"; sourceMenu.hidden = true; sourceMenu.setAttribute("role", "listbox"); bindLabel(sourceMenu, "aria-label", () => text("messageCenter.source", "消息来源"));
     searchInput.setAttribute("aria-controls", sourceMenu.id);
-    const sourceChip = button("", "clear-origin", "st-mc-source-chip"); sourceChip.hidden = true; sourceChip.append(element("span"), element("span", "", "×")); sourceChip.title = "取消来源筛选";
-    const searchClear = button("×", "search-clear", "st-mc-icon-button"); searchClear.setAttribute("aria-label", "清空搜索"); searchClear.title = "清空搜索";
-    searchHead.append(element("span", "", "来源与正文"), fullCount); searchBox.append(sourceChip, searchInput, searchClear); searchField.append(searchHead, searchBox, sourceMenu);
+    const sourceChip = button("", "clear-origin", "st-mc-source-chip"); sourceChip.hidden = true; sourceChip.append(element("span"), element("span", "", "×")); bindLabel(sourceChip, "title", () => text("messageCenter.clearSource", "取消来源筛选"));
+    const searchClear = button("×", "search-clear", "st-mc-icon-button"); bindLabel(searchClear, "aria-label", () => text("messageCenter.clearSearch", "清空搜索")); bindLabel(searchClear, "title", () => text("messageCenter.clearSearch", "清空搜索"));
+    searchHead.append(element("span", "", () => text("messageCenter.sourceText", "来源与正文")), fullCount); searchBox.append(sourceChip, searchInput, searchClear); searchField.append(searchHead, searchBox, sourceMenu);
     tools.append(readFilters, kindFilters, levelFilters, searchField);
     function closeSources() {
       searchOpen = false; sourceMenu.hidden = true; searchIndex = -1;
@@ -423,12 +446,12 @@
     function showSources() {
       const query = model.searchText(searchInput.value);
       sourceMenu.replaceChildren();
-      const options = [{ id: "", title: "全部来源" }, ...model.origins(current?.modules || []).filter(item => !query || model.searchText(item.title).includes(query))];
+      const options = [{ id: "", title: text("messageCenter.allSources", "全部来源") }, ...model.origins(current?.modules || []).filter(item => !query || model.searchText(item.title).includes(query))];
       for (const [index, item] of options.entries()) {
         const node = button(item.title, "origin", "st-mc-source-option"); node.dataset.origin = item.id; node.id = sourceMenu.id + index;
         node.setAttribute("role", "option"); node.setAttribute("aria-selected", String(item.id === originFilter)); node.tabIndex = -1; sourceMenu.appendChild(node);
       }
-      if (query) sourceMenu.appendChild(element("span", "st-mc-source-empty", "也可直接输入关键词搜索完整正文"));
+      if (query) sourceMenu.appendChild(element("span", "st-mc-source-empty", () => text("messageCenter.searchHint", "也可直接输入关键词搜索完整正文")));
       searchOpen = true; searchIndex = -1; sourceMenu.hidden = false; searchInput.setAttribute("aria-expanded", "true"); searchInput.removeAttribute("aria-activedescendant");
     }
     function syncFilters() {
@@ -442,7 +465,7 @@
     function filterChanged(delay = false) {
       clearSearchTimer(); generation++; listRequest++; fullLoading = false; cancelFullFrame(); restorePoint = null; fullRows = []; fullIds.clear(); fullCards.clear(); fullInitialized = false; fullDirty = false; next = null;
       syncFilters(); updateCount();
-      status(fullList, searchQuery ? "正在搜索" : "正在加载", "正在读取符合条件的消息…");
+      status(fullList, () => searchQuery ? text("messageCenter.searching", "正在搜索") : text("messageCenter.loading", "正在加载"), () => text("messageCenter.readingMatches", "正在读取符合条件的消息…"));
       if (delay) searchTimer = window.setTimeout(() => { searchTimer = 0; if (!stopped && fullOpen) showList(); }, 300);
       else if (fullOpen) showList();
     }
@@ -473,21 +496,21 @@
     const fullList = element("div", "st-mc-list"), detailWindow = element("section"), detail = element("article", "st-mc-detail");
     detailWindow.id = DETAIL; detailWindow.tabIndex = -1; detailWindow.setAttribute("role", "dialog"); detailWindow.setAttribute("aria-modal", "true");
     detailWindow.setAttribute("aria-labelledby", DIALOG + "DetailTitle");
-    const detailHead = element("header", "st-mc-detail-head"), detailGroup = element("div", "st-mc-heading"), detailHeading = element("h2", "", "消息详情"), detailClose = button("×", "detail-close", "st-mc-close");
+    const detailHead = element("header", "st-mc-detail-head"), detailGroup = element("div", "st-mc-heading"), detailHeading = element("h2", "", () => text("messageCenter.details", "消息详情")), detailClose = button("×", "detail-close", "st-mc-close");
     detailHeading.id = DIALOG + "DetailTitle";
-    detailClose.setAttribute("aria-label", "关闭消息详情");
+    bindLabel(detailClose, "aria-label", () => text("messageCenter.closeDetail", "关闭消息详情"));
     detailGroup.append(detailHeading); detailHead.append(detailGroup, detailClose);
     const detailError = element("div", "st-mc-error"); detailError.setAttribute("role", "status");
     const detailFooter = element("footer", "st-mc-detail-footer"); detailWindow.append(detailHead, detail, detailError, detailFooter);
     const detailModal = element("dialog", "st-mc-detail-modal"); detailModal.setAttribute("aria-labelledby", detailHeading.id);
     const deleteConfirm = element("dialog", "st-mc-delete-confirm");
-    const confirmHeading = element("h2", "", "删除全部消息？"), confirmDescription = element("p", "", "将删除当前消息中心可见范围内的全部消息，此操作无法撤销。");
+    const confirmHeading = element("h2", "", () => text("messageCenter.confirmDeleteAll", "删除全部消息？")), confirmDescription = element("p", "", () => text("messageCenter.deleteAllWarning", "将删除当前消息中心可见范围内的全部消息，此操作无法撤销。"));
     confirmHeading.id = DIALOG + "DeleteTitle"; deleteConfirm.setAttribute("aria-labelledby", confirmHeading.id);
     const confirmActions = element("div", "st-mc-confirm-actions");
-    confirmActions.append(button("取消", "cancel-delete-all"), button("确认删除", "confirm-delete-all"));
+    confirmActions.append(button(() => text("messageCenter.cancel", "取消"), "cancel-delete-all"), button(() => text("messageCenter.confirmDelete", "确认删除"), "confirm-delete-all"));
     const confirmError = element("div", "st-mc-error"); confirmError.setAttribute("role", "status");
     deleteConfirm.append(confirmHeading, confirmDescription, confirmError, confirmActions);
-    fullList.tabIndex = 0; fullList.setAttribute("aria-label", "消息列表");
+    fullList.tabIndex = 0; bindLabel(fullList, "aria-label", () => text("messageCenter.list", "消息列表"));
     const fullTop = element("div"), fullBottom = element("div"), fullRowsHost = element("div", "st-mc-virtual-rows"), fullHint = element("div", "st-mc-load-state");
     fullTop.setAttribute("aria-hidden", "true"); fullBottom.setAttribute("aria-hidden", "true"); fullRowsHost.setAttribute("role", "list"); fullHint.setAttribute("role", "status");
     const fullError = element("div", "st-mc-error"); fullError.setAttribute("role", "status");
@@ -496,7 +519,7 @@
     const operationModal = element("dialog", "st-mc-operation");
     operationModal.setAttribute("role", "dialog"); operationModal.setAttribute("aria-modal", "true");
     const operationHead = element("header", "st-mc-operation-head"), operationTitle = element("h2", "st-mc-operation-title"), operationClose = element("button", "st-mc-operation-close");
-    operationTitle.id = DIALOG + "OperationTitle"; operationClose.type = "button"; operationClose.setAttribute("aria-label", "关闭提示");
+    operationTitle.id = DIALOG + "OperationTitle"; operationClose.type = "button"; bindLabel(operationClose, "aria-label", () => text("messageCenter.closePrompt", "关闭提示"));
     operationModal.setAttribute("aria-labelledby", operationTitle.id);
     operationHead.append(operationTitle, operationClose);
     const operationBody = element("div", "st-mc-operation-body"), operationMark = element("span", "st-mc-operation-mark"), operationCopy = element("div", "st-mc-operation-copy");
@@ -521,7 +544,7 @@
       }
     }, (error, phase) => {
       reportFailure(error, phase, isDetailOpen() ? detailError : fullOpen ? fullError : popError);
-      trigger.dataset.error = "true"; trigger.title = "消息窗口打开失败，请重试";
+      trigger.dataset.error = "true"; trigger.title = text("messageCenter.openWindowFailed", "消息窗口打开失败，请重试");
     }, () => {
       if (operationModal.open) { dismissOperation(); return true; }
       if (helpActive) { closeHelp(); return true; }
@@ -536,12 +559,13 @@
     function layout() { host.layout(); }
     function renderOperation() {
       if (!operationView) return;
-      const { status, title, description } = operationView;
+      const { status, description } = operationView;
       operationModal.dataset.state = status;
-      operationTitle.textContent = title; operationDescription.textContent = description;
+      operationTitle.textContent = status === "timeout" ? text("messageCenter.timeout", "等待结果超时") : text("messageCenter.failed", "操作失败");
+      operationDescription.textContent = status === "timeout" ? text("messageCenter.timeoutHint", "等待操作结果超时，请稍后检查任务状态。") : description;
       operationMark.textContent = "!";
-      operationPrimary.textContent = "确定";
-      operationClose.setAttribute("aria-label", "关闭提示");
+      operationPrimary.textContent = text("messageCenter.okay", "确定");
+      bindLabel(operationClose, "aria-label", () => text("messageCenter.closePrompt", "关闭提示"));
     }
     function dismissOperation(restoreFocus = true) {
       const view = operationView;
@@ -568,7 +592,7 @@
     function onOperationClosed() { if (!operationModal.open && operationView) dismissOperation(false); }
     function onOperationDismiss(event) { event.stopPropagation(); dismissOperation(); }
     // 连接或当前操作失败只作重试提示；业务异常统一进入持久消息列表。
-    function setError(target, message = "", title = "消息操作失败") {
+    function setError(target, message = "", title = text("messageCenter.actionFailed", "消息操作失败")) {
       const previous = errorStates.get(target);
       if ((!message && !previous) || (previous?.message === message && previous.title === title)) return;
       target.replaceChildren(); errorStates.delete(target);
@@ -579,11 +603,11 @@
     function status(container, title, description, retry = false) {
       const empty = element("div", "st-mc-empty");
       empty.append(icon(), element("strong", "", title), element("span", "", description));
-      if (retry) empty.appendChild(button("重试", "retry"));
+      if (retry) empty.appendChild(button(() => text("messageCenter.retry", "重试"), "retry"));
       container.replaceChildren(empty);
       layout();
     }
-    status(popList, "正在加载", "正在读取消息…");
+    status(popList, () => text("messageCenter.loading", "正在加载"), () => text("messageCenter.reading", "正在读取消息…"));
 
     function displayCounts(value) {
       const matching = unreadSnapshot && unreadSnapshot.state.revision === value.revision && unreadSnapshot.state.steamAccountId === value.steamAccountId;
@@ -591,7 +615,7 @@
       const unreadCount = pendingReadAll ? 0 : value.unread - waiting;
       badge.textContent = String(unreadCount); badge.hidden = unreadCount === 0;
       trigger.dataset.unread = String(unreadCount > 0);
-      trigger.setAttribute("aria-label", unreadCount ? `Steam Buff 消息，${unreadCount} 条未读` : "Steam Buff 消息，无未读消息");
+      trigger.setAttribute("aria-label", unreadCount ? text("messageCenter.unreadCount", "Steam Buff 消息，$value$ 条未读", unreadCount) : text("messageCenter.noUnreadAria", "Steam Buff 消息，无未读消息"));
       fullRead.disabled = busy || unreadCount === 0; clearUnread.disabled = busy || unreadCount === 0;
       fullDeleteAll.disabled = busy || value.total === 0;
       all.disabled = busy; unread.disabled = busy; read.disabled = busy;
@@ -600,8 +624,8 @@
     }
     function updateCount() {
       if (!current) return;
-      if (kindFilter || levelFilter || originFilter || searchQuery) fullCount.textContent = `${next || fullLoading ? "已找到" : "共"} ${fullRows.length} 条`;
-      else fullCount.textContent = `共 ${filter === "unread" ? current.unread : filter === "read" ? current.total - current.unread : current.total} 条`;
+      if (kindFilter || levelFilter || originFilter || searchQuery) fullCount.textContent = next || fullLoading ? text("messageCenter.found", "已找到 $value$ 条", fullRows.length) : text("messageCenter.total", "共 $value$ 条", fullRows.length);
+      else fullCount.textContent = text("messageCenter.total", "共 $value$ 条", filter === "unread" ? current.unread : filter === "read" ? current.total - current.unread : current.total);
     }
     function applyState(value, rows) {
       if (!value || !Number.isSafeInteger(value.revision) || !Number.isSafeInteger(value.total) || !Number.isSafeInteger(value.unread)) throw new TypeError("消息状态格式无效");
@@ -617,7 +641,7 @@
         previewGeneration++; cancelMotions(); pendingReads.clear(); pendingReadAll = false; unreadSnapshot = null;
         popCards.clear(); fullCards.clear();
         popList.replaceChildren(); fullRowsHost.replaceChildren();
-        status(popList, "正在加载", "正在读取消息…");
+        status(popList, () => text("messageCenter.loading", "正在加载"), () => text("messageCenter.reading", "正在读取消息…"));
         popDirty = true; fullDirty = true;
       }
       current = value;
@@ -633,13 +657,13 @@
       const task = pending.get(rid); if (!task) return;
       pending.delete(rid); window.clearTimeout(task.timer);
       if (data.success === true) task.resolve(data.value);
-      else { const error = new Error(data.error || "消息操作失败，请重试"); error.reported = data.reported === true; if (timedOut) error.name = "TimeoutError"; task.reject(error); }
+      else { const error = new Error(data.error || text("messageCenter.operationRetry", "消息操作失败，请重试")); error.reported = data.reported === true; if (timedOut) error.name = "TimeoutError"; task.reject(error); }
     }
     function request(action, payload = {}) {
-      if (stopped) return Promise.reject(new DOMException("消息中心已关闭", "AbortError"));
+      if (stopped) return Promise.reject(new DOMException(text("messageCenter.closed", "消息中心已关闭"), "AbortError"));
       return new Promise((resolve, reject) => {
         const rid = crypto.randomUUID();
-        const timer = window.setTimeout(() => finish(rid, { success: false, error: "读取消息超时，请重试" }, true), action === "act" ? 120000 : 12000);
+        const timer = window.setTimeout(() => finish(rid, { success: false, error: text("messageCenter.readTimeout", "读取消息超时，请重试") }, true), action === "act" ? 120000 : 12000);
         pending.set(rid, { resolve, reject, timer });
         const expected = current && Object.hasOwn(current, "steamAccountId") && ["read", "read-all", "delete", "delete-all", "act"].includes(action) ? { expectedSteamAccountId: current.steamAccountId } : {};
         window.postMessage({ source: model.BRIDGE, side: "page", protocol: model.PROTOCOL, action, rid, ...payload, ...expected }, window.location.origin);
@@ -648,7 +672,7 @@
     function reportFailure(error, phase, target, manual = true) {
       if (stopped || error.name === "AbortError") return;
       if (!error.reported) log.error("message-operation-failed", "消息中心操作失败", { error, phase });
-      const title = phase === "list" || phase === "get" ? "消息加载失败" : "消息操作失败";
+      const title = phase === "list" || phase === "get" ? text("messageCenter.loadFailed", "消息加载失败") : text("messageCenter.actionFailed", "消息操作失败");
       setError(target);
       if (!manual || phase === "state") setError(target, error.message, title);
       else void window.STFeedback.show(target.ownerDocument.body, { title, message: error.message });
@@ -656,14 +680,14 @@
     }
     async function openWindow(kind, content) {
       const token = ++windowRequest;
-      trigger.dataset.error = "false"; trigger.title = "Steam Buff 消息";
+      trigger.dataset.error = "false"; trigger.title = text("messageCenter.steamMessages", "Steam Buff 消息");
       try {
         const opened = host.open(kind, content, () => {
           if (kind !== "menu") return;
           if (unreadSnapshot) renderPreview();
-          else status(popList, "正在加载", "正在读取消息…");
+          else status(popList, () => text("messageCenter.loading", "正在加载"), () => text("messageCenter.reading", "正在读取消息…"));
         });
-        trigger.setAttribute("aria-busy", "true"); trigger.title = "消息窗口正在准备…";
+        trigger.setAttribute("aria-busy", "true"); trigger.title = text("messageCenter.preparingWindow", "消息窗口正在准备…");
         await opened;
         if (stopped || token !== windowRequest || host.kind() !== kind) return false;
         trigger.setAttribute("aria-expanded", String(kind === "menu"));
@@ -672,9 +696,9 @@
       } catch (error) {
         reportFailure(error, "window-open", kind === "menu" ? popError : kind === "detail" ? detailError : fullError);
         if (kind === "full" && host.kind() !== "full") onClose();
-        if (token === windowRequest && !stopped && error.name !== "AbortError") { trigger.dataset.error = "true"; trigger.title = "消息窗口打开失败，请重试"; }
+        if (token === windowRequest && !stopped && error.name !== "AbortError") { trigger.dataset.error = "true"; trigger.title = text("messageCenter.openWindowFailed", "消息窗口打开失败，请重试"); }
         return false;
-      } finally { if (token === windowRequest) { trigger.removeAttribute("aria-busy"); if (trigger.dataset.error !== "true") trigger.title = "Steam Buff 消息"; } }
+      } finally { if (token === windowRequest) { trigger.removeAttribute("aria-busy"); if (trigger.dataset.error !== "true") trigger.title = text("messageCenter.steamMessages", "Steam Buff 消息"); } }
     }
     async function toggleMenu(event) {
       if (isPopOpen() || (event.detail > 0 && pointerHadMenu)) {
@@ -687,12 +711,12 @@
     function renderRows(container, cache, rows, emptyText, relayout = true) {
       const ids = new Set(rows.map(message => message.id));
       for (const [id, card] of cache) if (!ids.has(id)) { if (cache === popCards) exits.delete(id); stopMotion(card.node); card.node.remove(); cache.delete(id); }
-      if (!rows.length) { cache.clear(); status(container, emptyText, "没有来自 Steam Buff 的新消息"); return; }
+      if (!rows.length) { cache.clear(); status(container, emptyText, () => text("messageCenter.noNew", "没有来自 Steam Buff 的新消息")); return; }
       if (!cache.size) container.replaceChildren();
       let previousNode = null;
       for (const message of rows) {
         let card = cache.get(message.id);
-        const view = { ...model.presentation(message), preview: model.preview(message), createdAt: message.createdAt, level: message.level };
+        const view = cardView(message);
         if (!card) {
           card = makeCard(view, "detail"); card.open.dataset.id = message.id; cache.set(message.id, card);
         }
@@ -703,7 +727,7 @@
           card.actions?.remove(); card.actions = actionsFor(message, true); card.node.appendChild(card.actions); card.actionSignature = signature;
         }
         card.dot.hidden = message.readAt !== null;
-        card.open.setAttribute("aria-label", `${message.readAt === null ? "未读：" : ""}${view.title}：${view.preview}`);
+        updateCardLabel(card, message, view);
         const expected = previousNode ? previousNode.nextSibling : container.firstChild;
         if (expected !== card.node) container.insertBefore(card.node, expected);
         previousNode = card.node;
@@ -792,7 +816,7 @@
       const visible = new Map(unreadSnapshot.rows.filter(row => !pendingReadAll && !pendingReads.has(row.id)).map(row => [row.id, row]));
       for (const [id, entry] of exits) if (!visible.has(id)) visible.set(id, entry.row);
       const rows = [...visible.values()].sort(model.compare);
-      renderRows(popList, popCards, rows, text("messageCenter.noUnread", "暂无未读消息"));
+      renderRows(popList, popCards, rows, () => text("messageCenter.noUnread", "暂无未读消息"));
       if (!before) return;
       const changes = [...popCards].map(([id, card]) => ({ node: card.node, delta: before.has(id) ? before.get(id) - card.node.getBoundingClientRect().top : null }));
       for (const { node, delta } of changes) {
@@ -814,8 +838,8 @@
         if (token !== previewGeneration) return;
         // 关闭或重开后的结果仍可保留为状态，不能迁到其他窗口弹出
         reportFailure(error, "list", popError, manual && ownerWindow === windowRequest && isPopOpen());
-        if (!stopped && !popCards.size) status(popList, "消息加载失败", "请重试", true);
-        else if (!stopped) popError.appendChild(button("重试", "retry"));
+        if (!stopped && !popCards.size) status(popList, () => text("messageCenter.loadFailed", "消息加载失败"), () => text("messageCenter.pleaseRetry", "请重试"), true);
+        else if (!stopped) popError.appendChild(button(() => text("messageCenter.retry", "重试"), "retry"));
       } finally {
         popLoading = false;
         if (popDirty && !stopped && isPopOpen()) void loadPopover();
@@ -823,8 +847,8 @@
     }
 
     function updateFullHint() {
-      if (fullFailed) fullHint.replaceChildren(button("加载失败，点击重试", "more"));
-      else fullHint.textContent = fullLoading ? "正在加载…" : (next ? "向下滚动加载更多" : "已显示全部消息");
+      if (fullFailed) fullHint.replaceChildren(button(() => text("messageCenter.clickRetry", "加载失败，点击重试"), "more"));
+      else fullHint.textContent = fullLoading ? text("messageCenter.loadingMore", "正在加载…") : (next ? text("messageCenter.scrollMore", "向下滚动加载更多") : text("messageCenter.allShown", "已显示全部消息"));
       fullList.setAttribute("aria-busy", String(fullLoading));
       updateCount();
     }
@@ -915,7 +939,9 @@
       fullLoading = true; fullDirty = false; fullFailed = false; setError(fullError); updateFullHint();
       syncFilters();
       try {
-        const page = await request("list", { filter, before: cursor, level: levelFilter, kind: kindFilter, origin: originFilter, query: searchQuery });
+        searchedLocale = searchQuery ? window.STI18n?.locale?.() : undefined;
+        const page = await request("list", { filter, before: cursor, level: levelFilter, kind: kindFilter, origin: originFilter, query: searchQuery,
+          ...(searchedLocale ? { displayLocale: searchedLocale } : {}) });
         if (stopped || !fullOpen || token !== generation) return;
         if (!applyState(page.state)) { fullDirty = true; return; }
         if (append && fullRevision !== page.state.revision) { refreshFull(); return; }
@@ -925,14 +951,14 @@
         if (fullRows.length) renderVirtualRows();
         else {
           fullCards.clear();
-          status(fullList, next ? "正在搜索" : (kindFilter || levelFilter || originFilter || searchQuery) ? "没有匹配的消息" : filter === "unread" ? "暂无未读消息" : filter === "read" ? "暂无已读消息" : "暂无消息", next ? "正在读取更多候选消息…" : "可调整筛选条件或稍后再来查看");
+          status(fullList, () => next ? text("messageCenter.searching", "正在搜索") : (kindFilter || levelFilter || originFilter || searchQuery) ? text("messageCenter.noneMatch", "没有匹配的消息") : filter === "unread" ? text("messageCenter.noUnread", "暂无未读消息") : filter === "read" ? text("messageCenter.noRead", "暂无已读消息") : text("messageCenter.none", "暂无消息"), () => next ? text("messageCenter.moreCandidates", "正在读取更多候选消息…") : text("messageCenter.adjustFilters", "可调整筛选条件或稍后再来查看"));
         }
         completeRestore();
       } catch (error) {
         if (stopped || token !== generation || !fullOpen) return;
         fullFailed = true;
         reportFailure(error, "list", fullError, manual);
-        if (!fullRows.length) status(fullList, "消息加载失败", "请重试", true);
+        if (!fullRows.length) status(fullList, () => text("messageCenter.loadFailed", "消息加载失败"), () => text("messageCenter.pleaseRetry", "请重试"), true);
       } finally {
         if (ticket !== listRequest) return;
         fullLoading = false; updateFullHint();
@@ -955,7 +981,7 @@
       generation++; cancelFullFrame();
       if (reset) { filter = "all"; kindFilter = ""; levelFilter = ""; originFilter = ""; searchQuery = ""; searchInput.value = ""; clearSearchTimer(); closeSources(); syncFilters(); fullRows = []; fullIds.clear(); fullCards.clear(); restorePoint = null; }
       fullInitialized = false;
-      if (!fullRows.length) status(fullList, "正在加载", "正在读取消息…");
+      if (!fullRows.length) status(fullList, () => text("messageCenter.loading", "正在加载"), () => text("messageCenter.reading", "正在读取消息…"));
       fullResize.observe(fullList);
       void loadFull(false, manual);
     }
@@ -1015,17 +1041,20 @@
     function renderDetail(message) {
 
       detail.replaceChildren();
-      detail.append(element("h3", "", model.presentation(message).title), element("span", "st-mc-count", date(message.createdAt)));
-      detail.appendChild(element("p", "", message.content === undefined ? model.content(message) : message.content));
+      detail.append(element("h3", "", () => model.presentation(message).title), element("span", "st-mc-count", () => date(message.createdAt)));
+      detail.appendChild(element("p", "", () => model.displayContent(message)));
       if (message.details?.length) {
         const source = element("details", "st-mc-workflow-source");
-        source.appendChild(element("summary", "", "消息详情"));
-        source.appendChild(element("p", "", message.details.map(item => item.label + "：" + item.value).join("\n")));
+        source.appendChild(element("summary", "", () => text("messageCenter.details", "消息详情")));
+        source.appendChild(element("p", "", () => message.details.map(item => {
+          const label = message.moduleId === "automation" && item.labelId ? text(`messageCenter.detail.${item.labelId}`, item.label) : item.label;
+          return text("messageCenter.detailLabel", "$value$：", label) + item.value;
+        }).join("\n")));
         detail.appendChild(source);
       }
-      if (message.interaction) detail.appendChild(element("p", "st-mc-business", model.STATES[message.interaction.state]));
+      if (message.interaction) detail.appendChild(element("p", "st-mc-business", () => text(`messageCenter.state.${message.interaction.state}`, model.STATES[message.interaction.state])));
       const actions = actionsFor(message, false);
-      const remove = iconButton("删除", "delete", "delete"); remove.dataset.id = message.id; remove.dataset.waiting = String(message.interaction?.waiting === true); actions.appendChild(remove);
+      const remove = iconButton(() => text("messageCenter.delete", "删除"), "delete", "delete"); remove.dataset.id = message.id; remove.dataset.waiting = String(message.interaction?.waiting === true); actions.appendChild(remove);
       detailFooter.replaceChildren(actions);
       detail.scrollTop = 0;
       layout();
@@ -1040,7 +1069,7 @@
       }
       const token = ++detailRequest; selection = id;
       setError(detailError); detailFooter.replaceChildren();
-      status(detail, "正在加载", "正在读取消息…");
+      status(detail, () => text("messageCenter.loading", "正在加载"), () => text("messageCenter.reading", "正在读取消息…"));
       const feedback = row?.readAt === null ? beginReadFeedback(id) : null;
       let loaded = false, phase = "get", committed = false;
       try {
@@ -1051,7 +1080,7 @@
         } else if (!await openWindow("detail", detailWindow) || token !== detailRequest) return;
         const value = await request("get", { id });
         if (stopped || token !== detailRequest || !isDetailOpen()) return;
-        if (!value.message) { status(detail, "消息已删除", "这条消息已经不存在"); return; }
+        if (!value.message) { status(detail, () => text("messageCenter.deleted", "消息已删除"), () => text("messageCenter.gone", "这条消息已经不存在")); return; }
         renderDetail(value.message);
         loaded = true;
         if (value.message.readAt === null) {
@@ -1062,7 +1091,7 @@
         committed = true;
       } catch (error) {
         if (token !== detailRequest) return;
-        if (!loaded) { status(detail, "消息加载失败", "请重试"); detailFooter.replaceChildren(button("重试", "detail-retry")); }
+        if (!loaded) { status(detail, () => text("messageCenter.loadFailed", "消息加载失败"), () => text("messageCenter.pleaseRetry", "请重试")); detailFooter.replaceChildren(button(() => text("messageCenter.retry", "重试"), "detail-retry")); }
         reportFailure(error, phase, detailError);
       } finally { endReadFeedback(feedback, !committed); if (!committed) renderPreview(); }
       return loaded && token === detailRequest && isDetailOpen();
@@ -1099,7 +1128,7 @@
       const data = event.data;
       if (data === "window_moved" || data === "window_resized") { layout(); return; }
       if (stopped || event.source !== window || event.origin !== window.location.origin || data?.source !== model.BRIDGE || data.side !== "content") return;
-      if (data.action === "identity-error") { setError(popError, data.error, "消息加载失败"); setError(fullError, data.error, "消息加载失败"); return; }
+      if (data.action === "identity-error") { setError(popError, data.error, text("messageCenter.loadFailed", "消息加载失败")); setError(fullError, data.error, text("messageCenter.loadFailed", "消息加载失败")); return; }
       if (data.action !== "changed") { finish(data.rid, data); return; }
       const changed = !current || data.state?.revision > current.revision || data.state?.steamAccountId !== current.steamAccountId;
       if (!changed && !Object.hasOwn(data, "unreadRows")) return;
@@ -1134,11 +1163,11 @@
       if (action === "delete-all" || action === "delete") {
         deleteSelection = action === "delete" ? target.dataset.id : null;
         deleteAnchor = target;
-        confirmHeading.textContent = deleteSelection ? "删除这条消息？" : "删除全部消息？";
+        bindLabel(confirmHeading, "textContent", () => deleteSelection ? text("messageCenter.confirmDeleteOne", "删除这条消息？") : text("messageCenter.confirmDeleteAll", "删除全部消息？"));
         const waiting = !deleteSelection || target.dataset.waiting === "true";
-        confirmDescription.textContent = (deleteSelection ? "将删除此消息。" : "将删除当前账号及本机可见的全部消息。") +
-          (waiting ? "等待交互的任务将一起结束，按钮、超时及后续分支均不再执行。" : "") + "此操作无法撤销。";
-        confirmActions.lastElementChild.textContent = waiting ? "删除并结束本次任务" : "确认删除";
+        bindLabel(confirmDescription, "textContent", () => (deleteSelection ? text("messageCenter.deleteOneWarning", "将删除此消息。") : text("messageCenter.deleteAccountWarning", "将删除当前账号及本机可见的全部消息。")) +
+          (waiting ? text("messageCenter.endWaitingWarning", "等待交互的任务将一起结束，按钮、超时及后续分支均不再执行。") : "") + text("messageCenter.irreversible", "此操作无法撤销。"));
+        bindLabel(confirmActions.lastElementChild, "textContent", () => waiting ? text("messageCenter.deleteEnd", "删除并结束本次任务") : text("messageCenter.confirmDelete", "确认删除"));
         (isDetailOpen() ? detailWindow : dialog).appendChild(deleteConfirm);
         setError(confirmError); deleteConfirm.showModal();
         confirmActions.firstElementChild.focus({ preventScroll: true });
@@ -1163,13 +1192,13 @@
           endReadFeedback(feedback);
           acceptPreview(changed);
           if (changed.failed?.length) {
-            setError(confirmError, changed.failed.map(item => item.reason).join("\n"), "部分消息未删除");
+            setError(confirmError, changed.failed.map(item => item.reason).join("\n"), text("messageCenter.partiallyDeleted", "部分消息未删除"));
             if (fullOpen) refreshFull(); return;
           }
           if (action === "confirm-delete-all" && deleteConfirm.open) deleteConfirm.close();
           if (isDetailOpen()) closeDetail();
           else if (fullOpen) showList();
-          if (action === "confirm-delete-all" && !deleteSelection) void window.STFeedback.show(dialog.ownerDocument.body, { message: "消息已全部删除。" });
+          if (action === "confirm-delete-all" && !deleteSelection) void window.STFeedback.show(dialog.ownerDocument.body, { message: text("messageCenter.allDeleted", "消息已全部删除。") });
 
         }
       } catch (error) { endReadFeedback(feedback, true); renderPreview(); reportFailure(error, action, errorTarget); }
@@ -1214,8 +1243,7 @@
         if (error.name === "AbortError") return;
         if (!error.reported) log.error("message-operation-failed", "消息中心操作失败", { error, phase: "act" });
         const timedOut = error.name === "TimeoutError";
-        const description = timedOut ? "等待操作结果超时，请稍后检查任务状态。" : error.message;
-        showOperation(target, { owner, status: timedOut ? "timeout" : "error", title: timedOut ? "等待结果超时" : "操作失败", description });
+        showOperation(target, { owner, status: timedOut ? "timeout" : "error", description: error.message });
       }
       finally {
         finishBusy();
@@ -1291,6 +1319,30 @@
       if (document.hidden) { observer.disconnect(); observedControls = null; observedParent = null; observedHeader = null; observingSettings = false; }
       else reattach();
     }
+    function onLocaleChange() {
+      // 消息节点可以在 Steam 窗口间移动，只原地刷新本模块的控件和已挂载行。
+      for (const surface of [root, panel, dialog, detailWindow, operationModal]) {
+        refreshLabels(surface);
+        surface.querySelectorAll("button[data-action-id]").forEach(updateActionLabel);
+      }
+      for (const cache of [popCards, fullCards]) {
+        for (const card of cache.values()) {
+          const view = cardView(card.row);
+          updateCard(card, view);
+          updateCardLabel(card, card.row, view);
+        }
+      }
+      if (trigger.getAttribute("aria-busy") === "true") trigger.title = text("messageCenter.preparingWindow", "消息窗口正在准备…");
+      else if (trigger.dataset.error === "true") trigger.title = text("messageCenter.openWindowFailed", "消息窗口打开失败，请重试");
+      if (current) displayCounts(current);
+      syncFilters();
+      if (searchOpen) showSources();
+      if (fullOpen) updateFullHint();
+      if (fullOpen && searchQuery && !searchTimer && (!originFilter || originFilter === "update")
+        && window.STI18n?.locale?.() !== searchedLocale) refreshFull();
+      if (operationView) renderOperation();
+      layout();
+    }
     function onResize() { layout(); }
     function onTriggerEnter() { pointerHadMenu = isPopOpen(); }
     function onTriggerLeave() { pointerHadMenu = false; }
@@ -1305,6 +1357,7 @@
       if (!stopped) messageWindows.postMessage({ type: "opened", id: event.data.id, success: opened === true });
     });
     window.addEventListener("message", onMessage);
+    if (window.STI18n?.CHANGE_EVENT) window.addEventListener(window.STI18n.CHANGE_EVENT, onLocaleChange);
     window.addEventListener("resize", onResize);
     document.addEventListener("visibilitychange", onVisibility);
     window.addEventListener("pagehide", stop);
@@ -1331,6 +1384,7 @@
       stopMountWait();
       host.stop();
       window.removeEventListener("message", onMessage); window.removeEventListener("resize", onResize);
+      if (window.STI18n?.CHANGE_EVENT) window.removeEventListener(window.STI18n.CHANGE_EVENT, onLocaleChange);
       window.removeEventListener("pagehide", stop);
       document.removeEventListener("visibilitychange", onVisibility);
       trigger.removeEventListener("click", toggleMenu); trigger.removeEventListener("pointerenter", onTriggerEnter); trigger.removeEventListener("pointerleave", onTriggerLeave);
@@ -1344,7 +1398,7 @@
       }
       searchInput.removeEventListener("focus", showSources); searchInput.removeEventListener("input", onSearchInput); searchInput.removeEventListener("compositionend", onSearchInput); searchInput.removeEventListener("keydown", onSearchKey);
       searchField.removeEventListener("focusout", onSearchBlur); sourceMenu.removeEventListener("pointerdown", onSourcePointer);
-      for (const task of pending.values()) { clearTimeout(task.timer); task.reject(new DOMException("消息中心已关闭", "AbortError")); }
+      for (const task of pending.values()) { clearTimeout(task.timer); task.reject(new DOMException(text("messageCenter.closed", "消息中心已关闭"), "AbortError")); }
       pending.clear();   root.remove(); panel.remove(); dialog.remove(); detailWindow.remove(); style.remove();
       if (api.messageCenter?.stop === stop) delete api.messageCenter;
     }

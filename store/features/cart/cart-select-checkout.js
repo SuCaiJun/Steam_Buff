@@ -13,18 +13,15 @@
 
   const t = (key, fallback, params) => globalThis.STI18n?.text?.(key, fallback, params) ?? fallback;
 
-  const RESTORE_KEY = "st.store.cartSelect.restore";
-  const SEL_KEY = "st.store.cartSelect.selection";
+  const cart = globalThis.STCartRestore;
   const ENABLE_KEY = "st.settings.cart-select.enabled";
   const SCHEDULER_TASK = "cart-select-checkout-restore";
-  const RESTORE_TTL_MS = 30 * 60 * 1000;
   const RESTORE_RETRY_MS = 2500;
   const RESTORE_MAX_TRIES = 12;
   const REQUEST_TIMEOUT_MS = 12 * 1000;
-  const STEAM_API_HOST = globalThis.STConfig?.vendors?.steamApi?.host || "";
   const MATCH = globalThis.STConfig?.matchers;
   const log = window.STLoggerFactory.createLogger("store", "cart-select-checkout");
-  let restored = false;
+  const restoredIds = new Set();
   let restoring = false;
   let btn = null;
   const seenLogs = new Set();
@@ -43,38 +40,6 @@
       path: location.pathname,
       ...extra,
     };
-  }
-
-  function box() {
-    try {
-      return chrome.storage.local;
-    } catch {
-      return null;
-    }
-  }
-
-  function get(keys) {
-    const area = box();
-    if (!area) return Promise.resolve({});
-    return new Promise(resolve => {
-      area.get(keys, rt => resolve(chrome.runtime.lastError ? {} : rt || {}));
-    });
-  }
-
-  function put(data) {
-    const area = box();
-    if (!area) return Promise.resolve(false);
-    return new Promise(resolve => {
-      area.set(data, () => resolve(!chrome.runtime.lastError));
-    });
-  }
-
-  function remove(keys) {
-    const area = box();
-    if (!area) return Promise.resolve(false);
-    return new Promise(resolve => {
-      area.remove(keys, () => resolve(!chrome.runtime.lastError));
-    });
   }
 
   function storeFetch(url, options = {}) {
@@ -167,7 +132,6 @@
       back.insertAdjacentElement("afterend", btn);
     }
 
-    if (restored) setBtn(t("store_cartCheckout_restored", "已恢复暂存购物车"), "done");
   }
 
   function donePage() {
@@ -192,26 +156,13 @@
   }
 
   async function on() {
-    const rt = await get([ENABLE_KEY]);
+    const rt = await chrome.storage.local.get([ENABLE_KEY]);
     return rt[ENABLE_KEY] !== false;
   }
 
-  function expiredBatch(batch) {
-    const createdAt = Number(batch?.createdAt) || 0;
-    return !createdAt || Date.now() - createdAt > RESTORE_TTL_MS;
-  }
-
-  function alive(batch) {
-    return batch?.id
-      && Array.isArray(batch.items)
-      && !expiredBatch(batch);
-  }
-
   async function batches() {
-    const rt = await get([RESTORE_KEY]);
-    const out = (Array.isArray(rt[RESTORE_KEY]) ? rt[RESTORE_KEY] : []).filter(alive);
-    if (out.length === 0) await remove([RESTORE_KEY]);
-    return out;
+    const rt = await chrome.storage.local.get([cart.KEY]);
+    return cart.read(rt[cart.KEY]);
   }
 
   function itemsFrom(batches) {
@@ -227,35 +178,7 @@
     return out;
   }
 
-  function tokenFromPage() {
-    if (!STEAM_API_HOST) return "";
-    const entry = performance.getEntriesByType("resource")
-      .map(item => item.name || "")
-      .find(url => url.includes(`${STEAM_API_HOST}/`) && url.includes("access_token="));
-    if (!entry) return "";
-
-    try {
-      return new URL(entry).searchParams.get("access_token") || "";
-    } catch {
-      return "";
-    }
-  }
-
-  function countryFromPage() {
-    try {
-      const config = JSON.parse(document.documentElement.dataset.config || "{}");
-      if (config.COUNTRY) return String(config.COUNTRY).toUpperCase();
-    } catch {}
-
-    const match = document.cookie.match(/steamCountry=([a-zA-Z]{2})/);
-    return match ? match[1].toUpperCase() : "";
-  }
-
-  async function restore(batches) {
-    const token = batches.find(batch => batch.token)?.token || tokenFromPage();
-    if (!token) return false;
-
-    const country = batches.find(batch => batch.country)?.country || countryFromPage() || "CN";
+  async function restore(batches, { country, token }) {
     const items = itemsFrom(batches).map(item => {
       if (item.kind === "bundle") {
         return { bundleid: Number(item.itemId) };
@@ -263,10 +186,10 @@
       return { packageid: Number(item.itemId) };
     });
 
-    if (items.length === 0) return true;
+    if (items.length === 0) return false;
 
     const input = JSON.stringify({
-      user_country: country,
+      user_country: country.toUpperCase(),
       items,
     });
     const apiCfg = globalThis.STConfig?.vendors?.steamApi;
@@ -278,18 +201,25 @@
       headers: { "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8" },
       body,
     });
-    if (!res.success) return false;
-
+    // AddItemsToCart 返回更新后的购物车，逐项核对本次暂存的商品。
+    const uncertain = t("store_cartCheckout_restoreUnconfirmed", "无法确认已恢复全部商品，请打开购物车核对。暂存记录已保留。");
+    if (!res.success) throw new Error(uncertain, { cause: new Error(res.error || "购物车恢复请求失败") });
+    let data;
     try {
-      const data = JSON.parse(res.data || "{}");
-      return !!(data.response || data.success || res.data);
-    } catch (error) {
-      globalThis.STLoggerFactory.reportError(error, { domain: "store", feature: "cart", event: "restore-failed", message: "恢复购物车失败", level: "warn", phase: "restore" });
-      return true;
+      data = JSON.parse(res.data);
+    } catch (cause) {
+      throw new Error(uncertain, { cause });
     }
+    const lines = data?.response?.cart?.line_items;
+    if (!Array.isArray(lines) || !items.every(item => lines.some(line => item.bundleid
+      ? line?.bundleid === item.bundleid
+      : line?.packageid === item.packageid))) {
+      throw new Error(uncertain);
+    }
+    return true;
   }
 
-  async function doRestore(batches) {
+  async function doRestore(batches, session) {
     if (restoring) {
       logOnce("restore-busy", "info", "checkout-cart-restore-skipped", "结算页购物车恢复已在进行中", batchMeta(batches, {
         reason: "busy",
@@ -302,16 +232,15 @@
     log.info("checkout-cart-restore-start", "开始恢复结算页暂存购物车数据", batchMeta(batches));
 
     try {
-      const ok = await restore(batches);
+      const ok = await restore(batches, session);
       if (ok) {
-        restored = true;
+        for (const batch of batches) restoredIds.add(batch.id);
         setBtn(t("store_cartCheckout_restoreComplete", "已恢复暂存购物车数据"), "done");
         void window.STFeedback.show(document.body, { message: t("store_cartCheckout_restoreComplete", "已恢复暂存购物车数据") });
         log.info("checkout-cart-restore-success", "结算页暂存购物车数据恢复完成", batchMeta(batches, {
           durationMs: Date.now() - startedAt,
         }));
       } else {
-        await put({ [RESTORE_KEY]: batches });
         setBtn(t("store_cartCheckout_restoreButton", "恢复暂存购物车数据"));
         void window.STFeedback.show(document.body, { message: t("store_cartCheckout_restoreFailed", "恢复失败，请重试") });
         log.warn("checkout-cart-restore-failed", "结算页暂存购物车数据恢复失败", batchMeta(batches, {
@@ -320,10 +249,6 @@
         }));
       }
       return ok;
-    } catch (error) {
-      await put({ [RESTORE_KEY]: batches });
-      setBtn(t("store_cartCheckout_restoreFailed", "恢复失败，重试"), "bad");
-      throw error;
     } finally {
       restoring = false;
     }
@@ -339,7 +264,18 @@
       });
       return;
     }
-    await doRestore(todo);
+    const session = cart.pageSession(document);
+    if (typeof session?.country !== "string" || !/^[a-z]{2}$/i.test(session.country)
+      || typeof session.token !== "string" || !session.token) {
+      throw new Error(t("store_cartCheckout_sessionUnavailable", "无法确认当前 Steam 账号或商店国家。暂存已保留，请回到购物车恢复。"));
+    }
+    const mine = cart.owned(todo, session.accountSteamId, session.token);
+    if (!mine.length) {
+      throw new Error(t("store_cartCheckout_ownerUnconfirmed", "无法确认暂存商品属于当前 Steam 账号。请使用暂存时的账号，回到购物车核对。"));
+    }
+    const pending = mine.filter(batch => !restoredIds.has(batch.id));
+    if (pending.length) await doRestore(pending, session);
+    else setBtn(t("store_cartCheckout_restored", "已恢复暂存购物车"), "done");
   }
 
   async function run() {

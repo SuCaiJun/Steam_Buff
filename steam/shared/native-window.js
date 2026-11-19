@@ -19,6 +19,9 @@
    * resize(width,height) 为恢复布局调整当前窗口大小，不改变窗口位置或自行保存配置。
    * open 返回挂载、定位完成的 Promise；close/stop 在销毁文档前回收自有 DOM 与订阅。
    */
+  function uiText(key, fallback, params) {
+    return window.STI18n?.text(key, fallback, params) ?? fallback.replace(/\$(\w+)\$/g, (_, name) => params[name]);
+  }
   function create(options) {
     const { trigger, onClosed, reportFailure, onEscape, log } = options;
     const parking = document.createDocumentFragment();
@@ -27,18 +30,18 @@
     function contract() {
       if (template) return { value: template };
       const manager = window.opener?.g_PopupManager;
-      if (typeof manager?.GetPopups !== "function" || typeof manager.GetPopupForWindow !== "function" || typeof manager.RemoveTrackedPopup !== "function") throw new Error("Steam 原生弹窗入口不可用");
+      if (typeof manager?.GetPopups !== "function" || typeof manager.GetPopupForWindow !== "function" || typeof manager.RemoveTrackedPopup !== "function") throw new Error(uiText("nativeWindow.popup", "Steam 原生弹窗入口不可用"));
       const owner = manager.GetPopupForWindow(window);
       const main = options.mainPopup ? options.mainPopup(manager) : owner;
       const menu = Array.from(manager.GetPopups()).find(item => item.title === "Notifications Menu");
       const missing = [];
-      if (!main) missing.push("Steam 主窗口");
-      if (!owner) missing.push("入口所在窗口");
+      if (!main) missing.push(uiText("nativeWindow.main", "Steam 主窗口"));
+      if (!owner) missing.push(uiText("nativeWindow.owner", "入口所在窗口"));
       if (!menu) missing.push("Notifications Menu");
-      if (menu && !Number.isInteger(menu.params.eCreationFlags)) missing.push("通知菜单创建参数");
-      if (main && !main.params.target_browser) missing.push("Steam 主窗口浏览器");
+      if (menu && !Number.isInteger(menu.params.eCreationFlags)) missing.push(uiText("nativeWindow.params", "通知菜单创建参数"));
+      if (main && !main.params.target_browser) missing.push(uiText("nativeWindow.browser", "Steam 主窗口浏览器"));
       if (missing.length) return { manager, missing };
-      if (typeof SteamClient.Window.GetWindowRestoreDetails !== "function") throw new Error("Steam 主窗口定位接口不可用");
+      if (typeof SteamClient.Window.GetWindowRestoreDetails !== "function") throw new Error(uiText("nativeWindow.position", "Steam 主窗口定位接口不可用"));
       template = { manager, main, owner, Popup: menu.constructor, flags: menu.params.eCreationFlags, bodyClass: menu.params.body_class, browser: main.params.target_browser, openerId: SteamClient.Browser.GetBrowserID() };
       return { value: template };
     }
@@ -47,7 +50,7 @@
     function waitForContract(state) {
       const initial = contract();
       if (initial.value) return Promise.resolve(initial.value);
-      if (typeof initial.manager.AddPopupCreatedCallback !== "function") throw new Error("Steam 弹窗创建通知接口不可用");
+      if (typeof initial.manager.AddPopupCreatedCallback !== "function") throw new Error(uiText("nativeWindow.callback", "Steam 弹窗创建通知接口不可用"));
       state.waitingFor = initial.missing;
       const startedAt = performance.now();
       log.info("native-window-waiting", "等待 Steam 原生窗口就绪", { kind: state.kind, missing: initial.missing });
@@ -111,7 +114,7 @@
     async function position(state) {
       const restore = await SteamClient.Window.GetWindowRestoreDetails();
       if (state.closed || active !== state || state.win.closed) return;
-      if (typeof restore !== "string") throw new TypeError("Steam 窗口位置格式无效");
+      if (typeof restore !== "string") throw new TypeError(uiText("nativeWindow.badPosition", "Steam 窗口位置格式无效"));
       const { x, y, width, height } = options.geometry(state);
       const signature = JSON.stringify([restore, x, y, width, height]);
       if (signature !== state.geometry) {
@@ -124,7 +127,7 @@
     // 指针移动只改常数个数值，rAF 合并且最多一个原生调用在途；只在松手后保存最终尺寸。
     function attachResize(state) {
       const win = state.win, content = state.content;
-      if (typeof win.SteamClient.Window.GetWindowRestoreDetails !== "function") throw new Error("Steam 原生窗口缩放接口不可用");
+      if (typeof win.SteamClient.Window.GetWindowRestoreDetails !== "function") throw new Error(uiText("nativeWindow.resize", "Steam 原生窗口缩放接口不可用"));
       let gesture = null, frame = 0, stopped = false, resetting = false;
       const handles = ["n", "s", "w", "e", "nw", "ne", "sw", "se"].map(edge => {
         const handle = state.doc.createElement("span");
@@ -141,7 +144,7 @@
           if (g.restore === null) g.restore = await win.SteamClient.Window.GetWindowRestoreDetails();
           const restore = g.restore;
           if (stopped || state.closed || gesture !== g) return;
-          if (typeof restore !== "string") throw new TypeError("Steam 窗口位置格式无效");
+          if (typeof restore !== "string") throw new TypeError(uiText("nativeWindow.badPosition", "Steam 窗口位置格式无效"));
           const next = g.next; g.next = null;
           if (next) {
             await win.SteamClient.Window.PositionWindowRelative(restore, next.x, next.y, next.width, next.height);
@@ -206,14 +209,14 @@
       return {
         cancel,
         async resize(width, height) {
-          if (gesture || resetting) throw new Error("请先结束当前窗口缩放");
+          if (gesture || resetting) throw new Error(uiText("nativeWindow.endResize", "请先结束当前窗口缩放"));
           const nextWidth = Math.min(width, win.screen.availWidth), nextHeight = Math.min(height, win.screen.availHeight);
           if (win.innerWidth === nextWidth && win.innerHeight === nextHeight) return;
           resetting = true;
           try {
             const restore = await win.SteamClient.Window.GetWindowRestoreDetails();
             if (stopped || state.closed) return;
-            if (typeof restore !== "string") throw new TypeError("Steam 窗口位置格式无效");
+            if (typeof restore !== "string") throw new TypeError(uiText("nativeWindow.badPosition", "Steam 窗口位置格式无效"));
             await win.SteamClient.Window.PositionWindowRelative(restore, 0, 0, nextWidth, nextHeight);
           } finally { resetting = false; }
         },
@@ -253,8 +256,12 @@
       const fail = error => { if (!state.closed) { state.reject(error); close("error"); } };
       state.timer = window.setTimeout(() => {
         if (state.ready || state.closed) return;
-        const missing = state.waitingFor?.length ? `，尚未就绪：${state.waitingFor.join("、")}` : "";
-        state.reject(new Error(`Steam 原生窗口打开超时${missing}，请重试`)); close("timeout");
+        const message = state.waitingFor?.length
+          ? uiText("nativeWindow.timeoutMissing", "Steam 原生窗口打开超时，尚未就绪：$missing$，请重试", {
+            missing: new Intl.ListFormat(window.STI18n?.intlLocale?.() || "zh-CN").format(state.waitingFor),
+          })
+          : uiText("nativeWindow.timeout", "Steam 原生窗口打开超时，请重试");
+        state.reject(new Error(message)); close("timeout");
       }, 12000);
       state.keydown = event => {
         if (event.composedPath().some(node => node.classList?.contains("st-feedback-dialog"))) return;
@@ -303,7 +310,7 @@
           onBlur() { if (active === state && state.ready && options.closeOnBlur?.(state.kind)) close("blur"); },
         };
         state.item.Show();
-        if (!state.item.BIsValid()) throw new Error("Steam 未能创建原生窗口，请重试");
+        if (!state.item.BIsValid()) throw new Error(uiText("nativeWindow.create", "Steam 未能创建原生窗口，请重试"));
         state.win = state.item.window;
       }
       void prepare().catch(fail);

@@ -41,11 +41,11 @@ function formatPrice(amount, currency) {
 
 function formatDate(timestamp) {
     const date = new Date(timestamp);
-    return date.toLocaleDateString() || date.toISOString().split('T')[0];
+    return date.toLocaleDateString(window.STI18n.intlLocale()) || date.toISOString().split('T')[0];
 }
 
 function formatNumber(num) {
-    return new Intl.NumberFormat(document.documentElement.lang || navigator.language).format(num);
+    return new Intl.NumberFormat(window.STI18n.intlLocale()).format(num);
 }
 
 function calculateDaysDiff(timestamp) {

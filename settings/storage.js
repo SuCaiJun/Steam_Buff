@@ -28,6 +28,7 @@
   const THIRD_PARTY_SERVICES_PREFIX = `${PREFIX}thirdPartyServices.`;
   const STORE_PRICE_CHART_KEY = `${PREFIX}storePriceChart`;
   const GAME_LINKS_KEY = "st.settings.gameLinks";
+  const SETUP_KEY = "st.settings.setup.locale";
   const UI_LOCALE_KEY = globalThis.STI18n?.STORAGE_KEY || api.catalog?.UI_LOCALE_KEY || "SETTING_UI_LOCALE";
   const AUTH_KEY = "steam_buff_auth";
   const MEMBERSHIP_KEY = globalThis.STSettingsMembership?.KEY || "steam_buff_membership";
@@ -96,14 +97,15 @@
     return typeof value === "boolean" ? value : fallback;
   }
 
-  function localeOf(value) {
+  function localeOf(value, fallback = "zh_CN") {
+    if (typeof value !== "string") return fallback;
     if (typeof globalThis.STI18n?.normalizeLocale === "function") {
-      return globalThis.STI18n.normalizeLocale(value);
+      return globalThis.STI18n.normalizeLocale(value, fallback);
     }
     if (typeof api.panelSnapshot?.localeOf === "function") {
-      return api.panelSnapshot.localeOf(value);
+      return api.panelSnapshot.localeOf(value, fallback);
     }
-    return "zh_CN";
+    return fallback;
   }
 
   function defaults() {
@@ -543,36 +545,35 @@
     return true;
   }
 
-  async function getUiLocale() {
-    const rt = await get([UI_LOCALE_KEY]);
+  async function getUiLocale(options = {}) {
+    const rt = await get([UI_LOCALE_KEY], options);
+    if (options.confirmed && !Object.hasOwn(rt, UI_LOCALE_KEY)) return null;
     return localeOf(rt[UI_LOCALE_KEY]);
+  }
+
+  /** 向导只读取显示语言和首次设置标记；读取本身不生成模板。 */
+  async function getOnboardingState() {
+    const data = await get([UI_LOCALE_KEY, SETUP_KEY], { strict: true });
+    const selected = localeOf(data[UI_LOCALE_KEY], "");
+    return {
+      locale: selected || "zh_CN",
+      confirmed: Boolean(selected),
+      setupComplete: Boolean(data[SETUP_KEY]),
+    };
   }
 
   async function setUiLocale(value, diagnostics = {}) {
     const locale = localeOf(value);
     const operationId = String(diagnostics?.operationId || "");
-    let ok = true;
-    try {
-      if (globalThis.STI18n?.setLocaleResult) {
-        const result = await globalThis.STI18n.setLocaleResult(locale, { ...diagnostics, operationId });
-        ok = result?.persisted === true;
-      } else if (globalThis.STI18n?.setLocale) {
-        await globalThis.STI18n.setLocale(locale, { operationId });
-        ok = null;
-      } else {
-        ok = await put({ [UI_LOCALE_KEY]: locale }, { ...diagnostics, operationId });
-      }
-    } catch (error) {
-      log.error("setting-save-failed", "界面语言保存异常", {
-        operationId,
-        kind: "ui-locale",
-        locale,
-        error,
-      });
-      return null;
-    }
-    if (ok === null) {
+    let ok;
+    if (globalThis.STI18n?.setLocaleResult) {
+      const result = await globalThis.STI18n.setLocaleResult(locale, { ...diagnostics, operationId });
+      ok = result?.persisted === true;
+    } else if (globalThis.STI18n?.setLocale) {
+      await globalThis.STI18n.setLocale(locale, { operationId });
       return locale;
+    } else {
+      ok = await put({ [UI_LOCALE_KEY]: locale }, { ...diagnostics, operationId });
     }
     logSave("ui-locale", ok === true, { operationId, locale });
     return ok !== false ? locale : null;
@@ -640,8 +641,8 @@
     return session === await globalThis.STAuthSession.fingerprint(auth) ? session : "";
   }
 
-  async function getMembership() {
-    const rt = await get([MEMBERSHIP_KEY, AUTH_KEY]);
+  async function getMembership(options = {}) {
+    const rt = await get([MEMBERSHIP_KEY, AUTH_KEY], options);
     const raw = rt[MEMBERSHIP_KEY], auth = rt[AUTH_KEY];
     const membership = normalizeMembership(raw, auth);
     if (typeof membership.permissions.workflowAdvanced === "boolean" && (auth?.access_token || auth?.refresh_token) &&
@@ -684,6 +685,14 @@
       permissions: visible.permissions,
     });
     return ok ? visible : null;
+  }
+
+  // 每次工作流运行固定一次语种，仅取与目标有关的三个设置。
+  async function getAiTargetLanguage() {
+    const target = transKey("to"), mode = transKey("aiTarget");
+    const saved = await get([target, mode, UI_LOCALE_KEY], { strict: true });
+    return saved[mode] === "display" ? globalThis.STI18n.translationLanguage(saved[UI_LOCALE_KEY])
+      : saved[target] || translateDefaults().to;
   }
 
   async function getTranslate({ storedBindings = false } = {}) {
@@ -761,7 +770,7 @@
     const defs = reviewFilterDefaults();
     const ids = Object.keys(defs);
     const keys = ids.map(reviewFilterKey);
-    const rt = await get(keys);
+    const rt = await get(keys, { strict: true });
     const out = {};
 
     for (const id of ids) {
@@ -813,11 +822,11 @@
     return ok;
   }
 
-  async function getSearchSuggestions() {
+  async function getSearchSuggestions(options = {}) {
     const defs = searchSuggestionDefaults();
     const ids = Object.keys(defs);
     const keys = ids.map(searchSuggestionKey);
-    const rt = await get(keys);
+    const rt = await get(keys, options);
     const out = {};
 
     for (const id of ids) {
@@ -846,13 +855,14 @@
   }
 
   /** 等待后台完成 AI 及其绑定的初始化。失败时交由设置面板或备份入口处理 */
-  async function waitForAiSettings() {
+  async function waitForAiSettings({ retry = false } = {}) {
     if (globalThis.STBackgroundAutomation) {
-      await globalThis.STBackgroundAutomation.ready();
-      return;
+      return globalThis.STBackgroundAutomation.ready({ retry });
     }
-    const response = await globalThis.STMessageBus.request({ type: "AUTOMATION", action: "settings-ready" }, { logFailures: false });
-    if (response?.success !== true) throw new Error(response?.error || "AI 设置初始化失败");
+    const response = await globalThis.STMessageBus.request({ type: "AUTOMATION", action: "settings-ready", ...(retry ? { retry: true } : {}) }, { logFailures: false });
+    if (response?.success !== true)
+      throw Object.assign(new Error(response?.error || "AI 设置初始化失败"), { code: response?.errorCode });
+    return response.value;
   }
 
   async function getAi() {
@@ -865,15 +875,27 @@
   }
 
   /** 三处关联配置在后台串行校验后一次写入，避免迁移或导入留下悬空引用 */
-  async function writeAiSettings({ ai, translate, workflow, familyFeature, familySettings }, diagnostics = {}) {
+  async function writeAiSettings({ ai, translate, workflow, familyFeature, familySettings, setupLocale, gameLinks, finishPendingConnection }, diagnostics = {}) {
     const data = translate ? translatePatch(translate) : {};
     if (ai) {
       const { enabled, aiConcurrency, ...registry } = ai;
       if (typeof enabled === "boolean") data[aiKey("enabled")] = enabled;
       if (typeof aiConcurrency === "number") data[aiKey("aiConcurrency")] = aiConcurrency;
-      data[globalThis.STAI.SERVICES_KEY] = registry;
+      const model = globalThis.STAI;
+      const existing = diagnostics.onboardingOnly ? await get([SETUP_KEY, model.SERVICES_KEY], { strict: true }) : null;
+      if (existing && !existing[SETUP_KEY] && !Object.hasOwn(existing, model.SERVICES_KEY)) {
+        // 首次向导可分次保存连接；服务名称等到首次完成时随其他出厂内容生成。
+        const service = model.findService(ai, model.DEFAULT_SERVICE_ID);
+        const connection = Object.fromEntries(model.SERVICE_FIELDS.map(({ key }) => [key, service[key]]));
+        data[model.ONBOARDING_CONNECTION_KEY] = { revision: registry.revision, connection: { ...connection, revision: service.revision } };
+      } else {
+        data[model.SERVICES_KEY] = registry;
+      }
     }
+    if (finishPendingConnection) data[globalThis.STAI.ONBOARDING_CONNECTION_KEY] = null;
     if (workflow) data[globalThis.STAutomation.KEY] = workflow;
+    if (setupLocale) data[SETUP_KEY] = setupLocale;
+    if (gameLinks) data[GAME_LINKS_KEY] = gameLinks;
     if (typeof familyFeature === "boolean") data[key("family-library-owned-marker")] = familyFeature;
     if (familySettings) {
       const keys = globalThis.STFamilyLibrary.SETTINGS_KEYS;
@@ -882,11 +904,11 @@
     if (!Object.keys(data).length || !(await put(data, diagnostics))) throw new Error("AI、翻译与自动化配置写入失败");
   }
 
-  async function getThirdPartyServices() {
+  async function getThirdPartyServices(options = {}) {
     const defs = thirdPartyServicesDefaults();
     const paths = thirdPartyServicesPaths();
     const keys = paths.map(thirdPartyServicesKey);
-    const rt = await get(keys);
+    const rt = await get(keys, options);
     const out = clone(defs);
 
     for (const path of paths) {
@@ -900,7 +922,7 @@
   }
 
   async function setThirdPartyServices(values, diagnostics = {}) {
-    const currentChart = await getStorePriceChart();
+    const currentChart = await getStorePriceChart({ strict: true });
     const normalized = normalizeStorePriceChartSettings({
       thirdPartyServices: values,
       storePriceChart: currentChart,
@@ -919,16 +941,16 @@
     return ok ? next : false;
   }
 
-  async function getStorePriceChart() {
+  async function getStorePriceChart(options = {}) {
     const [rt, services] = await Promise.all([
-      get([STORE_PRICE_CHART_KEY]),
-      getThirdPartyServices(),
+      get([STORE_PRICE_CHART_KEY], options),
+      getThirdPartyServices(options),
     ]);
     return normalizeStorePriceChart(rt[STORE_PRICE_CHART_KEY], services.isthereanydeal?.country);
   }
 
   async function setStorePriceChart(values, diagnostics = {}) {
-    const services = await getThirdPartyServices();
+    const services = await getThirdPartyServices({ strict: true });
     const normalized = normalizeStorePriceChartSettings({
       thirdPartyServices: services,
       storePriceChart: values,
@@ -949,7 +971,7 @@
   }
 
   async function setStorePriceChartSettings(values = {}, diagnostics = {}) {
-    const rawServices = values.thirdPartyServices || await getThirdPartyServices();
+    const rawServices = values.thirdPartyServices || await getThirdPartyServices({ strict: true });
     const mainCountry = rawServices?.isthereanydeal?.country === "auto"
       ? "CN"
       : rawServices?.isthereanydeal?.country;
@@ -1002,43 +1024,28 @@
 
   async function getPanelSettings(options = {}) {
     await waitForAiSettings();
-    const [
-      features,
-      uiLocale,
-      updateCheck,
-      storePriceChart,
-      gameLinks,
-      searchSuggestions,
-      reviewFilter,
-      translate,
-      ai,
-      thirdPartyServices,
-    ] = await Promise.all([
-      getAll(),
-      getUiLocale(),
-      getUpdateCheck(),
-      getStorePriceChart(),
-      getGameLinks(),
-      getSearchSuggestions(),
-      getReviewFilter(),
-      getTranslate(),
-      getAi(),
-      getThirdPartyServices(),
-    ]);
-    const out = {
-      features,
-      uiLocale,
-      updateCheck,
-      storePriceChart,
-      gameLinks,
-      searchSuggestions,
-      reviewFilter,
-      translate,
-      ai,
-      thirdPartyServices,
+    const readOptions = { strict: options.strict === true };
+    const sections = {
+      features: getAll(readOptions),
+      uiLocale: getUiLocale(readOptions),
+      updateCheck: getUpdateCheck(),
+      storePriceChart: getStorePriceChart(readOptions),
+      gameLinks: getGameLinks(),
+      searchSuggestions: getSearchSuggestions(readOptions),
+      reviewFilter: getReviewFilter(),
+      translate: getTranslate(),
+      ai: getAi(),
+      thirdPartyServices: getThirdPartyServices(readOptions),
     };
-    if (options.workflow === true) out.workflow = await getWorkflow();
-    return out;
+    if (options.workflow === true) sections.workflow = getWorkflow();
+    const entries = await Promise.all(Object.entries(sections).map(async ([section, read]) => {
+      try {
+        return [section, await read];
+      } catch (cause) {
+        throw Object.assign(new Error("设置分区读取失败：" + section, { cause }), { readSection: section });
+      }
+    }));
+    return Object.fromEntries(entries);
   }
 
   async function setPanelSettings(sections = {}, diagnostics = {}) {
@@ -1052,38 +1059,56 @@
       ai, translate: sections.translate, workflow: sections.workflow,
       familyFeature, familySettings: sections.familyLibrary,
     }, diagnostics);
-    const jobs = [
-      setAll(features, diagnostics),
-      setUiLocale(sections.uiLocale, diagnostics),
-      setUpdateCheck(updateCheck, diagnostics),
-      setGameLinks(sections.gameLinks, diagnostics),
-      setSearchSuggestions(sections.searchSuggestions || {}, diagnostics),
-      setReviewFilter(sections.reviewFilter || {}, diagnostics),
-      setStorePriceChartSettings({
+    const jobs = {
+      features: setAll(features, diagnostics),
+      ...(sections.uiLocale === undefined ? {} : { uiLocale: setUiLocale(sections.uiLocale, diagnostics) }),
+      updateCheck: setUpdateCheck(updateCheck, diagnostics),
+      gameLinks: setGameLinks(sections.gameLinks, { ...diagnostics, templateLocale: sections.uiLocale }),
+      searchSuggestions: setSearchSuggestions(sections.searchSuggestions || {}, diagnostics),
+      reviewFilter: setReviewFilter(sections.reviewFilter || {}, diagnostics),
+      storePriceChart: setStorePriceChartSettings({
         thirdPartyServices: sections.thirdPartyServices || {},
         storePriceChart: sections.storePriceChart || {},
       }, diagnostics),
-    ];
-    const out = await Promise.all(jobs);
-    return out.every(value => value !== false);
+    };
+    const results = await Promise.allSettled(Object.values(jobs));
+    const savedSections = ["ai", "translate", "workflow"].filter(id => sections[id] !== undefined);
+    const failedSections = [], errors = [];
+    Object.keys(jobs).forEach((section, index) => {
+      const result = results[index];
+      const group = section === "storePriceChart" ? [section, "thirdPartyServices"] : [section];
+      if (result.status === "fulfilled" && result.value != null && result.value !== false) savedSections.push(...group);
+      else {
+        failedSections.push(...group);
+        if (result.status === "rejected") errors.push(result.reason);
+      }
+    });
+    if (failedSections.length && diagnostics.reportSections) {
+      throw Object.assign(new AggregateError(errors, "部分设置未恢复"), { savedSections, failedSections });
+    }
+    if (errors.length) throw errors[0];
+    return !failedSections.length;
   }
 
   /** 相关链接采用严格配置契约，读取异常交由页面或备份入口提示，不静默覆盖已有配置。 */
   async function getGameLinks() {
     const rt = await get([GAME_LINKS_KEY], { strict: true });
-    return globalThis.STGameLinks.normalize(rt[GAME_LINKS_KEY]);
+    return rt[GAME_LINKS_KEY] === undefined ? globalThis.STGameLinks.empty() : globalThis.STGameLinks.normalize(rt[GAME_LINKS_KEY]);
   }
 
   async function setGameLinks(values, diagnostics = {}) {
-    const next = globalThis.STGameLinks.normalize(values);
-    const ok = await put({ [GAME_LINKS_KEY]: next }, diagnostics);
-    return ok ? next : false;
+    const model = globalThis.STGameLinks;
+    const next = model.normalize(values);
+    const saved = next.items.some(item => !Object.hasOwn(item, "name"))
+      ? model.seedNames(next, await templateLanguage(diagnostics.templateLocale ?? await getUiLocale({ strict: true })))
+      : next;
+    return await put({ [GAME_LINKS_KEY]: saved }, diagnostics) ? saved : false;
   }
 
   async function getWorkflow() {
     const model = globalThis.STAutomation;
     const data = await get([model.KEY], { strict: true });
-    return model.normalize(Object.hasOwn(data, model.KEY) ? data[model.KEY] : model.defaults());
+    return Object.hasOwn(data, model.KEY) ? model.normalize(data[model.KEY]) : model.empty();
   }
 
   /** 2.2.2 的下载开关独立于工作流配置 */
@@ -1096,34 +1121,61 @@
       throw new Error("下载工具栏设置迁移失败");
   }
 
-  async function initializeWorkflow() {
+  async function templateLanguage(locale) {
+    const i18n = globalThis.STI18n;
+    const messages = await i18n.load(locale);
+    const text = i18n.forLocale(locale);
+    return (key, fallback) => {
+      if (!Object.hasOwn(messages, key.replace(/[^A-Za-z0-9_]/g, "_"))) throw new Error("初始化模板缺少语言词条：" + key);
+      return text(key, fallback);
+    };
+  }
+
+  async function initializeWorkflow({ complete = false, previousVersion } = {}) {
     const model = globalThis.STAutomation, aiConfig = globalThis.STAI, family = globalThis.STFamilyLibrary;
     const defaults = aiConfig.translationDefaults(), familyFeatureKey = key("family-library-owned-marker");
     const installedVersionKey = globalThis.STLifecyclePromptContract.installedVersionKey;
     const legacyKeys = aiConfig.V222_CONNECTION_FIELDS.map(aiKey);
-    const stored = await get([model.KEY, familyFeatureKey, installedVersionKey, ...Object.values(family.SETTINGS_KEYS),
+    const stored = await get([SETUP_KEY, UI_LOCALE_KEY, GAME_LINKS_KEY, transKey("aiTarget"), transKey("to"), model.KEY, familyFeatureKey, installedVersionKey, ...Object.values(family.SETTINGS_KEYS),
       ...aiConfig.SETTINGS_KEYS, ...legacyKeys, ...Object.keys(defaults).map(transKey)], { strict: true });
+    if (stored[SETUP_KEY]) return true;
     const hasRegistry = Object.hasOwn(stored, aiConfig.SERVICES_KEY);
     const flags = aiConfig.flagsFromStorage(stored);
-    const legacy = hasRegistry ? undefined : aiConfig.migrateV222Service({
+    const pendingConnection = stored[aiConfig.ONBOARDING_CONNECTION_KEY] != null;
+    const legacy = hasRegistry || pendingConnection ? undefined : aiConfig.migrateV222Service({
       ...flags,
       ...Object.fromEntries(aiConfig.V222_CONNECTION_FIELDS.filter(field => Object.hasOwn(stored, aiKey(field)))
         .map(field => [field, stored[aiKey(field)]])),
     });
-    const released = !!legacy || family.hasReleasedSchedule(stored[installedVersionKey]);
-    const familySettings = !Object.hasOwn(stored, model.KEY) && family.releasedSettings(stored, released);
+    // 2.2.44 首次引入向导完成标记。该版本起未完成向导的用户，升级后仍应等待本人确认。
+    const sourceVersion = previousVersion || stored[installedVersionKey];
+    const alreadyInstalled = Boolean(sourceVersion && globalThis.STConfig.versions.compare(sourceVersion, "2.2.44") < 0);
+    const releasedFamily = !!legacy || family.hasReleasedSchedule(sourceVersion);
+    const familySettings = !Object.hasOwn(stored, model.KEY) && family.releasedSettings(stored, releasedFamily);
+    const existingWorkflow = Object.hasOwn(stored, model.KEY);
+    if (!complete && !existingWorkflow && !alreadyInstalled && !legacy && !familySettings) return false;
+    const selectedLocale = localeOf(stored[UI_LOCALE_KEY], "");
+    if (complete && !selectedLocale && !existingWorkflow && !alreadyInstalled && !legacy)
+      throw new Error("请先在安装引导中选择并确认语言");
+    const locale = selectedLocale || "zh_CN";
+    const text = await templateLanguage(locale);
+    const gameLinks = globalThis.STGameLinks.seedNames(stored[GAME_LINKS_KEY], text);
     let workflow;
-    if (!Object.hasOwn(stored, model.KEY)) {
-      workflow = model.defaults();
+    if (!existingWorkflow) {
+      workflow = model.defaults(text, locale);
       if (familySettings) workflow = model.restoreFamilySchedule(workflow, familySettings,
-        stored[familyFeatureKey] !== false && globalThis.STClientEnvironment.isSteamClientRuntime(), true);
+        stored[familyFeatureKey] !== false && globalThis.STClientEnvironment.isSteamClientRuntime(), true, text);
     }
-    const ai = hasRegistry ? undefined : legacy ?? { ...aiConfig.normalizeServices(), ...flags };
+    const ai = hasRegistry ? undefined : legacy ?? aiConfig.servicesFromStorage(stored);
+    if (ai) aiConfig.findService(ai, aiConfig.DEFAULT_SERVICE_ID).name = text("seed.ai.default", "默认 AI 服务");
     const translate = workflow || ai
       ? Object.fromEntries(Object.entries(defaults).filter(([id]) => !Object.hasOwn(stored, transKey(id))))
       : undefined;
-    if (workflow || ai) await writeAiSettings({ workflow, ai, translate, familySettings }, { reason: "initialize-workflow" });
+    if (complete && workflow && !alreadyInstalled && !legacy && !familySettings && !Object.hasOwn(stored, transKey("to")) && !Object.hasOwn(stored, transKey("aiTarget")))
+      translate.aiTarget = "display";
+    await writeAiSettings({ workflow, ai, translate, familySettings, gameLinks, setupLocale: locale, finishPendingConnection: pendingConnection }, { reason: "initialize-workflow" });
     if (legacy) log.info("ai-v222-config-migrated", "2.2.2 AI 连接已迁移到默认服务");
+    return true;
   }
 
   async function setWorkflow(values, diagnostics = {}) {
@@ -1142,7 +1194,11 @@
       },
       { timeoutMs: 120000, logFailures: false },
     );
-    if (response?.success !== true) throw new Error(response?.error || "自动化配置保存失败");
+    if (response?.success !== true) {
+      const error = new Error(response?.error || "自动化配置保存失败");
+      if (response?.errorCode) error.code = response.errorCode;
+      throw error;
+    }
     if (response.value.steamPending) diagnostics.onSteamPending?.();
     return response.value.workflow;
   }
@@ -1154,6 +1210,7 @@
     setAll,
     set,
     getUiLocale,
+    getOnboardingState,
     setUiLocale,
     getUpdateCheck,
     setUpdateCheck,
@@ -1166,6 +1223,7 @@
     getMembership,
     setMembership,
     getTranslate,
+    getAiTargetLanguage,
     setTranslate,
     getReviewFilter,
     setReviewFilter,
@@ -1189,6 +1247,8 @@
     setGameLinks,
     getWorkflow,
     initializeWorkflow,
+    templateLanguage,
+    SETUP_KEY,
     initializeDownloadToolbar,
     setWorkflow,
     getRailPos,

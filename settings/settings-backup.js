@@ -128,6 +128,63 @@
     return input;
   }
 
+  function invalidField(field) {
+    return new TypeError(text("about.backup.invalidField", "设置备份中的「$field$」格式无效。", { field }));
+  }
+
+  // 本地文件先按当前目录校验实际提供的字段。缺失字段及已移除字段仍交给原有的快照迁移。
+  function checkField(value, expected, path) {
+    if (Array.isArray(expected)) {
+      if (!Array.isArray(value)) throw invalidField(path);
+      if (expected.length) value.forEach((item, index) => checkField(item, expected[0], path + "[" + index + "]"));
+    } else if (snapshot().isPlainObject(expected)) {
+      if (!snapshot().isPlainObject(value)) throw invalidField(path);
+      const keys = Object.keys(expected);
+      let found = keys.length === 0; // lineColors 等可编辑映射允许显式留空
+      for (const key of keys) {
+        if (Object.hasOwn(value, key) && checkField(value[key], expected[key], path + "." + key)) found = true;
+      }
+      return found;
+    } else if (typeof value !== typeof expected || (typeof expected === "number" && !Number.isFinite(value))) {
+      throw invalidField(path);
+    }
+    return true;
+  }
+
+  function checkSettings(values) {
+    if (!snapshot().isPlainObject(values)) throw invalidField("settings");
+    let found = Object.hasOwn(values, "familyLibrary");
+    for (const name of sections()) {
+      if (!Object.hasOwn(values, name)) continue;
+      const path = "settings." + name;
+      // 工作流和相关链接本身有完整的结构校验；不同用户的模板内容不能拿出厂模板来比对。
+      if (name === "workflow" || name === "gameLinks") {
+        if (!snapshot().isPlainObject(values[name])) throw invalidField(path);
+        found = true;
+        continue;
+      }
+      const expected = api.catalog.panelSectionDefaults(name);
+      if (name === "storePriceChart") expected.additionalSteamRegions = [""];
+      if (name === "reviewFilter") expected.rules = [{ type: "", value: "", enabled: true, id: "" }];
+      if (checkField(values[name], expected, path)) found = true;
+      if (name === "reviewFilter" && values[name].rules) {
+        values[name].rules.forEach((rule, index) => {
+          const rulePath = path + ".rules[" + index + "]";
+          if (!api.catalog.reviewRuleTypes.includes(rule.type)) throw invalidField(rulePath + ".type");
+          if (!rule.value?.trim()) throw invalidField(rulePath + ".value");
+        });
+      }
+      if (name === "uiLocale" && !snapshot().localeOf(values[name], "")) throw invalidField(path);
+    }
+    for (const key of ["download-auto-shutdown", "download-batch-actions"]) {
+      if (values.features && Object.hasOwn(values.features, key)) {
+        checkField(values.features[key], false, "settings.features." + key);
+        found = true;
+      }
+    }
+    if (!found) throw invalidField("settings");
+  }
+
   function inspectPackage(input) {
     const data = parse(input);
     if (!data || typeof data !== "object") {
@@ -150,7 +207,8 @@
       skipped: 0,
       defaulted: 0,
     };
-    const normalized = snap.normalize(data.settings || {}, statsBox);
+    checkSettings(data.settings);
+    const normalized = snap.normalize(data.settings, statsBox);
     const settingsValue = normalized.settings;
     const stats = {
       imported: statsBox.imported,
@@ -169,7 +227,7 @@
 
   async function exportPackage() {
     const exportedAt = now();
-    const packed = await snapshot().pack();
+    const packed = await snapshot().pack({ strict: true });
     const payload = {
       type: TYPE,
       schemaVersion: SCHEMA_VERSION,
@@ -195,7 +253,7 @@
     if (typeof target?.setPanelSettings !== "function") {
       throw new Error(text("about.backup.writeUnavailable", "设置备份写入接口不可用"));
     }
-    const ok = await snapshot().write(preview.normalized);
+    const ok = await snapshot().write(preview.normalized, { reportSections: true });
     if (ok !== true) {
       throw new Error(text("about.backup.writeFailed", "设置备份写入失败"));
     }

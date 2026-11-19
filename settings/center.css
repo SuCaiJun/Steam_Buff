@@ -26,6 +26,8 @@ body {
   inset: 0;
   display: grid;
   place-items: center;
+  align-content: center;
+  gap: 12px;
   padding: 24px;
   text-align: center;
 }
@@ -38,6 +40,12 @@ body {
   line-height: 1.6;
   letter-spacing: 0;
   white-space: nowrap;
+}
+
+.settings-page-state button {
+  cursor: pointer;
+  padding: 8px 20px;
+  font: inherit;
 }
 
 @media (max-width: 480px) {

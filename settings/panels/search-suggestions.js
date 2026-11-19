@@ -214,6 +214,7 @@
           });
         })
         .finally(() => {
+          shadow.querySelectorAll("[data-search-suggestion]").forEach(root.STSettingsFields.acceptEdit);
           setInputsDisabled(shadow, false);
           save.disabled = false;
           save.textContent = oldText;

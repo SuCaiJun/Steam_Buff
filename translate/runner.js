@@ -196,6 +196,7 @@
 
   let tip = null;
   let selTip = null;
+  let selTipLabel = null;
   let selAction = null;
   let tipReady = false;
   let selReady = false;
@@ -223,6 +224,15 @@
   function cfg() {
     const conf = globalThis.STEAM_BUFF_TRANSLATE_CONFIG;
     return conf && typeof conf === "object" ? conf : {};
+  }
+
+  function uiText(key, fallback) {
+    return globalThis.STI18n?.text("translateRunner." + key, fallback) ?? fallback;
+  }
+
+  function selectionError(key, fallback, status) {
+    const localizedMessage = () => uiText(key, fallback) + (status ? " (" + status + ")" : "");
+    return Object.assign(new Error(localizedMessage()), { localizedMessage });
   }
 
   function rt() {
@@ -1053,14 +1063,15 @@
       btn = document.createElement("button");
       btn.className = SEL_CLOSE_CLASS;
       btn.type = "button";
-      btn.title = "关闭";
-      btn.setAttribute("aria-label", "关闭划词翻译");
+
       const img = document.createElement("img");
       img.alt = "";
       img.src = assetUrl(SEL_CLOSE_ICON);
       btn.appendChild(img);
       el?.appendChild?.(btn);
     }
+    btn.title = uiText("close", "关闭");
+    btn.setAttribute("aria-label", uiText("closeSelection", "关闭划词翻译"));
     return btn;
   }
 
@@ -1090,8 +1101,7 @@
       selAction.id = SEL_ACTION_ID;
       selAction.className = SEL_ACTION_CLASS;
       selAction.type = "button";
-      selAction.title = "翻译";
-      selAction.setAttribute("aria-label", "翻译选中文字");
+
       selAction.hidden = true;
       enableOverlay(selAction);
       selAction.addEventListener("mousedown", (event) => {
@@ -1110,6 +1120,8 @@
       });
       (document.body || document.documentElement).appendChild(selAction);
     }
+    selAction.title = uiText("translate", "翻译");
+    selAction.setAttribute("aria-label", uiText("translateSelected", "翻译选中文字"));
     return selAction;
   }
 
@@ -1136,7 +1148,8 @@
   function showSelTip(text, point, state = "", conf = cfg()) {
     const el = ensureSelTip();
     const body = ensureSelBody(el);
-    body.textContent = text;
+    selTipLabel = typeof text === "function" ? text : null;
+    body.textContent = selTipLabel ? selTipLabel() : text;
     body.scrollTop = 0;
     body.scrollLeft = 0;
     applySelClose(el, conf);
@@ -1284,6 +1297,7 @@
   }
 
   function hideSelTip() {
+    selTipLabel = null;
     if (selTip) {
       closeOverlay(selTip);
       delete selTip.dataset.state;
@@ -1906,6 +1920,9 @@
       state.sent.add(node);
     }
     state.active = true;
+    const conf = cfg();
+    if (conf.service === AI_SERVICE && conf.aiTarget === "display")
+      state.trans.to = globalThis.STI18n.translationLanguage(globalThis.STI18n.locale());
     if (!call(() => state.trans.execute(batch))) {
       state.active = false;
       scheduleViewport(state, VIEW_DELAY);
@@ -2004,6 +2021,7 @@
   }
 
   function langTo(trans, conf) {
+    if (conf.service === AI_SERVICE && conf.aiTarget === "display") return conf.to;
     return trans.to
       || trans.language?.getCurrent?.()
       || conf.to
@@ -2065,12 +2083,12 @@
   function edgeUrl(trans, from, to) {
     const api = trans.service?.edge?.api?.translate;
     if (!api) {
-      throw new Error("微软翻译接口未配置");
+      throw selectionError("microsoftMissing", "微软翻译接口未配置");
     }
     const src = edgeFrom(from);
     const target = edgeCode(trans, to);
     if (!target) {
-      throw new Error("微软翻译目标语言无效");
+      throw selectionError("microsoftLanguage", "微软翻译目标语言无效");
     }
     return api
       .replace("{from}", encodeURIComponent(src ? edgeCode(trans, src) : ""))
@@ -2079,14 +2097,14 @@
 
   function edgeText(data) {
     if (!Array.isArray(data)) {
-      throw new Error("微软翻译响应格式异常");
+      throw selectionError("microsoftResponse", "微软翻译响应格式异常");
     }
     return String(data[0]?.translations?.[0]?.text || "");
   }
 
   function resultText(data) {
     if (data?.result !== 1) {
-      throw new Error(data?.info || "划词翻译失败");
+      throw data?.info ? new Error(data.info) : selectionError("failed", "划词翻译失败");
     }
     return String(data.text?.[0] || "");
   }
@@ -2095,11 +2113,11 @@
     return new Promise((resolve, reject) => {
       const fn = trans.request?.translateText;
       if (typeof fn !== "function") {
-        reject(new Error("translate.js 翻译接口未加载"));
+        reject(selectionError("vendorMissing", "translate.js 翻译接口未加载"));
         return;
       }
       if (!trans.request?.api?.translate) {
-        reject(new Error("翻译接口未配置"));
+        reject(selectionError("serviceMissing", "翻译接口未配置"));
         return;
       }
       // 非 AI 划词复用 translate.js 请求路由，但必须显式传入划词目标语言，避免未整页翻译时原样返回。
@@ -2110,7 +2128,7 @@
           reject(error);
         }
       }, (xhr) => {
-        reject(new Error(`划词翻译请求失败${xhr?.status ? `：${xhr.status}` : ""}`));
+        reject(selectionError("requestFailed", "划词翻译请求失败", xhr?.status));
       });
     });
   }
@@ -2147,7 +2165,7 @@
           return;
         }
         if (xhr.status !== 200) {
-          fail(new Error(`划词翻译请求失败${xhr.status ? `：${xhr.status}` : ""}`), xhr.status ? "http" : "xhr-completion");
+          fail(selectionError("requestFailed", "划词翻译请求失败", xhr.status), xhr.status ? "http" : "xhr-completion");
           return;
         }
         try {
@@ -2163,7 +2181,7 @@
           fail(error, "parse");
         }
       };
-      xhr.onerror = () => fail(new Error("划词翻译请求失败"), "network");
+      xhr.onerror = () => fail(selectionError("requestFailed", "划词翻译请求失败"), "network");
       xhr.send(JSON.stringify(texts));
     });
   }
@@ -2175,7 +2193,7 @@
   function aiSel(text, from, to, conf, options = {}) {
     const fn = globalThis.STTranslateAI?.translate;
     if (typeof fn !== "function") {
-      return Promise.reject(new Error("AI 翻译模块未加载"));
+      return Promise.reject(selectionError("aiMissing", "AI 翻译模块未加载"));
     }
     return fn(conf, selData(text, from, to, options), options).then(resultText);
   }
@@ -2356,7 +2374,7 @@
     const startedAt = Date.now();
     const operationId = window.STLoggerFactory?.createOperationId?.() || "";
     hideSelAction();
-    showSelTip("正在翻译...", ctx.point, "loading", ctx.conf);
+    showSelTip(() => uiText("loading", "正在翻译..."), ctx.point, "loading", ctx.conf);
     logSel("info", "selection-request-start", "划词翻译开始", {
       operationId,
       service,
@@ -2371,7 +2389,7 @@
     transSel(ctx.trans, ctx.text, ctx.conf)
       .then((value) => {
         if (seq === selSeq) {
-          showSelTip(value || "无翻译结果", ctx.point, "", ctx.conf);
+          showSelTip(value || (() => uiText("empty", "无翻译结果")), ctx.point, "", ctx.conf);
           logSel("info", "selection-request-success", "划词翻译完成", {
             operationId,
             service,
@@ -2384,7 +2402,7 @@
       })
       .catch((error) => {
         if (seq === selSeq) {
-          showSelTip(error?.message || "划词翻译失败", ctx.point, "error", ctx.conf);
+          showSelTip(error?.localizedMessage || error?.message || (() => uiText("failed", "划词翻译失败")), ctx.point, "error", ctx.conf);
           logSel("error", "selection-request-failed", "划词翻译失败", {
             operationId,
             service,
@@ -2457,6 +2475,12 @@
     selReady = true;
     installCss();
     ignoreRuntimeUi(trans);
+    if (globalThis.STI18n?.CHANGE_EVENT) window.addEventListener(globalThis.STI18n.CHANGE_EVENT, () => {
+      if (selAction && !selAction.hidden) ensureSelAction();
+      if (!selTip || selTip.hidden) return;
+      applySelClose(selTip, cfg());
+      if (selTipLabel) ensureSelBody(selTip).textContent = selTipLabel();
+    });
 
     document.addEventListener("mousedown", (event) => {
       if (nonPrimaryMouseEvent(event)) {
@@ -2535,16 +2559,18 @@
     if (conf.local) {
       trans.language?.setLocal?.(conf.local);
     }
-    if (conf.to) {
+    const to = conf.service === AI_SERVICE && conf.aiTarget === "display"
+      ? globalThis.STI18n.translationLanguage(conf.displayLocale || globalThis.STI18n.locale()) : conf.to;
+    if (to) {
       if (manual) {
         // 手动任务使用设置中的目标语言，不能被 vendor 的网页语言缓存覆盖
-        trans.to = conf.to;
+        trans.to = to;
       } else if (conf.service === AI_SERVICE) {
         // 原生语言框会写入 translate.js 的 to 缓存，AI 模式固定回设置里的目标语言。
-        trans.storage?.set?.("to", conf.to);
-        trans.to = conf.to;
+        trans.storage?.set?.("to", to);
+        trans.to = to;
       }
-      if (!manual) trans.language?.setDefaultTo?.(conf.to);
+      if (!manual) trans.language?.setDefaultTo?.(to);
     }
     if (conf.service === globalThis.STTranslateAI?.SERVICE) {
       globalThis.STTranslateAI.apply(trans, conf, {
@@ -2677,7 +2703,7 @@
     let count = 0;
     let start = performance.now();
     while ((node = walker.nextNode())) {
-      if (!manualActive(job)) throw new Error("页面或翻译设置已变化，本次翻译已停止");
+      if (!manualActive(job)) throw new Error(uiText("configChanged", "页面或翻译设置已变化，本次翻译已停止"));
       if (node.nodeType === Node.TEXT_NODE && /\p{L}/u.test(node.nodeValue)) {
         nodes.push({ node, text: node.nodeValue });
       }
@@ -2763,12 +2789,12 @@
         uuid = data.uuid;
       }, disposers);
       manualHook(hooks.translateNetworkAfter, (data) => {
-        if (data.uuid === uuid && data.result !== 1) failure = new Error("翻译服务请求失败，请检查网络或翻译服务设置");
+        if (data.uuid === uuid && data.result !== 1) failure = new Error(uiText("network", "翻译服务请求失败，请检查网络或翻译服务设置"));
       }, disposers);
       manualHook(hooks.renderFinish, (id) => { if (id === uuid) finish(); }, disposers);
       manualHook(hooks.finally, (data) => {
         if (data.uuid === uuid && ![18, 25].includes(data.state)) {
-          failure = new Error("翻译任务未能执行，请刷新网页后重试");
+          failure = new Error(uiText("taskFailed", "翻译任务未能执行，请刷新网页后重试"));
           finish();
         }
       }, disposers);
@@ -2792,11 +2818,11 @@
         done = true;
         window.clearTimeout(timer);
         job.requests.delete(cancel);
-        if (!manualActive(job) || !response) response = { result: 0, info: "手动翻译已停止或请求超时", from: data.from, to: data.to, text: [] };
+        if (!manualActive(job) || !response) response = { result: 0, info: uiText("timedOutOrStopped", "手动翻译已停止或请求超时"), from: data.from, to: data.to, text: [] };
         if (response.result === 1 && (response.from !== data.from || response.to !== data.to
           || !Array.isArray(response.text) || response.text.length !== JSON.parse(decodeURIComponent(data.text)).length
           || response.text.some(text => typeof text !== "string" || !text.trim()))) {
-          response = { result: 0, info: "翻译服务返回了不完整的结果", from: data.from, to: data.to, text: [] };
+          response = { result: 0, info: uiText("incomplete", "翻译服务返回了不完整的结果"), from: data.from, to: data.to, text: [] };
         }
         if (response.result !== 1 && job.conf.service === AI_SERVICE) cancelManual(job);
         callback(response, input || data, xhr);
@@ -2804,7 +2830,7 @@
       const cancel = () => finish(null, data);
       job.requests.add(cancel);
       timer = window.setTimeout(() => {
-        const error = new Error("手动翻译请求超时");
+        const error = new Error(uiText("timeout", "手动翻译请求超时"));
         error.name = "TimeoutError";
         logRuntime("error", "manual-page-timeout", "手动翻译请求超时", { error, phase: "manualRequests" });
         if (job.conf.service === AI_SERVICE) cancelManual(job, error);
@@ -2820,7 +2846,7 @@
         }
         if (job.conf.service === AI_SERVICE) {
           return original.call(this, path, data, finish, () => cancel(), {
-            signal: job.controller.signal,
+            signal: job.controller.signal, binding: job.binding,
             // pushState 不触发 popstate；每个异步边界仍按当前文档核对任务，防止下一块继续发网
             checkActive: () => { if (!manualActive(job)) cancelManual(job); },
           });
@@ -2846,8 +2872,8 @@
         else resolve();
       };
       const hook = () => finish();
-      const cancel = () => finish(new Error("页面或翻译设置已变化，本次翻译已停止"));
-      const timer = window.setTimeout(() => finish(new Error("已有翻译任务尚未完成，请稍后重试")), MANUAL_BATCH_TIMEOUT_MS);
+      const cancel = () => finish(new Error(uiText("configChanged", "页面或翻译设置已变化，本次翻译已停止")));
+      const timer = window.setTimeout(() => finish(new Error(uiText("busy", "已有翻译任务尚未完成，请稍后重试"))), MANUAL_BATCH_TIMEOUT_MS);
       job.requests.add(cancel);
       trans.lifecycle.execute.renderFinish.push(hook);
     });
@@ -2861,8 +2887,8 @@
   function manualPage(conf) {
     if (manualJob) return manualJob.task;
     const trans = rt();
-    if (!trans || !document.body || !conf?.to || !conf.service) return Promise.reject(new Error("翻译服务或目标语言未配置"));
-    if (!topFrame() || globalThis.STPageContext.translateAllowed({ scope: "steam" }).allowed !== true) return Promise.reject(new Error("当前页面不支持手动翻译"));
+    if (!trans || !document.body || !conf?.to || !conf.service) return Promise.reject(new Error(uiText("targetMissing", "翻译服务或目标语言未配置")));
+    if (!topFrame() || globalThis.STPageContext.translateAllowed({ scope: "steam" }).allowed !== true) return Promise.reject(new Error(uiText("unsupported", "当前页面不支持手动翻译")));
     const job = { trans, href: location.href, body: document.body, cancelled: false, controller: new AbortController(), requests: new Set(), changed: 0 };
     manualJob = job;
     const onLeave = () => cancelManual(job);
@@ -2872,12 +2898,17 @@
     job.task = (async () => {
       stopAutoPage(trans);
       await waitManualIdle(job);
-      if (!manualActive(job)) throw new Error("页面或翻译设置已变化，本次翻译已停止");
+      if (!manualActive(job)) throw new Error(uiText("configChanged", "页面或翻译设置已变化，本次翻译已停止"));
+      if (conf.service === AI_SERVICE && conf.ai?.enabled === true) {
+        job.binding = await globalThis.STTranslateAI.resolveBinding("page");
+        if (job.binding.targetLanguage) conf = { ...conf, to: job.binding.targetLanguage, displayLocale: job.binding.displayLocale };
+        if (!manualActive(job)) throw new Error(uiText("configChanged", "页面或翻译设置已变化，本次翻译已停止"));
+      }
       const saved = { conf: cfg(), to: trans.to, local: trans.language.local, force: trans.language.translateLocal,
         service: trans.service.name, api: { ...trans.request.api }, params: trans.request.appendParams, headers: trans.request.appendHeaders,
         classes: trans.ignore.class.data, ids: trans.ignore.id, range: trans.language.translateLanguagesRange,
         whole: { classes: trans.whole.class, tags: trans.whole.tag, ids: trans.whole.id } };
-      job.conf = { ...conf, enabled: true, page: false, selection: false, select: false, manual: true, force: true, modes: [MODE_MANUAL] };
+      job.conf = { ...conf, uiText: saved.conf.uiText, enabled: true, page: false, selection: false, select: false, manual: true, force: true, modes: [MODE_MANUAL] };
       globalThis.STEAM_BUFF_TRANSLATE_CONFIG = job.conf;
       let restoreRequests = () => {};
       let restoreRecognition = () => {};
@@ -2888,7 +2919,7 @@
         trans.whole.class = [];
         trans.whole.tag = [];
         trans.whole.id = [];
-        if (!trans.request.api.translate) throw new Error("翻译服务未就绪，请检查服务配置");
+        if (!trans.request.api.translate) throw new Error(uiText("notReady", "翻译服务未就绪，请检查服务配置"));
         trans.ignore.class.data = saved.classes.filter(name => !STEAM_TITLE_IGNORE_CLASSES.includes(name));
         trans.ignore.id = saved.ids.filter(id => !STEAM_TITLE_IGNORE_IDS.includes(id));
         trans.language.translateLanguagesRange = [];
@@ -2898,12 +2929,12 @@
         if (conf.hover !== false) ensureTip(trans);
         const entries = await manualNodes(job);
         for (let index = 0; index < entries.length; index += VIEW_BATCH) {
-          if (!manualActive(job)) throw new Error("页面或翻译设置已变化，本次翻译已停止");
+          if (!manualActive(job)) throw new Error(uiText("configChanged", "页面或翻译设置已变化，本次翻译已停止"));
           const batch = entries.slice(index, index + VIEW_BATCH).filter(entry => entry.node.isConnected && entry.node.nodeValue === entry.text);
           if (batch.length) await manualBatch(job, batch);
           await yieldManual();
         }
-        if (!manualActive(job)) throw new Error("页面或翻译设置已变化，本次翻译已停止");
+        if (!manualActive(job)) throw new Error(uiText("configChanged", "页面或翻译设置已变化，本次翻译已停止"));
         return { scanned: entries.length, changed: job.changed, to: conf.to };
       } finally {
         restoreRequests();

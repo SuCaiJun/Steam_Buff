@@ -15,7 +15,6 @@
   const RES_EVT = "STStoreCartSelectResponse";
   const ROW_SEL = "[data-st-cart-line-id]";
   const SCAN_LIMIT = 1800;
-  const STEAM_API_HOST = document.currentScript?.dataset.steamApiHost || "";
 
   function reactKey(node) {
     return Object.keys(node || {}).find(key => key.startsWith("__reactFiber"));
@@ -146,32 +145,6 @@
     return items;
   }
 
-  function token() {
-    if (!STEAM_API_HOST) return "";
-    const entry = performance.getEntriesByType("resource")
-      .map(item => item.name || "")
-      .find(url => url.includes(`${STEAM_API_HOST}/`) && url.includes("access_token="));
-    if (!entry) return "";
-
-    try {
-      return new URL(entry).searchParams.get("access_token") || "";
-    } catch (error) {
-      return "";
-    }
-  }
-
-  function country() {
-    try {
-      const config = JSON.parse(document.documentElement.dataset.config || "{}");
-      if (config.COUNTRY) return String(config.COUNTRY).toUpperCase();
-    } catch (error) {
-      void error;
-    }
-
-    const match = document.cookie.match(/steamCountry=([a-zA-Z]{2})/);
-    return match ? match[1].toUpperCase() : "CN";
-  }
-
   function rowByLine(lineId) {
     scan();
     return document.querySelector(`${ROW_SEL}[data-st-cart-line-id="${CSS.escape(String(lineId))}"]`);
@@ -190,29 +163,32 @@
     }) || null;
   }
 
-  function waitFor(test, timeout = 10000) {
+  async function waitFor(test, timeout = 10000) {
     const start = Date.now();
-    return new Promise(resolve => {
-      function tick() {
-        if (test()) {
-          resolve(true);
-          return;
-        }
-        if (Date.now() - start >= timeout) {
-          resolve(false);
-          return;
-        }
-        setTimeout(tick, 150);
-      }
-      tick();
-    });
+    while (!test()) {
+      if (Date.now() - start >= timeout) return false;
+      await new Promise(resolve => setTimeout(resolve, 150));
+    }
+    return true;
   }
 
-  async function removeLines(lineIds) {
+  function signedInAccount() {
+    const user = window.UserConfig;
+    return user?.logged_in === true && typeof user.steamid === "string" && /^\d{17}$/.test(user.steamid) ? user.steamid : null;
+  }
+
+  function checkAccount(expected) {
+    if (!expected || signedInAccount() !== expected) {
+      throw Object.assign(new Error("Steam 购物车账号未确认或已切换"), { code: "CART_ACCOUNT_CHANGED" });
+    }
+  }
+
+  async function removeLines(lineIds, account) {
     const removed = [];
     const failed = [];
 
     for (const lineId of lineIds) {
+      checkAccount(account);
       const row = rowByLine(lineId);
       const btn = row ? removeButton(row) : null;
       if (!row || !btn) {
@@ -229,15 +205,17 @@
       }
     }
 
+    checkAccount(account);
     return { removed, failed, items: scan() };
   }
 
-  async function restoreItems(items) {
+  async function restoreItems(items, account) {
     const restored = [];
     const skipped = [];
     const failed = [];
 
     for (const item of items || []) {
+      checkAccount(account);
       const key = item?.key || `${item?.kind}:${item?.itemId}`;
       if (!item?.kind || !item?.itemId || !key) continue;
 
@@ -246,57 +224,31 @@
         continue;
       }
 
-      try {
-        if (typeof window.AddItemToCart !== "function") {
-          failed.push(key);
-          continue;
-        }
-
-        if (item.kind === "bundle") {
-          window.AddItemToCart(null, Number(item.itemId));
-        } else {
-          window.AddItemToCart(Number(item.itemId), undefined);
-        }
-
-        const ok = await waitFor(() => !!rowByKey(key), 12000);
-        if (ok) {
-          restored.push(key);
-        } else {
-          failed.push(key);
-        }
-      } catch (error) {
+      if (typeof window.AddItemToCart !== "function") {
+        failed.push(key);
+        continue;
+      }
+      if (item.kind === "bundle") {
+        window.AddItemToCart(null, Number(item.itemId));
+      } else {
+        window.AddItemToCart(Number(item.itemId), undefined);
+      }
+      const ok = await waitFor(() => !!rowByKey(key), 12000);
+      if (ok) {
+        restored.push(key);
+      } else {
         failed.push(key);
       }
     }
 
+    checkAccount(account);
     return { restored, skipped, failed, items: scan() };
   }
 
-  async function handle(detail) {
-    const id = detail?.id || "";
-    const action = detail?.action || "scan";
-    let result = null;
-    let ok = true;
-    let message = "";
-
-    try {
-      if (action === "remove") {
-        result = await removeLines(detail.lineIds || []);
-        ok = result.failed.length === 0;
-      } else if (action === "restore") {
-        result = await restoreItems(detail.items || []);
-        ok = result.failed.length === 0;
-      } else {
-        result = { items: scan(), token: token(), country: country() };
-      }
-    } catch (error) {
-      ok = false;
-      message = error?.message || String(error || "unknown");
-    }
-
-    window.dispatchEvent(new CustomEvent(RES_EVT, {
-      detail: { id, action, ok, message, result }
-    }));
+  async function handle(action, detail) {
+    if (action === "remove") return removeLines(detail.lineIds || [], detail.accountSteamId);
+    if (action === "restore") return restoreItems(detail.items || [], detail.accountSteamId);
+    return { items: scan(), accountSteamId: signedInAccount() };
   }
 
   if (window.__stCartSelectPageReady) {
@@ -306,7 +258,17 @@
 
   window.__stCartSelectPageReady = true;
   window.addEventListener(REQ_EVT, event => {
-    handle(event.detail).catch(() => {});
+    const detail = event.detail;
+    const id = detail?.id || "";
+    const action = detail?.action || "scan";
+    const reply = response => window.dispatchEvent(new CustomEvent(RES_EVT, { detail: { id, action, ...response } }));
+    handle(action, detail).then(
+      result => reply({ ok: !result.failed?.length, result, message: "" }),
+      error => reply({
+        ok: false, result: null, message: error?.message || String(error), code: error?.code,
+        error: { name: error?.name, stack: error?.stack },
+      })
+    );
   });
   scan();
 })();

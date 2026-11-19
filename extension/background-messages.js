@@ -181,33 +181,53 @@
 
   async function list(input, owner = null) {
     const query = model.list(input);
+    let localizedContent;
+    if (query.query && (!query.origin || query.origin === "update") && input.displayLocale) {
+      const i18n = root.STI18n;
+      if (!i18n.SUPPORTED.includes(input.displayLocale)) throw new TypeError("消息搜索语言无效");
+      await i18n.load(input.displayLocale);
+      const translate = i18n.forLocale(input.displayLocale);
+      localizedContent = message => model.searchText(model.displayContent(message, false,
+        (key, fallback, value) => translate(key, fallback, { value })));
+    }
     return operate("list", null, async transaction => {
       const messages = transaction.objectStore("messages"), search = transaction.objectStore("search").index("tokens");
       let token = null;
-      if (query.query) {
+      if (query.query && !(localizedContent && query.origin === "update")) {
         const chars = Array.from(query.query), candidates = [...new Set(chars.length === 1 ? [chars[0]] : [chars.slice(0, 2).join(""), chars.slice(-2).join("")])];
         const counts = await Promise.all(candidates.map(async candidate => ({ candidate, count: (await Promise.all(scopes(owner).map(key => result(search.count(IDBKeyRange.bound([key, candidate], [key, candidate, []])))))).reduce((a, b) => a + b, 0) })));
         token = counts.sort((a, b) => a.count - b.count)[0].candidate;
       }
       // 每次只处理索引中的有限候选；空匹配页仍返回推进游标，前端可取消后续页
-      const pages = await Promise.all(scopes(owner).map(key => new Promise((resolve,reject) => {
+      const sources = scopes(owner).flatMap(key => {
+        if (!localizedContent) return [{ key }];
+        // 已有更新消息同样按本次显示语言查找；普通消息继续走原有全文索引。
+        return query.origin === "update" ? [{ key, updates: true }] : [{ key }, { key, updates: true }];
+      });
+      const pages = await Promise.all(sources.map(({ key, updates }) => new Promise((resolve,reject) => {
         const unread = query.filter === "all" ? null : query.filter === "unread" ? 1 : 0;
-        const index = token ? search : messages.index(query.origin ? "visibility-module-time" : query.level ? "visibility-level-time" : query.kind ? "visibility-kind-time" : unread === null ? "visibility-time" : "visibility-unread-time");
-        const prefix = token ? [key, token] : query.origin ? [key, query.origin] : query.level ? [key, query.level] : query.kind ? [key, query.kind] : unread === null ? [key] : [key, unread];
+        const useToken = !updates && token;
+        const origin = updates ? "update" : query.origin;
+        const index = useToken ? search : messages.index(origin ? "visibility-module-time" : query.level ? "visibility-level-time" : query.kind ? "visibility-kind-time" : unread === null ? "visibility-time" : "visibility-unread-time");
+        const prefix = useToken ? [key, token] : origin ? [key, origin] : query.level ? [key, query.level] : query.kind ? [key, query.kind] : unread === null ? [key] : [key, unread];
         const lower = [...prefix, 0, ""], upper = [...prefix, ...(query.before || [Number.MAX_SAFE_INTEGER, []])];
         const range = IDBKeyRange.bound(lower, upper, false, !!query.before);
-        const request = token ? index.openKeyCursor(range, "prev") : index.openCursor(range, "prev");
+        const request = useToken ? index.openKeyCursor(range, "prev") : index.openCursor(range, "prev");
         const rows = []; let scanned = 0, last = null;
         request.onerror = () => reject(request.error);
         request.onsuccess = () => {
           const cursor = request.result;
           if (!cursor) { resolve({ rows, more: false, last }); return; }
           const visit = async () => {
-            const value = token ? await result(messages.get(cursor.primaryKey)) : cursor.value;
-            const keys = cursor.key; last = token ? [keys[keys.length - 2], keys[keys.length - 1]] : [value.createdAt, value.id]; scanned++;
-            if (value && (unread === null || value.unread === unread) && (!query.origin || value.moduleId === query.origin) && (!query.level || value.level === query.level) && (!query.kind || value.kind === query.kind) && (!query.query || value.searchText.includes(query.query))) {
+            const value = useToken ? await result(messages.get(cursor.primaryKey)) : cursor.value;
+            const keys = cursor.key; last = [keys[keys.length - 2], keys[keys.length - 1]]; scanned++;
+            if (value && !(localizedContent && !updates && value.moduleId === "update") && (unread === null || value.unread === unread) && (!query.origin || value.moduleId === query.origin) && (!query.level || value.level === query.level) && (!query.kind || value.kind === query.kind) && (!query.query || (updates ? localizedContent(value) : value.searchText).includes(query.query))) {
               const { id, moduleId, moduleTitle, icon, brand, title, kind, level, createdAt, readAt, interaction } = value;
               rows.push({ id, moduleId, moduleTitle, icon, brand, title, kind, level, createdAt, readAt, preview: model.preview(value),
+                ...(moduleId === "update" && value.context?.event ? {
+                  context: value.context,
+                  ...(value.context.event === "available" ? { updateSummary: model.updateSummary(value).slice(0, 2000) } : {}),
+                } : {}),
                 ...(kind === "interactive" ? { actions: publicActions(value), ...(interaction ? { interaction } : {}) } : {}) });
             }
             if (rows.length > model.PAGE_SIZE || scanned >= 128) resolve({ rows, more: true, last });

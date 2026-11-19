@@ -35,15 +35,15 @@
     return root.STLoggerFactory?.safeLogUrl?.(url, policy) || "";
   }
 
-  function responseErrorMessage(response) {
+  function responseErrorMessage(response, translate) {
     if (response?.errorName === "TimeoutError" || response?.errorCode === "REQUEST_TIMEOUT") {
-      return text("common.requestTimedOut", "请求超时，请稍后重试。");
+      return translate("common.requestTimedOut", "请求超时，请稍后重试。");
     }
     if (response?.errorKind === "transport") {
-      return text("common.backgroundRequestFailed", "后台请求失败");
+      return translate("common.backgroundRequestFailed", "后台请求失败");
     }
     return String(response?.error || "").trim()
-      || text("common.backgroundRequestFailed", "后台请求失败");
+      || translate("common.backgroundRequestFailed", "后台请求失败");
   }
 
   function sleep(ms) {
@@ -86,7 +86,7 @@
     return false;
   }
 
-  function sendMessageOnce(payload, timeoutMs) {
+  function sendMessageOnce(payload, timeoutMs, translate) {
     return new Promise((resolve, reject) => {
       let done = false;
       let timerId = 0;
@@ -104,7 +104,7 @@
 
       if (timeoutMs > 0) {
         timerId = setTimeout(() => {
-          const error = new Error(text("common.requestTimedOutMs", "请求超时（$timeout$ms）", {
+          const error = new Error(translate("common.requestTimedOutMs", "请求超时（$timeout$ms）", {
             timeout: Math.round(timeoutMs),
           }));
           error.name = "TimeoutError";
@@ -131,7 +131,7 @@
             }
             const requestError = new Error(typeof error === "string"
               ? error
-              : text("common.backgroundRequestFailed", "后台请求失败"));
+              : translate("common.backgroundRequestFailed", "后台请求失败"));
             requestError.name = "RequestError";
             finish(reject, requestError);
           });
@@ -143,7 +143,7 @@
         }, (response) => {
           const error = root.chrome?.runtime?.lastError;
           if (error) {
-            const err = new Error(error.message || text("common.backgroundRequestFailed", "后台请求失败"));
+            const err = new Error(error.message || translate("common.backgroundRequestFailed", "后台请求失败"));
             err.name = "RequestError";
             finish(reject, err);
             return;
@@ -157,9 +157,10 @@
   }
 
   function request(options = {}) {
+    const translate = options.translate ?? text;
     const url = String(options.url || "");
     const method = String(options.method || "GET").toUpperCase();
-    const label = String(options.label || text("settings.api.endpoint", "官网接口"));
+    const label = String(options.label || translate("settings.api.endpoint", "官网接口"));
     const timeoutMs = normalizeTimeout(options);
     const retries = normalizeRetries(options);
     const allowHttpError = options.allowHttpError !== false;
@@ -206,11 +207,11 @@
             endpointKey: options.endpointKey || "settings-api",
             service: options.service,
             traceRequest: options.traceRequest === true,
-          }, timeoutMs);
+          }, timeoutMs, translate);
           debugResponse = response;
           if (options.traceRequest === true) log.info("api-response-received", "设置中心已收到关键 API 消息回复", { ...requestDetails, response: root.STLoggerSchema?.responseFacts?.(response), durationMs: Date.now() - startedAt });
           if (!response?.success) {
-            const error = new Error(responseErrorMessage(response));
+            const error = new Error(responseErrorMessage(response, translate));
             error.status = Number(response?.status) || 0;
             error.data = response?.data;
             error.response = response;
@@ -223,7 +224,7 @@
           }
           phase = "http";
           if (response.ok === false && allowHttpError === false) {
-            const error = new Error(text("settings.api.statusCode", "$label$返回状态码 $status$", {
+            const error = new Error(translate("settings.api.statusCode", "$label$返回状态码 $status$", {
               label,
               status: response.status || 0,
             }));
@@ -234,7 +235,7 @@
           }
           phase = "validate";
           if (validateResponse && !validateResponse(response)) {
-            const error = new Error(options.validateMessage || text("settings.api.responseInvalid", "$label$返回格式异常", { label }));
+            const error = new Error(options.validateMessage || translate("settings.api.responseInvalid", "$label$返回格式异常", { label }));
             error.name = "ValidationError";
             error.status = Number(response?.status) || 0;
             error.data = response?.data;

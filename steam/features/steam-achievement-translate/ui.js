@@ -16,8 +16,15 @@
   const ROW = "[data-tableindex]", TITLE = "h1._12ldq1_X5RuLWAAs_ODwt7", DESCRIPTION = "span.f6hU22EA7Z8peFWZVBJU";
   const GROUP = "div._22S4Af9ZUjd6IavgboVcEC", GROUP_TITLE = "span.mGlMCg85s0ULA8kYCZzMB.f6hU22EA7Z8peFWZVBJU";
   const log = window.STLoggerFactory.createLogger("steam", ID);
+  const uiText = (key, fallback, params) => window.STI18n.text(key, fallback, params);
+  const bindLabel = window.STComponents.bindLabel;
+  function targetName(language) {
+    return language ? uiText(`settings_field_translate_to_option_${language}`, language) : "";
+  }
   function element(tag, className, text) {
-    const node = api.styles.createStyledElement(tag, {}, text);
+    const dynamic = typeof text === "function";
+    const node = api.styles.createStyledElement(tag, {}, dynamic ? undefined : text);
+    if (dynamic) bindLabel(node, "textContent", text);
     if (className) node.className = className;
     return node;
   }
@@ -25,7 +32,7 @@
     const node = element("button", primary ? "st-ach-button st-ach-primary" : "st-ach-button", label);
     node.type = "button"; node.dataset.action = action; return node;
   }
-  function abortError() { return new DOMException("成就翻译操作已停止", "AbortError"); }
+  function abortError() { return new DOMException(uiText("achievementManager.stoppedError", "成就翻译操作已停止"), "AbortError"); }
   // 两种新版布局共享列表与顶部操作区；AppID 来自页面组件，与封面是否存在无关
   function surface(context) {
     for (const target of context.targets || []) {
@@ -137,7 +144,7 @@
       pending.delete(rid); clearTimeout(entry.timer);
       if (response.success) entry.resolve(response);
       else {
-        const error = new Error(response.error || "成就翻译请求失败"); error.reported = response.reported === true;
+        const error = new Error(response.error || uiText("achievementManager.failed", "成就翻译请求失败")); error.reported = response.reported === true;
         if (response.errorName === "AchievementContextError") error.name = response.errorName;
         entry.reject(error);
       }
@@ -148,7 +155,7 @@
       return new Promise((resolve, reject) => {
         const rid = crypto.randomUUID();
         const payload = { type: action, rid, ...data };
-        const entry = { resolve, reject, payload, timer: setTimeout(() => finish(rid, { success: false, error: "成就翻译请求超时，请重试" }), 20000) };
+        const entry = { resolve, reject, payload, timer: setTimeout(() => finish(rid, { success: false, error: uiText("achievementManager.timeout", "成就翻译请求超时，请重试") }), 20000) };
         pending.set(rid, entry);
         channel.postMessage(payload);
       });
@@ -175,7 +182,7 @@
     function assertCurrent(current) {
       if (stopped || mounted !== current || !current.panel.isConnected || !current.list.isConnected ||
         !current.appId || api.ctx.achievementAppId(current.panel) !== current.appId) {
-        const error = new Error("无法确认当前成就页面的游戏归属，请刷新或重新打开成就页面");
+        const error = new Error(uiText("achievementManager.unknownGame", "无法确认当前成就页面的游戏归属，请刷新或重新打开成就页面"));
         error.name = "AchievementContextError"; throw error;
       }
     }
@@ -289,7 +296,7 @@
     async function load(current, rebaseDrafts = false) {
       if (current.loading) return current.loading;
       current.ready = false; current.error = null;
-      if (dialog?.current === current) { updateControls(); status("正在读取完整成就列表…"); }
+      if (dialog?.current === current) { updateControls(); status(() => uiText("achievementManager.loading", "正在读取完整成就列表…")); }
       current.loading = (async () => {
         assertCurrent(current);
         const [native, response] = await Promise.all([request("load", { appId: current.appId }, true), request("load", { appId: current.appId })]);
@@ -297,10 +304,10 @@
         await ensureContext(current);
         const nextLanguage = response.data.language, languageChanged = nextLanguage !== current.language, d = dialog?.current === current ? dialog : null;
         if (rebaseDrafts && d && languageChanged) {
-          if (d.dirty.size && !window.confirm(`成就翻译目标语言已从 ${current.language} 切换到 ${nextLanguage}。继续刷新将丢弃 ${d.dirty.size} 项未保存修改，是否继续？`)) {
+          if (d.dirty.size && !window.confirm(uiText("achievementManager.switchLanguage", "成就翻译目标语言已从 $old$ 切换到 $next$。继续刷新将丢弃 $count$ 项未保存修改，是否继续？", { old: targetName(current.language), next: targetName(nextLanguage), count: d.dirty.size }))) {
             current.ready = true;
             renderManager(true);
-            status("已取消语言切换，当前语言和未保存修改均已保留。");
+            status(() => uiText("achievementManager.cancelLanguage", "已取消语言切换，当前语言和未保存修改均已保留。"));
             return;
           }
           discardDrafts(d);
@@ -308,9 +315,11 @@
         const grouped = model.grouped(native.items, api.ctx.achievementSchema(current.list, current.appId), current.appId);
         current.items = grouped.items.map(item => ({ ...item, kind: "achievement", key: `a:${item.id}` })); current.groups = grouped.groups; current.gameName = native.gameName;
         current.itemById = new Map(current.items.map(item => [item.id, item]));
+        current.pendingLanguage = null;
         current.language = nextLanguage; current.aiReady = response.data.aiReady;
         current.aiReadyByKind = response.data.aiReadyByKind;
         current.aiErrors = response.data.aiErrors;
+        current.aiErrorCodes = response.data.aiErrorCodes;
         current.records = new Map(response.data.records.map(record => [`a:${record.id}`, record]));
         for (const record of response.data.groupRecords) current.records.set(`g:${record.id}`, record);
         current.entities = new Map(current.items.map(item => [item.key, item])); current.keysByGroup = new Map();
@@ -379,7 +388,7 @@
           mounted.identityUnavailable = true;
           for (const binding of mounted.bindings.values()) restore(binding);
           mounted.bindings.clear();
-          const error = new Error("无法确认当前成就页面的游戏归属，请刷新或重新打开成就页面");
+          const error = new Error(uiText("achievementManager.unknownGame", "无法确认当前成就页面的游戏归属，请刷新或重新打开成就页面"));
           error.name = "AchievementContextError";
           reportFailure(error, "identity", mounted);
         }
@@ -401,7 +410,7 @@
       if (!found) { host?.setTarget(null); return; }
       const current = { ...found, generation: ++sequence, ready: false, items: [], groups: [], itemsByGroup: new Map(), keysByGroup: new Map(), entities: new Map(), searchIndex: new Map(), itemById: new Map(), records: new Map(), bySource: new Map(), bindings: new Map(), error: null, loading: null };
       const entry = element("div", "st-ach-entry");
-      entry.append(button("成就翻译", "open"));
+      entry.append(button(() => uiText("settings_feature_steam_achievement_translate_name", "成就翻译"), "open"));
       entry.addEventListener("click", () => openManager(current));
       current.entry = entry; current.actions.prepend(entry);
       current.observer = new MutationObserver(mutations);
@@ -412,9 +421,11 @@
     }
     function status(message, error = false, result = false) {
       if (!dialog) return;
-      dialog.status.textContent = error || result ? "" : message;
+      const resolved = typeof message === "function" ? message() : message;
+      if (!error && !result && typeof message === "function") bindLabel(dialog.status, "textContent", message);
+      else dialog.status.textContent = error || result ? "" : resolved;
       dialog.status.dataset.error = "false";
-      if (error || result) void window.STFeedback.show(dialog.status.ownerDocument.body, { message });
+      if (error || result) void window.STFeedback.show(dialog.status.ownerDocument.body, { message: resolved });
     }
     function indexSearch(current, item) {
       const record = current.records.get(item.key), valid = model.current(record, item);
@@ -464,7 +475,7 @@
     function closeManager(force = false) {
       if (!dialog) return;
       if (!force && dialog.dirty.size) {
-        dialog.discard.hidden = false; status("有译文修改尚未保存。请先保存，或选择“放弃修改并关闭”。", true); return;
+        dialog.discard.hidden = false; status(() => uiText("achievementManager.unsaved", "有译文修改尚未保存。请先保存，或选择“放弃修改并关闭”。"), true); return;
       }
       const d = dialog; dialog = null; d.job?.queue.cancel();
       if (d.scrollFrame) cancelAnimationFrame(d.scrollFrame);
@@ -474,26 +485,27 @@
     function openManager(current) {
       if (stopped || mounted !== current) return;
       if (dialog) { dialog.lifecycle.focusInitial(); return; }
+      if (current.pendingLanguage) { current.language = current.pendingLanguage; current.pendingLanguage = null; }
       const root = element("div", "st-ach-layer"), box = element("section", "st-ach-dialog");
       root.setAttribute("role", "dialog"); root.setAttribute("aria-modal", "true"); root.setAttribute("aria-labelledby", "st-ach-title"); root.tabIndex = -1;
-      const head = element("header", "st-ach-head"), heading = element("div"), title = element("h2", "", "Steam Buff · 成就翻译"); title.id = "st-ach-title";
-      const subtitle = element("small", "st-ach-meta"); heading.append(title, subtitle); head.append(heading, button("关闭", "close"));
-      const tools = element("div", "st-ach-tools"), search = element("input"); search.type = "search"; search.placeholder = "搜索原文、译文或成就 ID"; search.setAttribute("aria-label", "搜索成就");
-      const groupFilter = element("select"); groupFilter.setAttribute("aria-label", "成就分组");
-      const filter = element("select"); filter.setAttribute("aria-label", "翻译状态");
-      for (const [value, label] of [["all", "全部成就"], ["missing", "未翻译 / 原文已变"], ["draft", "待保存"], ["manual", "手动译文"], ["ai", "AI 译文"], ["hidden", "隐藏成就"]]) { const option = element("option", "", label); option.value = value; filter.append(option); }
-      const refresh = button("刷新", "refresh"); tools.append(search, groupFilter, filter, refresh);
+      const head = element("header", "st-ach-head"), heading = element("div"), title = element("h2", "", () => uiText("achievementManager.title", "Steam Buff · 成就翻译")); title.id = "st-ach-title";
+      const subtitle = element("small", "st-ach-meta"); heading.append(title, subtitle); head.append(heading, button(() => uiText("settings_shell_close", "关闭"), "close"));
+      const tools = element("div", "st-ach-tools"), search = element("input"); search.type = "search"; bindLabel(search, "placeholder", () => uiText("achievementManager.searchHint", "搜索原文、译文或成就 ID")); bindLabel(search, "aria-label", () => uiText("achievementManager.search", "搜索成就"));
+      const groupFilter = element("select"); bindLabel(groupFilter, "aria-label", () => uiText("achievementManager.groups", "成就分组"));
+      const filter = element("select"); bindLabel(filter, "aria-label", () => uiText("achievementManager.status", "翻译状态"));
+      for (const [value, label] of [["all", () => uiText("achievementManager.all", "全部成就")], ["missing", () => uiText("achievementManager.missing", "未翻译 / 原文已变")], ["draft", () => uiText("achievementManager.draft", "待保存")], ["manual", () => uiText("achievementManager.manual", "手动译文")], ["ai", () => uiText("achievementManager.ai", "AI 译文")], ["hidden", () => uiText("achievementManager.hidden", "隐藏成就")]]) { const option = element("option", "", label); option.value = value; filter.append(option); }
+      const refresh = button(() => uiText("common_refresh", "刷新"), "refresh"); tools.append(search, groupFilter, filter, refresh);
       const selection = element("div", "st-ach-selection"), selectionTools = element("div", "st-ach-selection-tools"), actions = element("div", "st-ach-selection-actions");
-      const select = button("全选", "select"), invert = button("反选", "invert"), clearSelection = button("取消勾选", "clear-selection");
-      select.title = "勾选全部筛选结果，包含隐藏成就与分组名称";
-      const ai = button("翻译选中", "ai", true), save = button("保存选中", "save");
-      const stop = button("停止", "stop"); stop.hidden = true;
+      const select = button(() => uiText("common_selectAll", "全选"), "select"), invert = button(() => uiText("common_invertSelection", "反选"), "invert"), clearSelection = button(() => uiText("achievementManager.deselect", "取消勾选"), "clear-selection");
+      bindLabel(select, "title", () => uiText("achievementManager.selectHint", "勾选全部筛选结果，包含隐藏成就与分组名称"));
+      const ai = button(() => uiText("achievementManager.translateSelected", "翻译选中"), "ai", true), save = button(() => uiText("achievementManager.saveSelected", "保存选中"), "save");
+      const stop = button(() => uiText("achievementManager.stop", "停止"), "stop"); stop.hidden = true;
       const count = element("span", "st-ach-count"); selectionTools.append(select, invert, clearSelection); actions.append(ai, save, stop); selection.append(selectionTools, actions, count);
       const workspace = element("div", "st-ach-workspace"), list = element("div", "st-ach-list"), content = element("div", "st-ach-canvas");
-      const columns = element("div", "st-ach-columns"); columns.setAttribute("aria-hidden", "true"); columns.append(element("span", "", "原文"), element("span", "", "译文"));
-      list.setAttribute("aria-label", "成就翻译列表"); list.setAttribute("role", "list"); list.append(columns, content); workspace.append(list);
+      const columns = element("div", "st-ach-columns"); columns.setAttribute("aria-hidden", "true"); columns.append(element("span", "", () => uiText("achievementManager.source", "原文")), element("span", "", () => uiText("achievementManager.translation", "译文")));
+      bindLabel(list, "aria-label", () => uiText("achievementManager.list", "成就翻译列表")); list.setAttribute("role", "list"); list.append(columns, content); workspace.append(list);
       const footer = element("footer", "st-ach-footer"), message = element("p", "st-ach-status"); message.setAttribute("role", "status"); message.setAttribute("aria-live", "polite");
-      const discard = button("放弃修改并关闭", "discard"); discard.hidden = true;
+      const discard = button(() => uiText("achievementManager.discard", "放弃修改并关闭"), "discard"); discard.hidden = true;
       footer.append(message, discard); box.append(head, tools, selection, workspace, footer); root.append(box); document.body.append(root);
       const d = dialog = { root, current, subtitle, search, groupFilter, filter, refresh, ai, save, select, invert, clearSelection, stop, count, status: message, discard, list, columns, content,
         drafts: new Map(), dirty: new Set(), selected: new Set(), autoSelected: new Set(), selectionCounts: new Map(), selectedDirty: 0, revealed: new Set(), collapsed: new Set(), nodes: new Map(), views: new Map(),
@@ -544,14 +556,14 @@
     }
     function recordStatus(item) {
       const d = dialog, draft = d.drafts.get(item.key), record = d.current.records.get(item.key);
-      if (d.dirty.has(item.key)) return draft.clear ? "待清除 · 尚未保存" : `${draft.origin === "ai" ? "AI 草稿" : "手动修改"} · 尚未保存`;
-      if (!record || record.cleared) return "未翻译";
-      if (!model.current(record, item)) return "原文已变化";
-      return record.origin === "ai" ? "AI 译文" : "手动译文";
+      if (d.dirty.has(item.key)) return draft.clear ? uiText("achievementManager.cleared", "待清除 · 尚未保存") : (draft.origin === "ai" ? uiText("achievementManager.aiDraft", "AI 草稿 · 尚未保存") : uiText("achievementManager.manualDraft", "手动修改 · 尚未保存"));
+      if (!record || record.cleared) return uiText("achievementManager.untranslated", "未翻译");
+      if (!model.current(record, item)) return uiText("achievementManager.changed", "原文已变化");
+      return record.origin === "ai" ? uiText("achievementManager.ai", "AI 译文") : uiText("achievementManager.manual", "手动译文");
     }
     function displayGroup(group) {
       const item = dialog.current.entities.get(`g:${group.id}`), record = dialog.current.records.get(item?.key);
-      return item && model.current(record, item) ? record.translatedTitle : group.name;
+      return item && model.current(record, item) ? record.translatedTitle : group.defaultName ? uiText("achievementManager.baseGame", "基础游戏") : group.name;
     }
     function matches(item, query, mode) {
       const d = dialog, draft = d.drafts.get(item.key), record = d.current.records.get(item.key), valid = model.current(record, item);
@@ -560,7 +572,7 @@
       if (mode === "hidden" && !item.hidden) return false;
       if (["manual", "ai"].includes(mode) && (!valid || record.origin !== mode)) return false;
       if (!query) return true;
-      if (!detailsVisible(item)) return `${item.id}\n隐藏成就`.toLocaleLowerCase().includes(query);
+      if (!detailsVisible(item)) return `${item.id}\n${uiText("achievementManager.hidden", "隐藏成就")}`.toLocaleLowerCase().includes(query);
       return d.current.searchIndex.get(item.key).includes(query) || !!draft && `${draft.title}\n${draft.description}`.toLocaleLowerCase().includes(query);
     }
     function renderList(clearMeasurements = false) {
@@ -609,7 +621,7 @@
         node.style.transform = `translateY(${d.window.offset(i)}px)`; updateView(key);
       }
       if (!d.entries.length) {
-        d.empty = d.empty || element("div", "st-ach-empty"); d.empty.textContent = d.current.error?.message || (d.current.ready ? "没有符合筛选条件的成就" : "正在读取完整成就列表…");
+        d.empty = d.empty || element("div", "st-ach-empty"); bindLabel(d.empty, "textContent", () => d.current.error?.message || (d.current.ready ? uiText("achievementManager.none", "没有符合筛选条件的成就") : uiText("achievementManager.loading", "正在读取完整成就列表…")));
         if (!d.empty.isConnected) d.content.append(d.empty);
       } else d.empty?.remove();
       if (d.focusAfterReveal) {
@@ -622,37 +634,37 @@
       scheduleViewport();
     }
     function renderItem(item) {
-      const d = dialog, row = element("article", item.kind === "group" ? "st-ach-item st-ach-group" : "st-ach-item"); row.dataset.id = item.id; row.setAttribute("aria-label", `${item.kind === "group" ? "分组" : "成就"} ${item.id}`);
+      const d = dialog, row = element("article", item.kind === "group" ? "st-ach-item st-ach-group" : "st-ach-item"); row.dataset.id = item.id; bindLabel(row, "aria-label", () => `${item.kind === "group" ? uiText("achievementManager.group", "分组") : uiText("achievementManager.item", "成就")} ${item.id}`);
       const label = element("label", "st-ach-check"), check = element("input"); check.type = "checkbox"; check.dataset.check = item.key;
-      check.setAttribute("aria-label", `勾选${item.kind === "group" ? "分组" : "成就"} ${item.id}`);
+      bindLabel(check, "aria-label", () => uiText("achievementManager.selectItem", "勾选$item$", { item: row.getAttribute("aria-label") }));
       label.append(check); row.append(label);
       const meta = element("small", "st-ach-meta");
       const view = { item, check, meta }; d.views.set(item.key, view);
       if (!detailsVisible(item)) {
         // 遮罩与两列编辑区共用最小高度，不把剧透原文或译文写入隐藏节点。
         const reveal = button("", "reveal"); reveal.className = "st-ach-hidden"; reveal.dataset.key = item.key;
-        reveal.setAttribute("aria-label", "点击以显示剧透");
+        bindLabel(reveal, "aria-label", () => uiText("achievementManager.spoiler", "点击以显示剧透"));
         const icon = element("span", "st-ach-hidden-icon", "?"); icon.setAttribute("aria-hidden", "true");
         const copy = element("span", "st-ach-hidden-copy"), placeholder = element("span", "st-ach-hidden-default"), titleLine = element("span", "st-ach-hidden-title");
-        titleLine.append(element("strong", "", "隐藏的成就"), meta); placeholder.append(titleLine, element("span", "st-ach-hidden-description", "此成就的详情将在您将其解锁后显示"));
-        copy.append(placeholder, element("span", "st-ach-hidden-prompt", "点击以显示剧透")); reveal.append(icon, copy);
+        titleLine.append(element("strong", "", () => uiText("achievementManager.hiddenOne", "隐藏的成就")), meta); placeholder.append(titleLine, element("span", "st-ach-hidden-description", () => uiText("achievementManager.hiddenHint", "此成就的详情将在您将其解锁后显示")));
+        copy.append(placeholder, element("span", "st-ach-hidden-prompt", () => uiText("achievementManager.spoiler", "点击以显示剧透"))); reveal.append(icon, copy);
         view.reveal = reveal; row.append(reveal); return row;
       }
       const draft = draftFor(item), fields = element("div", item.kind === "group" ? "st-ach-fields st-ach-group-fields" : "st-ach-fields"), original = element("div", "st-ach-original-title");
       if (item.kind === "group") {
-        const toggle = button(`${item.title} · ${d.current.itemsByGroup.get(item.groupId).length} 项`, "group");
+        const toggle = button(() => uiText("achievementManager.groupCount", "$name$ · $count$ 项", { name: item.id === "0" && d.current.groups.find(group => group.id === 0)?.defaultName ? uiText("achievementManager.baseGame", "基础游戏") : item.title, count: d.current.itemsByGroup.get(item.groupId).length }), "group");
         toggle.className = "st-ach-group-toggle"; toggle.dataset.key = item.key; toggle.setAttribute("aria-expanded", String(!d.collapsed.has(item.groupId))); original.append(toggle); view.toggle = toggle;
       } else { const title = element("p", "", item.title); title.title = item.title; original.append(title); }
       original.append(meta);
       const name = element("input"); name.type = "text"; name.dataset.edit = "title"; name.value = draft.title; name.maxLength = 2000;
-      name.setAttribute("aria-label", item.kind === "group" ? "翻译分组名称" : "译文名称"); name.placeholder = item.kind === "group" ? "输入分组译文" : "输入译文名称";
+      bindLabel(name, "aria-label", () => item.kind === "group" ? uiText("achievementManager.groupName", "翻译分组名称") : uiText("achievementManager.name", "译文名称")); bindLabel(name, "placeholder", () => item.kind === "group" ? uiText("achievementManager.enterGroup", "输入分组译文") : uiText("achievementManager.enterName", "输入译文名称"));
       view.name = name;
       if (item.kind !== "group") {
         const sourceBlock = element("div", "st-ach-source"), icon = element("img", "st-ach-icon");
         icon.width = 54; icon.height = 54; icon.alt = ""; icon.loading = "lazy"; icon.decoding = "async"; icon.src = item.iconUrl;
         const description = element("textarea"); description.dataset.edit = "description"; description.value = draft.description; description.maxLength = 24000;
-        description.rows = 1; description.setAttribute("aria-label", "译文说明"); description.placeholder = "输入译文说明";
-        const source = element("p", "st-ach-source-description", item.description || "（无介绍）"); source.title = item.description;
+        description.rows = 1; bindLabel(description, "aria-label", () => uiText("achievementManager.description", "译文说明")); bindLabel(description, "placeholder", () => uiText("achievementManager.enterDescription", "输入译文说明"));
+        const source = element("p", "st-ach-source-description", item.description || (() => uiText("achievementManager.noDescription", "（无介绍）"))); source.title = item.description;
         sourceBlock.append(icon, original, source); fields.append(sourceBlock, name, description); view.description = description;
       } else fields.append(original, name);
       row.append(fields); return row;
@@ -669,40 +681,49 @@
     function updateControls() {
       if (!dialog) return;
       const d = dialog, busy = !!d.job || d.saving, unavailable = busy || !d.current.ready;
-      d.ai.disabled = unavailable || !d.current.aiReady || !d.selected.size; d.save.disabled = unavailable || !d.selectedDirty;
+      d.ai.disabled = unavailable || !d.current.aiReady || !d.selected.size;
+      d.save.disabled = unavailable || !d.selectedDirty;
       for (const node of [d.select, d.invert, d.clearSelection]) node.disabled = unavailable;
       d.refresh.disabled = busy; d.filter.disabled = busy; d.groupFilter.disabled = busy; d.search.disabled = busy;
       d.stop.hidden = !d.job; d.stop.disabled = !!d.job?.queue.snapshot().cancelled;
-      d.count.textContent = `已勾选 ${d.selected.size} 项 · 待保存 ${d.dirty.size} 项`;
+      d.count.textContent = uiText("achievementManager.count", "已勾选 $selected$ 项 · 待保存 $dirty$ 项", { selected: d.selected.size, dirty: d.dirty.size });
       for (const key of d.views.keys()) updateView(key);
+    }
+    function aiError(current, kind) {
+      const code = current.aiErrorCodes?.[kind], message = current.aiErrors[kind];
+      return code ? uiText(`achievementManager.${code}`, message) : message;
+    }
+    function refreshHeading(d) {
+      d.subtitle.textContent = uiText("achievementManager.summary", "$game$ · $count$ 项成就 · $language$", { game: d.current.gameName || `AppID ${d.current.appId}`, count: d.current.items.length, language: targetName(d.current.language) });
+      if (d.current.pendingLanguage) d.subtitle.textContent += " · " + uiText("achievementManager.refreshTarget", "翻译目标已改为 $language$。请点击刷新以切换目标语言。", { language: targetName(d.current.pendingLanguage) });
+    }
+    function showGuide(d) {
+      status(() => d.current.aiReady
+          ? uiText("achievementManager.guide", "手动编辑后自动勾选。AI 翻译只生成草稿，点击保存选中才生效。未解锁的隐藏成就可点击查看。")
+          : uiText("achievementManager.errorGuide", "$errors$。手动编辑后自动勾选，点击保存选中才生效。", { errors: [...new Set(Object.keys(d.current.aiErrors).map(kind => aiError(d.current, kind)))].join(" ") }));
     }
     function renderManager(reset = false) {
       if (!dialog) return;
       const d = dialog;
       if (reset) {
         const selected = d.groupFilter.value; d.groupFilter.replaceChildren();
-        for (const group of [{ id: "all", name: "全部分组" }, ...d.current.groups]) { const option = element("option", "", group.id === "all" ? group.name : displayGroup(group)); option.value = String(group.id); d.groupFilter.append(option); }
+        for (const group of [{ id: "all", name: uiText("achievementManager.allGroups", "全部分组") }, ...d.current.groups]) { const option = element("option", "", group.id === "all" ? () => uiText("achievementManager.allGroups", "全部分组") : group.defaultName ? () => displayGroup(group) : displayGroup(group)); option.value = String(group.id); d.groupFilter.append(option); }
         if ([...d.groupFilter.options].some(option => option.value === selected)) d.groupFilter.value = selected;
         d.groupFilter.hidden = ![...d.current.entities.values()].some(item => item.kind === "group");
       }
-      d.subtitle.textContent = `${d.current.gameName || `AppID ${d.current.appId}`} · ${d.current.items.length} 项成就 · ${d.current.language === "chinese_simplified" ? "简体中文" : d.current.language || ""}`;
+      refreshHeading(d);
       renderList();
-      if (!d.current.ready) status("正在读取完整成就列表…");
-      else if (!d.job && !d.saving) {
-        const errors = [...new Set(Object.values(d.current.aiErrors))].join("。 ");
-        status(d.current.aiReady
-          ? "手动编辑后自动勾选。AI 翻译只生成草稿，点击保存选中才生效。未解锁的隐藏成就可点击查看。"
-          : `${errors}。手动编辑后自动勾选，点击保存选中才生效。`);
-      }
+      if (!d.current.ready) status(() => uiText("achievementManager.loading", "正在读取完整成就列表…"));
+      else if (!d.job && !d.saving) showGuide(d);
     }
     async function saveTranslations(keys) {
       const d = dialog; if (!d || !d.current.ready || d.saving || d.job) return;
       const entries = keys.filter(key => d.dirty.has(key)).map(key => {
         const item = d.current.entities.get(key), draft = d.drafts.get(key);
-        if (!item) throw new Error("待保存成就已变化，请刷新核对");
+        if (!item) throw new Error(uiText("achievementManager.changedBeforeSave", "待保存成就已变化，请刷新核对"));
         return { ...item, translatedTitle: draft.title, translatedDescription: draft.description, expectedRevision: draft.revision, origin: draft.origin, clear: draft.clear };
       });
-      if (!entries.length) { status("选中项没有待保存修改。", false, true); return; }
+      if (!entries.length) { status(() => uiText("achievementManager.nothingToSave", "选中项没有待保存修改。"), false, true); return; }
       const operationId = crypto.randomUUID(); d.saving = true; updateControls(); let saved = 0, cleared = 0, conflicts = 0, displaySaved = false;
       try {
         for (const kind of ["achievement", "group"]) for (const batch of model.batches(entries.filter(item => item.kind === kind))) {
@@ -720,10 +741,10 @@
           conflicts += response.data.conflicts.length; if (mounted === d.current) applyVisible(d.current);
         }
         log[conflicts ? "warn" : "info"]("achievement-translations-saved", "用户保存成就与分组译文", { operationId, appid: d.current.appId, savedCount: saved, clearedCount: cleared, conflictCount: conflicts });
-        if (dialog === d) { renderManager(true); status(`已保存 ${saved} 项${conflicts ? `；${conflicts} 项有更新冲突，草稿保留，请刷新核对后保存` : ""}`, conflicts > 0, true); }
+        if (dialog === d) { renderManager(true); status(conflicts ? uiText("achievementManager.conflict", "已保存 $count$ 项；$conflicts$ 项有更新冲突，草稿保留，请刷新核对后保存", { count: saved, conflicts }) : uiText("achievementManager.saved", "已保存 $count$ 项", { count: saved }), conflicts > 0, true); }
       } catch (error) {
         log.warn("achievement-save-partial", "译文保存失败或部分完成", { operationId, appid: d.current.appId, savedCount: saved, clearedCount: cleared, error });
-        if (dialog === d) status(`已保存 ${saved} 项；剩余未保存：${error.message}`, true);
+        if (dialog === d) status(() => uiText("achievementManager.partial", "已保存 $saved$ 项；剩余未保存：$error$", { saved, error: error.message }), true);
       } finally {
         if (displaySaved) client.changed(d.current.appId);
         d.saving = false; if (dialog === d) updateControls();
@@ -732,11 +753,11 @@
     async function translate(keys) {
       const d = dialog; if (!d || !d.current.ready || d.saving || d.job || !d.current.aiReady) return;
       const items = keys.map(key => d.current.entities.get(key));
-      if (!items.length) { status("请先勾选需要翻译的成就或分组。", false, true); return; }
-      if (items.some(item => !item)) { status("勾选内容已变化，请刷新后重新勾选。", true); return; }
+      if (!items.length) { status(() => uiText("achievementManager.selectFirst", "请先勾选需要翻译的成就或分组。"), false, true); return; }
+      if (items.some(item => !item)) { status(() => uiText("achievementManager.selectionChanged", "勾选内容已变化，请刷新后重新勾选。"), true); return; }
       const unavailable = items.find(item => !d.current.aiReadyByKind[item.kind]);
       if (unavailable) {
-        status(d.current.aiErrors[unavailable.kind] + "。", true);
+        status(aiError(d.current, unavailable.kind), true);
         return;
       }
       const revisions = new Map(items.map(item => [item.key, d.current.records.get(item.key)?.revision || 0]));
@@ -744,7 +765,7 @@
       for (const item of items) if (item.hidden && d.revealed.delete(item.key)) conceal.push(item.key);
       const job = { operationId: crypto.randomUUID(), queue: null }; let generated = 0, failed = 0, processed = 0;
       job.queue = window.STBatchQueue.createQueue({ batchSize: 1, worker: async ({ kind, items: batch }) => {
-        if (dialog === d) status(`AI翻译中：${processed} / ${items.length}，已生成 ${generated} 项草稿`);
+        if (dialog === d) status(() => uiText("achievementManager.generating", "AI翻译中：$processed$ / $total$，已生成 $generated$ 项草稿", { processed, total: items.length, generated }));
         await ensureContext(d.current, job.operationId);
         if (job.queue.snapshot().cancelled || dialog !== d || mounted !== d.current) return { status: "skipped" };
         const response = await request("translate", { kind, appId: d.current.appId, language: d.current.language, gameName: d.current.gameName, items: batch, operationId: job.operationId });
@@ -768,7 +789,7 @@
       try {
         await job.queue.run(); const cancelled = job.queue.snapshot().cancelled;
         if (!cancelled) log[failed ? "warn" : "info"]("achievement-drafts-generated", "AI 译文草稿生成完成，等待用户保存", { operationId: job.operationId, appid: d.current.appId, generatedCount: generated, failedCount: failed, selectedCount: keys.length });
-        if (dialog === d) status(`${job.contextError ? job.contextError.message : cancelled ? "已停止" : "翻译完成"}：已生成 ${generated} 项草稿，失败 ${failed} 项，未处理 ${items.length - processed} 项；点击保存后才生效。`, failed > 0, true);
+        if (dialog === d) status(() => uiText("achievementManager.jobResult", "$result$：已生成 $generated$ 项草稿，失败 $failed$ 项，未处理 $remaining$ 项；点击保存后才生效。", { result: job.contextError ? job.contextError.message : cancelled ? uiText("achievementManager.stopped", "已停止") : uiText("achievementManager.finished", "翻译完成"), generated, failed, remaining: items.length - processed }), failed > 0, true);
       } finally { d.job = null; if (dialog === d) { renderList(); updateControls(); } }
     }
     function clickManager(event) {
@@ -783,16 +804,40 @@
       else if (action === "clear-selection") { d.selected.clear(); d.autoSelected.clear(); d.selectionCounts.clear(); d.selectedDirty = 0; updateControls(); }
       else if (action === "save") saveTranslations([...d.selected]).catch(error => reportFailure(error, "save", d.current));
       else if (action === "ai") translate([...d.selected]).catch(error => reportFailure(error, "translate", d.current));
-      else if (action === "stop") { d.job.queue.cancel(); status("正在停止；已经生成的草稿保留，不会自动保存。"); updateControls(); }
+      else if (action === "stop") { d.job.queue.cancel(); status(() => uiText("achievementManager.stopping", "正在停止；已经生成的草稿保留，不会自动保存。")); updateControls(); }
       else if (action === "refresh") { load(d.current, true); }
+    }
+    // 草稿和进行中的操作保留原请求语言，由用户刷新时确认切换。
+    const unsubscribeTarget = client.subscribeTarget(language => {
+      const current = mounted;
+      if (!current) return;
+      const update = () => {
+        if (current !== mounted || stopped || !current.ready) return;
+        const d = dialog?.current === current ? dialog : null;
+        if (language !== current.language && d && (d.dirty.size || d.job || d.saving)) current.pendingLanguage = language;
+        else { current.pendingLanguage = null; current.language = language; }
+        if (d) { refreshHeading(d); updateControls(); }
+      };
+      if (current.loading) current.loading.then(update);
+      else update();
+    });
+    function onLocaleChange() {
+      window.STComponents.refreshLabels(mounted?.entry);
+      if (!dialog) return;
+      window.STComponents.refreshLabels(dialog.root);
+      updateControls();
+      refreshHeading(dialog);
     }
     function stop() {
       if (stopped) return;
+      unsubscribeTarget();
+      if (window.STI18n?.CHANGE_EVENT) window.removeEventListener(window.STI18n.CHANGE_EVENT, onLocaleChange);
       stopped = true; detach(); host?.dispose(); display.stop(); client.stop();
       channel.onmessage = null; channel.close();
       for (const entry of pending.values()) { clearTimeout(entry.timer); entry.reject(abortError()); }
       pending.clear(); api.styles.removeStyle("st-achievement-translation-style");
     }
+    if (window.STI18n?.CHANGE_EVENT) window.addEventListener(window.STI18n.CHANGE_EVENT, onLocaleChange);
     host = api.surfaces.mainPopup.register({ id: ID, order: 20, onSurfaceChange, onDispose: detach });
     if (mounted) host.setTarget(mounted.panel);
     scope?.resource({ key: "achievement-translations", dispose: stop });

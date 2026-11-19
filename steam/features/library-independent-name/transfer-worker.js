@@ -14,9 +14,10 @@ let workbook = null, initialized = false;
 function failRequest(id, error) {
   self.postMessage({ id, error: { name: error.name, message: error.message, stack: error.stack } });
 }
-self.onmessage = async ({ data: { id, job, base } }) => {
+self.onmessage = async ({ data: { id, job, base, labels } }) => {
   try {
     if (!initialized) {
+      self.STNameTransferLabels = labels;
       importScripts(base + "shared/user-names-snapshot.js",base+"steam/features/library-custom-name/mnemonic.js", base + "steam/features/library-independent-name/transfer.js");
       initialized = true;
     }
@@ -26,9 +27,9 @@ self.onmessage = async ({ data: { id, job, base } }) => {
     if (job.type === "read") {
       if (job.format === "json") result = { records: core.jsonRecords(JSON.parse((await job.file.text()).replace(/^\uFEFF/, "")),job.legacyMode || core.mode) };
       else if (job.format === "xlsx") { workbook = XLSX.read(await job.file.arrayBuffer(), { type: "array", cellFormula: true, cellHTML: false }); result = { sheets: workbook.SheetNames }; }
-      else throw new Error("不支持的文件格式");
+      else throw new Error(self.STNameTransfer.uiText("nameImport.fileFormat", "不支持的文件格式"));
     } else if (job.type === "sheet") {
-      if (!workbook || !workbook.SheetNames.includes(job.name)) throw new Error("工作表不存在");
+      if (!workbook || !workbook.SheetNames.includes(job.name)) throw new Error(self.STNameTransfer.uiText("nameImport.missingSheet", "工作表不存在"));
       result = { records: core.sheetRecords(workbook.Sheets[job.name], XLSX) };
     } else if (job.type === "export") {
       if (job.format === "json") result = { blob: new Blob([JSON.stringify({ type: "steam-buff-names", version: 2, mode: core.mode, items: job.items }, null, 2)], { type: "application/json" }) };
@@ -40,8 +41,8 @@ self.onmessage = async ({ data: { id, job, base } }) => {
         sheet["!cols"] = headers.map((_,index)=>({wch:index?34:14}));
         const book = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(book, sheet, "自定义名称");
         result = { blob: new Blob([XLSX.write(book, { type: "array", bookType: "xlsx", compression: true })], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }) };
-      } else throw new Error("不支持的文件格式");
-    } else throw new Error("不支持的文件处理任务");
+      } else throw new Error(self.STNameTransfer.uiText("nameImport.fileFormat", "不支持的文件格式"));
+    } else throw new Error(self.STNameTransfer.uiText("nameImport.unsupportedJob", "不支持的文件处理任务"));
     self.postMessage({ id, result });
   } catch (error) {
     failRequest(id, error);

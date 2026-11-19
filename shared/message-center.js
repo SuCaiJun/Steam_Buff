@@ -79,6 +79,7 @@
       ...(input.scope === "steam-account" ? { steamAccountId: input.steamAccountId } : {}),
       context: context(input.context), ...(input.group === undefined ? {} : { group: id(input.group) }),
       details: input.details === undefined ? [] : input.details.map(row => ({
+        ...(row.labelId === undefined ? {} : { labelId: id(row.labelId) }),
         label: text(row.label, "说明名称", 100), value: text(row.value, "说明内容", 2000, true),
       })),
     };
@@ -113,8 +114,42 @@
     const translated = root.chrome?.i18n?.getMessage(key.replace(/\./g, "_"), value === undefined ? undefined : [String(value)]);
     return translated || fallback.replace(/\$value\$/g, String(value));
   }
-  function presentation(value) { return { title: value.title, icon: value.icon, brand: value.brand, origin: value.moduleId }; }
-  function origins(modules = []) { return modules.map(item => ({ id: item.id, title: item.title })); }
+  function sourceTitle(id, original) {
+    if (id === "update") return t("messageCenter.sourceUpdate", "更新提醒");
+    if (id === "automation") return t("messageCenter.sourceAutomation", "自动化");
+    return original;
+  }
+  function presentation(value) {
+    const source = sourceTitle(value.moduleId, value.moduleTitle);
+    const prefix = value.moduleTitle + " · ";
+    let title = value.title;
+    if (value.moduleId === "update" && value.context?.event === "available") title = source + " · " + t("messageCenter.newVersion", "发现新版本");
+    else if (value.moduleId === "update" && value.context?.event === "installed") title = source + " · " + t("messageCenter.installed", "升级完成");
+    else if (value.moduleTitle && title.startsWith(prefix)) title = source + " · " + title.slice(prefix.length);
+    return { title, icon: value.icon, brand: value.brand, origin: value.moduleId };
+  }
+  // Only update messages have this producer contract. Release notes and other message bodies retain their original text.
+  function updateSummary(message) {
+    return message.body.split("\n").slice(1, -1).join("\n");
+  }
+  function displayContent(message, compact = false, translate = t) {
+    const info = message.moduleId === "update" ? message.context : null;
+    let result;
+    if (info?.event === "installed" && info.installedVersion && info.previousVersion) {
+      result = [translate("messageCenter.updateInstalled", "Steam Buff 已更新至 $value$", info.installedVersion),
+        translate("messageCenter.previousVersion", "原版本：$value$", info.previousVersion),
+        translate("messageCenter.installedBody", "扩展已更新，点击查看了解本次更新内容。")].join("\n");
+    } else if (info?.event === "available" && info.installedVersion && info.targetVersion) {
+      const notes = typeof message.body === "string" ? updateSummary(message) : message.updateSummary;
+      if (typeof notes === "string") {
+        result = [translate("messageCenter.updateAvailable", "Steam Buff 发现新版本 $value$", info.targetVersion), notes,
+          translate("messageCenter.currentVersion", "当前版本：$value$", info.installedVersion)].filter(Boolean).join("\n");
+      }
+    }
+    if (result === undefined) return compact ? preview(message) : message.content ?? content(message);
+    return compact ? result.replace(/\s+/gu, " ").trim().slice(0, 2000) : result;
+  }
+  function origins(modules = []) { return modules.map(item => ({ id: item.id, title: sourceTitle(item.id, item.title) })); }
   root.STMessageCenter = Object.freeze({
     FEATURE: "message-center", ROUTE: "MESSAGE_CENTER", BRIDGE: "steam-buff-message-center-v1", PROTOCOL,
     OPEN_CHANNEL: "steam-buff-message-center-open-v1",
@@ -123,6 +158,6 @@
     PAGE_SIZE: 20, RETENTION_MS: 30 * 86400000, READ_LIMIT: 300,
     READ_ACTIONS: Object.freeze(["summary", "list", "get", "read", "read-all", "delete", "delete-all", "act"]),
     TYPES, LEVELS, STATES, ICONS, id, subtitle: value => text(value, "标题", 500), compare, message, list, action, interaction, context, link,
-    text: t, presentation, origins, content, preview, searchText, searchTokens,
+    text: t, presentation, origins, content, preview, updateSummary, displayContent, searchText, searchTokens,
   });
 })(globalThis);

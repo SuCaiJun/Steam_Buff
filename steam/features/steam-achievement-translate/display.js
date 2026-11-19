@@ -27,14 +27,14 @@
    * changed 只传播游戏 ID，接收方重新查询当前显示项；保存草稿不会传播，stop 取消迟到回复
    */
   function createClient() {
-    const pending = new Map(), listeners = new Set(), channel = new BroadcastChannel(CHANNEL);
+    const pending = new Map(), listeners = new Set(), targetListeners = new Set(), channel = new BroadcastChannel(CHANNEL);
     const revisions = new Map(), log = root.STLoggerFactory.createLogger("steam", model.FEATURE);
-    let stopped = false, languageRevision = 0;
+    let stopped = false, allRecordsRevision = 0;
     function changed(appId, publish = true) {
       if (stopped) return;
       if (appId !== 0 && (!Number.isSafeInteger(appId) || appId <= 0)) throw new TypeError("成就显示更新范围无效");
       if (appId) revisions.set(appId, (revisions.get(appId) || 0) + 1);
-      else languageRevision += 1;
+      else allRecordsRevision += 1;
       if (publish) {
         try { channel.postMessage({ type: "changed", appId }); }
         catch (error) { log.error("achievement-display-failed", "传播成就译文保存结果失败", { error, appid: appId, phase: "broadcast" }); }
@@ -57,8 +57,13 @@
     function onMessage(event) {
       const data = event.data;
       if (event.source !== root || event.origin !== root.location.origin || data?.source !== model.BRIDGE || data.side !== "content") return;
-      if (data.action === "invalidated") changed(0, false);
-      else finish(data.rid, data);
+      if (data.action === "invalidated") {
+        // 译文以游戏和成就 ID 存储。切换目标语言只通知管理器，已显示和在途的查询继续使用同一份译文。
+        if (typeof data.language === "string" && /^[a-z][a-z0-9_-]{0,40}$/i.test(data.language))
+          for (const listener of targetListeners) listener(data.language);
+        return;
+      }
+      finish(data.rid, data);
     }
     channel.onmessage = event => {
       if (event.data?.type === "changed" && Number.isSafeInteger(event.data.appId) && event.data.appId > 0) changed(event.data.appId, false);
@@ -76,20 +81,21 @@
       });
     }
     async function lookup(appId, items) {
-      const rows = model.batch(items), version = languageRevision, gameVersion = revisions.get(appId);
+      const rows = model.batch(items), version = allRecordsRevision, gameVersion = revisions.get(appId);
       const response = await request("lookup", { appId, items: rows });
-      if (stopped || version !== languageRevision || gameVersion !== revisions.get(appId)) throw aborted();
+      if (stopped || version !== allRecordsRevision || gameVersion !== revisions.get(appId)) throw aborted();
       const data = response.data;
       const records = model.records(data.records, appId, data.language), requested = new Set(rows.map(item => item.id));
       if (records.some(record => !requested.has(record.id))) throw new Error("成就显示查询返回了范围外记录");
       return new Map(records.map(record => [record.id, record]));
     }
     return Object.freeze({ request, lookup, changed,
+      subscribeTarget(listener) { targetListeners.add(listener); return () => targetListeners.delete(listener); },
       subscribe(listener) { listeners.add(listener); return () => listeners.delete(listener); },
       stop() {
         if (stopped) return;
-        stopped = true; languageRevision += 1; root.removeEventListener("message", onMessage);
-        channel.onmessage = null; channel.close(); listeners.clear();
+        stopped = true; allRecordsRevision += 1; root.removeEventListener("message", onMessage);
+        channel.onmessage = null; channel.close(); listeners.clear(); targetListeners.clear();
         for (const entry of pending.values()) { clearTimeout(entry.timer); entry.reject(aborted()); }
         pending.clear(); revisions.clear();
       },

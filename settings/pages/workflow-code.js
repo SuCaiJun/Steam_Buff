@@ -12,6 +12,36 @@ import { EditorState, StateField, StateEffect, EditorView, Decoration, WidgetTyp
   defaultKeymap, history, historyKeymap, invertedEffects, indentWithTab, bracketMatching, indentOnInput, syntaxHighlighting, HighlightStyle,
   closeBrackets, autocompletion, closeBracketsKeymap, completionKeymap, searchKeymap, highlightSelectionMatches, javascript, javascriptLanguage, tags } from "../../vendor/codemirror/editor.js";
 
+const tr = (key, fallback, params) => globalThis.STI18n?.text(key, fallback, params) ?? fallback;
+
+// 使用已打包的 CodeMirror phrase 名称。动态数量由 CodeMirror 将 $ 替换为实际值。
+const selectionPhrases = () => ({
+  "Selection deleted": tr("workflow_editor_deleted", "已删除所选内容"),
+});
+function scriptPhrases() {
+  return EditorState.phrases.of({
+    ...selectionPhrases(),
+    "Find": tr("workflow_editor_find", "查找"),
+    "Replace": tr("workflow_editor_replace_field", "替换"),
+    "next": tr("workflow_editor_next", "下一个"),
+    "previous": tr("workflow_editor_previous", "上一个"),
+    "all": tr("workflow_editor_all", "全选匹配项"),
+    "match case": tr("workflow_editor_case", "区分大小写"),
+    "regexp": tr("workflow_editor_regexp", "正则表达式"),
+    "by word": tr("workflow_editor_word", "全字匹配"),
+    "replace": tr("workflow_editor_replace", "替换"),
+    "replace all": tr("workflow_editor_replace_all", "全部替换"),
+    "close": tr("workflow_editor_close", "关闭"),
+    "current match": tr("workflow_editor_current", "当前匹配项"),
+    "on line": tr("workflow_editor_on_line", "所在行"),
+    "replaced match on line $": tr("workflow_editor_replaced_match", "已替换第 $count$ 行的匹配项", { count: "$" }),
+    "replaced $ matches": tr("workflow_editor_replaced_many", "已替换 $count$ 个匹配项", { count: "$" }),
+    "Go to line": tr("workflow_editor_goto", "跳转到行"),
+    "go": tr("workflow_editor_go", "跳转"),
+    "Completions": tr("workflow_editor_completions", "补全建议"),
+  });
+}
+
 /** 只分析自由变量；字符串、属性名和函数局部变量不会被全局重命名误伤。 */
 export function expression(parts, workflow) {
   const explicit = new Map(), prefix = "__steam_buff_reference_";
@@ -21,7 +51,7 @@ export function expression(parts, workflow) {
     const id = prefix + explicit.size; explicit.set(id, part); return id;
   }).join("");
   // 显式引用使用独立占位名，不允许用户源码与其重名。
-  if (parts.some(part => typeof part === "string" && part.includes(prefix))) throw new Error("表达式包含保留标识符");
+  if (parts.some(part => typeof part === "string" && part.includes(prefix))) throw new Error(tr("workflow_ui_the_expression_contains_a_reserved_identifier", "表达式包含保留标识符"));
   const doc = "(\n" + source + "\n)", tree = javascriptLanguage.parser.parse(doc), changes = [], reads = [];
   const named = new Map(workflow.variables.map(item => [item.name, { source: "variable", id: item.id, path: [] }]));
   if (!named.has("触发输入")) named.set("触发输入", { source: "input", path: [] });
@@ -31,7 +61,7 @@ export function expression(parts, workflow) {
   const lexical = new Set(["Block", "ForStatement", "SwitchBody", "CatchClause", "ClassDeclaration", "ClassExpression", "StaticBlock"]);
   function varScope(current) { while (!["function-body", "StaticBlock"].includes(current.kind) && current.parent) current = current.parent; return current; }
   function visit(node, outer) {
-    if (node.type.isError) throw Object.assign(new SyntaxError("无法解析该表达式，请检查语法或改用 JavaScript 指令"), { code: "WORKFLOW_EXPRESSION_SYNTAX" });
+    if (node.type.isError) throw Object.assign(new SyntaxError(tr("workflow_ui_could_not_parse_the_expression_check_the_syntax_or_use_a_jav", "无法解析该表达式，请检查语法或改用 JavaScript 指令")), { code: "WORKFLOW_EXPRESSION_SYNTAX" });
     const method = node.name === "MethodDeclaration" || node.name === "Property" && !!node.getChild("ParamList");
     const fn = functions.has(node.name) || method;
     const current = fn ? scope(outer, "parameters") : lexical.has(node.name) ? scope(outer, node.name === "Block" && (functions.has(node.parent?.name) || node.parent?.name === "MethodDeclaration" || node.parent?.name === "Property" && node.parent.getChild("ParamList")) ? "function-body" : node.name) : outer;
@@ -121,7 +151,7 @@ export function mountValue(parent, { value, mode, label, format, multiline, chan
       const node = parent.ownerDocument.createElement("span");
       node.className = "aw-value-token"; node.contentEditable = "false";
       node.textContent = this.item.label || format(this.item.value, true);
-      node.title = node.textContent; node.setAttribute("aria-label", "完整片段：" + node.textContent);
+      node.title = node.textContent; node.setAttribute("aria-label", tr("workflow_ui_full_snippet", "完整片段：") + node.textContent);
       node.addEventListener("mousedown", event => {
         event.preventDefault();
         const rect = node.getBoundingClientRect(), position = event.clientX < rect.left + rect.width / 2 ? this.item.from : this.item.to;
@@ -158,6 +188,7 @@ export function mountValue(parent, { value, mode, label, format, multiline, chan
     view.focus();
   }
   view = new EditorView({ parent, state: EditorState.create({ doc: initial.doc, extensions: [
+    EditorState.phrases.of(selectionPhrases()),
     ranges, ...(mode === "text" ? [marks, EditorView.decorations.from(marks), EditorView.atomicRanges.of(view => view.state.field(marks))] : [javascript(), bracketMatching()]),
     history(), invertedEffects.of(tr => tr.docChanged ? [setRanges.of(tr.startState.field(ranges))] : []),
     keymap.of([...(multiline ? [] : [{ key: "Enter", run: () => true }]), ...defaultKeymap, ...historyKeymap]),
@@ -221,17 +252,17 @@ export function scriptParts(source, workflow) {
   const names = new Map(workflow.variables.map(item => [item.name, item.id]));
   let offset = 0;
   do {
-    if (cursor.type.isError) throw new Error("JavaScript 代码有语法错误，请检查后重试");
+    if (cursor.type.isError) throw new Error(tr("workflow_ui_check_the_javascript_syntax_and_try_again", "JavaScript 代码有语法错误，请检查后重试"));
     if (cursor.name !== "VariableName" && cursor.name !== "VariableDefinition") continue;
     if (doc.slice(cursor.from, cursor.to) !== "变量") continue;
     const node = cursor.node, access = node.parent, key = node.nextSibling?.nextSibling;
-    if (cursor.name !== "VariableName" || access?.name !== "MemberExpression" || access.firstChild.from !== node.from || node.nextSibling?.name !== "[" || key?.name !== "String") throw new Error("请通过「插入变量」选择要读取的流程变量");
+    if (cursor.name !== "VariableName" || access?.name !== "MemberExpression" || access.firstChild.from !== node.from || node.nextSibling?.name !== "[" || key?.name !== "String") throw new Error(tr("workflow_ui_use_insert_variable_to_select_a_workflow_variable", "请通过「插入变量」选择要读取的流程变量"));
     const token = doc.slice(key.from, key.to);
-    if (!token.startsWith('"')) throw new Error("流程变量名请使用双引号或通过「插入变量」选择");
+    if (!token.startsWith('"')) throw new Error(tr("workflow_ui_use_double_quotes_for_variable_names_or_select_insert_variab", "流程变量名请使用双引号或通过「插入变量」选择"));
     let name;
-    try { name = JSON.parse(token); } catch (error) { throw new Error("流程变量名称格式无效", { cause: error }); }
+    try { name = JSON.parse(token); } catch (error) { throw new Error(tr("workflow_ui_invalid_variable_name", "流程变量名称格式无效"), { cause: error }); }
     const id = names.get(name);
-    if (!id) throw new Error(`流程变量“${name}”不存在`);
+    if (!id) throw new Error(tr("workflow_format_missing_var", "流程变量“$name$”不存在", { name }));
     parts.push(source.slice(offset, access.from - prefix.length), { source: "variable", id, path: [] });
     offset = access.to - prefix.length;
   } while (cursor.next());
@@ -242,10 +273,11 @@ export function scriptParts(source, workflow) {
 /** 仅挂载在调用方提供的脚本字段；销毁时释放编辑器监听与测量任务 */
 export function mount(parent, { value, change, workflow }) {
   const view = new EditorView({ parent, state: EditorState.create({ doc: value, extensions: [
+    scriptPhrases(),
     lineNumbers(), highlightActiveLineGutter(), drawSelection(), highlightActiveLine(), history(), bracketMatching(), indentOnInput(),
     closeBrackets(), autocompletion(), highlightSelectionMatches(), javascript(),
     keymap.of([indentWithTab, ...defaultKeymap, ...historyKeymap, ...closeBracketsKeymap, ...completionKeymap, ...searchKeymap]),
-    EditorView.contentAttributes.of({ "aria-label": "JavaScript 代码", spellcheck: "false" }),
+    EditorView.contentAttributes.of({ "aria-label": tr("workflow_ui_javascript_code", "JavaScript 代码"), spellcheck: "false" }),
     EditorView.updateListener.of(update => { if (update.docChanged) change(update.state.doc.toString()); }),
     syntaxHighlighting(HighlightStyle.define([
       { tag: tags.keyword, color: "var(--st-color-steam-blue)" }, { tag: [tags.string, tags.regexp], color: "var(--st-color-success)" },

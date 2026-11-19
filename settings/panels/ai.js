@@ -333,9 +333,9 @@
           field, value: draft[field.key], dataset: "data-ai", className: "settings-control",
         }), `data-ai-field="${field.key}" ${hide ? "hidden" : ""}`);
       }).join("");
-      return `<div class="settings-grid" data-ai-editor>${row("服务名称", name)}${fields}</div>
+      return `<div class="settings-grid" data-ai-editor>${row(uiText("settings.ai.serviceName", "服务名称"), name)}${fields}</div>
 
-        <div class="ai-permission-wait" data-ai-permission-wait role="status" aria-label="等待浏览器授权" hidden>
+        <div class="ai-permission-wait" data-ai-permission-wait role="status" aria-label="${esc(uiText("settings_ai_permissionWaiting", "等待浏览器授权"))}" hidden>
           <span class="ai-permission-spinner" aria-hidden="true"></span>
         </div>`;
     }
@@ -343,34 +343,34 @@
     function servicesHtml() {
       const rows = conf.services.map((service) => {
         const fixed = service.id === ai.DEFAULT_SERVICE_ID;
-        const details = [service.host && service.model ? service.model : "待配置",
+        const details = [service.host && service.model ? service.model : uiText("settings.ai.pendingSetup", "待配置"),
           service.protocol === "responses" ? "Responses" : "Chat Completions",
-          service.enabled ? "" : "已停用"].filter(Boolean).join(" · ");
+          service.enabled ? "" : uiText("settings.ai.disabled", "已停用")].filter(Boolean).join(" · ");
         return `<div class="ai-service-row" data-ai-id="${esc(service.id)}">
           <div class="ai-service-copy"><strong>${esc(service.name)}</strong><small>${esc(details)}</small></div>
           <div class="ai-service-actions">
-            ${serviceIcon("test", "测试连接", service, "test")}
-            ${fixed ? "" : serviceIcon("toggle", service.enabled ? "停用" : "启用", service, service.enabled ? "enabled" : "disabled", service.enabled)}
-            ${serviceIcon("edit", "编辑", service, "edit")}${fixed ? "" : serviceIcon("delete", "删除", service, "delete")}
+            ${serviceIcon("test", uiText("common_testConnection", "测试连接"), service, "test")}
+            ${fixed ? "" : serviceIcon("toggle", service.enabled ? uiText("common_disable", "停用") : uiText("common_enable", "启用"), service, service.enabled ? "enabled" : "disabled", service.enabled)}
+            ${serviceIcon("edit", uiText("store_titleCustomName_edit", "编辑"), service, "edit")}${fixed ? "" : serviceIcon("delete", uiText("common_delete", "删除"), service, "delete")}
           </div>
         </div>`;
       }).join("");
       const enabled = `<input type="checkbox" class="settings-check" data-ai-global="enabled" ${conf.enabled ? "checked" : ""}>`;
       const concurrency = `<input class="settings-control" type="number" min="1" max="10" data-ai-global="aiConcurrency" value="${conf.aiConcurrency}">`;
-      return `<div class="settings-grid">${row("AI 模块", enabled)}${row("AI 并发上限", concurrency)}</div>
-      <div class="settings-actions form-footer">${button("save-global", "保存设置")}${button("new", "＋ 添加 AI 服务", true)}</div>
+      return `<div class="settings-grid">${row(uiText("settings.ai.module", "AI 模块"), enabled)}${row(uiText("settings_field_ai_aiConcurrency_label", "AI 并发上限"), concurrency)}</div>
+      <div class="settings-actions form-footer">${button("save-global", uiText("common.saveSettings", "保存设置"))}${button("new", uiText("settings.ai.add", "＋ 添加 AI 服务"), true)}</div>
       <div class="ai-service-list">${rows}</div>`;
     }
 
     function content() {
-      if (!conf) return `<summary class="section-header settings-fold-title"><span class="dot"></span><span class="title">AI 服务</span>
-        <span class="hint">读取失败</span></summary>
-        <p class="settings-card-note" role="alert">AI 服务配置读取失败，原配置已保留。</p>`;
-      return `<summary class="section-header settings-fold-title"><span class="dot"></span><span class="title">AI 服务</span>
-        <span class="hint">${conf.enabled ? "已启用" : "已关闭"} · ${conf.services.length} 个服务</span></summary>
+      if (!conf) return `<summary class="section-header settings-fold-title"><span class="dot"></span><span class="title">${esc(uiText("onboarding_aiServices", "AI 服务"))}</span>
+        <span class="hint">${esc(uiText("settings.ai.loadFailed", "读取失败"))}</span></summary>
+        <p class="settings-card-note" role="alert">${esc(uiText("settings.ai.loadFailedBody", "AI 服务配置读取失败，原配置已保留。"))}</p>`;
+      return `<summary class="section-header settings-fold-title"><span class="dot"></span><span class="title">${esc(uiText("onboarding_aiServices", "AI 服务"))}</span>
+        <span class="hint">${conf.enabled ? uiText("common_enabled", "已启用") : uiText("onboarding_off", "已关闭")} · ${esc(uiText("settings.ai.serviceCount", "$count$ 个服务", { count: conf.services.length }))}</span></summary>
       ${servicesHtml()}
 
-      <div class="ai-permission-wait" data-ai-permission-wait role="status" aria-label="等待浏览器授权" hidden>
+      <div class="ai-permission-wait" data-ai-permission-wait role="status" aria-label="${esc(uiText("settings_ai_permissionWaiting", "等待浏览器授权"))}" hidden>
         <span class="ai-permission-spinner" aria-hidden="true"></span>
       </div>`;
     }
@@ -398,19 +398,19 @@
     function readDraft(card, draft) {
       const values = draftValues(card);
       const next = { ...draft, ...values, name: values.name.trim() };
-      if (!next.name) throw new Error("请填写服务名称");
+      if (!next.name) throw new Error(uiText("settings.ai.nameRequired", "请填写服务名称"));
       return next;
     }
 
     function readGlobal(card) {
       const concurrency = card.querySelector('[data-ai-global="aiConcurrency"]').valueAsNumber;
       if (!Number.isInteger(concurrency) || concurrency < 1 || concurrency > 10)
-        throw new Error("AI 并发上限须为 1–10 的整数");
+        throw new Error(uiText("settings.ai.limitInvalid", "AI 并发上限须为 1–10 的整数"));
       return { enabled: card.querySelector('[data-ai-global="enabled"]').checked, aiConcurrency: concurrency };
     }
 
     function checkConnection(service) {
-      if (!service.host?.trim() || !service.model?.trim()) throw new Error("请填写 AI 网关地址和模型");
+      if (!service.host?.trim() || !service.model?.trim()) throw new Error(uiText("settings.ai.gatewayRequired", "请填写 AI 网关地址和模型"));
       ai.endpoint(service);
     }
 
@@ -425,7 +425,7 @@
       const test = { ...item, enabled: true, aiConcurrency: conf.aiConcurrency };
       await requestAiGatewayPermission(test, shadow, operationId);
       const response = await sendAiTest(test, operationId);
-      if (response?.success !== true) throw new Error(response?.error || "AI 连接测试失败");
+      if (response?.success !== true) throw new Error(response?.error || uiText("settings.ai.testFailed", "AI 连接测试失败"));
       log.info("ai-test-success", "AI 连接测试成功", { operationId });
     }
 
@@ -436,7 +436,7 @@
       };
       let form, initial;
       const action = await dialog(shadow, {
-        title: service ? "编辑 AI 服务" : "新建 AI 服务",
+        title: service ? uiText("settings.ai.editService", "编辑 AI 服务") : uiText("settings.ai.newService", "新建 AI 服务"),
         form: true,
         className: "ai-service-dialog",
         isDirty: () => JSON.stringify(draftValues(form)) !== initial,
@@ -449,9 +449,9 @@
           initial = JSON.stringify(draftValues(node));
         },
         actions: [
-          { id: "cancel", label: "取消" },
-          { id: "test", label: "测试连接" },
-          { id: "save", label: "保存服务", primary: true },
+          { id: "cancel", label: uiText("common_cancel", "取消") },
+          { id: "test", label: uiText("common_testConnection", "测试连接") },
+          { id: "save", label: uiText("settings.ai.saveService", "保存服务"), primary: true },
         ],
         onAction: async (id) => {
           if (id === "cancel") return true;
@@ -460,7 +460,7 @@
             const item = readDraft(form, draft);
             if (id === "test") {
               await testConnection(item, shadow, operationId);
-              void root.STSettingsDialogs.notice(shadow, { title: "连接测试成功", message: "AI 服务连接正常。" });
+              void root.STSettingsDialogs.notice(shadow, { title: uiText("settings.ai.testOk", "连接测试成功"), message: uiText("settings.ai.testOkBody", "AI 服务连接正常。") });
               return false;
             }
             checkConnection(item);
@@ -472,7 +472,7 @@
             return true;
           } catch (error) {
             if (error.code !== "AI_HOST_PERMISSION_CANCELLED") {
-              void root.STSettingsDialogs.notice(shadow, { title: "操作失败", message: error.message,
+              void root.STSettingsDialogs.notice(shadow, { title: uiText("common_operationFailed", "操作失败"), message: error.message,
                 focus: ["name", "host", "model"].map(field => form.querySelector(`[data-ai="${field}"]`)).find(input => !input.value.trim()),
               });
               log.error("ai-service-action-failed", "AI 服务操作失败", { operationId, error });
@@ -483,7 +483,7 @@
       });
       if (action === "save") {
         render(shadow, `[data-ai-id="${CSS.escape(draft.id)}"] [data-ai-action="edit"]`);
-        void root.STSettingsDialogs.notice(shadow, { title: "保存成功", message: "AI 服务已保存。" });
+        void root.STSettingsDialogs.notice(shadow, { title: uiText("settings_savePrompt_title", "保存成功"), message: uiText("settings.ai.savedService", "AI 服务已保存。") });
       }
     }
 
@@ -494,23 +494,23 @@
       }
       if (action === "test") {
         await testConnection(service, shadow, operationId);
-        void root.STSettingsDialogs.notice(shadow, { title: "连接测试成功", message: "AI 服务连接正常。" });
+        void root.STSettingsDialogs.notice(shadow, { title: uiText("settings.ai.testOk", "连接测试成功"), message: uiText("settings.ai.testOkBody", "AI 服务连接正常。") });
         return "";
       }
       if (action === "delete") {
-        if (service.id === ai.DEFAULT_SERVICE_ID) throw new Error("默认 AI 服务不可删除");
+        if (service.id === ai.DEFAULT_SERVICE_ID) throw new Error(uiText("settings.ai.defaultDelete", "默认 AI 服务不可删除"));
         const choice = await dialog(shadow, {
-          title: "删除 AI 服务",
+          title: uiText("settings.ai.deleteService", "删除 AI 服务"),
           className: "wf-danger-dialog",
-          message: "将删除「" + service.name + "」的连接和密钥。引用此服务的功能下次会使用默认 AI 服务。",
-          actions: [{ id: "cancel", label: "取消" }, { id: "delete", label: "删除", primary: true }],
+          message: uiText("settings.ai.deleteConfirm", "将删除「$name$」的连接和密钥。使用此服务的功能需要重新选择 AI 服务。", { name: service.name }),
+          actions: [{ id: "cancel", label: uiText("common_cancel", "取消") }, { id: "delete", label: uiText("common_delete", "删除"), primary: true }],
         });
         if (choice !== "delete") return "";
         await persist({ ...conf, services: conf.services.filter((row) => row.id !== service.id) }, operationId);
         return '[data-ai-action="new"]';
       }
       if (action !== "toggle") throw new Error("未知的 AI 服务操作");
-      if (service.id === ai.DEFAULT_SERVICE_ID) throw new Error("默认 AI 服务不可停用");
+      if (service.id === ai.DEFAULT_SERVICE_ID) throw new Error(uiText("settings.ai.defaultDisable", "默认 AI 服务不可停用"));
       const item = { ...service, enabled: !service.enabled };
       if (item.enabled) {
         checkConnection(item);
@@ -542,12 +542,12 @@
       void editService(action, service, card, shadow, operationId).then((focus) => {
         if (focus) render(shadow, focus);
         if (focus && (action === "save-global" || action === "delete")) void root.STSettingsDialogs.notice(shadow, {
-          title: action === "delete" ? "删除成功" : "保存成功",
-          message: action === "delete" ? "AI 服务已删除。" : "AI 设置已保存。",
+          title: action === "delete" ? uiText("settings.ai.deleted", "删除成功") : uiText("settings_savePrompt_title", "保存成功"),
+          message: action === "delete" ? uiText("settings.ai.serviceDeleted", "AI 服务已删除。") : uiText("settings.ai.settingsSaved", "AI 设置已保存。"),
         });
       }).catch((error) => {
         if (error.code === "AI_HOST_PERMISSION_CANCELLED") return;
-        void root.STSettingsDialogs.notice(shadow, { title: "操作失败", message: error.message });
+        void root.STSettingsDialogs.notice(shadow, { title: uiText("common_operationFailed", "操作失败"), message: error.message });
         log.error("ai-service-action-failed", "AI 服务操作失败", { operationId, error });
       }).finally(() => {
         busy = false;

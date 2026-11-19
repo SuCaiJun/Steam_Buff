@@ -320,6 +320,7 @@
       panel.hidden = panel.dataset.titleCustomNamePanel !== tab;
     });
     modal.dataset.activeTab = tab;
+    modal.querySelector("[data-title-custom-name-save]").disabled = tab === "note" && modal.querySelector("[data-title-custom-name-note]").disabled;
     setMsg("");
   }
 
@@ -480,9 +481,10 @@
               <span class="st-title-custom-name-field">${esc(i18n("store.titleCustomName.gameNote", "游戏备注"))}</span>
               <span class="st-title-custom-name-control">
                 <span class="st-title-custom-name-note-wrap">
-                  <textarea maxlength="${NOTE_MAX}" data-title-custom-name-note placeholder="${attr(i18n("store.titleCustomName.notePlaceholder", "支持 BBCode，例如 [b]粗体[/b]、[url=https://example.com]链接[/url]"))}"></textarea>
+                  <textarea disabled maxlength="${NOTE_MAX}" data-title-custom-name-note placeholder="${attr(i18n("store.titleCustomName.notePlaceholder", "支持 BBCode，例如 [b]粗体[/b]、[url=https://example.com]链接[/url]"))}"></textarea>
                   <span class="st-title-custom-name-note-meta">
-                    <button type="button" class="st-title-custom-name-clear-note" data-title-custom-name-clear-note title="${attr(i18n("store.titleCustomName.clearNote", "清空备注"))}">${esc(i18n("common.clear", "清空"))}</button>
+                    <button type="button" disabled class="st-title-custom-name-clear-note" data-title-custom-name-clear-note title="${attr(i18n("store.titleCustomName.clearNote", "清空备注"))}">${esc(i18n("common.clear", "清空"))}</button>
+                    <span role="status" data-note-load-status>${esc(i18n("common.loading", "加载中..."))}</span>
                     <span class="st-title-custom-name-count" data-title-custom-name-count>${esc(remaining)}</span>
                   </span>
                 </span>
@@ -559,7 +561,8 @@
     const focusSelector = activeTab === "note"
       ? "[data-title-custom-name-note]"
       : "[data-title-custom-name-input]";
-    modal.querySelector(focusSelector)?.focus?.();
+    const initialFocus = modal.querySelector(focusSelector);
+    (initialFocus?.disabled ? modal.querySelector('[data-title-custom-name-tab="note"]') : initialFocus)?.focus?.();
     log.info("title-custom-name-modal-open-success", "商店标题自定义名弹窗已打开", {
       appid: source.appid,
       mode: source.mode || "detail",
@@ -580,11 +583,17 @@
     }), modalNote(source.appid).then(note => {
       if (!modalLoadCurrent(modal, source.appid, loadSeq)) return;
       const textarea = modal.querySelector("[data-title-custom-name-note]");
-      if (!textarea || textarea.hasAttribute("data-title-custom-name-user-touched")) return;
-      textarea.value = String(note?.note || "");
+      textarea.disabled = false;
+      modal.querySelector("[data-title-custom-name-clear-note]").disabled = false;
+      modal.querySelector("[data-note-load-status]").textContent = "";
+      if (modal.dataset.activeTab === "note") modal.querySelector("[data-title-custom-name-save]").disabled = false;
+      textarea.value = note.note;
       updateCount(modal);
     }).catch(error => {
       globalThis.STLoggerFactory.reportError(error, { domain: "store", feature: "search", event: "open-modal-failed", message: "打开名称编辑窗口失败", level: "error", phase: "openModal" });
+      if (modalLoadCurrent(modal, source.appid, loadSeq)) {
+        modal.querySelector("[data-note-load-status]").textContent = error.message || String(error);
+      }
       errors.add(error?.message || String(error));
     })]);
     if (errors.size && modalLoadCurrent(modal, source.appid, loadSeq)) void toast(Array.from(errors).join("\n"));
@@ -689,7 +698,8 @@
     const ctx = currentModalContext(modal);
     if (!ctx.appid) return;
     const textarea = modal.querySelector("[data-title-custom-name-note]");
-    const note = clear ? "" : String(textarea?.value || "").trim();
+    if (textarea.disabled) return;
+    const note = clear ? "" : textarea.value.trim();
     if (note.length > NOTE_MAX) {
       toast(i18n("store.titleCustomName.noteTooLong", "备注不能超过 $limit$ 个字符", { limit: NOTE_MAX }));
       return;

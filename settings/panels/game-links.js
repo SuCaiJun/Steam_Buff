@@ -23,7 +23,7 @@
     let drag = null, publishingSavedConfig = false;
     const label=item=>{
       const entry=model.definition(item);
-      return entry.builtin&&!Object.hasOwn(item,'name')?tr(`preset.${item.id}`,entry.name):entry.name;
+      return entry.name;
     };
     const typeLabel=type=>tr(`type.${type}`,type==='qrcode'?'二维码':'网页');
     const scopeLabel=scope=>tr(`scope.${scope}`,{all:'全部',store:'网页商店',library:'客户端库'}[scope]);
@@ -162,7 +162,6 @@
       const entry=original?model.definition(original):null;
       const builtin=!!entry?.builtin;
       const defaultEntry=builtin?model.definition({id:original.id}):null;
-      const defaultName=builtin?tr(`preset.${original.id}`,defaultEntry.name):'';
       const actions = [{id:'cancel',label:root.STI18n.text('common.cancel','取消')},{id:'save',label:original?tr('saveEdit','保存修改'):tr('add','添加链接'),primary:true}];
       const result = await root.STSettingsDialogs.dialog(shadow,{
         title:original?tr('editTitle','编辑链接'):tr('add','添加链接'),
@@ -203,7 +202,7 @@
             type:value(editor,'type').value,
             scope:value(editor,'scope').value
           };
-          if(!builtin||name.value.trim()!==defaultName)item.name=name.value.trim();
+          item.name=name.value;
           if(!builtin||(url.value.trim()&&url.value.trim()!==defaultEntry.urlTemplate))item.urlTemplate=url.value.trim();
           const index=next.items.findIndex(row=>row.id===item.id);
           if(index>=0)next.items[index]=item;else next.items.push(item);
@@ -236,7 +235,17 @@
         return;
       }
       let next=model.normalize(conf);
-      if(action==='reset')next=model.resetBuiltins(conf);else{
+      if(action==='reset'){
+        const confirmed = await root.STSettingsDialogs.dialog(shadow, {
+          title: tr('reset','恢复默认'),
+          message: tr('resetMessage','将按当前语言重建内置链接，并覆盖对内置项的修改。自建链接和排版会保留。'),
+          actions: [{id:'cancel',label:root.STI18n.text('common.cancel','取消')},{id:'reset',label:tr('reset','恢复默认'),danger:true}]
+        });
+        if(confirmed!=='reset')return;
+        const locale=await options.storage.getUiLocale({strict:true});
+        const [current,text]=await Promise.all([options.storage.getGameLinks(),options.storage.templateLanguage(locale)]);
+        next=model.resetBuiltins(current,text);
+      }else{
         const index=next.items.findIndex(item=>item.id===id);
         if(index<0)return;
         if(action==='delete')next=model.remove(next,id);

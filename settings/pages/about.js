@@ -1164,6 +1164,8 @@
     const names = {
       features: text("about.backup.section.features", "功能开关"),
       uiLocale: text("about.backup.section.uiLocale", "界面语言"),
+      workflow: text("workflow.ui.workflows", "工作流"),
+      gameLinks: text("gameLinks.title", "相关链接"),
       updateCheck: text("settings.updateCheck.title", "扩展更新"),
       storePriceChart: text("about.backup.section.storePriceChart", "价格图表"),
       searchSuggestions: text("about.backup.section.searchSuggestions", "搜索联想"),
@@ -1269,7 +1271,10 @@
         operationId,
         durationMs: Date.now() - startedAt,
       });
-      ctx.dialog(shadow, { title: text("about.backup.exportFailedTitle", "导出设置失败"), message: error?.message || String(error) });
+      const message = error.readSection
+        ? text("about.backup.sectionReadFailed", "无法读取$section$。请重试导出。", { section: sectionText([error.readSection]) })
+        : error.message || String(error);
+      ctx.dialog(shadow, { title: text("about.backup.exportFailedTitle", "导出设置失败"), message });
     }
   }
 
@@ -1329,7 +1334,12 @@
         operationId,
         durationMs: Date.now() - startedAt,
       });
-      ctx.dialog(shadow, { title: text("about.backup.importFailedTitle", "导入设置失败"), message: error?.message || String(error) });
+      const message = error.failedSections
+        ? text("about.backup.partialRestore", "已恢复：$saved$。未恢复：$failed$。", {
+            saved: sectionText(error.savedSections), failed: sectionText(error.failedSections),
+          })
+        : error.message || String(error);
+      ctx.dialog(shadow, { title: text("about.backup.importFailedTitle", "导入设置失败"), message });
     }
   }
 

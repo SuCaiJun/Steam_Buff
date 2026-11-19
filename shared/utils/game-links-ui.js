@@ -119,7 +119,7 @@
     }
     function itemName(item) {
       const entry = model.definition(item);
-      return entry.builtin && !Object.hasOwn(item, "name") ? tr(`preset.${entry.id}`, entry.name) : entry.name;
+      return entry.name;
     }
     function render() {
       if (!grid) return;
@@ -200,7 +200,7 @@
       const ticket = generation;
       gameName = options.gameName();
       customName = '';
-      config = model.defaults();
+      config = model.empty();
       configReady = false;
       card = root.document.createElement("div");
       card.id = ID;

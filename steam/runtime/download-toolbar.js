@@ -166,11 +166,11 @@
     failed: ["failed", "自动关机失败，请查看日志"],
     unconfirmed: ["unconfirmed", "Steam 关机请求未确认"],
   };
-  const shutdownText = (key, fallback, values) => i18n("steam.downloadShutdown." + key, fallback, values);
+  const shutdownText = (key, fallback, values) => i18n(`steam.downloadShutdown.${key}`, fallback, values);
 
   function formatBytes(value) {
     for (const unit of ["B", "KB", "MB", "GB", "TB"]) {
-      if (value < 1024 || unit === "TB") return new Intl.NumberFormat(undefined, { maximumFractionDigits: 1 }).format(value) + " " + unit;
+      if (value < 1024 || unit === "TB") return new Intl.NumberFormat(window.STI18n.intlLocale(), { maximumFractionDigits: 1 }).format(value) + " " + unit;
       value /= 1024;
     }
   }

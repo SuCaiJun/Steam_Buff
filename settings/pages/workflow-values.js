@@ -10,21 +10,23 @@
  */
 ((root) => {
   "use strict";
+  const tr = (key, fallback, params) => globalThis.STI18n?.text(key, fallback, params) ?? fallback;
   const flow = root.STWorkflow, outputs = new WeakMap(), editors = new WeakMap(), bindings = new WeakMap();
   let codeModule;
   let outputSequence = 0;
   const esc = value => root.STWorkflowView.esc(value), html = (node, value) => root.STWorkflowView.html(node, value);
   const icon = (name, className) => root.STWorkflowInstructions.icon(name, className);
-  const types = { string: "文本", number: "数字", boolean: "布尔值", list: "列表", object: "字典", null: "空值" };
-  const metaFields = { workflowName: "工作流名称", triggerName: "触发器名称", triggerType: "触发类型" };
+  const types = { get string() { return tr("steam_independentName_bulk_text", "文本"); }, get number() { return tr("steam_independentName_bulk_number", "数字"); }, get boolean() { return tr("workflow_ui_boolean", "布尔值"); }, get list() { return tr("seed_variable_list", "列表"); }, get object() { return tr("seed_variable_record", "字典"); }, get null() { return tr("workflow_ui_null", "空值"); } };
+  const metaFieldAliases = { workflowName: "工作流名称", triggerName: "触发器名称", triggerType: "触发类型", translationLanguage: "目标语言" };
+  const metaFields = { get workflowName() { return tr("workflow_ui_workflow_name", "工作流名称"); }, get triggerName() { return tr("workflow_ui_trigger_name", "触发器名称"); }, get triggerType() { return tr("promptToken_task_trigger", "触发类型"); }, get translationLanguage() { return tr("promptToken_task_target_language", "目标语言"); } };
   const paths = value => String(value || "").split(".").map(item => item.trim()).filter(Boolean);
   const kind = value => value === null ? "null" : Array.isArray(value) ? "list" : typeof value === "object" ? "object" : typeof value;
   const defaults = type => ({ string: "", number: 0, boolean: false, list: [], object: {}, null: null })[type];
   const conversions = [
-    { label: "删除两端空白", from: ["text", "any"], type: "文本", expression: ref => [ref, ".trim()"] },
-    { label: "转为整数", from: ["text", "number", "any"], type: "数字", expression: ref => ["Math.trunc(Number(", ref, "))"] },
-    { label: "转为数字", from: ["text", "any"], type: "数字", expression: ref => ["Number(", ref, ")"] },
-    { label: "转为文本", from: ["number", "boolean", "any"], type: "文本", expression: ref => ["String(", ref, ")"] },
+    { get label() { return tr("workflow_ui_trim_whitespace", "删除两端空白"); }, from: ["text", "any"], get type() { return tr("steam_independentName_bulk_text", "文本"); }, expression: ref => [ref, ".trim()"] },
+    { get label() { return tr("workflow_ui_convert_to_integer", "转为整数"); }, from: ["text", "number", "any"], get type() { return tr("steam_independentName_bulk_number", "数字"); }, expression: ref => ["Math.trunc(Number(", ref, "))"] },
+    { get label() { return tr("workflow_ui_convert_to_number", "转为数字"); }, from: ["text", "any"], get type() { return tr("steam_independentName_bulk_number", "数字"); }, expression: ref => ["Number(", ref, ")"] },
+    { get label() { return tr("workflow_ui_convert_to_text", "转为文本"); }, from: ["number", "boolean", "any"], get type() { return tr("steam_independentName_bulk_text", "文本"); }, expression: ref => ["String(", ref, ")"] },
   ];
   const get = (object, path) => flow.pathGet(object, paths(path));
   function set(object, path, value) { const parts = paths(path), name = parts.pop(); flow.pathGet(object, parts)[name] = value; }
@@ -53,7 +55,7 @@
   /** 摘要保留输入片段，引用附带独立标记 */
   function summaryParts(value, workflow, choices = []) {
     const active = flow.activeValue(value);
-    if (!active) return ["空文本"];
+    if (!active) return [tr("workflow_ui_empty_text", "空文本")];
     if (active.source) return [{ value: refText(active, workflow), reference: true }];
     if (active.template) return active.template.flatMap(part => {
       if (typeof part === "string") return [{ value: part }];
@@ -61,8 +63,8 @@
     });
     if (active.expression) return active.expression.flatMap(part => typeof part === "string" ? [{ value: part }] : summaryParts(part, workflow));
     const label = choices.find(([id]) => id === active.literal)?.[1];
-    const shown = label ?? (typeof active.literal === "boolean" ? active.literal ? "真" : "假" : text(active, workflow));
-    return shown ? [{ value: shown }] : ["空文本"];
+    const shown = label ?? (typeof active.literal === "boolean" ? active.literal ? tr("workflow_ui_true", "真") : tr("workflow_ui_false", "假") : text(active, workflow));
+    return shown ? [{ value: shown }] : [tr("workflow_ui_empty_text", "空文本")];
   }
   // 仅用于读取已有文本模板；新输入通过变量片段创建模板，无须手写占位符。
   function template(value, workflow) {
@@ -71,8 +73,8 @@
       parts.push(value.slice(start, match.index));
       const token = match[1], variable = [...workflow.variables].sort((a, b) => b.name.length - a.name.length).find(item => token === item.name || token.startsWith(item.name + ".") || token.startsWith(item.name + " → "));
       const prefix = variable?.name || ["触发输入", "运行信息"].find(name => token === name || token.startsWith(name + ".") || token.startsWith(name + " → "));
-      if (!prefix) throw new Error("模板引用的变量不存在：" + token);
-      const aliases = Object.fromEntries(knownFields(workflow, variable ? "variable" : prefix === "运行信息" ? "meta" : "input", variable?.id));
+      if (!prefix) throw new Error(tr("workflow_ui_unknown_variable_in_template", "模板引用的变量不存在：") + token);
+      const aliases = prefix === "运行信息" && !variable ? metaFieldAliases : Object.fromEntries(knownFields(workflow, variable ? "variable" : "input", variable?.id));
       const path = paths(token.slice(prefix.length).replace(/^\s*→\s*/, "")).map(key => Object.entries(aliases).find(([, label]) => label === key)?.[0] || key);
       parts.push(flow.reference(variable ? "variable" : prefix === "触发输入" ? "input" : "meta", variable?.id || "", path)); start = match.index + match[0].length;
     }
@@ -83,33 +85,32 @@
     const refs = !workflow.literalOnly && (!workflow.triggerInput || workflow.eventFields.length > 0);
     const saved = enabled ? flow.inputValue(value) : flow.clone(flow.activeValue(value)), active = flow.activeValue(saved);
     const mode = enabled ? saved.mode : "text", literal = Object.hasOwn(active, "literal"), type = literal ? kind(active.literal) : "string";
-    const caption = [...choices, ...suggestions].find(([id]) => id === active.literal)?.[1];
-    if (literal && caption && !active.display) active.display = caption;
+
     const editable = mode === "expression" || !literal || type === "string" && !choices.length;
     const enumField = (title, attribute, rows, value) => workflow.triggerInput
       ? `<select ${attribute}${attribute === "data-literal-type" ? ' class="aw-literal-type"' : ""} aria-label="${esc(title)}">${options(rows, value)}</select>`
       : fixed(title, attribute, "", rows, value);
     const typeSelect = literal && mode === "text" && (selectLiteralType || !enabled && expected === "any")
-      ? enumField(label + "：值类型", "data-literal-type", Object.entries(types), type) : "";
-    const typeDetails = workflow.compactTypes && typeSelect ? `<details class="aw-fixed-type"><summary>${icon("chevron-right", "aw-disclosure")}固定值类型</summary>${typeSelect}</details>` : "";
+      ? enumField(tr("workflow_format_field_type", "$name$：值类型", { name: label }), "data-literal-type", Object.entries(types), type) : "";
+    const typeDetails = workflow.compactTypes && typeSelect ? `<details class="aw-fixed-type"><summary>${icon("chevron-right", "aw-disclosure")}${esc(tr("workflow_ui_literal_type", "固定值类型"))}</summary>${typeSelect}</details>` : "";
     let control;
     if (editable && workflow.literalOnly) control = `<textarea data-value-text aria-label="${esc(label)}">${esc(active.literal)}</textarea>`;
     else if (editable) control = `<div data-value-host class="aw-value-host" aria-busy="true"><span class="aw-value-preview">${esc(text(active, workflow))}</span></div>`;
-    else if (type === "boolean") control = enumField(label, "data-value-text", [["true", "真"], ["false", "假"]], String(active.literal));
-    else if (["list", "object"].includes(type)) control = `<button type="button" class="aw-collection-edit" data-field-action="collection">${type === "list" ? active.literal.length + " 项列表" : Object.keys(active.literal).length + " 个字段"}<span>编辑${type === "list" ? "列表" : "字典"}</span></button>`;
+    else if (type === "boolean") control = enumField(label, "data-value-text", [["true", tr("workflow_ui_true", "真")], ["false", tr("workflow_ui_false", "假")]], String(active.literal));
+    else if (["list", "object"].includes(type)) control = `<button type="button" class="aw-collection-edit" data-field-action="collection">${type === "list" ? tr("workflow_format_list_count", "$count$ 项列表", { count: active.literal.length }) : tr("workflow_format_field_count", "$count$ 个字段", { count: Object.keys(active.literal).length })}<span>${esc(tr("store_titleCustomName_edit", "编辑"))}${type === "list" ? tr("seed_variable_list", "列表") : tr("seed_variable_record", "字典")}</span></button>`;
     else if (type === "null") control = `<span class="aw-empty-value" tabindex="-1" aria-label="${esc(label)}">null</span>`;
     else if (choices.length) control = enumField(label, "data-value-text", choices, active.literal);
     else control = `<input type="number" data-value-text aria-label="${esc(label)}" value="${esc(active.literal)}">`;
-    const hint = "点击切换输入模式\n文本模式：支持文字、变量和表达式片段混合输入\n表达式模式：支持 JavaScript 表达式";
+    const hint = tr("workflow_ui_click_to_switch_input_mode_text_mode_supports_text_variables", "点击切换输入模式\n文本模式：支持文字、变量和表达式片段混合输入\n表达式模式：支持 JavaScript 表达式");
     const insert = workflow.triggerInput
-      ? '<button type="button" class="aw-fx aw-event-picker-toggle" data-variable-toggle title="插入数据">插入数据</button>'
-      : `<button type="button" class="aw-fx" data-variable-toggle aria-label="显示变量" title="插入变量">${icon("math-function")}</button>`;
-    return `<div class="aw-value" data-value="${esc(path)}" data-mode="${mode}" data-kind="${type}" data-expected="${expected}" data-label="${esc(label)}" data-multiline="${multiline}" data-suggestions="${esc(JSON.stringify(suggestions))}" data-json="${esc(JSON.stringify(saved))}"><span class="aw-value-label">${esc(label)}</span><div class="aw-value-body"><div class="aw-input-shell">${enabled ? `<button type="button" class="aw-mode" data-field-action="mode" aria-label="${esc(label)}：${mode === "expression" ? "切换为文本模式" : "切换为表达式模式"}" title="${esc(hint)}">${icon(mode === "expression" ? "code" : "link")}</button>` : ""}${workflow.compactTypes ? "" : typeSelect}${control}${refs ? insert : ""}</div>${typeDetails}</div></div>`;
+      ? `<button type="button" class="aw-fx aw-event-picker-toggle" data-variable-toggle title="${esc(tr("workflow_ui_insert_data", "插入数据"))}">${esc(tr("workflow_ui_insert_data", "插入数据"))}</button>`
+      : `<button type="button" class="aw-fx" data-variable-toggle aria-label="${esc(tr("workflow_ui_show_variables", "显示变量"))}" title="${esc(tr("workflow_ui_insert_variable", "插入变量"))}">${icon("math-function")}</button>`;
+    return `<div class="aw-value" data-value="${esc(path)}" data-mode="${mode}" data-kind="${type}" data-expected="${expected}" data-label="${esc(label)}" data-multiline="${multiline}" data-suggestions="${esc(JSON.stringify(suggestions))}" data-json="${esc(JSON.stringify(saved))}"><span class="aw-value-label">${esc(label)}</span><div class="aw-value-body"><div class="aw-input-shell">${enabled ? `<button type="button" class="aw-mode" data-field-action="mode" aria-label="${esc(label)}：${mode === "expression" ? tr("workflow_ui_switch_to_text_mode", "切换为文本模式") : tr("workflow_ui_switch_to_expression_mode", "切换为表达式模式")}" title="${esc(hint)}">${icon(mode === "expression" ? "code" : "link")}</button>` : ""}${workflow.compactTypes ? "" : typeSelect}${control}${refs ? insert : ""}</div>${typeDetails}</div></div>`;
   }
   function numericInput(value) {
     const number = Number(value);
     if (!value.trim() || !Number.isFinite(number)) {
-      throw Object.assign(new Error("请填写有效的数字"), { code: "WORKFLOW_FORM_INVALID_NUMBER" });
+      throw Object.assign(new Error(tr("workflow_ui_enter_a_valid_number", "请填写有效的数字")), { code: "WORKFLOW_FORM_INVALID_NUMBER" });
     }
     return number;
   }
@@ -119,6 +120,8 @@
     if (!control || editors.has(element)) return saved;
     const source = controlValue(control);
     const value = flow.literal(element.dataset.kind === "boolean" ? source === "true" : element.dataset.kind === "number" ? numericInput(source) : source);
+    // 只读打开已有选项时保留原保存值及其显示名称。
+    if (flow.activeValue(saved)?.literal === value.literal) return saved;
     if (control.hasAttribute("data-st-combo-fixed")) value.display = control.value;
     else if (control.tagName === "SELECT" && control.selectedOptions[0] && !control.selectedOptions[0].hidden)
       value.display = control.selectedOptions[0].textContent;
@@ -167,11 +170,17 @@
     const current = workflow.variables.find(item => item.id === id), entries = outputs.get(workflow) || {};
     const entry = entries[path] ||= { name: current?.name || id || "", id, type: expected };
     entry.type = expected; outputs.set(workflow, entries);
-    return `<label class="aw-output-field"><span>${esc(label)}</span><div class="aw-input-shell"><input data-output="${esc(path)}" data-output-type="${expected}" value="${esc(entry.name)}" aria-label="${esc(label)}" role="combobox" aria-autocomplete="list" aria-expanded="false" placeholder="输入或选择变量" autocomplete="off" spellcheck="false"><button type="button" class="aw-variable-toggle" data-variable-toggle aria-label="显示${esc(label)}变量" title="显示变量">${icon("chevron-down")}</button></div></label>`;
+    return `<label class="aw-output-field"><span>${esc(label)}</span><div class="aw-input-shell"><input data-output="${esc(path)}" data-output-type="${expected}" value="${esc(entry.name)}" aria-label="${esc(label)}" role="combobox" aria-autocomplete="list" aria-expanded="false" placeholder="${esc(tr("workflow_ui_type_or_select_a_variable", "输入或选择变量"))}" autocomplete="off" spellcheck="false"><button type="button" class="aw-variable-toggle" data-variable-toggle aria-label="${esc(tr("workflow_format_show_vars", "显示$name$变量", { name: label }))}" title="${esc(tr("workflow_ui_show_variables", "显示变量"))}">${icon("chevron-down")}</button></div></label>`;
   }
   function outputEntries(node, source) {
     const entries = flow.clone(outputs.get(source) || {});
     for (const input of node.querySelectorAll("[data-output]")) entries[input.dataset.output] = { ...entries[input.dataset.output], name: input.value, type: input.dataset.outputType };
+    for (const entry of Object.values(entries)) {
+      const original = source.variables.find(item => item.id === entry.id);
+      // 单行控件会移除换行。保持原有绑定和精确匹配的名称，只整理新输入的名称。
+      if (original && entry.name === original.name.replace(/[\r\n]/g, "")) entry.name = original.name;
+      else if (!source.variables.some(item => item.name === entry.name)) entry.name = entry.name.trim();
+    }
     return entries;
   }
   function collect(node, object, workflow, excluded = null) {
@@ -187,8 +196,8 @@
   function commitOutputs(node, object, workflow, source = workflow, resolved = {}) {
     const entries = outputEntries(node, source);
     for (const [path, entry] of Object.entries(entries)) {
-      const name = entry.name.trim(), existing = workflow.variables.find(item => item.name === name);
-      if (name && entry.id && name === entry.id && !workflow.variables.some(item => item.id === entry.id)) throw new Error("原变量已删除，请选择已有变量或填写新变量名");
+      const name = entry.name, existing = workflow.variables.find(item => item.name === name);
+      if (name && entry.id && name === entry.id && !workflow.variables.some(item => item.id === entry.id)) throw new Error(tr("workflow_ui_the_original_variable_was_deleted_select_a_variable_or_enter", "原变量已删除，请选择已有变量或填写新变量名"));
       set(object, path, Object.hasOwn(resolved, path) ? resolved[path] : name ? existing?.id || flow.variable(workflow, name, entry.type || "any") : "");
     }
   }
@@ -197,20 +206,20 @@
     let container, result = null, raw = false;
     const lifetime = new AbortController();
     function render() {
-      html(container, `<div class="aw aw-form">${raw ? `<label>JSON 文本<textarea class="aw-json-editor" data-json-source aria-label="JSON 文本">${esc(JSON.stringify(value, null, 2))}</textarea></label>` : `<div class="aw-collection-rows">${rows.map((row, index) => `<div class="aw-collection-row" data-entry="${index}">${object ? `<input data-entry-key value="${esc(row.name)}" aria-label="字段名称">` : `<span>${index}</span>`}${fixed("值类型", "data-entry-type", "", Object.entries(types), row.type)}${row.type === "boolean" ? fixed("字段值", "data-entry-value", "", [["true", "是"], ["false", "否"]], String(row.value)) : `<input data-entry-value aria-label="字段值" value="${esc(typeof row.value === "string" ? row.value : JSON.stringify(row.value))}" ${row.type === "null" ? "disabled" : ""}>`}<button type="button" data-entry-delete="${index}" aria-label="删除项目" title="删除项目">${icon("trash")}</button></div>`).join("")}</div><button type="button" data-entry-add>${icon("plus")}<span class="aw-button-label">添加${object ? "字段" : "项目"}</span></button>`}<button type="button" data-entry-json>${raw ? "逐项编辑" : "编辑 JSON 文本"}</button><div class="aw-error" role="alert"></div></div>`);
+      html(container, `<div class="aw aw-form">${raw ? `<label>${esc(tr("workflow_ui_json_text", "JSON 文本"))}<textarea class="aw-json-editor" data-json-source aria-label="${esc(tr("workflow_ui_json_text", "JSON 文本"))}">${esc(JSON.stringify(value, null, 2))}</textarea></label>` : `<div class="aw-collection-rows">${rows.map((row, index) => `<div class="aw-collection-row" data-entry="${index}">${object ? `<input data-entry-key value="${esc(row.name)}" aria-label="${esc(tr("workflow_ui_field_name", "字段名称"))}">` : `<span>${index}</span>`}${fixed(tr("workflow_ui_value_type", "值类型"), "data-entry-type", "", Object.entries(types), row.type)}${row.type === "boolean" ? fixed(tr("workflow_ui_field_value", "字段值"), "data-entry-value", "", [["true", tr("common_yes", "是")], ["false", tr("common_no", "否")]], String(row.value)) : `<input data-entry-value aria-label="${esc(tr("workflow_ui_field_value", "字段值"))}" value="${esc(typeof row.value === "string" ? row.value : JSON.stringify(row.value))}" ${row.type === "null" ? "disabled" : ""}>`}<button type="button" data-entry-delete="${index}" aria-label="${esc(tr("workflow_ui_remove_item", "删除项目"))}" title="${esc(tr("workflow_ui_remove_item", "删除项目"))}">${icon("trash")}</button></div>`).join("")}</div><button type="button" data-entry-add>${icon("plus")}<span class="aw-button-label">${esc(tr("common_add", "添加"))}${object ? tr("workflow_ui_field", "字段") : tr("workflow_ui_item", "项目")}</span></button>`}<button type="button" data-entry-json>${raw ? tr("workflow_ui_edit_items", "逐项编辑") : tr("workflow_ui_edit_json_text", "编辑 JSON 文本")}</button><div class="aw-error" role="alert"></div></div>`);
     }
     function readRows() {
-      if (raw) { const parsed = JSON.parse(container.querySelector("[data-json-source]").value); if (object ? !parsed || typeof parsed !== "object" || Array.isArray(parsed) : !Array.isArray(parsed)) throw new Error("JSON 类型与当前字段不一致"); return parsed; }
+      if (raw) { const parsed = JSON.parse(container.querySelector("[data-json-source]").value); if (object ? !parsed || typeof parsed !== "object" || Array.isArray(parsed) : !Array.isArray(parsed)) throw new Error(tr("workflow_ui_the_json_type_does_not_match_this_field", "JSON 类型与当前字段不一致")); return parsed; }
       for (const row of container.querySelectorAll("[data-entry]")) {
         const entry = rows[Number(row.dataset.entry)], source = controlValue(row.querySelector("[data-entry-value]"));
         entry.name = object ? row.querySelector("[data-entry-key]").value : entry.name;
         entry.value = entry.type === "string" ? source : entry.type === "null" ? null : entry.type === "boolean" ? source === "true" : JSON.parse(source);
-        if (kind(entry.value) !== entry.type) throw new Error("项目值与所选类型不一致");
+        if (kind(entry.value) !== entry.type) throw new Error(tr("workflow_ui_an_item_does_not_match_the_selected_type", "项目值与所选类型不一致"));
       }
-      if (object && new Set(rows.map(row => row.name)).size !== rows.length) throw new Error("字典字段名称不能重复");
+      if (object && new Set(rows.map(row => row.name)).size !== rows.length) throw new Error(tr("workflow_ui_dictionary_keys_must_be_unique", "字典字段名称不能重复"));
       return object ? Object.fromEntries(rows.map(row => [row.name, row.value])) : rows.map(row => row.value);
     }
-    const answer = await dialog(shadow, { title: object ? "编辑字典" : "编辑列表", className: "aw-collection-dialog", form: true,
+    const answer = await dialog(shadow, { title: object ? tr("workflow_ui_edit_dictionary", "编辑字典") : tr("workflow_ui_edit_list", "编辑列表"), className: "aw-collection-dialog", form: true,
       render: node => {
         container = node; render();
         root.STSettingsFields.bindSearchCombos(node, lifetime.signal);
@@ -227,7 +236,7 @@
             else if (control.hasAttribute("data-entry-json")) { value = readRows(); rows.splice(0, rows.length, ...Object.entries(value).map(([name, item]) => ({ name, type: kind(item), value: item }))); raw = !raw; render(); }
           } catch (error) { container.querySelector(".aw-error").textContent = error.message; }
         });
-      }, actions: [{ id: "cancel", label: "取消" }, { id: "save", label: "确定", primary: true }],
+      }, actions: [{ id: "cancel", label: tr("common_cancel", "取消") }, { id: "save", label: tr("common_confirm", "确定"), primary: true }],
       onAction: action => { if (action !== "save") return true; try { result = readRows(); root.STWorkflowData.json(result); return true; } catch (error) { container.querySelector(".aw-error").textContent = error.message; return false; } },
     }).finally(() => lifetime.abort());
     return answer === "save" ? result : undefined;
@@ -293,7 +302,7 @@
     bindings.get(container)?.dispose();
     const lifetime = new AbortController(), signal = lifetime.signal;
     const available = workflow.literalOnly || workflow.triggerInput ? new Map() : object.id ? flow.scopes(workflow).get(object.id) : new Map(workflow.variables.map(item => [item.id, []]));
-    if (!available) throw new TypeError("当前指令不属于工作流");
+    if (!available) throw new TypeError(tr("workflow_ui_this_action_is_not_part_of_the_workflow", "当前指令不属于工作流"));
     let picker = null, input = null, active = 0, candidates = [], popupLife = null, insertion = null;
     const expanded = new Set();
     const scriptControl = control => scriptEditor?.()?.contentDOM === control && !!control;
@@ -334,33 +343,33 @@
     }
     function roots(output) {
       const rows = [], lines = workflow.triggerInput || workflow.literalOnly ? new Map() : root.STWorkflowTools.lines(workflow);
-  
+
       if (!output && input.closest("[data-value]")?.dataset.mode === "text") for (const [id, name] of JSON.parse(input.closest("[data-value]").dataset.suggestions))
-        rows.push({ key: "constant:" + id, name, detail: "比较值", group: "比较值", value: flow.constant(id, name), constant: true, children: [] });
+        rows.push({ key: "constant:" + id, name, detail: tr("workflow_ui_comparison_value", "比较值"), group: tr("workflow_ui_comparison_value", "比较值"), value: flow.constant(id, name), constant: true, children: [] });
       for (const variable of workflow.variables) {
         if (!output && !available.has(variable.id)) continue;
         if (output && object.action === "http-request" && input.dataset.output === "output" && !["any", "object"].includes(variable.type)) continue;
         const producer = [...flow.walk(workflow.steps || [])].find(node => [node.output, node.item, node.index, node.error, node.errorOutput, node.contextOutput].includes(variable.id)), line = lines.get(producer?.id);
         const ref = flow.reference("variable", variable.id), children = [];
         if (!output) {
-          for (const [key, name] of knownFields(workflow, "variable", variable.id, available)) children.push({ key: variable.id + "." + key, name: key, detail: name === key ? "成员" : name, value: flow.reference("variable", variable.id, [key]) });
+          for (const [key, name] of knownFields(workflow, "variable", variable.id, available)) children.push({ key: variable.id + "." + key, name: key, detail: name === key ? tr("workflow_ui_member", "成员") : root.STWorkflowInstructions.schemaLabel(name), value: flow.reference("variable", variable.id, [key]) });
           if (!workflow.triggerInput && !scriptControl(input)) for (const { label, type, from, expression } of conversions) {
             if (from.includes(variable.type)) children.push({ key: variable.id + ":" + label, name: label, detail: type, value: { expression: expression(ref) } });
           }
         }
-        rows.push({ key: variable.id, name: variable.name, detail: root.STWorkflowTools.typeNames[variable.type] + (line ? ` · 第 ${line.number} 行` : ""), group: "流程变量", value: ref, children });
+        rows.push({ key: variable.id, name: variable.name, detail: root.STWorkflowTools.typeNames[variable.type] + (line ? " · " + tr("workflow_format_line", "第 $count$ 行", { count: line.number }) : ""), group: tr("workflow_ui_workflow_variables", "流程变量"), value: ref, children });
       }
       if (!output && workflow.triggerInput) {
-        const fields = workflow.eventFields.filter(([, , savedOnly]) => !savedOnly), group = "事件数据";
+        const fields = workflow.eventFields.filter(([, , savedOnly]) => !savedOnly), group = tr("workflow_ui_event_data", "事件数据");
         const children = entries => entries.map(([path, label]) => ({ key: "input." + path.join("."), name: label, detail: "", value: flow.reference("input", "", path) }));
-        if (fields.some(([path]) => path[0] === "game")) rows.push({ key: "input.game", name: "本次游戏", detail: "游戏对象", group, value: flow.reference("input", "", ["game"]),
+        if (fields.some(([path]) => path[0] === "game")) rows.push({ key: "input.game", name: tr("workflow_ui_current_game", "本次游戏"), detail: tr("workflow_ui_game_object", "游戏对象"), group, value: flow.reference("input", "", ["game"]),
           children: children(fields.filter(([path]) => path[0] === "game" && path.length > 1)) });
-        if (fields.length) rows.push({ key: "input", name: "本次事件", detail: "输入数据", group, value: flow.reference("input"),
+        if (fields.length) rows.push({ key: "input", name: tr("workflow_ui_current_event", "本次事件"), detail: tr("seed_variable_input", "输入数据"), group, value: flow.reference("input"),
           children: children(fields.filter(([path]) => path[0] !== "game")) });
       } else if (!output && !workflow.literalOnly && !scriptControl(input)) {
-        rows.push({ key: "input", name: "触发输入", detail: "输入数据", group: "运行上下文", value: flow.reference("input"),
-          children: inputNames(workflow).map(key => ({ key: "input." + key, name: key, detail: "成员", value: flow.reference("input", "", [key]) })) });
-        rows.push({ key: "meta", name: "运行信息", detail: "本次运行", group: "运行上下文", value: flow.reference("meta"),
+        rows.push({ key: "input", name: tr("workflow_ui_trigger_input", "触发输入"), detail: tr("seed_variable_input", "输入数据"), group: tr("workflow_ui_run_context", "运行上下文"), value: flow.reference("input"),
+          children: inputNames(workflow).map(key => ({ key: "input." + key, name: key, detail: tr("workflow_ui_member", "成员"), value: flow.reference("input", "", [key]) })) });
+        rows.push({ key: "meta", name: tr("workflow_ui_run_information", "运行信息"), detail: tr("workflow_ui_current_run", "本次运行"), group: tr("workflow_ui_run_context", "运行上下文"), value: flow.reference("meta"),
           children: Object.entries(metaFields).map(([key, name]) => ({ key: "meta." + key, name: key, detail: name, value: flow.reference("meta", "", [key]) })) });
       }
       return rows;
@@ -384,7 +393,7 @@
             if (refs.length && refs.every(ref => ref.source !== "variable" || available.has(ref.id))) {
               const parts = parsed.expression.filter(part => typeof part !== "string" || part.trim());
               const value = parts.length === 1 && parts[0]?.source ? parts[0] : parsed;
-              candidates.unshift({ key: "typed", name: typed.text, detail: "作为完整片段插入", group: "当前输入", value, range: typed, level: 1, children: [] });
+              candidates.unshift({ key: "typed", name: typed.text, detail: tr("workflow_ui_insert_as_a_complete_snippet", "作为完整片段插入"), group: tr("workflow_ui_current_input", "当前输入"), value, range: typed, level: 1, children: [] });
             }
           } catch (error) { if (error.code !== "WORKFLOW_EXPRESSION_SYNTAX") throw error; }
         }
@@ -393,8 +402,8 @@
       let group = "";
       html(picker.querySelector("[data-options]"), candidates.map((item, index) => {
         const heading = item.group !== group ? `<div class="aw-variable-group" role="presentation">${esc(item.group)}</div>` : ""; group = item.group;
-        return heading + `<div role="${output ? "option" : "treeitem"}" ${output ? "" : `aria-level="${item.level}" ${item.children.length ? `aria-expanded="${!!needle || expanded.has(item.key)}"` : ""}`} id="${picker.id}-${index}" aria-selected="${index === active}" data-variable-choice="${index}" class="aw-variable-option${item.parent ? " aw-variable-field" : ""}">${item.children.length ? `<button type="button" data-expand="${esc(item.key)}" aria-label="${expanded.has(item.key) ? "收起" : "展开"}${esc(item.name)}">${icon(needle || expanded.has(item.key) ? "chevron-down" : "chevron-right")}</button>` : '<span class="aw-tree-spacer"></span>'}<span>${esc(item.name)} <small>${esc(item.detail)}</small></span></div>`;
-      }).join("") + (output && needle && !workflow.variables.some(item => item.name === query.trim()) ? '<div class="aw-variable-empty" role="status">未找到同名变量，将创建新变量</div>' : !candidates.length ? '<div class="aw-variable-empty" role="status">没有匹配的变量</div>' : ""));
+        return heading + `<div role="${output ? "option" : "treeitem"}" ${output ? "" : `aria-level="${item.level}" ${item.children.length ? `aria-expanded="${!!needle || expanded.has(item.key)}"` : ""}`} id="${picker.id}-${index}" aria-selected="${index === active}" data-variable-choice="${index}" class="aw-variable-option${item.parent ? " aw-variable-field" : ""}">${item.children.length ? `<button type="button" data-expand="${esc(item.key)}" aria-label="${expanded.has(item.key) ? tr("settings_drawer_collapse", "收起") : tr("settings_drawer_expand", "展开")}${esc(item.name)}">${icon(needle || expanded.has(item.key) ? "chevron-down" : "chevron-right")}</button>` : '<span class="aw-tree-spacer"></span>'}<span>${esc(item.name)} <small>${esc(item.detail)}</small></span></div>`;
+      }).join("") + (output && needle && !workflow.variables.some(item => item.name === query.trim()) ? `<div class="aw-variable-empty" role="status">${esc(tr("workflow_ui_no_matching_variable_a_new_variable_will_be_created", "未找到同名变量，将创建新变量"))}</div>` : !candidates.length ? `<div class="aw-variable-empty" role="status">${esc(tr("workflow_ui_no_matching_variables", "没有匹配的变量"))}</div>` : ""));
       if (!output && !candidates.length && picker.dataset.autocomplete === "true") { close(); return; }
       input.setAttribute("aria-activedescendant", candidates.length ? picker.id + "-" + active : ""); position();
     }
@@ -404,8 +413,8 @@
       insertion = filter && query ? query : editor?.selection();
       picker = container.ownerDocument.createElement("div"); picker.className = "aw aw-variable-picker"; picker.popover = "manual"; picker.id = "aw-variable-options-" + ++outputSequence; picker.dataset.autocomplete = String(filter);
       const output = control.hasAttribute("data-output");
-      const searchLabel = workflow.triggerInput ? "搜索事件数据" : "搜索变量";
-      html(picker, `<input type="search" data-variable-search aria-label="${searchLabel}" placeholder="${searchLabel}"><div data-options role="${output ? "listbox" : "tree"}" aria-label="${workflow.triggerInput ? "事件数据" : "可用变量"}"></div>`); container.append(picker);
+      const searchLabel = workflow.triggerInput ? tr("workflow_ui_search_event_data", "搜索事件数据") : tr("workflow_ui_search_variables", "搜索变量");
+      html(picker, `<input type="search" data-variable-search aria-label="${searchLabel}" placeholder="${searchLabel}"><div data-options role="${output ? "listbox" : "tree"}" aria-label="${workflow.triggerInput ? tr("workflow_ui_event_data", "事件数据") : tr("workflow_ui_available_variables", "可用变量")}"></div>`); container.append(picker);
       control.setAttribute("aria-controls", picker.id); control.setAttribute("aria-expanded", "true"); control.setAttribute("aria-haspopup", output ? "listbox" : "tree");
       popupLife = new AbortController();
       const search = picker.querySelector("input"), queryText = filter ? query?.text || control.value || "" : ""; search.value = queryText;

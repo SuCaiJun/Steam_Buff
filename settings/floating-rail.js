@@ -144,22 +144,11 @@
     applyRailPos(y, side, save);
   }
 
-  // 共享模块缺失时只退回文档根节点，不扫描页面
-  function fallbackScrollTargets() {
-    function targets() {
-      return Array.from(new Set([
-        document.scrollingElement,
-        document.documentElement,
-        document.body,
-      ].filter((target) => target && typeof target.scrollTop === "number")));
-    }
-    return {
-      scrollTargets: targets,
-      rememberScrollTarget() {},
-    };
+  const scrollModule = root.STSettingsScrollTargets;
+  if (!scrollModule) {
+    throw new Error("悬浮栏缺少滚动模块 settings/ui/scroll-targets.js");
   }
-
-  const scroll = root.STSettingsScrollTargets?.create?.() || fallbackScrollTargets();
+  const scroll = scrollModule.create();
 
   function toTop() {
     const targets = scroll.scrollTargets();
@@ -193,13 +182,7 @@
   }
 
   function bindTopWatch() {
-    const watch = root.STSettingsScrollTargets?.watchHalfViewport;
-    if (typeof watch !== "function") {
-      // 兼容: 滚动目标模块未加载时无法观察半屏，按钮保持可见
-      topBtn.hidden = false;
-      return;
-    }
-    const release = watch(topBtn);
+    const release = scrollModule.watchHalfViewport(topBtn);
     addDisposer(() => release.dispose());
   }
 
@@ -508,7 +491,7 @@
         globalThis.STLoggerFactory.reportError(error, { domain: "settings", feature: "floating-rail", event: "dispose-failed", message: "释放界面资源失败", level: "warn", phase: "dispose" });
       }
     }
-    scroll.clear?.();
+    scroll.clear();
     mounted = false;
     if (host) {
       delete host.dataset[RAIL_MARK];

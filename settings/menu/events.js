@@ -58,10 +58,16 @@
       if (!target?.addEventListener || typeof handler !== "function") {
         return;
       }
-      target.addEventListener(type, handler, eventOptions);
-      addDisposer(() => target.removeEventListener(type, handler, eventOptions));
+      const onEvent = event => {
+        if (!options.setupPending?.()) handler(event);
+      };
+      target.addEventListener(type, onEvent, eventOptions);
+      addDisposer(() => target.removeEventListener(type, onEvent, eventOptions));
     }
 
+    const onLocaleChange = () => shell.refreshLocale(shadow);
+    root.addEventListener(root.STI18n.CHANGE_EVENT, onLocaleChange);
+    addDisposer(() => root.removeEventListener(root.STI18n.CHANGE_EVENT, onLocaleChange));
     const translateView = root.STSettingsPageTranslate.mount(shadow.querySelector(".page-translate-slot"));
     addDisposer(translateView.dispose);
     const controller = root.STSettingsMenuController.create({
@@ -81,6 +87,7 @@
       getActiveCat: shell.getActiveCat,
       setActiveCat: shell.setActiveCat,
       render: shell.render,
+      setupPending: options.setupPending,
       callPanelOpen: shell.callPanelOpen,
       callPageOpen: shell.callPageOpen,
       playStartupAnimation: options.playStartupAnimation,
@@ -481,6 +488,7 @@
     });
 
     listen(shadow, "input", (event) => {
+      root.STSettingsFields.recordEdit(event.target);
       panels.gameLinks().handleInput(event, shadow);
       panels.storePriceChart().handleInput(event, shadow);
     });
@@ -500,6 +508,7 @@
     }
 
     listen(shadow, "change", (event) => {
+      root.STSettingsFields.recordEdit(event.target);
       const frequency = event.target.closest("[data-update-hours]");
       if (frequency) { void saveUpdateCheck(frequency); return; }
       const locale = event.target.closest("[data-ui-locale]");
@@ -507,13 +516,20 @@
         const operationId = root.STLoggerFactory?.createOperationId?.() || "";
         const pending = api.storage?.setUiLocale?.(locale.value, { operationId });
         if (pending?.then) {
-          pending.then(() => shell.render(shadow)).catch((error) => {
+          pending.then(saved => {
+            if (saved === null) {
+              locale.value = root.STI18n.locale();
+              notifySaveFailed();
+              return;
+            }
+            onLocaleChange();
+          }).catch((error) => {
             log.error("setting-save-failed", "界面语言保存异常", {
               operationId,
               kind: "ui-locale",
               error,
             });
-            shell.render(shadow);
+            locale.value = root.STI18n.locale();
             notifySaveFailed(error.message);
           });
         } else {
@@ -522,7 +538,7 @@
             kind: "ui-locale",
             error: new Error("界面语言存储未初始化"),
           });
-          shell.render(shadow);
+          locale.value = root.STI18n.locale();
           notifySaveFailed();
         }
         return;
@@ -726,7 +742,7 @@
       dispose,
     });
 
-    panels.review().updateButton(shadow);
+    if (!options.setupPending?.()) panels.review().updateButton(shadow);
 
     api.open = controller.open;
     api.openCat = controller.openCat;

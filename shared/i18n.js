@@ -60,47 +60,44 @@
     LOCALE_DEFINITIONS.map(definition => [definition.id, definition]),
   ));
   const SUPPORTED = Object.freeze(LOCALE_DEFINITIONS.map(definition => definition.id));
-  const log = root.STLoggerFactory?.createLogger?.("shared", "i18n") || {
-    info() {},
-    warn() {},
+  let logger;
+  function loggerForPage() {
+    logger ||= root.STLoggerFactory?.createLogger?.("shared", "i18n");
+    return logger || root.console;
+  }
+  const log = {
+    info: (...args) => loggerForPage()?.info(...args),
+    warn: (...args) => loggerForPage()?.warn(...args),
   };
   const messages = {};
   const loading = new Map();
   let current = DEFAULT_LOCALE;
+  let requested;
+  let readyTask;
+  let revision = 0;
+  let snapshotFailed = false;
+  // The injector removes its script element on load. Capture its URL while it is executing.
+  const scriptSrc = root.document?.currentScript?.src;
 
-  function normalizeLocale(value) {
+  function normalizeLocale(value, fallback = DEFAULT_LOCALE) {
     const raw = String(value || "").trim().replace("-", "_");
     const lower = raw.toLowerCase();
     const definition = LOCALE_DEFINITIONS.find(item => (
       item.inputs.includes(lower)
       || item.inputPrefixes.some(prefix => lower.startsWith(prefix))
     ));
-    return definition?.id || DEFAULT_LOCALE;
-  }
-
-  function scriptBase() {
-    const doc = root.document;
-    const src = doc?.currentScript?.src || Array.from(doc?.scripts || [])
-      .map(script => script.src || "")
-      .find(src => /\/shared\/i18n\.js(?:\?|$)/.test(src)) || "";
-    return src ? src.replace(/shared\/i18n\.js(?:\?.*)?$/, "") : "";
+    return definition?.id ?? fallback;
   }
 
   function url(path) {
-    try {
-      if (root.chrome?.runtime?.getURL) {
-        return root.chrome.runtime.getURL(path);
-      }
-    } catch {
-    }
-    const base = scriptBase();
-    return base ? `${base}${path}` : path;
+    if (root.chrome?.runtime?.getURL) return root.chrome.runtime.getURL(path);
+    if (scriptSrc) return new URL("../" + path, scriptSrc).href;
+    throw new Error("无法定位扩展语言包");
   }
 
   function cleanMessages(data) {
     const out = {};
-    const src = data && typeof data === "object" ? data : {};
-    for (const [key, value] of Object.entries(src)) {
+    for (const [key, value] of Object.entries(data)) {
       if (value && typeof value === "object" && typeof value.message === "string") {
         out[key] = { message: value.message };
       }
@@ -122,25 +119,12 @@
     }
     const task = Promise.resolve()
       .then(async () => {
-        if (typeof root.fetch !== "function") {
-          messages[id] = {};
-          log.warn("i18n-locale-load-skipped", "语言包加载跳过", {
-            locale: id,
-            reason: "fetch-unavailable",
-          });
-          return messages[id];
-        }
         const response = await root.fetch(url(`_locales/${id}/messages.json`));
-        const data = response?.ok === false ? {} : await response.json();
-        messages[id] = cleanMessages(data);
-        return messages[id];
-      })
-      .catch((error) => {
-        log.warn("i18n-locale-load-failed", "语言包加载失败", {
-          locale: id,
-          error,
-        });
-        messages[id] = {};
+        if (response?.ok === false) throw new Error("语言包加载失败：" + response.status);
+        const data = await response.json();
+        const entries = cleanMessages(data);
+        if (!Object.keys(entries).length) throw new Error("语言包没有可用词条：" + id);
+        messages[id] = entries;
         return messages[id];
       })
       .finally(() => {
@@ -151,11 +135,7 @@
   }
 
   function area() {
-    try {
-      return root.chrome?.storage?.local || null;
-    } catch {
-      return null;
-    }
+    return root.chrome?.storage?.local || null;
   }
 
   function get(keys) {
@@ -163,26 +143,12 @@
     if (!box) {
       return Promise.resolve({});
     }
-    return new Promise((resolve) => {
-      try {
-        box.get(keys, (rt) => {
-          if (root.chrome?.runtime?.lastError) {
-            log.warn("i18n-storage-read-failed", "界面语言读取失败", {
-              keyCount: Array.isArray(keys) ? keys.length : Object.keys(keys || {}).length,
-              error: root.chrome.runtime.lastError,
-            });
-            resolve({});
-            return;
-          }
-          resolve(rt || {});
-        });
-      } catch (error) {
-        log.warn("i18n-storage-read-failed", "界面语言读取失败", {
-          keyCount: Array.isArray(keys) ? keys.length : Object.keys(keys || {}).length,
-          error,
-        });
-        resolve({});
-      }
+    return new Promise((resolve, reject) => {
+      box.get(keys, (rt) => {
+        const error = root.chrome?.runtime?.lastError;
+        if (error) reject(new Error(error.message, { cause: error }));
+        else resolve(rt || {});
+      });
     });
   }
 
@@ -223,11 +189,7 @@
   }
 
   function datasetLocale() {
-    try {
-      return normalizeLocale(root.document?.documentElement?.dataset?.[DATASET_KEY]);
-    } catch {
-      return DEFAULT_LOCALE;
-    }
+    return normalizeLocale(root.document?.documentElement?.dataset?.[DATASET_KEY]);
   }
 
   async function storedLocale() {
@@ -250,15 +212,7 @@
   function syncSnapshot() {
     if (!area()) {
       const next = datasetLocale();
-      if (next !== current) {
-        current = next;
-        load(next).catch((error) => {
-          log.warn("i18n-locale-dataset-load-failed", "界面语言数据集快照加载失败", {
-            locale: next,
-            error,
-          });
-        });
-      }
+      if (requested !== undefined && next !== requested) applySnapshot(next);
     }
   }
 
@@ -286,15 +240,25 @@
     });
   }
 
+  function messageForLocale(locale, id) {
+    if (hasRawMessage(locale, id)) return rawMessage(locale, id);
+    return hasRawMessage(DEFAULT_LOCALE, id) ? rawMessage(DEFAULT_LOCALE, id) : null;
+  }
+
   function t(key, params) {
     syncSnapshot();
     const id = String(key || "");
-    const msg = hasRawMessage(current, id)
-      ? rawMessage(current, id)
-      : hasRawMessage(DEFAULT_LOCALE, id)
-        ? rawMessage(DEFAULT_LOCALE, id)
-        : null;
+    const msg = messageForLocale(current, id);
     return msg === null ? id : format(msg, params);
+  }
+
+  // 多步表单在同一文档内使用一次语言快照，账号云同步不会让未提交的表单混用两种语言
+  function forLocale(value) {
+    const locale = normalizeLocale(value);
+    return (key, fallback, params) => {
+      const id = String(key || "");
+      return format(messageForLocale(locale, id) ?? fallback ?? id, params);
+    };
   }
 
   function text(key, fallback, params) {
@@ -344,18 +308,24 @@
     const next = normalizeLocale(value);
     const operationId = String(diagnostics?.operationId || "");
     await Promise.all([load(DEFAULT_LOCALE), load(next)]);
-    current = next;
     const ok = await put({ [STORAGE_KEY]: next }, { ...diagnostics, operationId });
     if (ok === false) {
       log.warn("i18n-locale-save-failed", "界面语言保存失败", {
         operationId,
         locale: next,
       });
+      return { locale: current, persisted: false };
     }
-    emitChange(next);
+    if (requested !== next || current !== next || snapshotFailed) {
+      ++revision;
+      requested = current = next;
+      snapshotFailed = false;
+      emitChange(next);
+    }
+    readyTask = Promise.resolve(current);
     return {
       locale: current,
-      persisted: ok !== false,
+      persisted: true,
     };
   }
 
@@ -364,26 +334,45 @@
     return result.locale;
   }
 
-  function applySnapshot(value) {
+  function applySnapshot(value, force = false) {
     const next = normalizeLocale(value);
-    current = next;
-    load(next).catch((error) => {
-      log.warn("i18n-locale-snapshot-load-failed", "界面语言快照加载失败", {
-        locale: next,
-        error,
-      });
+    if (next === requested && !force) return readyTask;
+    requested = next;
+    snapshotFailed = false;
+    const version = ++revision;
+    readyTask = Promise.all([load(DEFAULT_LOCALE), load(next)]).then(() => {
+      if (version !== revision) return readyTask;
+      current = next;
+      emitChange(next);
+      if (force) log.info("i18n-init-success", "多语言运行时初始化完成", { locale: next });
+      return current;
+    }, error => {
+      if (version !== revision) return readyTask;
+      throw error;
     });
+    readyTask.catch(error => {
+      if (version !== revision) return;
+      snapshotFailed = true;
+      log.warn("i18n-locale-load-failed", "界面语言读取或加载失败", { locale: next, error });
+    });
+    return readyTask;
   }
 
-  async function init() {
-    current = await storedLocale();
-    await Promise.all(SUPPORTED.map(load));
-    emitChange(current);
-    log.info("i18n-init-success", "多语言运行时初始化完成", {
-      locale: current,
-      supportedCount: SUPPORTED.length,
+  function retry() {
+    const version = ++revision;
+    readyTask = storedLocale().then(next => {
+      if (version !== revision) return readyTask;
+      return applySnapshot(next, true);
+    }, error => {
+      if (version !== revision) return readyTask;
+      throw error;
     });
-    return current;
+    // Storage can fail before a locale is known.
+    const initial = readyTask;
+    initial.catch(error => {
+      if (version === revision) log.warn("i18n-storage-read-failed", "界面语言读取失败", { error });
+    });
+    return initial;
   }
 
   function watchStorage() {
@@ -392,15 +381,7 @@
         if (changedArea !== "local" || !Object.hasOwn(changes || {}, STORAGE_KEY)) {
           return;
         }
-        const next = normalizeLocale(changes[STORAGE_KEY]?.newValue);
-        current = next;
-        load(next).catch((error) => {
-          log.warn("i18n-locale-storage-load-failed", "界面语言存储变更加载失败", {
-            locale: next,
-            error,
-          });
-        });
-        emitChange(next);
+        applySnapshot(changes[STORAGE_KEY]?.newValue);
       });
     } catch (error) {
       log.warn("i18n-storage-watch-bind-failed", "界面语言监听绑定失败", {
@@ -409,12 +390,15 @@
     }
   }
 
-  const readyTask = init();
-  watchStorage();
+  // 后台仅在生成模板时加载指定词典，页面继续跟踪界面语言。
+  const background = typeof ServiceWorkerGlobalScope !== "undefined" && root instanceof ServiceWorkerGlobalScope;
+  if (background) readyTask = Promise.resolve(DEFAULT_LOCALE);
+  else retry();
+  if (!background) watchStorage();
 
   try {
     root.addEventListener?.(CHANGE_EVENT, (event) => {
-      applySnapshot(event?.detail?.locale || datasetLocale());
+      applySnapshot(event?.detail?.locale || datasetLocale(), snapshotFailed);
     });
   } catch (error) {
     log.warn("i18n-locale-event-bind-failed", "界面语言事件监听绑定失败", {
@@ -430,11 +414,15 @@
     SUPPORTED,
     has,
     intlLocale,
+    forLocale,
     load,
     locale,
     locales,
     normalizeLocale,
+    languageName: value => LOCALE_BY_ID[normalizeLocale(value)].fallbackLabel,
+    translationLanguage: value => ({ zh_CN: "chinese_simplified", en: "english", zh_TW: "chinese_traditional", ja: "japanese", ko: "korean" })[normalizeLocale(value)],
     ready: () => readyTask,
+    retry,
     setLocale,
     setLocaleResult,
     t,

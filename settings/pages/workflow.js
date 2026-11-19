@@ -10,6 +10,7 @@
  */
 ((root) => {
   "use strict";
+  const tr = (key, fallback, params) => globalThis.STI18n?.text(key, fallback, params) ?? fallback;
   const model = root.STAutomation,
     prompts = root.STPromptPlans,
     fields = root.STWorkflowFields;
@@ -56,14 +57,6 @@
     @media(max-width:680px){.wf-token-tools .wf-token-quick{display:none}.wf-prompt-head{gap:4px}}
     .wf-error{color:var(--st-color-danger-text);white-space:pre-wrap}.wf-pre{white-space:pre-wrap;overflow-wrap:anywhere;max-height:50vh;overflow:auto;font-family:monospace}.wf-error:empty{display:none}.wf .wf-icon{display:inline-grid;place-items:center;width:32px;height:32px;padding:0;color:var(--st-color-text-secondary)}.wf-icon>.aw-command-icon{width:16px;height:16px}.wf-rule-actions{display:flex;gap:4px}.wf-toggle[aria-pressed=true]{color:var(--st-color-success)}.wf-prompt-copy{min-width:0;overflow-wrap:anywhere}@media(max-width:680px){.wf-grid{grid-template-columns:1fr}}`, root.STAutomationEditor.style);
   const pathGet = (obj, path) => path ? path.split(".").reduce((value, key) => value[key], obj) : obj;
-  function select(label, value, entries, path, attrs = "") {
-    const note = entries.find(([id]) => id === value)?.[3];
-    const noteId = `wf-note-${path}`;
-    const control = `<label>${esc(label)}<select data-edit="${esc(path)}" ${attrs} ${note ? `aria-describedby="${esc(noteId)}"` : ""}>${entries.map(
-      ([id, name, disabled, hint]) => option(id, name, value, disabled, hint),
-    ).join("")}</select></label>`;
-    return note ? `<div>${control}<small id="${esc(noteId)}" class="ai-binding-note">${esc(note)}</small></div>` : control;
-  }
   function pathSet(obj, path, value) {
     const keys = path.split("."),
       key = keys.pop();
@@ -79,7 +72,7 @@
         error ? reject(error) : resolve(result);
       };
       const message = result => finish(null, result);
-      const disconnect = () => finish(new Error(root.chrome.runtime.lastError?.message || "试运行连接已断开"));
+      const disconnect = () => finish(new Error(root.chrome.runtime.lastError?.message || tr("workflow_ui_test_run_disconnected", "试运行连接已断开")));
       previews.set(request.id, () => finish(null, { success: true, value: { cancelled: true } }));
       port.onMessage.addListener(message); port.onDisconnect.addListener(disconnect);
       port.postMessage(request);
@@ -91,35 +84,39 @@
       { type: model.ROUTE, action, ...value },
       { timeoutMs: 120000, logFailures: false },
     );
-    if (result?.success !== true) throw new Error(result?.error || "自动化操作失败");
+    if (result?.success !== true) {
+      const error = new Error(result?.error || tr("workflow_ui_automation_action_failed", "自动化操作失败"));
+      if (result?.errorCode) error.code = result.errorCode;
+      throw error;
+    }
     return result.value;
+  }
+  function errorCaption(error) {
+    if (error.code === "WORKFLOW_REVISION_CONFLICT") return tr("workflow_ui_settings_changed_elsewhere", error.message);
+    return error.messageKey ? tr(error.messageKey, error.message, error.messageParams) : error.message;
   }
   function reportFailure(error, node) {
     if (error.name === "SyntaxError") root.STLoggerSchema.markJsonError(error);
     log.error("workflow-edit-failed", "提示词或自动化操作失败", { error });
     if (!node?.isConnected) return;
     void root.STSettingsDialogs.notice(node.getRootNode(), {
-      title: "操作失败",
-      message: error.name === "SyntaxError" ? "JSON 格式无效，请检查高级配置" : error.message,
+      title: tr("common_operationFailed", "操作失败"),
+      message: error.name === "SyntaxError" ? tr("workflow_ui_invalid_json_check_the_advanced_settings", "JSON 格式无效，请检查高级配置") : errorCaption(error),
     });
   }
   function iconButton(action, label, icon, attrs = "", extra = "") {
     return button(action, root.STWorkflowInstructions.icon(icon), `class="wf-icon ${extra}" title="${esc(label)}" aria-label="${esc(label)}" ${attrs}`);
   }
   function promptChoices(plans, selected) {
-    const choices = plans.map(plan => [plan.id, plan.name + (plan.enabled ? "" : "（已停用）")]);
-    if (selected && !choices.some(([id]) => id === selected)) choices.unshift([selected, selected, true, "请重新选择提示词"]);
+    const choices = plans.map(plan => [plan.id, plan.name + (plan.enabled ? "" : tr("workflow_ui_disabled", "（已停用）"))]);
+    if (selected && !choices.some(([id]) => id === selected)) choices.unshift([selected, selected, true, tr("workflow_ui_select_a_prompt_again", "请重新选择提示词")]);
     return choices;
   }
   function serviceChoices(registry, selected, includeDisabled = false) {
     const choices = registry.services.filter((item) => includeDisabled || item.enabled || item.id === selected)
-      .map((item) => [item.id, item.name + (!item.enabled ? "（已停用）" : !item.host || !item.model ? "（待配置）" : "")]);
+      .map((item) => [item.id, item.name + (!item.enabled ? tr("workflow_ui_disabled", "（已停用）") : !item.host || !item.model ? tr("workflow_ui_setup_required", "（待配置）") : "")]);
     if (selected && !choices.some(([id]) => id === selected)) {
-      const service = root.STAI.boundService(registry, selected);
-      const note = !service ? "请重新选择 AI 服务"
-        : !service.host || !service.model ? "默认 AI 服务待配置"
-        : registry.enabled ? "当前使用默认 AI 服务" : "启用 AI 后使用默认服务";
-      choices.unshift([selected, selected, true, note]);
+      choices.unshift([selected, selected, true, tr("workflow_ui_select_an_ai_service_again", "请重新选择 AI 服务")]);
     }
     return choices;
   }
@@ -142,7 +139,10 @@
     control.disabled = false;
   }
   async function editPrompt(state, existing) {
-    const draft = model.clone(existing || prompts.create());
+    const locale = existing?.tokenLocale || root.STI18n.locale();
+    await root.STI18n.load(locale);
+    const tokenText = root.STI18n.forLocale(locale);
+    const draft = existing ? model.clone(existing) : prompts.createLocalized(tokenText, locale);
     const ai = await state.ctx.storage.getAi();
     let serviceId = root.STAI.DEFAULT_SERVICE_ID;
     let protocol = root.STAI.findService(ai, serviceId).protocol;
@@ -158,17 +158,24 @@
       const groups = prompts.tokenGroups();
       if (advanced) groups.push(["对话上下文", [[prompts.historyName]]]);
       const quick = advanced ? ["模型", "工作流输入"] : ["工作流输入", "Steam 原名"];
-      const tokenButton = (name, compact = false) =>
-        `<button type="button" class="wf-token${compact ? " wf-token-quick" : ""}" data-insert-token="${esc(name)}" title="{{${esc(name)}}}">${esc(name)}</button>`;
+      const tokenButton = (name, compact = false) => {
+        const path = name === prompts.historyName ? "task.history" : groups.flatMap(([, items]) => items).find(([field]) => field === name)?.[1];
+        const label = path ? root.STI18n.text("promptToken." + path, name) : name;
+        return `<button type="button" class="wf-token${compact ? " wf-token-quick" : ""}" data-insert-token="${esc(name)}" title="{{${esc(prompts.spelling(draft, name))}}}">${esc(label)}</button>`;
+      };
+      const groupCaption = name => {
+        const key = { "任务": "task", "服务": "service", "对话上下文": "context" }[name];
+        return key ? tr("workflow.group." + key, name) : root.STWorkflowInstructions.schemaLabel(name);
+      };
       return `<div class="wf-prompt-field">
         <div class="wf-prompt-head"><label for="${id}">${label}</label><div class="wf-token-tools">
           ${quick.map((name) => tokenButton(name, true)).join("")}
-          <button type="button" class="wf-token" data-token-menu popovertarget="${palette}">全部占位符</button>
+          <button type="button" class="wf-token" data-token-menu popovertarget="${palette}">${esc(tr("workflow_ui_all_placeholders", "全部占位符"))}</button>
         </div></div>
         <textarea id="${id}" data-edit="${path}" ${advanced ? 'rows="16" spellcheck="false"' : ""}>${esc(value)}</textarea>
-        <div class="wf-token-menu" id="${palette}" popover aria-label="${label}的占位符">
+        <div class="wf-token-menu" id="${palette}" popover aria-label="${esc(tr("workflow_format_placeholders", "$name$的占位符", { name: label }))}">
           ${groups.filter(([, rows]) => rows.length).map(([name, rows]) =>
-            `<section class="wf-token-group"><h4>${esc(name)}</h4><div>${rows.map(([token]) => tokenButton(token)).join("")}</div></section>`,
+            `<section class="wf-token-group"><h4>${esc(groupCaption(name))}</h4><div>${rows.map(([token]) => tokenButton(token)).join("")}</div></section>`,
           ).join("")}
         </div>
       </div>`;
@@ -177,29 +184,29 @@
     function render() {
       previewGeneration++;
       const editor = draft.mode === "basic"
-        ? promptText("系统提示词", "basic.system", draft.basic.system) +
-          promptText("用户提示词", "basic.user", draft.basic.user)
-        : `<label>API 格式<select data-protocol>
+        ? promptText(tr("workflow_ui_system_prompt", "系统提示词"), "basic.system", draft.basic.system) +
+          promptText(tr("workflow_ui_user_prompt", "用户提示词"), "basic.user", draft.basic.user)
+        : `<label>${esc(tr("settings_field_ai_protocol_label", "API 格式"))}<select data-protocol>
             ${option("chat-completions", "Chat Completions", protocol)}
             ${option("responses", "OpenAI Responses", protocol)}
           </select></label>
-          ${promptText("完整请求 JSON", "advanced." + protocol, draft.advanced[protocol], true)}
-          <div class="wf-actions">${button("format", "格式化 JSON")}</div>`;
+          ${promptText(tr("workflow_ui_full_request_json", "完整请求 JSON"), "advanced." + protocol, draft.advanced[protocol], true)}
+          <div class="wf-actions">${button("format", tr("workflow_ui_format_json", "格式化 JSON"))}</div>`;
       html(node, `<div class="wf-editor">
         <div class="wf-grid">
-          ${input("方案名称", draft.name, "name")}
-          <label>状态<select data-edit="enabled">${option("true", "启用", String(draft.enabled))}
-            ${option("false", "停用", String(draft.enabled))}</select></label>
+          ${input(tr("promptToken_task_rule_name", "方案名称"), draft.name, "name")}
+          <label>${esc(tr("settings_account_status", "状态"))}<select data-edit="enabled">${option("true", tr("common_enable", "启用"), String(draft.enabled))}
+            ${option("false", tr("common_disable", "停用"), String(draft.enabled))}</select></label>
         </div>
         <div class="wf-toolbar">
-          <div class="wf-segment">${button("basic", "基础", `aria-pressed="${draft.mode === "basic"}"`)}
-            ${button("advanced", "高级", `aria-pressed="${draft.mode === "advanced"}"`)}</div>
-          <span title="${draft.mode === "basic" ? "编辑本轮的系统与用户提示词。" : "对话历史占位符可作为 messages 或 input 数组中的一个字符串元素。"}" tabindex="0" aria-label="模式说明">ⓘ</span>
+          <div class="wf-segment">${button("basic", tr("store_titleCustomName_baseTab", "基础"), `aria-pressed="${draft.mode === "basic"}"`)}
+            ${button("advanced", tr("workflow_ui_advanced", "高级"), `aria-pressed="${draft.mode === "advanced"}"`)}</div>
+          <span title="${draft.mode === "basic" ? tr("workflow_ui_edit_the_system_and_user_prompts_for_this_turn", "编辑本轮的系统与用户提示词。") : tr("workflow_ui_the_chat_history_token_can_be_a_string_element_of_the_messag", "对话历史占位符可作为 messages 或 input 数组中的一个字符串元素。")}" tabindex="0" aria-label="${esc(tr("workflow_ui_mode_details", "模式说明"))}">ⓘ</span>
         </div>
         ${editor}
         <div class="wf-actions">
-          ${select("预览用 AI 服务", serviceId, serviceChoices(ai, serviceId, true), "previewService")}
-          ${button("preview", "预览请求")}
+          ${select(tr("workflow_ui_preview_ai_service", "预览用 AI 服务"), serviceId, serviceChoices(ai, serviceId, true), "previewService")}
+          ${button("preview", tr("workflow_ui_preview_request", "预览请求"))}
         </div>
         <div class="wf-error" role="alert"></div>
         <pre class="wf-pre" data-preview hidden></pre>
@@ -213,7 +220,7 @@
       const renderSample = () => html(container, `<div class="aw aw-form"><div class="aw-section">${sample.rows.map(({ name, value }, index) =>
         values.field(name, value, "rows." + index + ".value", scope)).join("")}</div><div class="aw-error" role="alert"></div></div>`);
       const answer = await state.ctx.dialog(state.shadow, {
-        title: "预览数据", className: "aw-param-dialog", form: true,
+        title: tr("workflow_ui_preview_data", "预览数据"), className: "aw-param-dialog", form: true,
         initial: element => element.querySelector('[data-value-text], [data-field-action="collection"]'),
         render: element => {
           container = element;
@@ -221,7 +228,7 @@
           values.bind(element, sample, scope, { dialog: state.ctx.dialog, shadow: state.shadow, render: renderSample });
           element.addEventListener("input", () => { element.querySelector(".aw-error").textContent = ""; });
         },
-        actions: [{ id: "cancel", label: "取消" }, { id: "preview", label: "生成预览", primary: true }],
+        actions: [{ id: "cancel", label: tr("common_cancel", "取消") }, { id: "preview", label: tr("workflow_ui_generate_preview", "生成预览"), primary: true }],
         onAction(action) {
           if (action !== "preview") return true;
           try {
@@ -229,13 +236,13 @@
             const empty = sample.rows.findIndex(({ value }) => flow.activeValue(value).literal === "");
             if (empty !== -1) {
               container.querySelectorAll("[data-value]")[empty].querySelector("[data-value-text]").focus();
-              throw new Error("请为占位符「" + sample.rows[empty].name + "」提供示例数据");
+              throw new Error(tr("workflow_format_sample_data", "请为占位符「$name$」提供示例数据", { name: sample.rows[empty].name }));
             }
             result = Object.fromEntries(sample.rows.map(({ name, value }) => [name, flow.activeValue(value).literal]));
             for (const { name, value } of sample.rows) previewSamples.set(name, value);
             return true;
           } catch (error) {
-            container.querySelector(".aw-error").textContent = error.message;
+            container.querySelector(".aw-error").textContent = errorCaption(error);
             return false;
           }
         },
@@ -243,7 +250,7 @@
       return answer === "preview" ? result : null;
     }
     const result = await state.ctx.dialog(state.shadow, {
-      title: existing ? "编辑提示词" : "新建提示词",
+      title: existing ? tr("workflow_ui_edit_prompt", "编辑提示词") : tr("workflow_ui_new_prompt", "新建提示词"),
       className: "wf-editor-dialog",
       form: true,
       isDirty: () => JSON.stringify(draft) !== initial,
@@ -279,7 +286,8 @@
           const token = event.target.closest("[data-insert-token]");
           if (token) {
             const target = field.querySelector("textarea");
-            const placeholder = `{{${token.dataset.insertToken}}}`;
+            const alias = prompts.installToken(draft, token.dataset.insertToken, tokenText);
+            const placeholder = `{{${alias}}}`;
             target.setRangeText(token.dataset.insertToken === prompts.historyName ? JSON.stringify(placeholder) : placeholder,
               target.selectionStart, target.selectionEnd, "end");
             target.dispatchEvent(new Event("input", { bubbles: true }));
@@ -308,7 +316,7 @@
               draft.advanced[protocol] = JSON.stringify(JSON.parse(draft.advanced[protocol]), null, 2);
             } else if (action === "preview") {
               if (draft.mode === "advanced" && protocol !== root.STAI.findService(ai, serviceId).protocol)
-                throw new Error("请选择与当前 API 格式匹配的预览服务");
+                throw new Error(tr("workflow_ui_select_a_preview_service_matching_the_current_api_format", "请选择与当前 API 格式匹配的预览服务"));
               const serviceProtocol = root.STAI.findService(ai, serviceId).protocol;
               const names = prompts.parameters(draft, serviceProtocol);
               const generation = ++previewGeneration;
@@ -337,7 +345,7 @@
           })().catch((error) => reportFailure(error, node.querySelector(".wf-error")));
         });
       },
-      actions: [{ id: "cancel", label: "取消" }, { id: "save", label: "保存", primary: true }],
+      actions: [{ id: "cancel", label: tr("common_cancel", "取消") }, { id: "save", label: tr("common_save", "保存"), primary: true }],
       onAction: async (action) => {
         if (action !== "save") return true;
         try {
@@ -355,7 +363,7 @@
       },
     });
     if (result === "save" && !state.steamPending)
-      void root.STSettingsDialogs.notice(state.shadow, { title: "保存成功", message: "提示词方案已保存。" });
+      void root.STSettingsDialogs.notice(state.shadow, { title: tr("settings_savePrompt_title", "保存成功"), message: tr("workflow_ui_prompt_plan_saved", "提示词方案已保存。") });
   }
   async function save(state, value) {
     let steamPending = false;
@@ -364,6 +372,7 @@
     state.render();
   }
   function taskBindingsHtml(scenes) {
+    const sceneNames = { "game-name": tr("seed_prompt_P_1_name", "手动游戏改名"), achievement: tr("seed_prompt_P_3_name", "手动成就翻译"), "achievement-group": tr("seed_prompt_P_5_name", "成就分组翻译") };
     const field = (scene, key, label) => {
       const id = `task-${scene}-${key}`;
       return `<label class="form-row"><span class="label" id="${id}-label">${label}</span><span class="control ai-binding-control">
@@ -372,16 +381,16 @@
       </span></label>`;
     };
     return `<form data-ai-task-settings="${scenes.join(" ")}">
-      ${scenes.map((scene) => `<section aria-label="${esc(root.STAI.MANUAL_TASKS[scene])}">
-        <div class="section-header"><span class="title">${esc(root.STAI.MANUAL_TASKS[scene])}</span></div>
+      ${scenes.map((scene) => `<section aria-label="${esc(sceneNames[scene])}">
+        <div class="section-header"><span class="title">${esc(sceneNames[scene])}</span></div>
         <div class="settings-grid">
-          ${field(scene, "service", "AI 服务")}
-          ${field(scene, "prompt", "提示词方案")}
+          ${field(scene, "service", tr("onboarding_aiServices", "AI 服务"))}
+          ${field(scene, "prompt", tr("settings_translate_prompt", "提示词方案"))}
         </div>
       </section>`).join("")}
       <div class="wf-error" role="alert"></div>
       <div class="settings-actions form-footer">
-        <button type="submit" class="settings-save btn btn-blue" disabled>保存设置</button>
+        <button type="submit" class="settings-save btn btn-blue" disabled>${esc(tr("settings_storePriceChart_action_save", "保存设置"))}</button>
       </div>
     </form>`;
   }
@@ -421,7 +430,12 @@
             for (const { scene, service, prompt } of controls)
               next.bindings[scene] = { serviceId: service.value, promptId: prompt.value };
             bundle = await ctx.storage.setWorkflow(next);
-            if (form.isConnected) void root.STSettingsDialogs.notice(shadow, { title: "保存成功", message: "AI 绑定已保存。" });
+            for (const { scene, service, prompt } of controls) {
+              const binding = bundle.bindings[scene];
+              if (service.value === binding.serviceId) root.STSettingsFields.acceptEdit(service);
+              if (prompt.value === binding.promptId) root.STSettingsFields.acceptEdit(prompt);
+            }
+            if (form.isConnected) void root.STSettingsDialogs.notice(shadow, { title: tr("settings_savePrompt_title", "保存成功"), message: tr("workflow_ui_ai_bindings_saved", "AI 绑定已保存。") });
           } catch (error) {
             reportFailure(error, errorNode);
           } finally {
@@ -433,16 +447,16 @@
       reportFailure(error, forms[0].querySelector(".wf-error"));
       for (const form of forms.slice(1)) {
         const node = form.querySelector(".wf-error");
-        node.textContent = error.message;
+        node.textContent = errorCaption(error);
       }
     }
   }
   /** 提示词与自动化宿主使用同一配置快照，保存后只刷新当前页签 */
   function promptsHtml(bundle) {
     const rows = bundle.prompts.map(plan => `<div class="wf-row" data-id="${esc(plan.id)}" data-disabled="${!plan.enabled}">
-      <strong class="wf-prompt-copy">${esc(plan.name)}<br><small>${plan.mode === "basic" ? "基础" : "高级"}</small></strong>
-      <div class="wf-rule-actions">${iconButton("prompt-toggle", (plan.enabled ? "停用 " : "启用 ") + plan.name, plan.enabled ? "circle-check" : "circle-off", `aria-pressed="${plan.enabled}"`, "wf-toggle")}${iconButton("prompt-edit", "编辑 " + plan.name, "pencil")}${iconButton("prompt-delete", "删除 " + plan.name, "trash")}</div></div>`).join("");
-    return `<div class="wf"><div class="wf-toolbar"><span>${bundle.prompts.length} 个提示词</span>${button("prompt-new", "新建提示词", 'class="wf-primary"')}</div>${rows}<div class="wf-error" role="alert"></div></div>`;
+      <strong class="wf-prompt-copy">${esc(plan.name)}<br><small>${plan.mode === "basic" ? tr("store_titleCustomName_baseTab", "基础") : tr("workflow_ui_advanced", "高级")}</small></strong>
+      <div class="wf-rule-actions">${iconButton("prompt-toggle", (plan.enabled ? tr("common_disable", "停用") + " " : tr("common_enable", "启用") + " ") + plan.name, plan.enabled ? "circle-check" : "circle-off", `aria-pressed="${plan.enabled}"`, "wf-toggle")}${iconButton("prompt-edit", tr("store_titleCustomName_edit", "编辑") + " " + plan.name, "pencil")}${iconButton("prompt-delete", tr("common_delete", "删除") + " " + plan.name, "trash")}</div></div>`).join("");
+    return `<div class="wf"><div class="wf-toolbar"><span>${esc(tr("workflow_format_prompts", "$count$ 个提示词", { count: bundle.prompts.length }))}</span>${button("prompt-new", tr("workflow_ui_new_prompt", "新建提示词"), 'class="wf-primary"')}</div>${rows}<div class="wf-error" role="alert"></div></div>`;
   }
   async function promptAction(state, control) {
     const name = control.dataset.wf, id = control.closest("[data-id]")?.dataset.id;
@@ -452,9 +466,9 @@
     if (name === "prompt-toggle") { next.prompts[index].enabled = !next.prompts[index].enabled; await save(state, next); }
     if (name === "prompt-delete") {
       const refs = await rpc("prompt-references", { id });
-      const answer = await state.ctx.dialog(state.shadow, { title: "删除提示词", className: "aw-automation-dialog", form: true,
-        message: `将删除“${next.prompts[index].name}”，该操作无法撤销。${refs.length ? "\n以下位置需要检查提示词绑定：" + refs.join("、") : ""}`,
-        actions: [{ id: "cancel", label: "取消" }, { id: "delete", label: "删除", primary: true, danger: true }] });
+      const answer = await state.ctx.dialog(state.shadow, { title: tr("workflow_ui_delete_prompt", "删除提示词"), className: "aw-automation-dialog", form: true,
+        message: tr("workflow_format_delete_prompt", "将删除“$name$”，该操作无法撤销。", { name: next.prompts[index].name }) + (refs.length ? "\n" + tr("workflow_ui_check_prompt_bindings_in", "以下位置需要检查提示词绑定：") + refs.join("、") : ""),
+        actions: [{ id: "cancel", label: tr("common_cancel", "取消") }, { id: "delete", label: tr("common_delete", "删除"), primary: true, danger: true }] });
       if (answer === "delete") { next.prompts.splice(index, 1); await save(state, next); }
     }
   }
@@ -466,7 +480,7 @@
       } catch (error) { html(node, '<div class="wf-error" role="alert"></div>'); reportFailure(error, node.firstElementChild); }
     }
   }
-  root.STWorkflowView = Object.freeze({ mount, mountTaskBindings, taskBindingsHtml, promptsHtml, promptAction, style, rpc, serviceChoices, promptChoices, fillBindingSelect, syncBindingNote, esc, html, reportFailure });
-  root.STSettingsPages.register({ id: "automation", name: "自动化", order: 5, style, hideHeader: true, html: () => '<div data-workflow="automation" role="region" aria-label="自动化">正在读取…</div>', onOpen: mount });
+  root.STWorkflowView = Object.freeze({ mount, mountTaskBindings, taskBindingsHtml, promptsHtml, promptAction, style, rpc, serviceChoices, promptChoices, fillBindingSelect, syncBindingNote, esc, html, reportFailure, errorCaption });
+  root.STSettingsPages.register({ id: "automation", get name() { return tr("settings_page_automation_name", "自动化"); }, order: 5, style, hideHeader: true, html: () => `<div data-workflow="automation" role="region" aria-label="${esc(tr("settings_page_automation_name", "自动化"))}">${esc(tr("workflow_ui_loading", "正在读取…"))}</div>`, onOpen: mount });
 
 })(globalThis);

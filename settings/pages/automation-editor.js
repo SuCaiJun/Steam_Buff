@@ -10,29 +10,30 @@
  */
 ((root) => {
   "use strict";
+  const tr = (key, fallback, params) => globalThis.STI18n?.text(key, fallback, params) ?? fallback;
   const model = root.STAutomation, flow = root.STWorkflow, instructions = root.STWorkflowInstructions, tools = root.STWorkflowTools, css = root.STComponents.css;
   let clipboard = null;
-  const statuses = { queued: "排队中", held: "未启动", generating: "AI 调用中", "running-script": "脚本执行中", committing: "正在提交", "running-steam": "Steam 指令执行中",
-    "preparing-notification": "消息投递中", "waiting-notification": "等待交互", "waiting-delay": "等待中",
-    completed: "已完成", failed: "失败", cancelled: "已取消", expired: "已失效", uncertain: "结果待核实" };
+  const statuses = { get queued() { return tr("workflow_ui_queued", "排队中"); }, get held() { return tr("workflow_ui_not_started", "未启动"); }, get generating() { return tr("workflow_ui_waiting_for_ai", "AI 调用中"); }, get "running-script"() { return tr("workflow_ui_running_script", "脚本执行中"); }, get committing() { return tr("workflow_ui_committing", "正在提交"); }, get "running-steam"() { return tr("workflow_ui_running_steam_action", "Steam 指令执行中"); },
+    get "preparing-notification"() { return tr("workflow_ui_delivering_message", "消息投递中"); }, get "waiting-notification"() { return tr("workflow_ui_waiting_for_input", "等待交互"); }, get "waiting-delay"() { return tr("workflow_ui_waiting", "等待中"); },
+    get completed() { return tr("messageCenter_business_completed", "已完成"); }, get failed() { return tr("workflow_ui_failed", "失败"); }, get cancelled() { return tr("messageCenter_business_cancelled", "已取消"); }, get expired() { return tr("messageCenter_business_expired", "已失效"); }, get uncertain() { return tr("workflow_ui_outcome_unconfirmed", "结果待核实"); } };
   function runStatus(job) {
-    if (job.status === "failed" && job.exception?.code === "WORKFLOW_RUN_TIMEOUT") return "超时结束";
-    if (job.status === "running-script" && (job.currentAction || (job.workflow && job.flow && flow.currentNode(job.workflow, job.flow)?.action)) === "http-request") return "HTTP 请求中";
+    if (job.status === "failed" && job.exception?.code === "WORKFLOW_RUN_TIMEOUT") return tr("workflow_ui_timed_out", "超时结束");
+    if (job.status === "running-script" && (job.currentAction || (job.workflow && job.flow && flow.currentNode(job.workflow, job.flow)?.action)) === "http-request") return tr("workflow_ui_sending_http_request", "HTTP 请求中");
     return statuses[job.status] || job.status;
   }
   const calendar = root.STAutomationCalendar;
-  const triggerModes = { manual: "手动触发", automatic: "自动触发", schedule: "定时触发" };
-  const gameEvents = { added: "游戏入库", installed: "游戏安装" };
-  const installStages = [["started", "开始下载"], ["completed", "安装完成"]];
-  const frequencies = [["minute", "每分钟"], ["hour", "每小时"], ["day", "每天"], ["week", "每周"], ["month", "每月"], ["cron", "高级"]];
+  const triggerModes = { get manual() { return tr("workflow_ui_manual", "手动触发"); }, get automatic() { return tr("workflow_ui_automatic", "自动触发"); }, get schedule() { return tr("workflow_ui_scheduled", "定时触发"); } };
+  const gameEvents = { get added() { return tr("workflow_ui_game_added_to_library", "游戏入库"); }, get installed() { return tr("workflow_ui_game_installation", "游戏安装"); } };
+  const installStages = () => [["started", tr("workflow_ui_download_started", "开始下载")], ["completed", tr("workflow_ui_installation_completed", "安装完成")]];
+  const frequencies = () => [["minute", tr("workflow_ui_every_minute", "每分钟")], ["hour", tr("workflow_ui_hourly", "每小时")], ["day", tr("workflow_ui_daily", "每天")], ["week", tr("workflow_ui_weekly", "每周")], ["month", tr("workflow_ui_monthly", "每月")], ["cron", tr("workflow_ui_advanced", "高级")]];
   const scheduleDefaults = {
     minute: { mode: "minute", every: 1 }, hour: { mode: "hour", minute: 0 }, day: { mode: "day", time: "09:00" },
     week: { mode: "week", weekdays: [1], time: "09:00" }, month: { mode: "month", day: 1, time: "09:00" },
     cron: { mode: "cron", expression: "" },
   };
-  const weekdays = [[1, "周一"], [2, "周二"], [3, "周三"], [4, "周四"], [5, "周五"], [6, "周六"], [0, "周日"]];
-  const tabs = [["workflows", "工作流"], ["prompts", "提示词"], ["triggers", "触发器"], ["history", "运行记录"]];
-  const variableTypes = { any: "任意数据", text: "文本", number: "数字", boolean: "布尔值", list: "列表", object: "字典", result: "指令结果" };
+  const weekdays = () => [[1, tr("workflow_ui_mon", "周一")], [2, tr("workflow_ui_tue", "周二")], [3, tr("workflow_ui_wed", "周三")], [4, tr("workflow_ui_thu", "周四")], [5, tr("workflow_ui_fri", "周五")], [6, tr("workflow_ui_sat", "周六")], [0, tr("workflow_ui_sun", "周日")]];
+  const tabs = () => [["workflows", tr("workflow_ui_workflows", "工作流")], ["prompts", tr("workflow_ui_prompts", "提示词")], ["triggers", tr("workflow_ui_triggers", "触发器")], ["history", tr("workflow_ui_run_history", "运行记录")]];
+  const variableTypes = { get any() { return tr("workflow_ui_any_type", "任意数据"); }, get text() { return tr("steam_independentName_bulk_text", "文本"); }, get number() { return tr("steam_independentName_bulk_number", "数字"); }, get boolean() { return tr("workflow_ui_boolean", "布尔值"); }, get list() { return tr("seed_variable_list", "列表"); }, get object() { return tr("seed_variable_record", "字典"); }, get result() { return tr("workflow_ui_action_result", "指令结果"); } };
   const style = css.compose(
     css.button(".aw button:where(:not([data-st-combo-toggle])):where(:not([data-st-combo-option]))", { density: "compact" }), css.button(".aw button.aw-primary", { variant: "primary", density: "compact" }),
     css.button(".aw button.aw-icon", { variant: "ghost", density: "compact" }),
@@ -122,6 +123,10 @@
     .aw-param-dialog .aw-trigger-form .aw-trigger-limit{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.aw-trigger-limit input{width:78px!important}
     .aw-trigger-child .aw-grid{margin-block:8px}
     .aw-line-copy small{white-space:pre-wrap}
+    .aw-line[aria-invalid=true]{border-inline-start:3px solid var(--st-color-danger-text);background-color:color-mix(in srgb,var(--st-color-danger-text) 7%,transparent)}
+    .aw-line[aria-invalid=true][aria-selected=true]{background-color:var(--st-color-primary-surface)}
+    .aw-error-marker{display:inline-flex;vertical-align:middle;margin-inline-start:6px;color:var(--st-color-danger-text)}.aw-error-marker .aw-command-icon{width:16px;height:16px}
+    .aw-import-issues .settings-dialog-message{white-space:pre-line;overflow-wrap:anywhere}
     .aw-summary-reference{display:inline;border:1px solid var(--st-color-border-hover);border-radius:var(--st-radius-sm);background:var(--st-color-primary-surface);padding-inline:3px;box-decoration-break:clone;-webkit-box-decoration-break:clone}
     .aw-note-card{display:flex;align-items:center;gap:8px;min-width:0;padding:6px 8px;border-radius:var(--st-radius-sm);background:color-mix(in srgb,var(--st-color-success) 12%,transparent);color:var(--st-color-success-bright);font-size:var(--st-font-size-caption)}
     .aw-note-card .aw-command-icon{width:16px;height:16px}
@@ -173,20 +178,19 @@
     : prop(label, path, value, null, kind);
   const get = (object, path) => flow.pathGet(object, path.split("."));
   function set(object, path, value) { const keys = path.split("."), key = keys.pop(); flow.pathGet(object, keys)[key] = value; }
-  const paths = value => String(value).trim().split(".").filter(Boolean);
   const valueText = (...args) => root.STWorkflowValues.text(...args);
   const valueField = (...args) => root.STWorkflowValues.field(...args);
   const collect = (...args) => root.STWorkflowValues.collect(...args);
   const outputField = (...args) => root.STWorkflowValues.output(...args);
   function conditionHtml(value, path, workflow, removable = false) {
-    if (value.children) return `<div class="aw-condition-group">${parameterProp("匹配方式", path + ".op", value.op, [["all", "全部满足"], ["any", "任一满足"]])}
+    if (value.children) return `<div class="aw-condition-group">${parameterProp(tr("workflow_ui_match_mode", "匹配方式"), path + ".op", value.op, [["all", tr("workflow_ui_match_all", "全部满足")], ["any", tr("workflow_ui_match_any", "任一满足")]])}
       ${value.children.map((child, index) => conditionHtml(child, path + ".children." + index, workflow, true)).join("")}
-      <div class="aw-tools">${button("condition-add", "添加条件", `data-path="${path}"`, "plus")}</div></div>`;
-    return `<div class="aw-condition${removable ? "" : " aw-single-condition"}"><div class="aw-condition-fields">${valueField("对象1", value.left, path + ".left", workflow)}${parameterProp("关系", path + ".op", value.op, Object.entries(flow.operations))}
-      ${flow.unary.has(value.op) ? "" : valueField("对象2", value.right || flow.literal(""), path + ".right", workflow, [], "any", false, instructions.choices(workflow, value.left))}</div>${removable ? iconButton("condition-delete", "删除条件", "trash", `data-path="${path}"`) : ""}</div>`;
+      <div class="aw-tools">${button("condition-add", tr("workflow_ui_add_condition", "添加条件"), `data-path="${path}"`, "plus")}</div></div>`;
+    return `<div class="aw-condition${removable ? "" : " aw-single-condition"}"><div class="aw-condition-fields">${valueField(tr("workflow_ui_first_operand", "对象1"), value.left, path + ".left", workflow)}${parameterProp(tr("workflow_ui_operator", "关系"), path + ".op", value.op, instructions.schemaChoices(Object.entries(flow.operations)))}
+      ${flow.unary.has(value.op) ? "" : valueField(tr("workflow_ui_second_operand", "对象2"), value.right || flow.literal(""), path + ".right", workflow, [], "any", false, instructions.choices(workflow, value.left))}</div>${removable ? iconButton("condition-delete", tr("workflow_ui_remove_condition", "删除条件"), "trash", `data-path="${path}"`) : ""}</div>`;
   }
   async function confirm(state, title, message) {
-    return await state.ctx.dialog(state.shadow, { title, className: "aw-automation-dialog", form: true, message, actions: [{ id: "cancel", label: "取消" }, { id: "confirm", label: "删除", primary: true, danger: true }] }) === "confirm";
+    return await state.ctx.dialog(state.shadow, { title, className: "aw-automation-dialog", form: true, message, actions: [{ id: "cancel", label: tr("common_cancel", "取消") }, { id: "confirm", label: tr("common_delete", "删除"), primary: true, danger: true }] }) === "confirm";
   }
   function reportFailure(error, element, editor = null) {
     if (editor) { locateError(editor, error); element = editor.root.querySelector("[data-editor-error]"); }
@@ -202,20 +206,72 @@
     const url = URL.createObjectURL(new Blob([JSON.stringify({ schemaVersion: 1, workflow }, null, 2)], { type: "application/json" }));
     const link = document.createElement("a"); link.href = url; link.download = workflow.name.replace(/[<>:"/\\|?*]/g, "_") + ".workflow.json"; link.click(); root.setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
+  function promptIssues(workflow, plans, registry) {
+    const errors = [];
+    for (const node of flow.walk(workflow.steps)) {
+      if (node.action === "ai-call") errors.push(...tools.promptDiagnostics(node, plans, registry));
+    }
+    return errors;
+  }
+  function importReferenceIssues(workflow) {
+    // 有效的指令树可以带入编辑器重绑变量。损坏的文件格式仍由原校验器拒绝。
+    const editable = error => error.code === "WORKFLOW_CONFIG_INVALID" && error.nodeId &&
+      ["workflow_error_unassigned", "workflow_error_deleted_variable", "workflow_error_output"].includes(error.messageKey);
+    try { flow.validate(workflow); return []; }
+    catch (error) {
+      if (!editable(error)) throw error;
+      const issues = tools.diagnostics(tools.openDraft(workflow));
+      if (!issues.length) throw error;
+      const invalid = issues.find(issue => !editable(issue));
+      if (invalid) throw invalid;
+      return issues;
+    }
+  }
+  async function importFlow(state, file) {
+    const data = JSON.parse(await file.text());
+    if (data?.schemaVersion !== 1) throw new Error(tr("workflow_ui_invalid_workflow_file_version", "工作流文件版本无效"));
+    const workflow = data.workflow, issues = importReferenceIssues(workflow);
+    const calls = [...flow.walk(workflow.steps)].filter(node => node.action === "ai-call");
+    if (calls.length) {
+      const registry = await state.ctx.storage.getAi();
+      for (const node of calls) issues.push(...tools.promptDiagnostics(node, state.bundle.prompts, registry));
+    }
+    if (issues.length) {
+      const lines = tools.lines(tools.openDraft(workflow));
+      issues.sort((left, right) => lines.get(left.nodeId).number - lines.get(right.nodeId).number);
+      const details = issues.map(issue => {
+        const { number, row } = lines.get(issue.nodeId);
+        return [tr("workflow_format_line", "第 $count$ 行", { count: number }), instructions.name(instructions.key(row)), view().errorCaption(issue)].join(" · ");
+      });
+      const answer = await state.ctx.dialog(state.shadow, {
+        title: tr("workflow_import_issues_title", "工作流有错误，是否修改？"), className: "aw-import-issues", form: true,
+        message: details.join("\n"), actions: [
+          { id: "cancel", label: tr("workflow_cancel_import", "取消导入") },
+          { id: "edit", label: tr("workflow_edit_issues", "去修改"), primary: true },
+        ],
+      });
+      if (answer === "edit") await editWorkflow(state, workflow, issues[0]);
+      return;
+    }
+    const next = flow.clone(state.bundle);
+    workflow.id = flow.numericId("wf-", next.workflows); workflow.revision = 1;
+    next.workflows.push(workflow);
+    await save(state, next);
+  }
   async function editVariable(state, workflow, selected = null) {
     const lifetime = new AbortController();
     const draft = selected ? { ...selected } : { id: flow.numericId("var-", workflow.variables), name: "", type: "any" };
-    return state.ctx.dialog(state.shadow, { title: selected ? "编辑变量" : "新建变量", className: "aw-automation-dialog", form: true,
+    return state.ctx.dialog(state.shadow, { title: selected ? tr("workflow_ui_edit_variable", "编辑变量") : tr("workflow_ui_new_variable", "新建变量"), className: "aw-automation-dialog", form: true,
       render: node => {
-        html(node, `<div class="aw aw-form">${prop("变量名称", "name", draft.name)}${parameterProp("类型", "type", draft.type, [["any", "任意数据"], ["text", "文本"], ["number", "数字"], ["boolean", "布尔值"], ["list", "列表"], ["object", "字典"], ["result", "指令结果"]])}<div class="aw-error" role="alert"></div></div>`);
+        html(node, `<div class="aw aw-form">${prop(tr("workflow_ui_variable_name", "变量名称"), "name", draft.name)}${parameterProp(tr("common_type", "类型"), "type", draft.type, [["any", tr("workflow_ui_any_type", "任意数据")], ["text", tr("steam_independentName_bulk_text", "文本")], ["number", tr("steam_independentName_bulk_number", "数字")], ["boolean", tr("workflow_ui_boolean", "布尔值")], ["list", tr("seed_variable_list", "列表")], ["object", tr("seed_variable_record", "字典")], ["result", tr("workflow_ui_action_result", "指令结果")]])}<div class="aw-error" role="alert"></div></div>`);
         root.STSettingsFields.bindSearchCombos(node, lifetime.signal);
       },
-      actions: [{ id: "cancel", label: "取消" }, { id: "save", label: "确定", primary: true }],
+      actions: [{ id: "cancel", label: tr("common_cancel", "取消") }, { id: "save", label: tr("common_confirm", "确定"), primary: true }],
       onAction: (action, node) => {
         if (action !== "save") return true;
         try {
           collect(node, draft, workflow);
-          if (!draft.name.trim() || workflow.variables.some(item => item.id !== draft.id && item.name === draft.name)) throw new Error("请填写不重复的变量名称");
+          if (!draft.name.trim() || workflow.variables.some(item => item.id !== draft.id && item.name === draft.name)) throw new Error(tr("workflow_ui_enter_a_unique_variable_name", "请填写不重复的变量名称"));
           if (selected) Object.assign(selected, draft); else workflow.variables.push(draft);
           return true;
         } catch (error) { reportFailure(error, node.querySelector(".aw-error")); return false; }
@@ -223,12 +279,12 @@
     }).then(answer => answer === "save" ? draft.id : null).finally(() => lifetime.abort());
   }
   const description = (row, workflow, editor) => instructions.describe(row, workflow, editor).map(part => typeof part === "string" ? esc(part) : `<span class="aw-summary-value${part.reference ? " aw-summary-reference" : ""}">${esc(part.value)}</span>`).join("");
-  const permissionLabel = "权益";
+  const permissionLabel = () => tr("settings_account_profileEntitlement", "权益");
   const nameBadge = id => {
     const permission = flow.instructionPermission(id);
-    return permission ? `<span class="aw-name-badge" title="${esc(flow.permissionNotice(permission))}">${permissionLabel}</span>` : "";
+    return permission ? `<span class="aw-name-badge" title="${esc(flow.permissionNotice(permission, root.STI18n.text))}">${permissionLabel()}</span>` : "";
   };
-  function nodeName(node) { return node.action === "notify" && node.messageType === "interactive" ? "发送交互消息并等待" : flow.names[flow.type(node)]; }
+  function nodeName(node) { return node.action === "notify" && node.messageType === "interactive" ? instructions.name("interactive") : instructions.name(flow.type(node)); }
   const isFold = row => row?.node?.kind === "fold";
   const canFold = row => row?.marker === "fold-start" ? row.partner !== undefined : !!row?.node && !row.marker && row.node.kind !== "action";
   const containsFold = (row, target) => row.marker === "fold-start" && row.partner !== undefined && target.path &&
@@ -265,19 +321,19 @@
       paintEditor(editor); focusSelection(editor); return;
     }
     if (["else-if", "else", "catch", "finally"].includes(row.marker)) {
-      const title = flow.names[instructions.key(row)];
-      if (!await confirm(state, "删除分支", `将删除“${title}”分支及其内部全部步骤，可在保存前撤销。`)) return;
+      const title = instructions.name(instructions.key(row));
+      if (!await confirm(state, tr("workflow_ui_delete_branch", "删除分支"), tr("workflow_format_delete_branch", "将删除“$name$”分支及其内部全部步骤，可在保存前撤销。", { name: title }))) return;
       snapshot(editor);
       if (row.marker === "else-if") row.node.branches.splice(row.branch, 1);
       else row.node[row.marker === "else" ? "otherwise" : row.marker] = null;
       editor.selected = row.node.id; paintEditor(editor); focusSelection(editor); return;
     }
-    if (!await confirm(state, "删除指令", `将删除“${nodeName(row.node)}”${row.node.kind !== "action" ? "及其内部全部步骤" : ""}，可在保存前撤销。`)) return;
+    if (!await confirm(state, tr("workflow_ui_delete_action", "删除指令"), row.node.kind === "action" ? tr("workflow_format_delete_action", "将删除“$name$”，可在保存前撤销。", { name: nodeName(row.node) }) : tr("workflow_format_delete_block", "将删除“$name$”及其内部全部步骤，可在保存前撤销。", { name: nodeName(row.node) }))) return;
     snapshot(editor); flow.pathGet(editor.draft, row.path.slice(0, -1)).splice(row.path.at(-1), 1); paintEditor(editor); focusSelection(editor);
   }
   function moveNode(editor, source, destination) {
     if (!source?.path || !destination) return;
-    if (destination.path.slice(0, source.path.length).join(".") === source.path.join(".")) throw new Error("不能把流程块移入自身");
+    if (destination.path.slice(0, source.path.length).join(".") === source.path.join(".")) throw new Error(tr("workflow_ui_a_block_cannot_be_moved_into_itself", "不能把流程块移入自身"));
     const from = flow.pathGet(editor.draft, source.path.slice(0, -1)), to = flow.pathGet(editor.draft, destination.path), index = Number(source.path.at(-1));
     const target = destination.index - (from === to && index < destination.index ? 1 : 0);
     if (from === to && target === index) return;
@@ -323,9 +379,9 @@
     const insertion = editor.insertion; if (!insertion) return;
     const input = editor.root.querySelector("[data-insert-search]"), picker = editor.root.querySelector(".aw-command-picker");
     const query = insertion.query.trim().toLocaleLowerCase();
-    insertion.candidates = instructions.catalog.filter(item => (item.name + " " + item.category + " " + instructions.hints[item.id]).toLocaleLowerCase().includes(query));
+    insertion.candidates = instructions.catalog.filter(item => [instructions.name(item.id), instructions.schemaLabel(item.category), instructions.schemaLabel(item.group), instructions.hint(item.id), item.id].join(" ").toLocaleLowerCase().includes(query));
     insertion.active = Math.min(insertion.active, Math.max(0, insertion.candidates.length - 1));
-    html(picker, insertion.candidates.map((item, index) => `<button type="button" class="aw-candidate" id="aw-candidate-${item.id}" role="option" tabindex="-1" aria-selected="${index === insertion.active}" data-instruction="${item.id}">${commandIcon(item.id)}<span><span>${esc(item.name)}${nameBadge(item.id)}</span><small>${esc(item.category)} · ${esc(instructions.hints[item.id])}</small></span></button>`).join("") || '<div class="aw-picker-empty" role="status">没有匹配的指令</div>');
+    html(picker, insertion.candidates.map((item, index) => `<button type="button" class="aw-candidate" id="aw-candidate-${item.id}" role="option" tabindex="-1" aria-selected="${index === insertion.active}" data-instruction="${item.id}">${commandIcon(item.id)}<span><span>${esc(instructions.name(item.id))}${nameBadge(item.id)}</span><small>${esc(instructions.schemaLabel(item.category))} · ${esc(instructions.hint(item.id))}</small></span></button>`).join("") || `<div class="aw-picker-empty" role="status">${esc(tr("workflow_ui_no_matching_actions", "没有匹配的指令"))}</div>`);
     if (insertion.candidates.length) input.setAttribute("aria-activedescendant", "aw-candidate-" + insertion.candidates[insertion.active].id);
     else input.removeAttribute("aria-activedescendant");
     if (!picker.matches(":popover-open")) picker.showPopover();
@@ -338,6 +394,10 @@
     const oldPicker = node.querySelector(".aw-command-picker");
     if (oldPicker?.matches(":popover-open")) oldPicker.hidePopover();
     const previousIndex = editor.rows.findIndex(row => row.key === editor.selected);
+    const rowErrors = new Map();
+    for (const error of editorDiagnostics(editor)) {
+      if (error.nodeId && error.severity !== "warning" && !rowErrors.has(error.nodeId)) rowErrors.set(error.nodeId, error);
+    }
     editor.rows = flow.rows(draft, editor.collapsed);
     if (!editor.rows.some(row => row.key === editor.selected)) {
       const visible = editor.rows.filter(row => row.marker !== "insert");
@@ -353,32 +413,34 @@
         else canCollapse = true;
       }
     }
-    const insertRow = () => `<div class="aw-insert-row" style="--aw-depth:${editor.insertion.depth}"><input type="search" data-insert-search role="combobox" aria-label="插入指令" aria-autocomplete="list" aria-controls="aw-command-options" aria-expanded="true" autocomplete="off" placeholder="输入或选择指令" value="${esc(editor.insertion.query)}">${iconButton("insert-cancel", "取消插入", "x")}<div class="aw aw-command-picker" id="aw-command-options" role="listbox" aria-label="可插入的指令" popover="manual"></div></div>`;
+    const insertRow = () => `<div class="aw-insert-row" style="--aw-depth:${editor.insertion.depth}"><input type="search" data-insert-search role="combobox" aria-label="${esc(tr("workflow_ui_insert_action", "插入指令"))}" aria-autocomplete="list" aria-controls="aw-command-options" aria-expanded="true" autocomplete="off" placeholder="${esc(tr("workflow_ui_type_or_select_an_action", "输入或选择指令"))}" value="${esc(editor.insertion.query)}">${iconButton("insert-cancel", tr("workflow_ui_cancel_insertion", "取消插入"), "x")}<div class="aw aw-command-picker" id="aw-command-options" role="listbox" aria-label="${esc(tr("workflow_ui_available_actions", "可插入的指令"))}" popover="manual"></div></div>`;
     html(canvas, editor.rows.map((row, index) => {
       const inserting = editor.insertion?.key === row.key;
       if (row.marker === "insert") {
         if (inserting) return insertRow();
         if (row.key !== "root-gap") return "";
-        return `<div class="aw-gap aw-end-gap" data-row="${index}" style="--aw-depth:${row.depth}"><button type="button" data-aw="select-gap"><span class="aw-end-plus">${icon("plus")}</span>点击添加指令</button></div>`;
+        return `<div class="aw-gap aw-end-gap" data-row="${index}" style="--aw-depth:${row.depth}"><button type="button" data-aw="select-gap"><span class="aw-end-plus">${icon("plus")}</span>${esc(tr("workflow_ui_add_an_action", "点击添加指令"))}</button></div>`;
       }
-      const key = instructions.key(row), title = row.marker === "fold-start" ? "折叠开始" : row.marker === "fold-end" ? "折叠结束" : flow.names[key];
+      const key = instructions.key(row), title = row.marker === "fold-start" ? tr("workflow_ui_start_fold", "折叠开始") : row.marker === "fold-end" ? tr("workflow_ui_end_fold", "折叠结束") : instructions.name(key);
       const guides = Array.from({ length: row.depth + 1 }, (_, level) => `<span class="aw-indent" style="--aw-level:${level}"></span>`).join("");
       const collapsed = editor.collapsed.has(row.node.id);
-      const fold = canFold(row) ? iconButton("collapse", collapsed ? "展开流程块" : "折叠流程块", collapsed ? "chevron-right" : "chevron-down", `aria-expanded="${!collapsed}"`) : "";
-      const nodeIcon = row.marker ? `<span class="aw-node-icon">${commandIcon(key)}</span>` : `<button type="button" class="aw-node-icon aw-handle" data-aw="node-drag" aria-label="移动 ${esc(title)}，Alt 加方向键移动或调整层级" title="拖动 ${esc(title)}">${commandIcon(key)}</button>`;
+      const fold = canFold(row) ? iconButton("collapse", collapsed ? tr("workflow_ui_expand_block", "展开流程块") : tr("workflow_ui_collapse_block", "折叠流程块"), collapsed ? "chevron-right" : "chevron-down", `aria-expanded="${!collapsed}"`) : "";
+      const nodeIcon = row.marker ? `<span class="aw-node-icon">${commandIcon(key)}</span>` : `<button type="button" class="aw-node-icon aw-handle" data-aw="node-drag" aria-label="${esc(tr("workflow_format_move", "移动 $name$，Alt 加方向键移动或调整层级", { name: title }))}" title="${esc(tr("workflow_format_drag", "拖动 $name$", { name: title }))}">${commandIcon(key)}</button>`;
       const disabled = row.marker === "end-if" ? row.node.endDisabled : row.node.disabled;
-      const summary = isFold(row) ? esc(row.node.name || (row.marker === "fold-start" ? "未命名折叠区域" : "")) : description(row, draft, editor);
+      const error = rowErrors.get(row.key);
+      const errorMarker = error ? `<span class="aw-error-marker" role="img" aria-label="${esc(tr("common_error", "错误"))}" title="${esc(view().errorCaption(error))}">${icon("alert-triangle")}</span>` : "";
+      const summary = isFold(row) ? esc(row.node.name || (row.marker === "fold-start" ? tr("workflow_ui_untitled_fold", "未命名折叠区域") : "")) : description(row, draft, editor);
       const content = key === "comment"
-        ? `<div class="aw-note-card aw-standalone-note">${nodeIcon}<span class="aw-note-text">${summary}</span></div>`
-        : `${nodeIcon}<div class="aw-line-copy"><strong>${esc(title)}${nameBadge(key)}</strong>${summary ? `<small>${summary}</small>` : ""}</div>`;
+        ? `<div class="aw-note-card aw-standalone-note">${nodeIcon}<span class="aw-note-text">${summary}${errorMarker}</span></div>`
+        : `${nodeIcon}<div class="aw-line-copy"><strong>${esc(title)}${nameBadge(key)}${errorMarker}</strong>${summary ? `<small>${summary}</small>` : ""}</div>`;
       const attachment = !row.marker && row.node.note
         ? `<span class="aw-note-card aw-node-note" title="${esc(row.node.note)}">${icon("message")}<span class="aw-note-text">${esc(row.node.note)}</span></span>` : "";
-      return (inserting && editor.insertion.before ? insertRow() : "") + `<div class="aw-line ${row.marker ? "aw-marker" : ""}${disabled ? " aw-instruction-disabled" : ""}${key === "comment" ? " aw-comment-line" : ""}" data-row="${index}" data-key="${esc(row.key)}" role="option" tabindex="0" aria-selected="${editor.selected === row.key}" style="--aw-depth:${row.depth}">
+      return (inserting && editor.insertion.before ? insertRow() : "") + `<div class="aw-line ${row.marker ? "aw-marker" : ""}${disabled ? " aw-instruction-disabled" : ""}${key === "comment" ? " aw-comment-line" : ""}" data-row="${index}" data-key="${esc(row.key)}" role="option" tabindex="0" aria-selected="${editor.selected === row.key}" ${error ? 'aria-invalid="true"' : ""} style="--aw-depth:${row.depth}">
         ${guides}<span class="aw-number">${numbers.get(row.key)}</span><span class="aw-fold">${fold}</span>
         <div class="aw-content">${content}${attachment}</div>
-        ${!row.marker || isFold(row) ? `<span class="aw-row-delete">${iconButton("node-delete", isFold(row) ? "移除折叠标记" : "删除 " + title, "trash")}</span>` : "<span></span>"}
-        ${index === 0 ? '<button type="button" class="aw-insert-control" data-aw="insert" data-position="before" aria-label="在上方插入指令" title="在上方插入指令">' + icon("plus") + '</button>' : ""}
-        <button type="button" class="aw-insert-control" data-aw="insert" aria-label="在下方插入指令" title="在下方插入指令">${icon("plus")}</button></div>` + (inserting && !editor.insertion.before ? insertRow() : "");
+        ${!row.marker || isFold(row) ? `<span class="aw-row-delete">${iconButton("node-delete", isFold(row) ? tr("workflow_ui_remove_fold_marker", "移除折叠标记") : tr("common_delete", "删除") + " " + title, "trash")}</span>` : "<span></span>"}
+        ${index === 0 ? `<button type="button" class="aw-insert-control" data-aw="insert" data-position="before" aria-label="${esc(tr("workflow_ui_insert_action_above", "在上方插入指令"))}" title="${esc(tr("workflow_ui_insert_action_above", "在上方插入指令"))}">` + icon("plus") + '</button>' : ""}
+        <button type="button" class="aw-insert-control" data-aw="insert" aria-label="${esc(tr("workflow_ui_insert_action_below", "在下方插入指令"))}" title="${esc(tr("workflow_ui_insert_action_below", "在下方插入指令"))}">${icon("plus")}</button></div>` + (inserting && !editor.insertion.before ? insertRow() : "");
     }).join(""));
     canvas.scrollTop = scroll;
     if (activeRow && !editor.insertion) {
@@ -393,13 +455,13 @@
   async function editFoldName(state, name = "") {
     let input;
     const result = await state.ctx.dialog(state.shadow, {
-      title: "折叠开始", subtitle: instructions.hints["fold-start"], icon: instructions.iconUrl("fold-start"), iconClass: instructions.iconTone("fold-start"), className: "aw-param-dialog", form: true,
+      title: tr("workflow_ui_start_fold", "折叠开始"), subtitle: instructions.hint("fold-start"), icon: instructions.iconUrl("fold-start"), iconClass: instructions.iconTone("fold-start"), className: "aw-param-dialog", form: true,
       isDirty: () => !!input && input.value.trim() !== name,
       render: node => {
-        html(node, `<div class="aw aw-form aw-grid">${prop("折叠区域名称", "name", name)}</div>`);
+        html(node, `<div class="aw aw-form aw-grid">${prop(tr("workflow_ui_fold_name", "折叠区域名称"), "name", name)}</div>`);
         input = node.querySelector("input");
       },
-      actions: [{ id: "cancel", label: "取消" }, { id: "save", label: "确定", primary: true }],
+      actions: [{ id: "cancel", label: tr("common_cancel", "取消") }, { id: "save", label: tr("common_confirm", "确定"), primary: true }],
     });
     return result === "save" ? input.value.trim() : null;
   }
@@ -415,7 +477,7 @@
       } else {
         const trial = list.slice(); trial.splice(cursor.index, 0, node);
         const pairs = flow.foldPairs(trial);
-        if (!pairs.has(cursor.index) || pairs.size <= flow.foldPairs(list).size) throw new Error("请在同一分支先插入尚未结束的折叠开始");
+        if (!pairs.has(cursor.index) || pairs.size <= flow.foldPairs(list).size) throw new Error(tr("workflow_ui_insert_an_unmatched_fold_start_in_this_branch_first", "请在同一分支先插入尚未结束的折叠开始"));
       }
       snapshot(editor); list.splice(cursor.index, 0, node);
       editor.collapsed.delete(node.id);
@@ -429,7 +491,7 @@
     const selected = editor.rows.find(row => row.key === editor.selected) || editor.rows.at(-1);
     if (flow.markers.has(key)) {
       const block = ancestor(editor, node => key.includes("if") || key === "else" ? node.kind === "if" : key === "end-loop" ? flow.loops.has(node.kind) : node.kind === "try");
-      if (!block) throw new Error("请先选择对应的 IF、循环或 Try 块");
+      if (!block) throw new Error(tr("workflow_ui_select_the_corresponding_if_loop_or_try_block_first", "请先选择对应的 IF、循环或 Try 块"));
       if (["else-if", "else-if-many"].includes(key)) {
         const draft = flow.clone(editor.draft), target = [...flow.walk(draft.steps)].find(node => node.id === block.id);
         const branch = target.branches.length;
@@ -443,7 +505,7 @@
       }
       if (!key.startsWith("end-")) snapshot(editor);
       if (key === "else") block.otherwise ??= [];
-      else if (key === "catch") { block.catch ??= []; block.error ||= flow.variable(editor.draft, "异常", "object"); }
+      else if (key === "catch") { block.catch ??= []; block.error ||= flow.variable(editor.draft, tr("workflow_ui_exception", "异常"), "object"); }
       else if (key === "finally") block.finally ??= [];
       else editor.selected = block.id + ":end";
       closeInsertion(editor, false); editor.collapsed.delete(block.id); paintEditor(editor); return;
@@ -451,7 +513,7 @@
     const cursor = editor.cursor || cursorFor(selected, editor.draft);
     if (key === "fold-start" || key === "fold-end") return addFold(state, editor, key, cursor);
     // 新指令及自动创建的输出变量只进入临时草稿，确认参数后一起提交
-    const draft = flow.clone(editor.draft), node = flow.createNode(key, draft);
+    const draft = flow.clone(editor.draft), node = flow.createNode(key, draft, root.STI18n.forLocale(root.STI18n.locale()));
     flow.pathGet(draft, cursor.path).splice(cursor.index, 0, node);
     const pending = { ...editor, draft, rows: flow.rows(draft), undo: [], redo: [], originalVariableIds: new Set(editor.draft.variables.map(item => item.id)) };
     closeInsertion(editor, false);
@@ -466,8 +528,8 @@
     }
   }
   function palette() {
-    const commands = rows => rows.map(item => `<button type="button" data-instruction="${item.id}" draggable="true" title="${esc(instructions.hints[item.id])}">${commandIcon(item.id)}<span>${esc(item.name)}${nameBadge(item.id)}</span></button>`).join("");
-    const section = (name, symbol, content, type = "group") => `<details data-${type}="${esc(name)}"><summary>${icon("chevron-right", "aw-category-caret")}${icon(symbol, "aw-category-icon")}${esc(name)}</summary>${content}</details>`;
+    const commands = rows => rows.map(item => `<button type="button" data-instruction="${item.id}" draggable="true" title="${esc(instructions.hint(item.id))}">${commandIcon(item.id)}<span>${esc(instructions.name(item.id))}${nameBadge(item.id)}</span></button>`).join("");
+    const section = (name, symbol, content, type = "group") => `<details data-${type}="${esc(name)}"><summary>${icon("chevron-right", "aw-category-caret")}${icon(symbol, "aw-category-icon")}${esc(instructions.schemaLabel(name))}</summary>${content}</details>`;
     const categoryContent = category => {
       const items = instructions.catalog.filter(item => item.category === category);
       const groups = Object.keys(instructions.groups).filter(group => items.some(item => item.group === group));
@@ -490,35 +552,38 @@
       if (!row.hidden) matches++;
     }
     const empty = panel.querySelector("[data-inspector-empty]");
-    empty.textContent = editor.draft.variables.length ? "没有匹配的变量" : "暂无变量";
+    empty.textContent = editor.draft.variables.length ? tr("workflow_ui_no_matching_variables", "没有匹配的变量") : tr("workflow_ui_no_variables_yet", "暂无变量");
     empty.hidden = matches > 0;
   }
   function diagnosticSummary(entries) {
     const warnings = entries.filter(entry => entry.severity === "warning").length, errors = entries.length - warnings;
-    return [errors && `${errors} 个错误`, warnings && `${warnings} 个警告`].filter(Boolean).join(" · ");
+    return [errors && tr("workflow_format_errors", "$count$ 个错误", { count: errors }), warnings && tr("workflow_format_warnings", "$count$ 个警告", { count: warnings })].filter(Boolean).join(" · ");
+  }
+  function editorDiagnostics(editor) {
+    return editor.diagnostics ??= [...tools.diagnostics(editor.draft), ...promptIssues(editor.draft, editor.plans, editor.registry),
+      ...tools.permissionWarnings(tools.lines(editor.draft), editor.membership)];
   }
   function paintInspector(editor) {
     const { root: node, draft } = editor;
     const lines = tools.lines(draft), variable = editor.panel === "variables", references = variable ? tools.index(draft) : null;
-    editor.diagnostics ??= [...tools.diagnostics(draft), ...tools.permissionWarnings(lines, editor.membership)];
-    const entries = editor.diagnostics, summary = diagnosticSummary(entries);
-    node.querySelector("[data-count]").textContent = `${[...flow.walk(draft.steps)].filter(step => step.kind !== "fold").length} 条指令 · ${draft.variables.length} 个变量`;
+    const entries = editorDiagnostics(editor), summary = diagnosticSummary(entries);
+    node.querySelector("[data-count]").textContent = tr("workflow_format_action_variables", "$actions$ 条指令 · $count$ 个变量", { actions: [...flow.walk(draft.steps)].filter(step => step.kind !== "fold").length, count: draft.variables.length });
     for (const tab of node.querySelectorAll("[data-inspector-tab]")) {
       const selected = tab.dataset.inspectorTab === editor.panel; tab.setAttribute("aria-selected", String(selected)); tab.tabIndex = selected ? 0 : -1;
-      tab.textContent = tab.dataset.inspectorTab === "errors" ? `错误列表${summary ? " · " + summary : ""}` : `变量列表 · ${draft.variables.length}`;
+      tab.textContent = tab.dataset.inspectorTab === "errors" ? tr("workflow_ui_errors", "错误列表") + (summary ? " · " + summary : "") : tr("workflow_ui_variables", "变量列表") + " · " + draft.variables.length;
     }
     const panel = node.querySelector(".aw-inspector-panel"); panel.hidden = editor.panelClosed;
     panel.setAttribute("aria-labelledby", "aw-inspector-" + editor.panel);
     node.querySelector('[data-aw="panel-toggle"]').setAttribute("aria-expanded", String(!editor.panelClosed));
     const empty = label => `<div class="aw-inspector-empty" data-inspector-empty>${label}</div>`;
-    html(panel, variable ? `<table><thead><tr><th scope="col">变量名称</th><th scope="col">类型</th><th scope="col">使用位置</th><th class="aw-variable-actions"><div class="aw-variable-tools" role="group" aria-label="变量工具">
-      <input type="search" class="aw-variable-search" id="aw-variable-search" data-variable-search aria-label="搜索变量" placeholder="搜索变量" value="${esc(editor.variableQuery || "")}" ${editor.variableSearchOpen ? "" : "hidden"}>
-      ${iconButton("variable-search", "搜索变量", "search", `aria-expanded="${!!editor.variableSearchOpen}" aria-controls="aw-variable-search"`)}
-      ${iconButton("variable-new", "新增变量", "variable-plus")}</div></th></tr></thead><tbody>${draft.variables.map(item => {
+    html(panel, variable ? `<table><thead><tr><th scope="col">${esc(tr("workflow_ui_variable_name", "变量名称"))}</th><th scope="col">${esc(tr("common_type", "类型"))}</th><th scope="col">${esc(tr("workflow_ui_used_at", "使用位置"))}</th><th class="aw-variable-actions"><div class="aw-variable-tools" role="group" aria-label="${esc(tr("workflow_ui_variable_tools", "变量工具"))}">
+      <input type="search" class="aw-variable-search" id="aw-variable-search" data-variable-search aria-label="${esc(tr("workflow_ui_search_variables", "搜索变量"))}" placeholder="${esc(tr("workflow_ui_search_variables", "搜索变量"))}" value="${esc(editor.variableQuery || "")}" ${editor.variableSearchOpen ? "" : "hidden"}>
+      ${iconButton("variable-search", tr("workflow_ui_search_variables", "搜索变量"), "search", `aria-expanded="${!!editor.variableSearchOpen}" aria-controls="aw-variable-search"`)}
+      ${iconButton("variable-new", tr("workflow_ui_add_variable", "新增变量"), "variable-plus")}</div></th></tr></thead><tbody>${draft.variables.map(item => {
       const uses = [...new Set((references.get(item.id) || []).map(use => lines.get(use.nodeId)?.number))].filter(number => number !== undefined);
-      return `<tr data-variable-id="${esc(item.id)}"><td><button type="button" class="aw-variable-name" data-aw="variable-edit">${esc(item.name)}</button></td><td>${esc(tools.typeNames[item.type])}</td><td>${uses.length ? uses.map(number => `<button type="button" class="aw-variable-name" data-aw="variable-locate" data-line="${number}" aria-label="定位第 ${number} 行">${number}</button>`).join("、") : "—"}</td><td>${iconButton("variable-delete", "删除变量 " + item.name, "trash")}</td></tr>`;
-    }).join("")}</tbody></table>${empty("暂无变量")}`
-      : `<table><thead><tr><th scope="col">错误与警告</th><th scope="col">工作流</th><th scope="col">行号</th></tr></thead><tbody>${entries.map((entry, index) => `<tr><td><button type="button" class="aw-table-link" data-aw="error-locate" data-error="${index}">${entry.severity === "warning" ? '<span class="aw-diagnostic-warning">警告</span> ' : ""}${esc(entry.message)}</button></td><td>${esc(draft.name)}</td><td>${lines.get(entry.nodeId)?.number || "—"}</td></tr>`).join("")}</tbody></table>${entries.length ? "" : empty("暂无错误")}<div class="aw-error" data-editor-error role="alert"></div>`);
+      return `<tr data-variable-id="${esc(item.id)}"><td><button type="button" class="aw-variable-name" data-aw="variable-edit">${esc(item.name)}</button></td><td>${esc(tools.typeNames[item.type])}</td><td>${uses.length ? uses.map(number => `<button type="button" class="aw-variable-name" data-aw="variable-locate" data-line="${number}" aria-label="${esc(tr("workflow_format_locate", "定位第 $count$ 行", { count: number }))}">${number}</button>`).join("、") : "—"}</td><td>${iconButton("variable-delete", tr("workflow_ui_delete_variable", "删除变量") + " " + item.name, "trash")}</td></tr>`;
+    }).join("")}</tbody></table>${empty(tr("workflow_ui_no_variables_yet", "暂无变量"))}`
+      : `<table><thead><tr><th scope="col">${esc(tr("workflow_ui_errors_and_warnings", "错误与警告"))}</th><th scope="col">${esc(tr("workflow_ui_workflows", "工作流"))}</th><th scope="col">${esc(tr("workflow_ui_line", "行号"))}</th></tr></thead><tbody>${entries.map((entry, index) => `<tr><td><button type="button" class="aw-table-link" data-aw="error-locate" data-error="${index}">${entry.severity === "warning" ? `<span class="aw-diagnostic-warning">${esc(tr("messageCenter_level_warning", "警告"))}</span> ` : ""}${esc(view().errorCaption(entry))}</button></td><td>${esc(draft.name)}</td><td>${lines.get(entry.nodeId)?.number || "—"}</td></tr>`).join("")}</tbody></table>${entries.length ? "" : empty(tr("workflow_ui_no_errors", "暂无错误"))}<div class="aw-error" data-editor-error role="alert"></div>`);
     if (variable) filterVariables(editor);
   }
   function revealNode(editor, id) {
@@ -532,9 +597,9 @@
   }
   async function editNote(state, editor, row) {
     let input;
-    const answer = await state.ctx.dialog(state.shadow, { title: "指令备注", className: "aw-automation-dialog", form: true,
-      render: node => { html(node, `<div class="aw aw-form"><label>备注<textarea data-note aria-label="备注" rows="4">${esc(row.node.note || "")}</textarea></label></div>`); input = node.querySelector("[data-note]"); },
-      actions: [{ id: "cancel", label: "取消" }, { id: "save", label: "确定", primary: true }],
+    const answer = await state.ctx.dialog(state.shadow, { title: tr("workflow_ui_action_comment", "指令备注"), className: "aw-automation-dialog", form: true,
+      render: node => { html(node, `<div class="aw aw-form"><label>${esc(tr("store_titleCustomName_noteTab", "备注"))}<textarea data-note aria-label="${esc(tr("store_titleCustomName_noteTab", "备注"))}" rows="4">${esc(row.node.note || "")}</textarea></label></div>`); input = node.querySelector("[data-note]"); },
+      actions: [{ id: "cancel", label: tr("common_cancel", "取消") }, { id: "save", label: tr("common_confirm", "确定"), primary: true }],
     });
     if (answer === "save" && input.value !== (row.node.note || "")) { snapshot(editor); if (input.value) row.node.note = input.value; else delete row.node.note; paintEditor(editor); }
   }
@@ -554,7 +619,7 @@
     if (action === "copy" || action === "cut") {
       clipboard = tools.capture(editor.draft, row.node, action === "cut");
       if (action === "cut") { snapshot(editor); flow.pathGet(editor.draft, row.listPath).splice(row.index, 1); paintEditor(editor); focusSelection(editor); }
-      editor.status.textContent = action === "cut" ? "指令已剪切" : "指令已复制";
+      editor.status.textContent = action === "cut" ? tr("workflow_ui_action_cut", "指令已剪切") : tr("workflow_ui_action_copied", "指令已复制");
     } else if (action === "paste") {
       const cursor = row ? cursorFor(row, editor.draft) : { path: ["steps"], index: editor.draft.steps.length };
       snapshot(editor); const node = tools.paste(editor.draft, clipboard);
@@ -577,14 +642,14 @@
   }
   function openContextMenu(state, editor, row, point) {
     editor.closeMenu?.(); editor.selected = row.key; paintEditor(editor);
-    const menu = document.createElement("div"); menu.className = "aw aw-context-menu"; menu.popover = "manual"; menu.setAttribute("role", "menu"); menu.setAttribute("aria-label", "指令菜单");
+    const menu = document.createElement("div"); menu.className = "aw aw-context-menu"; menu.popover = "manual"; menu.setAttribute("role", "menu"); menu.setAttribute("aria-label", tr("workflow_ui_action_menu", "指令菜单"));
     const disabled = row.marker === "end-if" ? row.node.endDisabled : row.node.disabled;
-    const entries = [["copy", "复制", "Ctrl+C", "copy"], ["cut", "剪切", "Ctrl+X", "scissors"], ["paste", "粘贴", "Ctrl+V", "clipboard"],
-      ["disable", disabled ? "启用此指令" : "禁用此指令", "Ctrl+/", disabled ? "circle-check" : "circle-off"], null,
-      ...(row.node.action === "comment" ? (row.node.note ? [["clear-note", "移除附加备注", "", "eraser"]] : []) : [["note", "指令备注", "Ctrl+Alt+/", "message"]]),
-      ["redo", "重做", "Ctrl+Y", "arrow-forward-up"], ["undo", "撤销", "Ctrl+Z", "arrow-back-up"], null,
-      ["fold", "收起", "Ctrl+[", "chevron-right"], ["unfold", "展开", "Ctrl+]", "chevron-down"], null,
-      ["node-delete", isFold(row) ? "移除折叠标记" : "删除", "Delete", "trash"]];
+    const entries = [["copy", tr("common_copy", "复制"), "Ctrl+C", "copy"], ["cut", tr("workflow_ui_cut", "剪切"), "Ctrl+X", "scissors"], ["paste", tr("workflow_ui_paste", "粘贴"), "Ctrl+V", "clipboard"],
+      ["disable", disabled ? tr("workflow_ui_enable_action", "启用此指令") : tr("workflow_ui_disable_action", "禁用此指令"), "Ctrl+/", disabled ? "circle-check" : "circle-off"], null,
+      ...(row.node.action === "comment" ? (row.node.note ? [["clear-note", tr("workflow_ui_remove_attached_comment", "移除附加备注"), "", "eraser"]] : []) : [["note", tr("workflow_ui_action_comment", "指令备注"), "Ctrl+Alt+/", "message"]]),
+      ["redo", tr("workflow_ui_redo", "重做"), "Ctrl+Y", "arrow-forward-up"], ["undo", tr("workflow_ui_undo", "撤销"), "Ctrl+Z", "arrow-back-up"], null,
+      ["fold", tr("settings_drawer_collapse", "收起"), "Ctrl+[", "chevron-right"], ["unfold", tr("settings_drawer_expand", "展开"), "Ctrl+]", "chevron-down"], null,
+      ["node-delete", isFold(row) ? tr("workflow_ui_remove_fold_marker", "移除折叠标记") : tr("common_delete", "删除"), "Delete", "trash"]];
     html(menu, entries.map(item => {
       if (!item) return "<hr role=separator>";
       const [action, label, shortcut, iconName] = item;
@@ -608,12 +673,12 @@
     editor.root.querySelector(".aw-canvas").addEventListener("scroll", () => close(), { signal: lifetime.signal, passive: true });
     root.addEventListener("resize", () => close(), { signal: lifetime.signal });
   }
-  async function editWorkflow(state, original = null) {
-    const draft = original ? tools.openDraft(original) : model.newWorkflow(flow.numericId("wf-", state.bundle.workflows));
+  async function editWorkflow(state, original = null, importIssue = null) {
+    const draft = original ? tools.openDraft(original) : model.newWorkflow(flow.numericId("wf-", state.bundle.workflows), tr("workflow_ui_untitled_workflow", "未命名工作流"));
     const initial = JSON.stringify(draft), controller = new AbortController(); let editor;
     const [registry, membership] = await Promise.all([state.ctx.storage.getAi(), state.ctx.storage.getMembership()]);
     try {
-      await state.ctx.dialog(state.shadow, { title: original ? "编辑工作流" : "新建工作流", className: "aw-workflow-dialog", form: true, isDirty: () => JSON.stringify(draft) !== initial,
+      const closed = state.ctx.dialog(state.shadow, { title: original ? tr("workflow_ui_edit_workflow", "编辑工作流") : tr("workflow_ui_new_workflow", "新建工作流"), className: "aw-workflow-dialog", form: true, isDirty: () => JSON.stringify(draft) !== initial,
         renderFooter(actions) {
           const status = actions.ownerDocument.createElement("span");
           status.className = "aw-editor-status";
@@ -624,33 +689,55 @@
         },
         initial: node => node.querySelector("[data-name]"),
         render: node => {
-          html(node, `<div class="aw aw-editor"><div class="aw-editor-top"><label class="aw-workflow-name">${icon("binary-tree")}<input data-name aria-label="工作流名称" placeholder="工作流名称" value="${esc(draft.name)}"></label>
-            <div class="aw-editor-toolbar" role="toolbar" aria-label="工作流工具" focusgroup="toolbar wrap">${iconButton("expand-all", "全部展开", "chevrons-down")}${iconButton("collapse-all", "全部折叠", "chevrons-up")}<span class="aw-tool-separator" role="separator" aria-orientation="vertical"></span>${iconButton("undo", "撤销", "arrow-back-up")}${iconButton("redo", "重做", "arrow-forward-up")}<span class="aw-tool-separator" role="separator" aria-orientation="vertical"></span>${iconButton("variables", "变量列表", "variable")}${iconButton("validate", "重新校验", "list-check", 'aria-controls="aw-inspector-panel"')}</div>
-            </div><div class="aw-editor-main"><aside class="aw-palette" aria-label="指令库"><input type="search" data-search aria-label="搜索指令" placeholder="搜索指令">
+          html(node, `<div class="aw aw-editor"><div class="aw-editor-top"><label class="aw-workflow-name">${icon("binary-tree")}<input data-name aria-label="${esc(tr("workflow_ui_workflow_name", "工作流名称"))}" placeholder="${esc(tr("workflow_ui_workflow_name", "工作流名称"))}" value="${esc(draft.name)}"></label>
+            <div class="aw-editor-toolbar" role="toolbar" aria-label="${esc(tr("workflow_ui_workflow_tools", "工作流工具"))}" focusgroup="toolbar wrap">${iconButton("expand-all", tr("workflow_ui_expand_all", "全部展开"), "chevrons-down")}${iconButton("collapse-all", tr("workflow_ui_collapse_all", "全部折叠"), "chevrons-up")}<span class="aw-tool-separator" role="separator" aria-orientation="vertical"></span>${iconButton("undo", tr("workflow_ui_undo", "撤销"), "arrow-back-up")}${iconButton("redo", tr("workflow_ui_redo", "重做"), "arrow-forward-up")}<span class="aw-tool-separator" role="separator" aria-orientation="vertical"></span>${iconButton("variables", tr("workflow_ui_variables", "变量列表"), "variable")}${iconButton("validate", tr("workflow_ui_validate_again", "重新校验"), "list-check", 'aria-controls="aw-inspector-panel"')}</div>
+            </div><div class="aw-editor-main"><aside class="aw-palette" aria-label="${esc(tr("workflow_ui_action_library", "指令库"))}"><input type="search" data-search aria-label="${esc(tr("workflow_ui_search_actions", "搜索指令"))}" placeholder="${esc(tr("workflow_ui_search_actions", "搜索指令"))}">
             ${palette()}
-            </aside><div class="aw-canvas" role="listbox" aria-label="工作流指令" aria-multiselectable="false"></div></div>
-            <section class="aw-inspector" aria-label="工作流检查"><div class="aw-inspector-head"><div class="aw-tabs" role="tablist" aria-label="工作流检查面板"><button type="button" role="tab" id="aw-inspector-errors" data-inspector-tab="errors" aria-controls="aw-inspector-panel">错误列表</button><button type="button" role="tab" id="aw-inspector-variables" data-inspector-tab="variables" aria-controls="aw-inspector-panel">变量列表</button></div><span data-count></span>${iconButton("panel-toggle", "折叠或展开检查面板", "layout-bottombar", 'aria-expanded="true" aria-controls="aw-inspector-panel"')}</div><div class="aw-inspector-panel" id="aw-inspector-panel" role="tabpanel"></div></section></div>`);
-          editor = { draft, root: node, registry, membership, plans: state.bundle.prompts, undo: [], redo: [], selected: "root-gap", rows: [], collapsed: new Set(), cursor: null, insertion: null, panel: "errors", panelClosed: false, diagnostics: null };
+            </aside><div class="aw-canvas" role="listbox" aria-label="${esc(tr("workflow_ui_workflow_actions", "工作流指令"))}" aria-multiselectable="false"></div></div>
+            <section class="aw-inspector" aria-label="${esc(tr("workflow_ui_workflow_checks", "工作流检查"))}"><div class="aw-inspector-head"><div class="aw-tabs" role="tablist" aria-label="${esc(tr("workflow_ui_workflow_checks_panel", "工作流检查面板"))}"><button type="button" role="tab" id="aw-inspector-errors" data-inspector-tab="errors" aria-controls="aw-inspector-panel">${esc(tr("workflow_ui_errors", "错误列表"))}</button><button type="button" role="tab" id="aw-inspector-variables" data-inspector-tab="variables" aria-controls="aw-inspector-panel">${esc(tr("workflow_ui_variables", "变量列表"))}</button></div><span data-count></span>${iconButton("panel-toggle", tr("workflow_ui_toggle_inspector", "折叠或展开检查面板"), "layout-bottombar", 'aria-expanded="true" aria-controls="aw-inspector-panel"')}</div><div class="aw-inspector-panel" id="aw-inspector-panel" role="tabpanel"></div></section></div>`);
+          editor = { draft, root: node, registry, membership, plans: state.bundle.prompts, importing: !!importIssue, undo: [], redo: [], selected: "root-gap", rows: [], collapsed: new Set(), cursor: null, insertion: null, panel: "errors", panelClosed: false, diagnostics: null };
           paintEditor(editor); bindEditor(state, editor, controller.signal);
         },
-        actions: [{ id: "cancel", label: "取消" }, { id: "save", label: "保存", primary: true }],
+        actions: [{ id: "cancel", label: tr("common_cancel", "取消") }, { id: "save", label: tr("common_save", "保存"), primary: true }],
         onAction: async (action, node) => {
           if (action !== "save") return true;
           try {
             const workflow = tools.forStorage(draft);
             flow.validate(workflow);
+            if ([...flow.walk(workflow.steps)].some(node => node.action === "ai-call")) {
+              editor.registry = await state.ctx.storage.getAi();
+              if (controller.signal.aborted) return false;
+              editor.diagnostics = null;
+            }
+            const [issue] = promptIssues(workflow, editor.plans, editor.registry);
+            if (issue) { locateError(editor, issue); return false; }
             const next = flow.clone(state.bundle), index = next.workflows.findIndex(item => item.id === workflow.id);
-            if (index < 0) next.workflows.push(workflow); else next.workflows[index] = workflow;
+            if (editor.importing) {
+              workflow.id = flow.numericId("wf-", next.workflows); workflow.revision = 1;
+              next.workflows.push(workflow);
+            } else if (index < 0) next.workflows.push(workflow); else next.workflows[index] = workflow;
             await save(state, next); return true;
           } catch (error) { reportFailure(error, null, editor); return false; }
         },
       });
+      if (importIssue && editor?.root.isConnected) {
+        void editIssue(state, editor, importIssue, true).catch(error => reportFailure(error, null, editor));
+      }
+      await closed;
     } finally { editor?.closeMenu?.(); controller.abort(); }
   }
   function locateError(editor, error) {
     editor.panel = "errors"; editor.panelClosed = false;
     if (error.nodeId) revealNode(editor, error.nodeId); else paintInspector(editor);
-    editor.root.querySelector("[data-editor-error]").textContent = editor.diagnostics.some(item => item.nodeId === error.nodeId && item.message === error.message) ? "" : error.message;
+    editor.root.querySelector("[data-editor-error]").textContent = editor.diagnostics.some(item => item.nodeId === error.nodeId && item.message === error.message) ? "" : view().errorCaption(error);
+  }
+  async function editIssue(state, editor, issue, openConfig = false) {
+    revealNode(editor, issue.nodeId);
+    const row = editor.rows.find(row => row.key === issue.nodeId);
+    if (row && (openConfig || row.node.action === "ai-call" && issue.field)) {
+      await editNode(state, editor, row, issue);
+      if (editor.root.isConnected) paintEditor(editor);
+    }
   }
   function bindEditor(state, editor, signal) {
     const node = editor.root, canvas = node.querySelector(".aw-canvas");
@@ -697,13 +784,18 @@
       if (event.target.hasAttribute("data-variable-search")) {
         editor.variableQuery = event.target.value; filterVariables(editor);
       }
-      if (event.target.hasAttribute("data-name")) { editor.draft.name = event.target.value; editor.diagnostics = null; paintInspector(editor); }
+      if (event.target.hasAttribute("data-name")) {
+        const name = event.target.value, validityChanged = !!name.trim() !== !!editor.draft.name.trim();
+        editor.draft.name = name;
+        if (validityChanged) { editor.diagnostics = null; paintEditor(editor); }
+        else paintInspector(editor);
+      }
       if (event.target.hasAttribute("data-search")) {
         const query = event.target.value.trim().toLocaleLowerCase(), palette = event.target.closest(".aw-palette");
         const groups = [...palette.querySelectorAll("details")];
         if (query && !editor.paletteOpen) editor.paletteOpen = new Set(groups.filter(group => group.open));
         for (const control of palette.querySelectorAll("[data-instruction]")) {
-          control.hidden = !!query && !(control.textContent + " " + control.title).toLocaleLowerCase().includes(query);
+          control.hidden = !!query && !(control.textContent + " " + control.title + " " + control.dataset.instruction).toLocaleLowerCase().includes(query);
         }
         for (const group of groups) {
           if (query) {
@@ -772,11 +864,13 @@
         }
         else if (["node-delete", "copy", "cut", "paste", "undo", "redo", "note"].includes(action)) await editorCommand(state, editor, action, row);
         else if (action === "validate") {
-          editor.membership = await state.ctx.storage.getMembership();
+          const [registry, membership] = await Promise.all([state.ctx.storage.getAi(), state.ctx.storage.getMembership()]);
           if (signal.aborted) return;
-          editor.diagnostics = null; editor.panel = "errors"; editor.panelClosed = false; paintInspector(editor);
-          if (editor.diagnostics.length) revealNode(editor, editor.diagnostics[0].nodeId);
-          editor.status.textContent = diagnosticSummary(editor.diagnostics) || "校验通过";
+          editor.registry = registry; editor.membership = membership; editor.diagnostics = null;
+          editor.panel = "errors"; editor.panelClosed = false;
+          const [firstIssue] = editorDiagnostics(editor);
+          if (firstIssue) revealNode(editor, firstIssue.nodeId); else paintEditor(editor);
+          editor.status.textContent = diagnosticSummary(editor.diagnostics) || tr("workflow_ui_validation_passed", "校验通过");
         }
         else if (action === "variables") { editor.panel = "variables"; editor.panelClosed = false; paintInspector(editor); }
         else if (action === "variable-search") {
@@ -785,7 +879,7 @@
           node.querySelector(editor.variableSearchOpen ? "[data-variable-search]" : '[data-aw="variable-search"]').focus();
         }
         else if (action === "panel-toggle") { editor.panelClosed = !editor.panelClosed; paintInspector(editor); }
-        else if (action === "error-locate") revealNode(editor, editor.diagnostics[Number(control.dataset.error)].nodeId);
+        else if (action === "error-locate") await editIssue(state, editor, editor.diagnostics[Number(control.dataset.error)]);
         else if (action === "variable-locate") revealNode(editor, [...tools.lines(editor.draft)].find(([, item]) => item.number === Number(control.dataset.line))[0]);
         else if (["variable-new", "variable-edit", "variable-delete"].includes(action)) await variableAction(state, editor, action, control.closest("[data-variable-id]")?.dataset.variableId);
         else if (action === "select-gap" || action === "insert") openInsertion(editor, row, control.dataset.position === "before");
@@ -909,7 +1003,7 @@
   async function variableAction(state, editor, action, id) {
     const next = flow.clone(editor.draft), selected = next.variables.find(item => item.id === id);
     if (action === "variable-delete") {
-      if (!await confirm(state, "删除变量", `将删除“${selected.name}”。引用该变量的指令需要重新选择变量，修正前不能保存工作流。`)) return;
+      if (!await confirm(state, tr("workflow_ui_delete_variable", "删除变量"), tr("workflow_format_delete_var", "将删除“$name$”。引用该变量的指令需要重新选择变量，修正前不能保存工作流。", { name: selected.name }))) return;
       next.variables.splice(next.variables.indexOf(selected), 1);
     } else if (!await editVariable(state, next, selected)) return;
     if (JSON.stringify(next) !== JSON.stringify(editor.draft)) { snapshot(editor); Object.assign(editor.draft, next); paintEditor(editor); }
@@ -917,14 +1011,14 @@
   async function resolveOutputNames(state, container, workspace, working) {
     const clean = flow.clone(workspace), resolved = {}, entries = root.STWorkflowValues.outputEntries(container, workspace);
     for (const [path, entry] of Object.entries(entries)) {
-      const name = entry.name.trim(), old = workspace.variables.find(item => item.id === entry.id);
+      const name = entry.name, old = workspace.variables.find(item => item.id === entry.id);
       if (!name || !old || name === old.name) continue;
       const uses = tools.uses(workspace, old.id).filter(use => use.nodeId !== working.id || use.role !== "write" || use.key !== path);
       let global = true;
       if (uses.length) {
-        const answer = await state.ctx.dialog(state.shadow, { title: "修改共享变量", className: "aw-automation-dialog", form: true,
-          message: `“${old.name}”还在其他 ${uses.length} 个位置使用。是否在当前工作流中统一改为“${name}”？`,
-          actions: [{ id: "cancel", label: "取消" }, { id: "current", label: "仅当前指令" }, { id: "global", label: "全局修改", primary: true }],
+        const answer = await state.ctx.dialog(state.shadow, { title: tr("workflow_ui_edit_shared_variable", "修改共享变量"), className: "aw-automation-dialog", form: true,
+          message: tr("workflow_format_rename_var", "“$old$”还在其他 $count$ 个位置使用。是否在当前工作流中统一改为“$name$”？", { old: old.name, count: uses.length, name }),
+          actions: [{ id: "cancel", label: tr("common_cancel", "取消") }, { id: "current", label: tr("workflow_ui_this_action_only", "仅当前指令") }, { id: "global", label: tr("workflow_ui_change_all_references", "全局修改"), primary: true }],
         });
         if (answer === "cancel") return null;
         global = answer === "global";
@@ -933,45 +1027,39 @@
         const existing = clean.variables.find(item => item.name === name);
         if (existing && existing.id !== old.id) { tools.replace(clean, old.id, existing.id); resolved[path] = existing.id; }
         else { clean.variables.find(item => item.id === old.id).name = name; resolved[path] = old.id; }
-        for (const [other, output] of Object.entries(entries)) if (output.id === old.id && output.name.trim() === old.name) resolved[other] = resolved[path];
+        for (const [other, output] of Object.entries(entries)) if (output.id === old.id && output.name === old.name) resolved[other] = resolved[path];
       }
     }
     return { clean, resolved };
   }
   async function testValues(state, workflow, node) {
     const ids = new Set(); let needsInput = false, needsTrigger = false;
-    function visit(value) {
-      value = flow.activeValue(value);
-      if (!value || typeof value !== "object") return;
+    for (const value of flow.nodeReferences(node)) {
       if (value.source === "variable") ids.add(value.id);
       if (value.source === "input") needsInput = true;
-      if (value.source === "meta" && value.path[0] !== "workflowName") needsTrigger = true;
-      if (value.template) value.template.forEach(visit);
-      if (value.expression) value.expression.forEach(visit);
+      if (value.source === "meta" && (!value.path.length || ["triggerName", "triggerType"].includes(value.path[0]))) needsTrigger = true;
     }
-    for (const [, value] of flow.inputs(node)) visit(value);
-    for (const value of flow.conditionInputs(node)) visit(value);
     if (!ids.size && !needsInput && !needsTrigger) return { input: {}, variables: {} };
-    const sample = { input: flow.literal({}), meta: { triggerName: "指令试运行", triggerType: "manual" }, values: [...ids].map(id => {
+    const sample = { input: flow.literal({}), meta: { triggerName: tr("workflow_ui_test_action", "指令试运行"), triggerType: "manual" }, values: [...ids].map(id => {
       const variable = workflow.variables.find(item => item.id === id), type = variable.type;
       return { id, name: variable.name, type, value: flow.literal(({ number: 0, boolean: false, list: [], object: {}, result: {} })[type] ?? "") };
     }) }, scope = { variables: [], literalOnly: true };
     let container, result = null;
     const triggerTypes = [["manual", triggerModes.manual], ...Object.entries(gameEvents), ["schedule", triggerModes.schedule]];
     const render = () => formHtml(container, `<div class="aw aw-form"><div class="aw-grid">
-      ${needsTrigger ? parameterProp("触发器名称样例", "meta.triggerName", sample.meta.triggerName) +
-        parameterProp("触发类型样例", "meta.triggerType", sample.meta.triggerType, triggerTypes) : ""}
-      ${needsInput ? valueField("触发器输入样例", sample.input, "input", scope, [], "object") : ""}
-      ${sample.values.map((item, index) => valueField(item.name + "样例", item.value, `values.${index}.value`, scope, [], item.type === "result" ? "object" : item.type)).join("")}
+      ${needsTrigger ? parameterProp(tr("workflow_ui_sample_trigger_name", "触发器名称样例"), "meta.triggerName", sample.meta.triggerName) +
+        parameterProp(tr("workflow_ui_sample_trigger_type", "触发类型样例"), "meta.triggerType", sample.meta.triggerType, triggerTypes) : ""}
+      ${needsInput ? valueField(tr("workflow_ui_sample_trigger_input", "触发器输入样例"), sample.input, "input", scope, [], "object") : ""}
+      ${sample.values.map((item, index) => valueField(item.name + tr("workflow_ui_sample", "样例"), item.value, `values.${index}.value`, scope, [], item.type === "result" ? "object" : item.type)).join("")}
       </div><div class="aw-error" role="alert"></div></div>`);
-    const answer = await state.ctx.dialog(state.shadow, { title: "试运行输入", className: "aw-param-dialog", form: true,
+    const answer = await state.ctx.dialog(state.shadow, { title: tr("workflow_ui_test_input", "试运行输入"), className: "aw-param-dialog", form: true,
       render: node => { container = node; render(); root.STWorkflowValues.bind(node, sample, scope, { dialog: state.ctx.dialog, shadow: state.shadow, render }); },
-      actions: [{ id: "cancel", label: "取消" }, { id: "run", label: "运行", primary: true }],
+      actions: [{ id: "cancel", label: tr("common_cancel", "取消") }, { id: "run", label: tr("workflow_ui_run", "运行"), primary: true }],
       onAction: action => {
         if (action !== "run") return true;
         try {
           collect(container, sample, scope);
-          if (needsTrigger && !sample.meta.triggerName.trim()) throw new Error("请填写触发器名称样例");
+          if (needsTrigger && !sample.meta.triggerName.trim()) throw new Error(tr("workflow_ui_enter_a_sample_trigger_name", "请填写触发器名称样例"));
           result = { input: needsInput ? flow.read(sample.input, flow.state()) : {}, variables: Object.fromEntries(sample.values.map(item => [item.id, flow.read(item.value, flow.state())])),
             ...(needsTrigger ? { meta: sample.meta } : {}) };
           const checked = flow.state({}, {}, workflow);
@@ -982,12 +1070,12 @@
     });
     return answer === "run" ? result : null;
   }
-  async function editNode(state, editor, row) {
+  async function editNode(state, editor, row, issue = null) {
     const prop = parameterProp;
     const workspace = flow.clone(editor.draft), working = flow.pathGet(workspace, row.path);
     const values = root.STWorkflowValues, emptyInput = JSON.stringify(values.comparable(flow.literal("")));
     if (working.action === "ai-call") {
-      working.mapping = Object.entries(working.inputs || {}).map(([key, value]) => ({ key, value }));
+      working.mapping = Object.entries(working.inputs || {}).map(([key, value]) => ({ key, originalKey: key, value }));
       working.context ??= flow.literal("");
     }
     working._timeout = working.timeout ? "true" : "false"; working._timeoutSeconds = working.timeout?.seconds || 60;
@@ -1001,43 +1089,52 @@
     const initialValue = flow.activeValue(working.value);
     if (working.action === "set") working.valueType ||= Object.hasOwn(initialValue, "literal") ? ({ string: "text", number: "number", boolean: "boolean", list: "list", object: "object" }[Array.isArray(initialValue.literal) ? "list" : typeof initialValue.literal] || "any") : "any";
     const selectedPrompt = node => editor.plans.find(item => item.id === node.promptId);
-    function promptFields(node) {
-      const plan = selectedPrompt(node);
-      const service = root.STAI.boundService(editor.registry, node.serviceId);
-      return plan && service ? root.STPromptPlans.parameters(plan, service.protocol) : [];
-    }
     function promptMapping(node) {
-      const keys = new Set(promptFields(node));
-      return node.mapping.filter(item => keys.has(item.key));
+      return node.mapping.filter(item => item.originalKey !== undefined || promptParameters?.includes(item.key));
+    }
+    function isOriginalInput(item) {
+      return item.originalKey !== undefined && JSON.stringify(flow.inputValue(item.value)) === JSON.stringify(flow.inputValue(working.inputs[item.originalKey]));
+    }
+    function promptErrorControl(error) {
+      if (error.field !== "inputs") return container.querySelector('[data-prop="' + CSS.escape(error.field) + '"]');
+      const index = working.mapping.findIndex(item => item.key === error.parameter);
+      const field = container.querySelector('[data-value="mapping.' + index + '.value"]');
+      return container.querySelector('[data-prompt-rebind="' + CSS.escape(error.parameter) + '"]') ||
+        field?.querySelector("[data-value-text]") || field?.querySelector("[data-variable-toggle]");
     }
     function validatePromptInputs() {
-      const chosen = selectedPrompt(working);
-      const missing = promptFields(working).find(name => {
-        const item = working.mapping.find(row => row.key === name);
-        return !item || flow.activeValue(item.value).literal === "";
-      });
-      if (chosen && missing === undefined) return true;
+      const inputs = Object.fromEntries(promptMapping(working).map(item => [item.key, item.value]));
+      const [error] = tools.promptDiagnostics({ ...working, inputs }, editor.plans, editor.registry);
+      if (!error) return true;
       if (parameterTab !== "general") { parameterTab = "general"; render(); }
-      const index = working.mapping.findIndex(item => item.key === missing);
-      const field = container.querySelector('[data-value="mapping.' + index + '.value"]');
-      const control = field?.querySelector("[data-value-text]") || container.querySelector('[data-prop="promptId"]');
-      container.querySelector(".aw-error").textContent = !chosen ? "请选择提示词模板"
-        : missing === root.STPromptPlans.userParameter(chosen) ? "请填写用户提示词" : "请为占位符「" + missing + "」提供数据";
+      const control = promptErrorControl(error);
+      const userParameter = root.STPromptPlans.userParameter(selectedPrompt(working));
+      container.querySelector(".aw-error").textContent = !working.promptId && error.field === "promptId" ? tr("workflow_ui_select_a_prompt_template", "请选择提示词模板")
+        : !editor.importing && error.field === "inputs" && error.parameter === userParameter ? tr("workflow_ui_enter_a_user_prompt", "请填写用户提示词") : view().errorCaption(error);
       control?.setAttribute("aria-invalid", "true");
       control?.focus();
       return false;
     }
-    function promptInputs() {
-      const userParameter = root.STPromptPlans.userParameter(selectedPrompt(working));
-      promptParameters = promptFields(working);
-      return promptParameters.map(name => {
+    function promptInputs(plan) {
+      const userParameter = root.STPromptPlans.userParameter(plan);
+      const extra = [...working.mapping.entries()].filter(([, item]) => item.originalKey !== undefined && !promptParameters.includes(item.key));
+      let fields = promptParameters.map(name => {
         let index = working.mapping.findIndex(item => item.key === name);
         if (index < 0) {
           index = working.mapping.length;
           working.mapping.push({ key: name, value: flow.literal("") });
         }
-        return valueField(name === userParameter ? "用户提示词" : name, working.mapping[index].value, "mapping." + index + ".value", workspace);
+        const value = working.mapping[index].value;
+        const label = name === userParameter && !editor.importing && !extra.length ? tr("workflow_ui_user_prompt", "用户提示词") : name;
+        const field = valueField(label, value, "mapping." + index + ".value", workspace);
+        if (!extra.length || flow.activeValue(value).literal !== "") return field;
+        const caption = tr("workflow_prompt_use_existing", "将已有输入用于「$name$」", { name });
+        const options = [["", tr("common_select", "请选择"), true], ...extra.map(([, item]) => [item.key, item.key])];
+        return field + '<label><span>' + esc(caption) + '</span>' + root.STSettingsFields.fixedComboHtml(caption, "data-prompt-rebind", name, options, "") + '</label>';
       }).join("");
+      if (extra.length) fields += '<section class="aw-section"><h4>' + esc(tr("workflow_prompt_unmatched_inputs", "保留的原输入")) + '</h4>' +
+        extra.map(([index, item]) => '<div data-prompt-extra>' + valueField(item.key, item.value, "mapping." + index + ".value", workspace) + '</div>').join("") + '</section>';
+      return fields;
     }
     function requestSite(node) {
       const inferred = flow.staticHttpOrigin(node.url);
@@ -1048,7 +1145,7 @@
     }
     function permissionMessage(action, fields) {
       return root.STMessageBus.request({ type: "AI_GATEWAY_PERMISSION_" + action, purpose: "workflow-http", ...fields }, { timeoutMs: 10000, logFailures: false }).then(result => {
-        if (result?.success !== true) throw new Error(result?.error || "站点授权操作失败");
+        if (result?.success !== true) throw new Error(result?.error || tr("workflow_ui_site_authorization_failed", "站点授权操作失败"));
         return result;
       });
     }
@@ -1062,7 +1159,7 @@
       const permission = permissions.get(origin);
       button.hidden = !origin || permission === true;
       button.disabled = !!authorizing || permission === "checking";
-      status.textContent = !origin ? "" : origin + " · " + (permission === true ? "已授权" : permission === false ? "待授权" : "检查授权中…");
+      status.textContent = !origin ? "" : origin + " · " + (permission === true ? tr("workflow_ui_authorized", "已授权") : permission === false ? tr("workflow_ui_awaiting_authorization", "待授权") : tr("workflow_ui_checking_authorization", "检查授权中…"));
       root.clearTimeout(permissionTimer);
       if (!origin || permissions.has(origin)) return;
       button.disabled = true;
@@ -1084,7 +1181,7 @@
         try {
           const granted = await root.chrome.permissions.request({ origins: [root.STAI.hostPermissionPattern(origin)] });
           permissions.set(origin, granted === true);
-          if (!granted) throw new Error("站点未授权");
+          if (!granted) throw new Error(tr("workflow_ui_site_not_authorized", "站点未授权"));
         } finally { authorizing = ""; paintHttpSite(); }
         return;
       }
@@ -1100,16 +1197,16 @@
         return false;
       }, { owner: "settings-workflow", key: requestId });
       try {
-        if (!subscription) throw new Error("当前页面无法接收站点授权结果");
+        if (!subscription) throw new Error(tr("workflow_ui_this_page_cannot_receive_the_authorization_result", "当前页面无法接收站点授权结果"));
         signal.addEventListener("abort", stop, { once: true });
         const operation = await permissionMessage("OPEN", { host: origin, requestId });
         opened = operation.opened === true;
-        if (!opened) throw new Error("无法打开站点授权页");
+        if (!opened) throw new Error(tr("workflow_ui_could_not_open_the_authorization_page", "无法打开站点授权页"));
         const outcome = await result;
         if (lifetime.signal.aborted) return;
-        if (!outcome) throw new Error("等待站点授权超时，请重新操作");
+        if (!outcome) throw new Error(tr("workflow_ui_authorization_timed_out_try_again", "等待站点授权超时，请重新操作"));
         permissions.set(origin, outcome.granted === true);
-        if (!outcome.granted) throw new Error(outcome.error || "站点未授权");
+        if (!outcome.granted) throw new Error(outcome.error || tr("workflow_ui_site_not_authorized", "站点未授权"));
       } finally {
         signal.removeEventListener("abort", stop);
         subscription?.dispose();
@@ -1125,77 +1222,76 @@
       if (working.kind === "if") {
         content = conditionHtml(working.branches[branch].condition, `branches.${branch}.condition`, workspace);
       } else if (flow.loops.has(working.kind)) {
-        if (working.kind === "for") content = valueField("循环次数", working.count, "count", workspace);
+        if (working.kind === "for") content = valueField(tr("workflow_ui_repeat_count", "循环次数"), working.count, "count", workspace);
         if (working.kind === "while") content = conditionHtml(working.condition, "condition", workspace);
-        if (working.kind === "forever") content = valueField("每轮间隔（秒）", working.seconds, "seconds", workspace);
-        if (["foreach", "entries"].includes(working.kind)) content = valueField("循环数据", working.value, "value", workspace) +
-          outputField(working.kind === "entries" ? "当前值保存至" : "当前项目保存至", working.item, "item", workspace) +
-          outputField(working.kind === "entries" ? "当前键保存至" : "当前序号保存至", working.index, "index", workspace);
+        if (working.kind === "forever") content = valueField(tr("workflow_ui_interval_per_iteration_seconds", "每轮间隔（秒）"), working.seconds, "seconds", workspace);
+        if (["foreach", "entries"].includes(working.kind)) content = valueField(tr("workflow_ui_items_to_iterate", "循环数据"), working.value, "value", workspace) +
+          outputField(working.kind === "entries" ? tr("workflow_ui_save_current_value_to", "当前值保存至") : tr("workflow_ui_save_current_item_to", "当前项目保存至"), working.item, "item", workspace) +
+          outputField(working.kind === "entries" ? tr("workflow_ui_save_current_key_to", "当前键保存至") : tr("workflow_ui_save_current_index_to", "当前序号保存至"), working.index, "index", workspace);
       } else if (working.kind === "try") {
-        content = outputField("Catch 异常保存至", working.error, "error", workspace) + `<div class="aw-tools">${button("catch-toggle", working.catch === null ? "添加 Catch" : "删除 Catch")}${button("finally-toggle", working.finally === null ? "添加 Finally" : "删除 Finally")}</div>`;
+        content = outputField(tr("workflow_ui_save_caught_exception_to", "Catch 异常保存至"), working.error, "error", workspace) + `<div class="aw-tools">${button("catch-toggle", working.catch === null ? tr("workflow_ui_add_catch", "添加 Catch") : tr("workflow_ui_remove_catch", "删除 Catch"))}${button("finally-toggle", working.finally === null ? tr("workflow_ui_add_finally", "添加 Finally") : tr("workflow_ui_remove_finally", "删除 Finally"))}</div>`;
       } else {
         const key = working.action;
         if (http) {
-          content += prop("方法", "method", working.method, flow.httpMethods.map(method => [method, method]));
+          content += prop(tr("workflow_ui_method", "方法"), "method", working.method, flow.httpMethods.map(method => [method, method]));
           content += valueField("URL", working.url, "url", workspace, [], "text");
-          content += `<div data-http-site>${prop("请求站点", "origin", working.origin)}</div><div class="aw-http-permission"><span role="status" data-http-status></span><button type="button" data-http-authorize hidden>授权站点</button></div>`;
-          content += valueField("请求头", working.headers, "headers", workspace, [], "object");
-          if (flow.hasHttpBody(working.method)) content += valueField("请求体", working.body ?? flow.literal(""), "body", workspace, [], "any", true);
+          content += `<div data-http-site>${prop(tr("workflow_ui_request_site", "请求站点"), "origin", working.origin)}</div><div class="aw-http-permission"><span role="status" data-http-status></span><button type="button" data-http-authorize hidden>${esc(tr("workflow_ui_authorize_site", "授权站点"))}</button></div>`;
+          content += valueField(tr("workflow_ui_request_headers", "请求头"), working.headers, "headers", workspace, [], "object");
+          if (flow.hasHttpBody(working.method)) content += valueField(tr("workflow_ui_request_body", "请求体"), working.body ?? flow.literal(""), "body", workspace, [], "any", true);
         } else if (dataDefinition) {
-          if (key === "set") content += prop("变量类型", "valueType", working.valueType, Object.entries(variableTypes).filter(([id]) => id !== "result"));
-          content += dataDefinition.fields.map(field => valueField(field.label, working[field.key], field.key, workspace,
-            field.choices || [], key === "set" ? working.valueType : field.type, false, [], field.selectLiteralType)).join("");
+          if (key === "set") content += prop(tr("workflow_ui_variable_type", "变量类型"), "valueType", working.valueType, Object.entries(variableTypes).filter(([id]) => id !== "result"));
+          content += dataDefinition.fields.map(field => valueField(instructions.schemaLabel(field.label), working[field.key], field.key, workspace,
+            instructions.schemaChoices(field.choices || []), key === "set" ? working.valueType : field.type, false, [], field.selectLiteralType)).join("");
         }
-        if (["raise", "log"].includes(key)) content += valueField(key === "log" ? "日志内容" : "异常消息或异常变量", working.value, "value", workspace, [], "any", true);
-        if (key === "wait") content += valueField("等待秒数", working.seconds, "seconds", workspace, [], "number");
+        if (["raise", "log"].includes(key)) content += valueField(key === "log" ? tr("workflow_ui_log_message", "日志内容") : tr("workflow_ui_error_message_or_variable", "异常消息或异常变量"), working.value, "value", workspace, [], "any", true);
+        if (key === "wait") content += valueField(tr("workflow_ui_wait_duration_seconds", "等待秒数"), working.seconds, "seconds", workspace, [], "number");
         if (key === "script") {
           content += `
             <div class="aw-code-section">
               <div class="aw-code-toolbar">
-                <span>JavaScript 代码</span>
-                <button type="button" data-code-size>展开编辑器</button>
+                <span>${esc(tr("workflow_ui_javascript_code", "JavaScript 代码"))}</span>
+                <button type="button" data-code-size>${esc(tr("workflow_ui_expand_editor", "展开编辑器"))}</button>
               </div>
-              <div class="aw-code-editor"><div data-code><span class="aw-hint">正在加载编辑器…</span></div>
-                <button type="button" class="aw-fx" data-variable-toggle data-script-reference aria-label="插入变量" title="插入变量" disabled>${icon("math-function")}</button>
+              <div class="aw-code-editor"><div data-code><span class="aw-hint">${esc(tr("workflow_ui_loading_editor", "正在加载编辑器…"))}</span></div>
+                <button type="button" class="aw-fx" data-variable-toggle data-script-reference aria-label="${esc(tr("workflow_ui_insert_variable", "插入变量"))}" title="${esc(tr("workflow_ui_insert_variable", "插入变量"))}" disabled>${icon("math-function")}</button>
               </div>
             </div>`;
         }
-        if (key === "log") content += prop("日志级别", "level", working.level, Object.entries(model.NOTICE_TYPES));
-        if (key === "comment") content += `<label>备注<textarea data-prop="text">${esc(working.text)}</textarea></label>`;
+        if (key === "log") content += prop(tr("workflow_ui_log_level", "日志级别"), "level", working.level, instructions.schemaChoices(Object.entries(model.NOTICE_TYPES)));
+        if (key === "comment") content += `<label>${esc(tr("store_titleCustomName_noteTab", "备注"))}<textarea data-prop="text">${esc(working.text)}</textarea></label>`;
         if (key === "ai-call") {
           const services = view().serviceChoices(editor.registry, working.serviceId);
           const prompts = view().promptChoices(editor.plans, working.promptId);
-          if (!working.promptId) prompts.unshift(["", prompts.length ? "请选择提示词模板" : "请先新建提示词", true]);
-          content += `<div class="aw-grid">${prop("AI 服务", "serviceId", working.serviceId, services)}${prop("提示词模板", "promptId", working.promptId, prompts)}</div>`;
-          const note = services.find(([id]) => id === working.serviceId)?.[3];
-          if (note) content += `<span class="aw-note">${esc(note)}</span>`;
-          promptParameters = null;
-          try { content += promptInputs(); }
-          catch (error) { promptError = error; }
+          if (!working.promptId) prompts.unshift(["", prompts.length ? tr("workflow_ui_select_a_prompt_template", "请选择提示词模板") : tr("workflow_ui_create_a_prompt_first", "请先新建提示词"), true]);
+          content += `<div class="aw-grid">${prop(tr("onboarding_aiServices", "AI 服务"), "serviceId", working.serviceId, services)}${prop(tr("workflow_ui_prompt_template", "提示词模板"), "promptId", working.promptId, prompts)}</div>`;
+          const binding = tools.resolvePrompt(working, editor.plans, editor.registry);
+          promptParameters = binding.fields;
+          if (!binding.service || working.promptId || editor.importing) promptError = binding.errors[0]?.message;
+          content += promptInputs(binding.plan);
         }
         if (key === "notify") {
-          content += `<div class="aw-grid">${prop("级别", "level", working.level, Object.entries(model.NOTICE_TYPES))}${prop("投递方式", "delivery", working.delivery, [["center", "消息中心"], ["popup", "消息中心并弹出"]])}${prop("范围", "scope", working.scope, working.messageType === "interactive" ? [["account", "当前账号"]] : [["account", "当前账号"], ["device", "本机"]])}</div>` + valueField("消息正文", working.body, "body", workspace, [], "text", true);
-          if (working.messageType === "interactive") content += `<div class="aw-section"><h4>操作按钮</h4>${working.buttons.map((item, index) => `<div class="aw-button-row">${prop("名称", `buttons.${index}.label`, item.label)}${prop("图标", `buttons.${index}.icon`, item.icon, [["view", "查看"], ["mute", "取消"], ["retry", "重试"], ["read", "完成"], ["upgrade", "继续"]])}${iconButton("button-delete", "删除按钮", "trash", `data-index="${index}"`)}</div>`).join("")}${button("button-add", "添加按钮", "", "plus")}</div><div class="aw-grid">${prop("消息超时", "_timeout", working._timeout, [["false", "不设置"], ["true", "设置超时"]])}${working._timeout === "true" ? prop("超时秒数", "_timeoutSeconds", working._timeoutSeconds, null, "number") : ""}</div>`;
+          content += `<div class="aw-grid">${prop(tr("messageCenter_levels", "级别"), "level", working.level, instructions.schemaChoices(Object.entries(model.NOTICE_TYPES)))}${prop(tr("workflow_ui_delivery_method", "投递方式"), "delivery", working.delivery, [["center", tr("messageCenter_navigationLabel", "消息中心")], ["popup", tr("workflow_ui_message_center_and_popup", "消息中心并弹出")]])}${prop(tr("steam_independentName_transfer_scope", "范围"), "scope", working.scope, working.messageType === "interactive" ? [["account", tr("workflow_ui_current_account", "当前账号")]] : [["account", tr("workflow_ui_current_account", "当前账号")], ["device", tr("workflow_ui_this_device", "本机")]])}</div>` + valueField(tr("workflow_ui_message_body", "消息正文"), working.body, "body", workspace, [], "text", true);
+          if (working.messageType === "interactive") content += `<div class="aw-section"><h4>${esc(tr("workflow_ui_action_buttons", "操作按钮"))}</h4>${working.buttons.map((item, index) => `<div class="aw-button-row">${prop(tr("workflow_ui_name", "名称"), `buttons.${index}.label`, item.label)}${prop(tr("workflow_ui_icon", "图标"), `buttons.${index}.icon`, item.icon, [["view", tr("messageCenter_view", "查看")], ["mute", tr("common_cancel", "取消")], ["retry", tr("common_retry", "重试")], ["read", tr("workflow_ui_done", "完成")], ["upgrade", tr("common_continue", "继续")]])}${iconButton("button-delete", tr("workflow_ui_delete_button", "删除按钮"), "trash", `data-index="${index}"`)}</div>`).join("")}${button("button-add", tr("workflow_ui_add_button", "添加按钮"), "", "plus")}</div><div class="aw-grid">${prop(tr("workflow_ui_message_timeout", "消息超时"), "_timeout", working._timeout, [["false", tr("workflow_ui_none", "不设置")], ["true", tr("workflow_ui_set_timeout", "设置超时")]])}${working._timeout === "true" ? prop(tr("workflow_ui_timeout_seconds", "超时秒数"), "_timeoutSeconds", working._timeoutSeconds, null, "number") : ""}</div>`;
         }
-        if (dataDefinition || ["script", "notify", "ai-call"].includes(key)) output = outputField(http ? "保存响应至" : key === "ai-call" ? "保存回复至" : key === "set" ? "变量名" : "保存结果至", working.output, "output", workspace, working.action === "set" ? working.valueType : dataDefinition?.outputType || (key === "ai-call" ? "text" : "any"));
+        if (dataDefinition || ["script", "notify", "ai-call"].includes(key)) output = outputField(http ? tr("workflow_ui_save_response_to", "保存响应至") : key === "ai-call" ? tr("workflow_ui_save_reply_to", "保存回复至") : key === "set" ? tr("workflow_ui_variable_name_label", "变量名") : tr("workflow_ui_save_result_to", "保存结果至"), working.output, "output", workspace, working.action === "set" ? working.valueType : dataDefinition?.outputType || (key === "ai-call" ? "text" : "any"));
       }
       const advanced = http || ["script", "ai-call", "family-refresh"].includes(working.action);
       if (parameterTab === "advanced") {
-        content = working.action === "script" ? prop("执行超时（秒）", "seconds", working.seconds, null, "number")
-          : prop(http ? `请求超时（1–${flow.httpMaxTimeout} 秒）` : "请求超时（秒）", "requestTimeoutSeconds", working.requestTimeoutSeconds, null, "number");
+        content = working.action === "script" ? prop(tr("workflow_ui_execution_timeout_seconds", "执行超时（秒）"), "seconds", working.seconds, null, "number")
+          : prop(http ? tr("workflow_format_timeout", "请求超时（1–$max$ 秒）", { max: flow.httpMaxTimeout }) : tr("workflow_ui_request_timeout_seconds", "请求超时（秒）"), "requestTimeoutSeconds", working.requestTimeoutSeconds, null, "number");
         output = "";
         if (working.action === "ai-call") {
-          content += valueField("传入对话历史", working.context, "context", workspace, [], "list");
-          output = outputField("保存更新后的对话历史至", working.contextOutput, "contextOutput", workspace, "list");
+          content += valueField(tr("workflow_ui_conversation_history_input", "传入对话历史"), working.context, "context", workspace, [], "list");
+          output = outputField(tr("workflow_ui_save_updated_conversation_history_to", "保存更新后的对话历史至"), working.contextOutput, "contextOutput", workspace, "list");
         }
       } else if (parameterTab === "error") {
-        content = flow.failable(working) ? prop("处理方式", "onError", working.onError, [["throw", "交给 Try/Catch，未捕获则结束失败"], ["continue", "保存失败结果并继续"]]) + outputField("执行结果保存至", working.errorOutput, "errorOutput", workspace, "result")
-          : '<p class="aw-hint">异常交给流程中的 Try/Catch；未捕获时结束本次运行。</p>';
+        content = flow.failable(working) ? prop(tr("workflow_ui_error_policy", "处理方式"), "onError", working.onError, [["throw", tr("workflow_ui_pass_to_try_catch_fail_if_uncaught", "交给 Try/Catch，未捕获则结束失败")], ["continue", tr("workflow_ui_save_failure_and_continue", "保存失败结果并继续")]]) + outputField(tr("workflow_ui_save_execution_result_to", "执行结果保存至"), working.errorOutput, "errorOutput", workspace, "result")
+          : `<p class="aw-hint">${esc(tr("workflow_ui_try_catch_handles_errors_an_uncaught_error_ends_the_run", "异常交给流程中的 Try/Catch；未捕获时结束本次运行。"))}</p>`;
         output = "";
       }
-      const paramTabs = [["general", "常规"], ...(advanced ? [["advanced", "高级"]] : []), ...(flow.failable(working) ? [["error", "错误处理"]] : [])];
-      formHtml(container, `<div class="aw aw-form"><div class="aw-tabs aw-param-tabs" role="tablist" aria-label="指令参数">${paramTabs.map(([id, label]) => `<button type="button" role="tab" data-parameter-tab="${id}" aria-selected="${id === parameterTab}" tabindex="${id === parameterTab ? 0 : -1}">${label}</button>`).join("")}</div><div role="tabpanel" aria-label="${paramTabs.find(([id]) => id === parameterTab)?.[1]}">${content ? `<div class="aw-section">${parameterTab === "general" ? "<h4>指令输入</h4>" : ""}${content}</div>` : ""}${output ? `<div class="aw-section"><h4>指令输出</h4>${output}</div>` : ""}</div><div class="aw-test-result" data-test-result role="status" hidden></div><div class="aw-error" role="alert"></div></div>`);
-      if (promptError) reportFailure(promptError, container.querySelector(".aw-error"));
+      const paramTabs = [["general", tr("workflow_ui_general", "常规")], ...(advanced ? [["advanced", tr("workflow_ui_advanced", "高级")]] : []), ...(flow.failable(working) ? [["error", tr("workflow_ui_error_handling", "错误处理")]] : [])];
+      formHtml(container, `<div class="aw aw-form"><div class="aw-tabs aw-param-tabs" role="tablist" aria-label="${esc(tr("workflow_ui_action_parameters", "指令参数"))}">${paramTabs.map(([id, label]) => `<button type="button" role="tab" data-parameter-tab="${id}" aria-selected="${id === parameterTab}" tabindex="${id === parameterTab ? 0 : -1}">${label}</button>`).join("")}</div><div role="tabpanel" aria-label="${paramTabs.find(([id]) => id === parameterTab)?.[1]}">${content ? `<div class="aw-section">${parameterTab === "general" ? `<h4>${esc(tr("workflow_ui_action_inputs", "指令输入"))}</h4>` : ""}${content}</div>` : ""}${output ? `<div class="aw-section"><h4>${esc(tr("workflow_ui_action_outputs", "指令输出"))}</h4>${output}</div>` : ""}</div><div class="aw-test-result" data-test-result role="status" hidden></div><div class="aw-error" role="alert"></div></div>`);
+      if (promptError) container.querySelector(".aw-error").textContent = promptError;
       if (previewText) { const result = container.querySelector("[data-test-result]"); result.hidden = false; result.textContent = previewText; }
       if (http && parameterTab === "general") paintHttpSite();
       if (parameterTab === "general" && working.action === "script") {
@@ -1214,7 +1310,7 @@
       if (working.action === "notify") {
         if (working.messageType === "notification") { delete working.buttons; delete working.timeout; }
         else {
-          working.buttons ??= [{ id: flow.numericId("button-", []), label: "继续", icon: "view" }];
+          working.buttons ??= [{ id: flow.numericId("button-", []), label: tr("common_continue", "继续"), icon: "view" }];
           working.timeout = working._timeout === "true" ? { seconds: Number(working._timeoutSeconds) } : null;
           working.scope = "account";
         }
@@ -1233,7 +1329,7 @@
         if (!key.startsWith("inputs.")) config[key] = values.comparable(value);
       }
       if (mapping) {
-        config.inputs = Object.fromEntries(mapping.filter(item => !promptParameters || promptParameters.includes(item.key))
+        config.inputs = Object.fromEntries(promptMapping(working)
           .map(({ key, value }) => [key, values.comparable(value)])
           .filter(([, value]) => JSON.stringify(value) !== emptyInput));
       } else if (inputs) config.inputs = Object.fromEntries(Object.entries(inputs).map(([key, value]) => [key, values.comparable(value)]));
@@ -1241,8 +1337,7 @@
       if (working.kind === "if") config.branches = working.branches.map(branch => ({ ...branch, condition: comparableCondition(branch.condition) }));
       const outputNames = Object.entries(values.outputEntries(container, workspace)).flatMap(([slot, entry]) => {
         const original = workspace.variables.find(item => item.id === entry.id)?.name || entry.id || "";
-        const name = entry.name.trim();
-        return name === original ? [] : [[slot, name]];
+        return entry.name === original ? [] : [[slot, entry.name]];
       }).sort(([left], [right]) => left.localeCompare(right));
       return JSON.stringify([config, workspace.variables, outputNames]);
     }
@@ -1263,7 +1358,9 @@
         if (variable && !editor.originalVariableIds.has(variable.id)) variable.type = entry.type;
       }
       if (target.action === "ai-call") {
-        target.inputs = Object.fromEntries(promptMapping(target).map(item => [item.key, item.value]));
+        const rows = promptMapping(target);
+        await root.STWorkflowValues.compile({ ...target, mapping: rows.filter(item => !isOriginalInput(item)) }, clean);
+        target.inputs = Object.fromEntries(rows.map(item => [item.key, isOriginalInput(item) ? target.inputs[item.originalKey] : item.value]));
         if (JSON.stringify(values.comparable(target.context)) === emptyInput) delete target.context;
         if (!target.contextOutput) delete target.contextOutput;
       }
@@ -1273,7 +1370,7 @@
       }
       delete target.mapping; delete target._timeout; delete target._timeoutSeconds;
       if (target.onError === "throw") delete target.onError;
-      await root.STWorkflowValues.compile(target, clean);
+      if (target.action !== "ai-call") await root.STWorkflowValues.compile(target, clean);
       if (target.action === "script") {
         const module = await import(root.chrome.runtime.getURL("settings/pages/workflow-code.js"));
         const source = target.code.map(part => typeof part === "string" ? part : module.scriptReference(part, clean)).join("");
@@ -1289,11 +1386,11 @@
       const result = container.querySelector("[data-test-result]");
       if (result) { result.hidden = false; result.textContent = text; }
       const button = container.closest("dialog")?.querySelector('[data-dialog-action="test"]');
-      if (button) button.textContent = previewId ? "停止试运行" : testLabel;
+      if (button) button.textContent = previewId ? tr("workflow_ui_stop_test", "停止试运行") : testLabel;
     }
     async function stopPreview() {
       const id = previewId; if (!id) return;
-      previewId = null; showPreview("试运行已停止");
+      previewId = null; showPreview(tr("workflow_ui_test_stopped", "试运行已停止"));
       await view().rpc("cancel-instruction-test", { id });
     }
     async function runPreview() {
@@ -1307,7 +1404,7 @@
           const membership = await state.ctx.storage.getMembership();
           if (lifetime.signal.aborted) return;
           if (!root.STSettingsMembership.permission(permission, membership)) {
-            showPreview(flow.permissionDenial(permission, membership));
+            showPreview(flow.permissionDenial(permission, membership, root.STI18n.text));
             return;
           }
         }
@@ -1318,59 +1415,64 @@
         trial = target.kind === "if" ? { ...target, branches: [{ condition: target.branches[branch].condition, steps: [] }], otherwise: null } : target;
         samples = await testValues(state, clean, trial);
         if (samples && http) {
-          const answer = await state.ctx.dialog(state.shadow, { title: "发送测试请求", className: "aw-automation-dialog",
-            message: `${trial.method} ${trial.origin}\n本次操作会向该站点发送真实请求。`,
-            actions: [{ id: "cancel", label: "取消" }, { id: "send", label: "发送请求", primary: true }],
+          const answer = await state.ctx.dialog(state.shadow, { title: tr("workflow_ui_send_test_request", "发送测试请求"), className: "aw-automation-dialog",
+            message: `${trial.method} ${trial.origin}\n${tr("workflow_ui_this_sends_a_real_request_to_this_site", "本次操作会向该站点发送真实请求。")}`,
+            actions: [{ id: "cancel", label: tr("common_cancel", "取消") }, { id: "send", label: tr("workflow_ui_send_request", "发送请求"), primary: true }],
           });
           if (answer !== "send") samples = null;
         }
       } finally { preparingPreview = false; }
       if (!samples || lifetime.signal.aborted) return;
-      const id = root.crypto.randomUUID(); previewId = id; showPreview("正在运行…");
+      const id = root.crypto.randomUUID(); previewId = id; showPreview(tr("workflow_ui_running", "正在运行…"));
       try {
         const result = await view().rpc("test-instruction", { id, workflow: { ...clean, steps: [trial] }, ...samples });
         if (previewId !== id || lifetime.signal.aborted) return;
         previewId = null;
-        if (result.cancelled) { showPreview("试运行已停止"); return; }
+        if (result.cancelled) { showPreview(tr("workflow_ui_test_stopped", "试运行已停止")); return; }
         if (http && result.failures.some(failure => failure.code === "WORKFLOW_HTTP_PERMISSION_REQUIRED")) {
           permissions.delete(trial.origin); paintHttpSite();
         }
-        const status = result.failures.length ? "失败，已按配置继续" : trial.action === "ai-call" ? "请求预览 · 未发送" : "运行完成";
+        const status = result.failures.length ? tr("workflow_ui_failed_continued_as_configured", "失败，已按配置继续") : trial.action === "ai-call" ? tr("workflow_ui_request_preview_not_sent", "请求预览 · 未发送") : tr("workflow_ui_run_completed", "运行完成");
         showPreview(`${status} · ${Math.round(result.milliseconds)} ms\n${JSON.stringify(result.failures.length ? result.failures : result.value, null, 2)}`);
       } catch (error) {
         if (previewId !== id || lifetime.signal.aborted) return;
         previewId = null;
         if (http) { permissions.delete(trial.origin); paintHttpSite(); }
-        showPreview("运行失败\n" + error.message);
+        showPreview(tr("workflow_ui_run_failed", "运行失败") + "\n" + view().errorCaption(error));
       }
     }
     const instructionKey = instructions.key({ ...row, node: working });
     const permission = flow.instructionPermission(instructionKey);
     const titleBadge = permission ? document.createElement("span") : null;
-    const hint = instructions.hints[instructionKey];
+    const hint = instructions.hint(instructionKey);
     let subtitle = hint;
     if (titleBadge) {
       titleBadge.className = "aw-name-badge";
-      titleBadge.textContent = permissionLabel;
+      titleBadge.textContent = permissionLabel();
       titleBadge.setAttribute("aria-hidden", "true");
       const note = document.createElement("span");
       note.className = "aw-donation-info";
-      note.textContent = flow.permissionNotice(permission);
+      note.textContent = flow.permissionNotice(permission, root.STI18n.text);
       subtitle = document.createDocumentFragment();
       subtitle.append(hint + "。", note);
       if (permission === "customNames") {
         const link = document.createElement("a");
         link.className = "aw-donation-link";
-        link.textContent = "我要赞助开发者";
+        link.textContent = tr("onboarding_supportTheDeveloper", "我要赞助开发者");
         root.STConfig.externalNavigation.applyToLink(link, "https://www.sucaijun.com/donate");
         subtitle.append(link);
       }
     }
-    const testLabel = working.action === "ai-call" ? "预览请求" : "运行指令";
-    try { return await state.ctx.dialog(state.shadow, { title: flow.names[instructionKey], titleBadge, subtitle, icon: instructions.iconUrl(instructionKey), iconClass: instructions.iconTone(instructionKey), className: "aw-param-dialog", form: true,
+    const testLabel = working.action === "ai-call" ? tr("workflow_ui_preview_request", "预览请求") : tr("workflow_ui_run_action", "运行指令");
+    try { return await state.ctx.dialog(state.shadow, { title: instructions.name(instructionKey), titleBadge, subtitle, icon: instructions.iconUrl(instructionKey), iconClass: instructions.iconTone(instructionKey), className: "aw-param-dialog", form: true,
       isDirty: hasUnsavedChanges,
+      initial: () => issue?.field && working.action === "ai-call" ? promptErrorControl(issue) : null,
       render: node => {
         container = node; render(); initial = draftSignature();
+        if (issue?.field && working.action === "ai-call") {
+          node.querySelector(".aw-error").textContent = view().errorCaption(issue);
+          promptErrorControl(issue)?.setAttribute("aria-invalid", "true");
+        }
         root.STWorkflowValues.bind(node, working, workspace, { dialog: state.ctx.dialog, shadow: state.shadow, render, scriptEditor: () => codeEditor, signal: lifetime.signal });
         node.addEventListener("input", () => {
           if (http) paintHttpSite();
@@ -1411,6 +1513,18 @@
               node.querySelector('[data-prop="' + field + '"]')?.focus({ preventScroll: true });
               return;
             }
+            if (event.target.hasAttribute("data-prompt-rebind")) {
+              const targetName = event.target.dataset.promptRebind;
+              const sourceName = root.STSettingsFields.controlValue(event.target);
+              const original = working.mapping.find(item => item.key === sourceName);
+              const target = working.mapping.find(item => item.key === targetName);
+              target.value = original.value;
+              target.originalKey = original.originalKey;
+              working.mapping.splice(working.mapping.indexOf(original), 1);
+              render();
+              promptErrorControl({ field: "inputs", parameter: targetName })?.focus();
+              return;
+            }
             if (event.target.matches('[data-prop="onError"]')) { render(); return; }
             if (event.target.matches('[data-prop="_timeout"],[data-prop$=".op"]') || event.target.closest('[data-value$=".left"]')) render();
           } catch (error) { reportFailure(error, node.querySelector(".aw-error")); }
@@ -1441,25 +1555,25 @@
             else if (action === "condition-delete") { const path = control.dataset.path.split("."), index = Number(path.pop()); flow.pathGet(working, path).splice(index, 1); }
             else if (action === "button-add") working.buttons.push({ id: flow.numericId("button-", working.buttons), label: "", icon: "view" });
             else if (action === "button-delete") {
-              const answer = await confirm(state, "删除交互按钮", "将删除这个按钮，保留流程中的判断分支。请同时检查引用该按钮的条件。");
+              const answer = await confirm(state, tr("workflow_ui_delete_interactive_button", "删除交互按钮"), tr("workflow_ui_this_button_will_be_removed_check_any_remaining_branches_tha", "将删除这个按钮，保留流程中的判断分支。请同时检查引用该按钮的条件。"));
               if (answer) working.buttons.splice(Number(control.dataset.index), 1);
             }
             else if (action === "catch-toggle" || action === "finally-toggle") {
               const key = action === "catch-toggle" ? "catch" : "finally";
               if (working[key] === null) working[key] = [];
-              else if (await confirm(state, "删除 " + key, "将删除该分支及其全部步骤。")) working[key] = null;
+              else if (await confirm(state, tr("common_delete", "删除") + " " + key, tr("workflow_ui_this_branch_and_all_its_steps_will_be_deleted", "将删除该分支及其全部步骤。"))) working[key] = null;
             }
             render();
           })().catch(error => reportFailure(error, node.querySelector(".aw-error")));
         });
-      }, actions: [...(flow.previewable(working) ? [{ id: "test", label: testLabel }] : []), { id: "cancel", label: "取消" }, { id: "save", label: "确定", primary: true }],
+      }, actions: [...(flow.previewable(working) ? [{ id: "test", label: testLabel }] : []), { id: "cancel", label: tr("common_cancel", "取消") }, { id: "save", label: tr("common_confirm", "确定"), primary: true }],
       onAction: async (action, node) => {
         if (action === "test") { void runPreview().catch(error => reportFailure(error, node.querySelector(".aw-error"))); return false; }
         if (action !== "save") return true;
         try {
           collectAll();
           if (working.action === "ai-call" && !validatePromptInputs()) return false;
-          const current = working.action === "ai-call" ? { ...working, mapping: promptMapping(working) } : working;
+          const current = working.action === "ai-call" ? { ...working, mapping: promptMapping(working).filter(item => !isOriginalInput(item)) } : working;
           await root.STWorkflowValues.compile(current, workspace);
           const named = await resolveOutputNames(state, container, workspace, working); if (!named) return false;
           const { clean } = await prepared(named); snapshot(editor); Object.assign(editor.draft, clean); return true;
@@ -1468,7 +1582,7 @@
       },
     }); } finally { lifetime.abort(); root.clearTimeout(permissionTimer); codeEditor?.destroy(); await stopPreview(); }
   }
-  const triggerFieldName = field => root.STWorkflowFields.labels[field] || root.STWorkflowFields.task[field] || field;
+  const triggerFieldName = field => instructions.schemaLabel(root.STWorkflowFields.labels[field] || root.STWorkflowFields.task[field] || field);
   const gameEvent = type => Object.hasOwn(gameEvents, type);
   const triggerMode = type => gameEvent(type) ? "automatic" : type;
 
@@ -1478,20 +1592,21 @@
   }
 
   function triggerEventFields(type) {
-    const common = [[["id"], "事件 ID"], [["type"], "事件类型"]];
+    const common = [[["id"], tr("workflow_ui_event_id", "事件 ID")], [["type"], tr("workflow_ui_event_type", "事件类型")]];
     if (gameEvent(type)) return [
-      ...common, [["game"], "本次游戏"], [["game", "official"], "Steam 原名"], [["game", "appid"], "AppID"], [["appid"], "事件 AppID"],
-      ...(type === "installed" ? [[["phase"], "安装阶段"]] : []),
+      ...common, [["game"], tr("workflow_ui_current_game", "本次游戏")], [["game", "official"], instructions.schemaLabel("Steam 原名")], [["game", "appid"], "AppID"], [["appid"], tr("workflow_ui_event_appid", "事件 AppID")],
+      ...(type === "installed" ? [[["phase"], tr("workflow_ui_installation_stage", "安装阶段")]] : []),
     ];
-    if (type === "schedule") return [...common, [["scheduledAt"], "计划时间"], [["at"], "实际触发时间"], [["unconfirmed"], "账号未确认"]];
+    if (type === "schedule") return [...common, [["scheduledAt"], tr("workflow_ui_scheduled_time", "计划时间")], [["at"], tr("workflow_ui_actual_trigger_time", "实际触发时间")], [["unconfirmed"], tr("workflow_ui_account_not_confirmed", "账号未确认")]];
     return [];
   }
 
+  const rangeChoices = () => instructions.schemaChoices(model.RANGES);
   const filterLeaves = condition => condition.children || [condition];
   const nestedFilter = condition => filterLeaves(condition).some(child => child.children);
   const filterWithoutValue = op => ["empty", "notEmpty", "unknown"].includes(op);
   const filterChoices = (field, op) => ["equals", "notEquals", "contains", "notContains"].includes(op)
-    ? root.STWorkflowFields.filterChoices[field] || [] : [];
+    ? instructions.schemaChoices(root.STWorkflowFields.filterChoices[field] || []) : [];
   const setCompare = ({ field, op }) => root.STWorkflowFields.kind(field) === "set" && ["equals", "notEquals"].includes(op);
   const terms = value => String(value ?? "").split(/[,，]/).map(term => term.trim()).filter(Boolean);
 
@@ -1509,17 +1624,17 @@
   }
 
   function filterSummary(condition) {
-    if (condition.children) return (condition.op === "all" ? "全部满足" : "任一满足") +
+    if (condition.children) return (condition.op === "all" ? tr("workflow_ui_match_all", "全部满足") : tr("workflow_ui_match_any", "任一满足")) +
       "（" + condition.children.map(filterSummary).join("，") + "）";
     const name = triggerFieldName(condition.field);
-    if (root.STWorkflowFields.kind(condition.field) === "boolean") return name + (filterBoolean(condition) ? " · 为真" : " · 为假");
+    if (root.STWorkflowFields.kind(condition.field) === "boolean") return name + (" · " + (filterBoolean(condition) ? tr("workflow_ui_is_true", "为真") : tr("workflow_ui_is_false", "为假")));
     let target = "";
     if (!filterWithoutValue(condition.op)) {
-      if (condition.preset) target = model.RANGES.find(([id]) => id === condition.preset)?.[1] || condition.preset;
+      if (condition.preset) target = rangeChoices().find(([id]) => id === condition.preset)?.[1] || condition.preset;
       else if (condition.op === "between") target = condition.min + "–" + condition.max;
       else target = filterValueLabel(condition);
     }
-    return [name, model.OPS[condition.op], target].filter(item => item !== "").join(" · ");
+    return [name, instructions.schemaLabel(model.OPS[condition.op]), target].filter(item => item !== "").join(" · ");
   }
 
   async function editTriggerFilter(state, type, original, replaced = null) {
@@ -1540,27 +1655,27 @@
       const { field, op } = current, kind = root.STWorkflowFields.kind(field), choices = filterChoices(field, op);
       let value = "";
       if (!filterWithoutValue(op) && kind !== "boolean") {
-        if (kind === "date") value = prop("比较值", "preset", current.preset || "24h", model.RANGES.filter(([id]) => field === "date_release" || !id.startsWith("next")));
-        else if (op === "between") value = prop("最小值", "min", current.min, null, "number") + prop("最大值", "max", current.max, null, "number");
+        if (kind === "date") value = prop(tr("workflow_ui_comparison_value", "比较值"), "preset", current.preset || "24h", rangeChoices().filter(([id]) => field === "date_release" || !id.startsWith("next")));
+        else if (op === "between") value = prop(tr("workflow_ui_minimum", "最小值"), "min", current.min, null, "number") + prop(tr("workflow_ui_maximum", "最大值"), "max", current.max, null, "number");
         else if (choices.length) {
           const combo = searchComboHtml(choices.map(([value, label]) => ({ value, label })), {
-            id: "aw-filter-value", label: "比较值", text: current.value,
+            id: "aw-filter-value", label: tr("workflow_ui_comparison_value", "比较值"), text: current.value,
             value: choices.find(([, label]) => label === current.value)?.[0],
-            placeholder: "输入或搜索", expandLabel: "展开比较值列表", emptyLabel: "没有匹配项", modal: true,
+            placeholder: tr("workflow_ui_type_or_search", "输入或搜索"), expandLabel: tr("workflow_ui_show_comparison_values", "展开比较值列表"), emptyLabel: tr("settings_storePriceChart_combo_empty", "没有匹配项"), modal: true,
           });
-          value = `<div class="aw-trigger-row"><label for="aw-filter-value">比较值</label>${combo}</div>`;
+          value = `<div class="aw-trigger-row"><label for="aw-filter-value">${esc(tr("workflow_ui_comparison_value", "比较值"))}</label>${combo}</div>`;
         }
-        else value = prop("比较值", "value", current.value, null, kind === "number" ? "number" : "text");
+        else value = prop(tr("workflow_ui_comparison_value", "比较值"), "value", current.value, null, kind === "number" ? "number" : "text");
       }
       formHtml(container, `<div class="aw aw-trigger-form aw-trigger-child">
-        ${replaced ? `<div class="aw-note">当前筛选 · ${esc(filterSummary(replaced))}</div>` : ""}
-        <div class="aw-grid">${prop("筛选字段", "field", field, fields.map(id => [id, triggerFieldName(id)]))}
-        ${kind === "boolean" ? `<label>关系<select data-filter-boolean>${options([["true", "为真"], ["false", "为假"]], filterBoolean(current))}</select></label>`
-          : prop("关系", "op", op, model.operators(field).map(id => [id, model.OPS[id]]))}
+        ${replaced ? `<div class="aw-note">${esc(tr("workflow_ui_current_filter", "当前筛选"))} · ${esc(filterSummary(replaced))}</div>` : ""}
+        <div class="aw-grid">${prop(tr("workflow_ui_filter_field", "筛选字段"), "field", field, fields.map(id => [id, triggerFieldName(id)]))}
+        ${kind === "boolean" ? `<label>${esc(tr("workflow_ui_operator", "关系"))}<select data-filter-boolean>${options([["true", tr("workflow_ui_is_true", "为真")], ["false", tr("workflow_ui_is_false", "为假")]], filterBoolean(current))}</select></label>`
+          : prop(tr("workflow_ui_operator", "关系"), "op", op, model.operators(field).map(id => [id, instructions.schemaLabel(model.OPS[id])]))}
         ${value}</div><div class="aw-error" role="alert"></div></div>`);
     }
     const answer = await state.ctx.dialog(state.shadow, {
-      title: replaced ? "替换筛选" : original ? "编辑筛选" : "添加筛选",
+      title: replaced ? tr("workflow_ui_replace_filter", "替换筛选") : original ? tr("workflow_ui_edit_filter", "编辑筛选") : tr("workflow_ui_add_filter", "添加筛选"),
       className: "aw-param-dialog", form: true,
       initial: node => node.querySelector('[data-prop="field"]'),
       render(node) {
@@ -1574,7 +1689,7 @@
           else if (control.dataset.prop === "op") { read(node); render(); }
         });
       },
-      actions: [{ id: "cancel", label: "取消" }, { id: "save", label: replaced ? "替换" : "确定", primary: true }],
+      actions: [{ id: "cancel", label: tr("common_cancel", "取消") }, { id: "save", label: replaced ? tr("workflow_ui_replace", "替换") : tr("common_confirm", "确定"), primary: true }],
       onAction(action, node) {
         if (action !== "save") return true;
         read(node);
@@ -1593,12 +1708,12 @@
             } else if (setCompare(result)) result.values = terms(value).map(canonical);
             else result.value = canonical(value?.trim() || "");
           }
-          if (!triggerConditionFields(type).includes(result.field)) throw new TypeError("该字段不适用于当前触发方式");
+          if (!triggerConditionFields(type).includes(result.field)) throw new TypeError(tr("workflow_ui_this_field_is_unavailable_for_this_trigger_type", "该字段不适用于当前触发方式"));
           model.validateCondition(result);
           return true;
         } catch (error) {
           if (!(error instanceof TypeError)) throw error;
-          node.querySelector(".aw-error").textContent = error.message;
+          node.querySelector(".aw-error").textContent = view().errorCaption(error);
           return false;
         }
       },
@@ -1608,14 +1723,14 @@
 
   function checkTriggerInput(item, type, keys, savedManual = false) {
     const { key, value } = item;
-    if (!key || ["__proto__", "constructor", "prototype"].includes(key)) return "请填写有效的工作流输入名。";
+    if (!key || ["__proto__", "constructor", "prototype"].includes(key)) return tr("workflow_ui_enter_a_valid_workflow_input_name", "请填写有效的工作流输入名。");
     const fields = triggerEventFields(type);
     for (const ref of flow.references(value)) {
       const available = type === "manual"
         ? savedManual && (!ref.path.length || keys.has(ref.path[0]))
         : !ref.path.length || fields.some(([path]) => path.length === ref.path.length && path.every((name, index) => name === ref.path[index]));
       if (ref.source !== "input" || !available)
-        return `输入「${key}」的来源「本次事件.${ref.path.join(".")}」在当前触发方式中不可用。`;
+        return tr("workflow_format_source_unavailable", "输入「$name$」的来源「本次事件.$path$」在当前触发方式中不可用。", { name: key, path: ref.path.join(".") });
     }
     return "";
   }
@@ -1631,24 +1746,24 @@
     let container;
     function render() {
       formHtml(container, `<div class="aw aw-trigger-form aw-trigger-child"><div class="aw-grid">
-        <label>工作流输入名<input data-prop="key" value="${esc(item.key)}"${names.length ? ' list="aw-trigger-input-names"' : ""}></label>
+        <label>${esc(tr("workflow_ui_workflow_input_name", "工作流输入名"))}<input data-prop="key" value="${esc(item.key)}"${names.length ? ' list="aw-trigger-input-names"' : ""}></label>
         ${names.length ? `<datalist id="aw-trigger-input-names">${names.map(name => `<option value="${esc(name)}"></option>`).join("")}</datalist>` : ""}
-        ${valueField("传入的数据", item.value, "value", workspace)}
+        ${valueField(tr("workflow_ui_incoming_data_label", "传入的数据"), item.value, "value", workspace)}
         </div><div class="aw-error" role="alert"></div></div>`);
     }
     const answer = await state.ctx.dialog(state.shadow, {
-      title: original ? "编辑输入" : "添加输入", className: "aw-param-dialog", form: true,
+      title: original ? tr("workflow_ui_edit_input", "编辑输入") : tr("workflow_ui_add_input", "添加输入"), className: "aw-param-dialog", form: true,
       initial: node => node.querySelector('[data-prop="key"]'),
       render(node) {
         container = node; render();
         root.STWorkflowValues.bind(node, item, workspace, { dialog: state.ctx.dialog, shadow: state.shadow, render, signal: lifetime.signal });
       },
-      actions: [{ id: "cancel", label: "取消" }, { id: "save", label: "确定", primary: true }],
+      actions: [{ id: "cancel", label: tr("common_cancel", "取消") }, { id: "save", label: tr("common_confirm", "确定"), primary: true }],
       onAction(action, node) {
         if (action !== "save") return true;
         try {
           collect(node, item, workspace); item.key = item.key.trim();
-          const error = otherKeys.has(item.key) ? "工作流输入名已存在。" :
+          const error = otherKeys.has(item.key) ? tr("workflow_ui_this_input_name_already_exists", "工作流输入名已存在。") :
             checkTriggerInput(item, trigger.event.type, new Set([...otherKeys, item.key]), !!original);
           if (error) { node.querySelector(".aw-error").textContent = error; return false; }
           flow.validateValue(item.value, new Set(), false);
@@ -1671,35 +1786,35 @@
   const scheduleLimitsAvailable = ({ timing }) => timing.mode === "minute" || timing.mode === "hour";
   function scheduleForm(event) {
     const { timing } = event;
-    const radios = frequencies.map(([id, label]) => `<label><input type="radio" name="trigger-frequency" value="${id}" data-trigger-frequency${timing.mode === id ? " checked" : ""}>${label}</label>`).join("");
+    const radios = frequencies().map(([id, label]) => `<label><input type="radio" name="trigger-frequency" value="${id}" data-trigger-frequency${timing.mode === id ? " checked" : ""}>${label}</label>`).join("");
     let fields = "";
-    if (timing.mode === "minute") fields = scheduleInput("间隔分钟", "timing.every", timing.every, "number", 'min="1" step="1"');
-    else if (timing.mode === "hour") fields = scheduleInput("每小时第几分", "timing.minute", timing.minute, "number", 'min="0" max="59" step="1"');
-    else if (timing.mode === "cron") fields = scheduleInput("时间表达式", "timing.expression", timing.expression, "text",
+    if (timing.mode === "minute") fields = scheduleInput(tr("workflow_ui_interval_in_minutes", "间隔分钟"), "timing.every", timing.every, "number", 'min="1" step="1"');
+    else if (timing.mode === "hour") fields = scheduleInput(tr("workflow_ui_minute_of_each_hour", "每小时第几分"), "timing.minute", timing.minute, "number", 'min="0" max="59" step="1"');
+    else if (timing.mode === "cron") fields = scheduleInput(tr("workflow_ui_cron_expression", "时间表达式"), "timing.expression", timing.expression, "text",
       'placeholder="0 9 * * 1-5" spellcheck="false" aria-describedby="st-trigger-cron-format"') +
-      '<p class="aw-note" id="st-trigger-cron-format">分、时、日、月、星期</p>';
+      `<p class="aw-note" id="st-trigger-cron-format">${esc(tr("workflow_ui_minute_hour_day_month_weekday", "分、时、日、月、星期"))}</p>`;
     else {
-      if (timing.mode === "week") fields += `<fieldset class="aw-trigger-options"><legend>星期</legend>
-        ${weekdays.map(([id, label]) => triggerCheck(label, `data-trigger-weekday value="${id}"`, timing.weekdays.includes(id))).join("")}</fieldset>`;
-      if (timing.mode === "month") fields += scheduleInput("日期", "timing.day", timing.day, "number", 'min="1" max="31" step="1"');
-      fields += scheduleInput("时间", "timing.time", timing.time, "time");
+      if (timing.mode === "week") fields += `<fieldset class="aw-trigger-options"><legend>${esc(tr("workflow_ui_weekday", "星期"))}</legend>
+        ${weekdays().map(([id, label]) => triggerCheck(label, `data-trigger-weekday value="${id}"`, timing.weekdays.includes(id))).join("")}</fieldset>`;
+      if (timing.mode === "month") fields += scheduleInput(tr("workflow_ui_date", "日期"), "timing.day", timing.day, "number", 'min="1" max="31" step="1"');
+      fields += scheduleInput(tr("settings_account_profileUsageTime", "时间"), "timing.time", timing.time, "time");
     }
-    return `<fieldset class="aw-trigger-options"><legend>执行频率</legend>${radios}</fieldset>${fields}
-      <div class="aw-trigger-row"><span>下次触发</span><output class="aw-trigger-preview" data-trigger-preview></output></div>
-      ${triggerCheck("定时结束", 'data-schedule-toggle="endLocal"', event.endLocal !== undefined)}
-      ${event.endLocal !== undefined ? scheduleInput("结束时间", "endLocal", event.endLocal, "datetime-local") : ""}`;
+    return `<fieldset class="aw-trigger-options"><legend>${esc(tr("workflow_ui_frequency", "执行频率"))}</legend>${radios}</fieldset>${fields}
+      <div class="aw-trigger-row"><span>${esc(tr("workflow_ui_next_run", "下次触发"))}</span><output class="aw-trigger-preview" data-trigger-preview></output></div>
+      ${triggerCheck(tr("workflow_ui_end_schedule", "定时结束"), 'data-schedule-toggle="endLocal"', event.endLocal !== undefined)}
+      ${event.endLocal !== undefined ? scheduleInput(tr("workflow_ui_end_time", "结束时间"), "endLocal", event.endLocal, "datetime-local") : ""}`;
   }
   function scheduleSettings(event) {
     return `<div class="aw-trigger-setting">
-      ${triggerCheck("每天起止时间", 'data-schedule-toggle="window"', !!event.window)}
+      ${triggerCheck(tr("workflow_ui_daily_time_range", "每天起止时间"), 'data-schedule-toggle="window"', !!event.window)}
       ${event.window ? `<div class="aw-trigger-fields">
-        ${scheduleInput("开始时间", "window.start", event.window.start, "time")}
-        ${scheduleInput("结束时间", "window.end", event.window.end, "time")}</div>` : ""}
-      ${triggerCheck("按指定日历触发", 'data-schedule-toggle="dates"', !!event.dates)}
+        ${scheduleInput(tr("workflow_ui_start_time", "开始时间"), "window.start", event.window.start, "time")}
+        ${scheduleInput(tr("workflow_ui_end_time", "结束时间"), "window.end", event.window.end, "time")}</div>` : ""}
+      ${triggerCheck(tr("workflow_ui_run_on_selected_dates", "按指定日历触发"), 'data-schedule-toggle="dates"', !!event.dates)}
       ${event.dates ? `<div class="aw-trigger-dates">
-        <input type="date" aria-label="选择日历日期" data-trigger-date>
-        ${button("trigger-date-add", "添加日期")}
-        ${event.dates.map((date, index) => button("trigger-date-delete", date, `data-index="${index}" aria-label="移除 ${esc(date)}"`, "x")).join("")}
+        <input type="date" aria-label="${esc(tr("workflow_ui_select_calendar_dates", "选择日历日期"))}" data-trigger-date>
+        ${button("trigger-date-add", tr("workflow_ui_add_date", "添加日期"))}
+        ${event.dates.map((date, index) => button("trigger-date-delete", date, `data-index="${index}" aria-label="${esc(tr("workflow_format_remove_item", "移除 $name$", { name: date }))}"`, "x")).join("")}
       </div>` : ""}
     </div>`;
   }
@@ -1715,18 +1830,18 @@
   function validateSchedule(event, enabled, now = Date.now()) {
     const plan = calendar.compile(event);
     if (enabled && calendar.next(plan, now) === null)
-      throw new TypeError("当前设置没有可执行时间，请调整日程或定时结束时间");
+      throw new TypeError(tr("workflow_ui_no_run_is_scheduled_adjust_the_schedule_or_end_time", "当前设置没有可执行时间，请调整日程或定时结束时间"));
   }
   function scheduleLabel(event) {
-    if (event.endsAt !== undefined && event.endsAt <= Date.now()) return "已结束";
+    if (event.endsAt !== undefined && event.endsAt <= Date.now()) return tr("workflow_ui_ended", "已结束");
     const { timing } = event;
-    if (timing.mode === "minute") return "每隔 " + timing.every + " 分钟";
-    if (timing.mode === "hour") return "每小时 " + String(timing.minute).padStart(2, "0") + " 分";
-    if (timing.mode === "day") return "每天 " + timing.time;
-    if (timing.mode === "week") return weekdays.filter(([id]) => timing.weekdays.includes(id)).map(([, label]) => label).join("、") + " " + timing.time;
-    if (timing.mode === "month") return "每月 " + timing.day + " 日 " + timing.time;
+    if (timing.mode === "minute") return tr("workflow_format_every_minutes", "每隔 $count$ 分钟", { count: timing.every });
+    if (timing.mode === "hour") return tr("workflow_format_every_hour", "每小时 $minute$ 分", { minute: String(timing.minute).padStart(2, "0") });
+    if (timing.mode === "day") return tr("workflow_ui_daily", "每天") + " " + timing.time;
+    if (timing.mode === "week") return weekdays().filter(([id]) => timing.weekdays.includes(id)).map(([, label]) => label).join("、") + " " + timing.time;
+    if (timing.mode === "month") return tr("workflow_format_every_month", "每月 $day$ 日 $time$", { day: timing.day, time: timing.time });
     const workday = /^(\d{1,2})\s+(\d{1,2})\s+\*\s+\*\s+1-5$/.exec(timing.expression.trim());
-    return workday ? "周一至周五 " + workday[2].padStart(2, "0") + ":" + workday[1].padStart(2, "0") : "高级日程";
+    return workday ? tr("workflow_format_workdays", "周一至周五 $time$", { time: workday[2].padStart(2, "0") + ":" + workday[1].padStart(2, "0") }) : tr("workflow_ui_advanced_schedule", "高级日程");
   }
   function needsGame(workflow) {
     // 首条无条件读取决定是否必须绑定游戏，其余读取仍由流程分支决定。
@@ -1737,7 +1852,7 @@
   async function editTrigger(state, original = null) {
     const clock = original?.enabled && original.event.type === "schedule" && original.event.timing.mode === "minute"
       ? await view().rpc("schedule-clock", { triggerId: original.id, revision: original.revision }) : null;
-    const draft = original ? flow.clone(original) : model.newTrigger(flow.numericId("trigger-", state.bundle.triggers));
+    const draft = original ? flow.clone(original) : model.newTrigger(flow.numericId("trigger-", state.bundle.triggers), "", tr("workflow_ui_untitled_trigger", "未命名触发器"));
     if (!original) draft.enabled = true;
     draft.mapping = Object.entries(draft.inputs).map(([key, value]) => ({ key, value }));
     if (draft.event.type === "schedule" && draft.event.endsAt !== undefined) {
@@ -1776,7 +1891,7 @@
       draft.busy = container.querySelector("[data-trigger-queue]").checked ? "queue" : "ignore";
       const limit = container.querySelector("[data-trigger-limit]").valueAsNumber;
       if (!Number.isSafeInteger(limit) || limit < 0 || !Number.isSafeInteger(limit * calendar.MINUTE + Date.now()))
-        throw Object.assign(new Error("请输入有效的运行时限分钟数"), { code: "WORKFLOW_FORM_INVALID_NUMBER" });
+        throw Object.assign(new Error(tr("workflow_ui_enter_a_valid_time_limit_in_minutes", "请输入有效的运行时限分钟数")), { code: "WORKFLOW_FORM_INVALID_NUMBER" });
       if (limit > 0) draft.maxRunMinutes = limit;
       else delete draft.maxRunMinutes;
       if (draft.event.type === "installed") draft.event.phase = container.querySelector("[data-trigger-phase]:checked").value;
@@ -1801,12 +1916,12 @@
         const event = scheduleEvent(draft.event), now = Date.now();
         const fromSaved = clock && (initial === undefined || !isDirty());
         const next = calendar.next(calendar.compile(event), now, fromSaved ? clock.anchorAt : now);
-        output.value = next === null ? (event.endsAt <= now ? "已结束" : "当前设置没有可执行时间")
-          : new Date(next).toLocaleString("zh-CN", { month: "numeric", day: "numeric", weekday: "short", hour: "2-digit", minute: "2-digit", hour12: false });
+        output.value = next === null ? (event.endsAt <= now ? tr("workflow_ui_ended", "已结束") : tr("workflow_ui_no_run_is_scheduled", "当前设置没有可执行时间"))
+          : new Date(next).toLocaleString(root.STI18n.intlLocale(), { month: "numeric", day: "numeric", weekday: "short", hour: "2-digit", minute: "2-digit", hour12: false });
         if (next !== null && event.timing.mode === "cron") output.value += " · " + scheduleLabel(event);
       } catch (error) {
         if (!(error instanceof TypeError)) throw error;
-        output.value = error.message;
+        output.value = view().errorCaption(error);
       }
     }
 
@@ -1830,15 +1945,15 @@
     function filterSection() {
       const nested = nestedFilter(draft.conditions), items = filterLeaves(draft.conditions);
       const filters = nested
-        ? `<div class="aw-trigger-summary"><span>${esc(filterSummary(draft.conditions))}</span>${iconButton("conditions-clear", "移除筛选", "trash")}</div>`
+        ? `<div class="aw-trigger-summary"><span>${esc(filterSummary(draft.conditions))}</span>${iconButton("conditions-clear", tr("steam_independentName_removeFilter", "移除筛选"), "trash")}</div>`
         : items.map((item, index) => {
           const summary = filterSummary(item), attrs = `data-index="${index}"`;
-          return `<div class="aw-trigger-summary">${button("condition-edit", summary, `class="aw-trigger-summary-edit" ${attrs} aria-label="编辑筛选 ${esc(summary)}"`)}
-            ${iconButton("condition-delete", "移除筛选 " + summary, "trash", attrs)}</div>`;
+          return `<div class="aw-trigger-summary">${button("condition-edit", summary, `class="aw-trigger-summary-edit" ${attrs} aria-label="${esc(tr("workflow_format_filter_edit", "编辑筛选 $name$", { name: summary }))}"`)}
+            ${iconButton("condition-delete", tr("steam_independentName_removeFilter", "移除筛选") + " " + summary, "trash", attrs)}</div>`;
         }).join("");
-      return `<section class="aw-section"><div class="aw-trigger-summary"><h4>筛选条件</h4>
-        ${nested ? button("condition-replace", "替换筛选") : button("condition-add", "添加筛选", "", "plus")}</div>
-        ${!nested && items.length > 1 ? `<div class="aw-grid">${prop("匹配方式", "conditions.op", draft.conditions.op, [["all", "全部满足"], ["any", "任一满足"]])}</div>` : ""}
+      return `<section class="aw-section"><div class="aw-trigger-summary"><h4>${esc(tr("workflow_ui_filter_conditions", "筛选条件"))}</h4>
+        ${nested ? button("condition-replace", tr("workflow_ui_replace_filter", "替换筛选")) : button("condition-add", tr("workflow_ui_add_filter", "添加筛选"), "", "plus")}</div>
+        ${!nested && items.length > 1 ? `<div class="aw-grid">${prop(tr("workflow_ui_match_mode", "匹配方式"), "conditions.op", draft.conditions.op, [["all", tr("workflow_ui_match_all", "全部满足")], ["any", tr("workflow_ui_match_any", "任一满足")]])}</div>` : ""}
         ${filters ? `<div class="aw-trigger-list">${filters}</div>` : ""}</section>`;
     }
 
@@ -1847,54 +1962,54 @@
       const keys = new Set(draft.mapping.map(item => item.key));
       const rows = draft.mapping.map((item, index) => {
         const unavailable = checkTriggerInput(item, draft.event.type, keys, original?.event.type === "manual");
-        const label = item.key === "game" ? "游戏（game）" : item.key;
-        const summary = label + " ← " + valueText(item.value, workspace) + (unavailable ? "（来源需调整）" : "");
+        const label = item.key === "game" ? tr("workflow_ui_game_game", "游戏（game）") : item.key;
+        const summary = label + " ← " + valueText(item.value, workspace) + (unavailable ? tr("workflow_ui_update_source", "（来源需调整）") : "");
         const attrs = `data-index="${index}"`;
-        return `<div class="aw-trigger-summary">${button("mapping-edit", summary, `class="aw-trigger-summary-edit" ${attrs} aria-label="编辑输入 ${esc(label)}"`)}
-          ${iconButton("mapping-delete", "移除输入 " + label, "trash", attrs)}</div>`;
+        return `<div class="aw-trigger-summary">${button("mapping-edit", summary, `class="aw-trigger-summary-edit" ${attrs} aria-label="${esc(tr("workflow_format_input_edit", "编辑输入 $name$", { name: label }))}"`)}
+          ${iconButton("mapping-delete", tr("workflow_format_input_remove", "移除输入 $name$", { name: label }), "trash", attrs)}</div>`;
       }).join("");
-      return `<section class="aw-section"><div class="aw-trigger-summary"><h4>传入工作流</h4>${button("mapping-add", "添加输入", "", "plus")}</div>
+      return `<section class="aw-section"><div class="aw-trigger-summary"><h4>${esc(tr("workflow_ui_workflow_inputs", "传入工作流"))}</h4>${button("mapping-add", tr("workflow_ui_add_input", "添加输入"), "", "plus")}</div>
         ${rows ? `<div class="aw-trigger-list">${rows}</div>` : ""}</section>`;
     }
 
     function render() {
       const { event } = draft, mode = triggerMode(event.type), moreOpen = container.querySelector(".aw-trigger-more")?.open;
-      const choices = [["", workflowChoices.length ? "请选择工作流" : "请先新建工作流", true], ...workflowChoices];
-      if (draft.workflowId && !workflowChoices.some(([key]) => key === draft.workflowId)) choices.splice(1, 0, [draft.workflowId, "已删除：" + draft.workflowId]);
+      const choices = [["", workflowChoices.length ? tr("workflow_ui_select_a_workflow", "请选择工作流") : tr("workflow_ui_create_a_workflow_first", "请先新建工作流"), true], ...workflowChoices];
+      if (draft.workflowId && !workflowChoices.some(([key]) => key === draft.workflowId)) choices.splice(1, 0, [draft.workflowId, tr("workflow_ui_deleted", "已删除：") + draft.workflowId]);
       const radios = (name, legend, entries, selected) => `<fieldset class="aw-trigger-options"><legend>${legend}</legend>
         ${entries.map(([id, label]) => `<label><input type="radio" name="${name}" data-${name} value="${id}"${selected === id ? " checked" : ""}>${label}</label>`).join("")}</fieldset>`;
-      const game = mode === "automatic" ? `<label>什么情况下触发<select data-trigger-event>${options(Object.entries(gameEvents), event.type)}</select></label>` : "";
-      const stages = event.type === "installed" ? radios("trigger-phase", "安装阶段", installStages, event.phase) : "";
+      const game = mode === "automatic" ? `<label>${esc(tr("workflow_ui_trigger_event", "什么情况下触发"))}<select data-trigger-event>${options(Object.entries(gameEvents), event.type)}</select></label>` : "";
+      const stages = event.type === "installed" ? radios("trigger-phase", tr("workflow_ui_installation_stage", "安装阶段"), installStages(), event.phase) : "";
       const local = event.type === "schedule" ? scheduleForm(event) : "";
       const interval = event.type === "schedule" && scheduleLimitsAvailable(event) ? scheduleSettings(event) : "";
       formHtml(container, `<div class="aw aw-trigger-form"><div class="aw-grid">
-        ${prop("触发器名称", "name", draft.name)}
-        ${prop("工作流名称", "workflowId", draft.workflowId, choices)}
-        ${radios("trigger-mode", "触发方式", Object.entries(triggerModes), mode)}${game}${stages}${local}</div>
+        ${prop(tr("workflow_ui_trigger_name", "触发器名称"), "name", draft.name)}
+        ${prop(tr("workflow_ui_workflow_name", "工作流名称"), "workflowId", draft.workflowId, choices)}
+        ${radios("trigger-mode", tr("workflow_ui_trigger_type", "触发方式"), Object.entries(triggerModes), mode)}${game}${stages}${local}</div>
         <div class="aw-error" role="alert"></div>
         ${mode === "automatic" ? filterSection() : ""}${inputSection()}
-        <details class="aw-trigger-more"${moreOpen ? " open" : ""}><summary>${icon("chevron-right", "aw-disclosure")}更多设置</summary>
+        <details class="aw-trigger-more"${moreOpen ? " open" : ""}><summary>${icon("chevron-right", "aw-disclosure")}${esc(tr("workflow_ui_more_settings", "更多设置"))}</summary>
           ${interval ? `<div class="aw-section">${interval}</div>` : ""}
-          <div class="aw-section">${triggerCheck("排队执行", "data-trigger-queue", draft.busy === "queue")}
-            <label class="aw-trigger-limit">运行超过<input type="number" min="0" step="1" title="0 表示不限" aria-label="运行时限（分钟，0 不限）" data-trigger-limit value="${draft.maxRunMinutes ?? 0}">分钟后强制结束</label>
+          <div class="aw-section">${triggerCheck(tr("workflow_ui_queue_run", "排队执行"), "data-trigger-queue", draft.busy === "queue")}
+            <label class="aw-trigger-limit">${esc(tr("workflow_ui_stop_runs_longer_than", "运行超过"))}<input type="number" min="0" step="1" title="${esc(tr("workflow_ui_0_for_unlimited", "0 表示不限"))}" aria-label="${esc(tr("workflow_ui_time_limit_in_minutes_0_for_unlimited", "运行时限（分钟，0 不限）"))}" data-trigger-limit value="${draft.maxRunMinutes ?? 0}">${esc(tr("workflow_ui_minutes", "分钟后强制结束"))}</label>
           </div>${mode !== "automatic" ? filterSection() : ""}</details></div>`);
       updateSave();
       previewSchedule();
     }
 
     function showFailure(error) {
-      if (error.code === "WORKFLOW_FORM_INVALID_NUMBER") showError(error.message, true);
+      if (error.code === "WORKFLOW_FORM_INVALID_NUMBER") showError(view().errorCaption(error), true);
       else reportFailure(error, container.querySelector(".aw-error"));
     }
 
     await state.ctx.dialog(state.shadow, {
-      title: original ? "编辑触发器" : "新建触发器", className: "aw-param-dialog", form: true, isDirty,
+      title: original ? tr("workflow_ui_edit_trigger", "编辑触发器") : tr("workflow_ui_new_trigger", "新建触发器"), className: "aw-param-dialog", form: true, isDirty,
       renderFooter(actions) {
         const label = document.createElement("label");
         label.className = "aw-trigger-enabled";
         enabled = document.createElement("input"); enabled.type = "checkbox"; enabled.checked = draft.enabled;
         enabled.addEventListener("change", previewSchedule);
-        label.append(enabled, "启用"); actions.prepend(label);
+        label.append(enabled, tr("common_enable", "启用")); actions.prepend(label);
         saveButton = actions.querySelector('[data-dialog-action="save"]');
         updateSave();
       },
@@ -1973,7 +2088,7 @@
               focus = '[data-aw="condition-add"]';
             } else if (action === "trigger-date-add") {
               const date = node.querySelector("[data-trigger-date]").value;
-              if (!date) { showError("请选择日历日期。", true); return; }
+              if (!date) { showError(tr("workflow_ui_select_a_date", "请选择日历日期。"), true); return; }
               if (!draft.event.dates.includes(date)) draft.event.dates = [...draft.event.dates, date].sort();
             } else if (action === "trigger-date-delete") {
               draft.event.dates.splice(index, 1); focus = "[data-trigger-date]";
@@ -1982,7 +2097,7 @@
           })().catch(showFailure).finally(() => { editingChild = false; });
         });
       },
-      actions: [{ id: "cancel", label: "取消" }, { id: "save", label: "保存", primary: true }],
+      actions: [{ id: "cancel", label: tr("common_cancel", "取消") }, { id: "save", label: tr("common_save", "保存"), primary: true }],
       async onAction(action) {
         if (action !== "save") return true;
         try {
@@ -1990,14 +2105,14 @@
           const { mapping, ...trigger } = flow.clone(draft);
           trigger.name = trigger.name.trim();
           const workflow = state.bundle.workflows.find(item => item.id === trigger.workflowId);
-          if (!trigger.name || !workflow) { showError("请填写触发器名称并选择工作流。"); return false; }
+          if (!trigger.name || !workflow) { showError(tr("workflow_ui_enter_a_trigger_name_and_choose_a_workflow", "请填写触发器名称并选择工作流。")); return false; }
           const keys = new Set(mapping.map(item => item.key));
-          const inputError = keys.size !== mapping.length ? "工作流输入名不能重复。" :
+          const inputError = keys.size !== mapping.length ? tr("workflow_ui_workflow_input_names_must_be_unique", "工作流输入名不能重复。") :
             mapping.map(item => checkTriggerInput(item, trigger.event.type, keys, original?.event.type === "manual")).find(Boolean);
           if (inputError) { showError(inputError); return false; }
           const fields = triggerConditionFields(trigger.event.type);
           const unavailable = [...model.conditionFields(trigger.conditions)].find(field => !fields.includes(field));
-          if (unavailable) { showError("筛选「" + triggerFieldName(unavailable) + "」不适用于当前触发方式。", triggerMode(trigger.event.type) !== "automatic"); return false; }
+          if (unavailable) { showError(tr("workflow_format_filter_unavailable", "筛选「$name$」不适用于当前触发方式。", { name: triggerFieldName(unavailable) }), triggerMode(trigger.event.type) !== "automatic"); return false; }
           model.validateCondition(trigger.conditions, { allowBlank: !trigger.enabled });
           if (original && signature() === initial) return true;
           trigger.inputs = Object.fromEntries(mapping.map(item => [item.key, item.value]));
@@ -2006,14 +2121,14 @@
             const changed = !original?.enabled || JSON.stringify(trigger.event) !== JSON.stringify(original.event);
             validateSchedule(trigger.event, trigger.enabled && changed);
             if (!keys.has("game") && needsGame(workflow)) {
-              showError("所选工作流需要「游戏」输入，请添加游戏数据或选择另一个工作流。"); return false;
+              showError(tr("workflow_ui_this_workflow_requires_a_game_input_add_game_data_or_select_", "所选工作流需要「游戏」输入，请添加游戏数据或选择另一个工作流。")); return false;
             }
           }
           const next = flow.clone(state.bundle), index = next.triggers.findIndex(item => item.id === trigger.id);
           if (index < 0) next.triggers.push(trigger); else next.triggers[index] = trigger;
           await save(state, next); return true;
         } catch (error) {
-          if (error instanceof TypeError) showError(error.message);
+          if (error instanceof TypeError) showError(view().errorCaption(error));
           else showFailure(error);
           return false;
         }
@@ -2021,25 +2136,25 @@
     });
   }
   async function runManual(state, trigger) {
-    if (!trigger.enabled) throw new Error("请先启用手动触发器");
+    if (!trigger.enabled) throw new Error(tr("workflow_ui_enable_the_manual_trigger_first", "请先启用手动触发器"));
     const workspace = { variables: [], literalOnly: true, compactTypes: true };
     const values = Object.entries(trigger.inputs).map(([key, value]) => ({ key, value: Object.hasOwn(value, "literal") ? flow.clone(value) : flow.literal("") }));
     const lifetime = new AbortController();
     let container;
-    const render = () => html(container, `<div class="aw aw-form">${values.length ? values.map((item, index) => valueField(item.key, item.value, "values." + index + ".value", workspace)).join("") : '<span class="aw-note">此触发器未配置输入</span>'}<div class="aw-error" role="alert"></div></div>`);
+    const render = () => html(container, `<div class="aw aw-form">${values.length ? values.map((item, index) => valueField(item.key, item.value, "values." + index + ".value", workspace)).join("") : `<span class="aw-note">${esc(tr("workflow_ui_no_inputs_configured_for_this_trigger", "此触发器未配置输入"))}</span>`}<div class="aw-error" role="alert"></div></div>`);
     const object = { values };
-    await state.ctx.dialog(state.shadow, { title: "运行 · " + trigger.name, className: "aw-param-dialog", form: true,
+    await state.ctx.dialog(state.shadow, { title: tr("workflow_ui_run", "运行") + " · " + trigger.name, className: "aw-param-dialog", form: true,
       render: node => { container = node; render(); root.STWorkflowValues.bind(node, object, workspace, { dialog: state.ctx.dialog, shadow: state.shadow, render, signal: lifetime.signal }); node.addEventListener("change", event => {
         try { collect(node, object, workspace); }
         catch (error) { reportFailure(error, node.querySelector(".aw-error")); }
-      }); }, actions: [{ id: "cancel", label: "取消" }, { id: "run", label: "运行", primary: true }],
+      }); }, actions: [{ id: "cancel", label: tr("common_cancel", "取消") }, { id: "run", label: tr("workflow_ui_run", "运行"), primary: true }],
       onAction: async (action, node) => {
         if (action !== "run") return true;
         try {
           collect(node, object, workspace);
           const inputs = Object.fromEntries(values.map(item => [item.key, flow.read(item.value, flow.state())]));
           const result = await view().rpc("manual-run", { triggerId: trigger.id, inputs });
-          if (!result.matched) throw new Error("未满足触发条件，未启动工作流");
+          if (!result.matched) throw new Error(tr("workflow_ui_trigger_conditions_were_not_met_the_workflow_did_not_start", "未满足触发条件，未启动工作流"));
           state.tab = "history"; await history(state); return true;
         } catch (error) { reportFailure(error, node.querySelector(".aw-error")); return false; }
       },
@@ -2060,12 +2175,12 @@
     let job = await view().rpc("get", { id }), container;
     function render() {
       const workflow = job.workflow, node = workflow && job.flow ? job.exception?.nodeId ? [...flow.walk(workflow.steps)].find(node => node.id === job.exception.nodeId) : flow.currentNode(workflow, job.flow) : null;
-      html(container, `<div class="aw aw-form"><div><strong>${esc(runStatus(job))}</strong><p>${esc(job.error || job.summary || "")}</p><span class="aw-note">${esc(job.trigger?.name || "旧版方案")}${node ? " · 当前指令：" + esc(nodeName(node)) : ""}</span></div>
-        <details open><summary>${icon("chevron-right", "aw-disclosure")}输入与变量</summary><pre class="aw-pre" data-variables></pre></details><details open><summary>${icon("chevron-right", "aw-disclosure")}运行日志</summary><div data-run-log></div></details><div class="aw-tools">${button("job-refresh", "刷新")}${!job.finalized ? button("job-stop", "停止运行") : ""}</div><div class="aw-error" role="alert"></div></div>`);
-      container.querySelector("[data-variables]").textContent = JSON.stringify(job.flow ? { 输入: job.flow.input, 变量: Object.fromEntries(Object.entries(job.flow.vars).map(([id, value]) => [workflow.variables.find(item => item.id === id)?.name || id, value])) } : {}, null, 2);
+      html(container, `<div class="aw aw-form"><div><strong>${esc(runStatus(job))}</strong><p>${esc(job.error || job.summary || "")}</p><span class="aw-note">${esc(job.trigger?.name || tr("workflow_ui_legacy_plan", "旧版方案"))}${node ? " · " + tr("workflow_ui_current_action", "当前指令") + " · " + esc(nodeName(node)) : ""}</span></div>
+        <details open><summary>${icon("chevron-right", "aw-disclosure")}${esc(tr("workflow_ui_input_and_variables", "输入与变量"))}</summary><pre class="aw-pre" data-variables></pre></details><details open><summary>${icon("chevron-right", "aw-disclosure")}${esc(tr("workflow_ui_run_log", "运行日志"))}</summary><div data-run-log></div></details><div class="aw-tools">${button("job-refresh", tr("common_refresh", "刷新"))}${!job.finalized ? button("job-stop", tr("workflow_ui_stop_run", "停止运行")) : ""}</div><div class="aw-error" role="alert"></div></div>`);
+      container.querySelector("[data-variables]").textContent = JSON.stringify(job.flow ? { [tr("seed_variable_input", "输入数据")]: job.flow.input, [tr("workflow_ui_variables", "变量列表")]: Object.fromEntries(Object.entries(job.flow.vars).map(([id, value]) => [workflow.variables.find(item => item.id === id)?.name || id, value])) } : {}, null, 2);
       const log = container.querySelector("[data-run-log]");
-      for (const entry of [...(job.entries || []), ...(job.flow?.failures || []).map(item => ({ at: item.at, level: "error", text: `${item.nodeId} · ${item.reason}` }))].sort((a, b) => a.at - b.at)) { const line = document.createElement("p"); line.textContent = `${new Date(entry.at).toLocaleTimeString()} · ${entry.level} · ${entry.text}`; log.appendChild(line); }
-      if (!log.childElementCount) log.textContent = "暂无打印日志";
+      for (const entry of [...(job.entries || []), ...(job.flow?.failures || []).map(item => ({ at: item.at, level: "error", text: `${item.nodeId} · ${item.reason}` }))].sort((a, b) => a.at - b.at)) { const line = document.createElement("p"); line.textContent = `${new Date(entry.at).toLocaleTimeString(root.STI18n.intlLocale())} · ${entry.level} · ${entry.text}`; log.appendChild(line); }
+      if (!log.childElementCount) log.textContent = tr("workflow_ui_no_log_entries", "暂无打印日志");
     }
     await state.ctx.dialog(state.shadow, { title: job.workflow.name, className: "aw-param-dialog", form: true,
       render: node => { container = node; render(); node.addEventListener("click", event => {
@@ -2074,40 +2189,43 @@
           if (control.dataset.aw === "job-stop") await view().rpc("stop-run", { id });
           job = await view().rpc("get", { id }); render();
         })().catch(error => reportFailure(error, node.querySelector(".aw-error")));
-      }); }, actions: [{ id: "close", label: "关闭" }],
+      }); }, actions: [{ id: "close", label: tr("settings_shell_close", "关闭") }],
     });
   }
   function renderPage(state) {
     const { node, bundle, tab } = state;
     if (!node.isConnected) return;
-    if (!node.querySelector("[data-aw-panel]")) html(node, `<div class="aw"><div class="aw-page-heading"><h2 class="page-title">${esc(root.STI18n.text("settings.page.automation.name", "自动化"))}</h2>${button("reset", "恢复初始化")}</div>
-      <div class="aw-tabs" role="tablist" aria-label="自动化页面">${tabs.map(([id, name]) => button("tab", name, `id="aw-tab-${id}" data-tab="${id}" role="tab" aria-selected="${tab === id}" tabindex="${tab === id ? 0 : -1}"`)).join("")}</div>
-      <div data-aw-panel role="tabpanel"></div><input type="file" accept=".json,application/json" data-import hidden> <div class="aw-error" data-page-error role="alert"></div><div class="aw-note" role="status">${state.steamPending ? "配置已保存，Steam 重新连接后生效。" : ""}</div></div>`);
+    if (!node.querySelector("[data-aw-panel]")) html(node, `<div class="aw"><div class="aw-page-heading"><h2 class="page-title">${esc(root.STI18n.text("settings.page.automation.name", "自动化"))}</h2>${button("reset", tr("workflow_ui_restore_defaults", "恢复初始化"))}</div>
+      <div class="aw-tabs" role="tablist" aria-label="${esc(tr("workflow_ui_automation_pages", "自动化页面"))}">${tabs().map(([id, name]) => button("tab", name, `id="aw-tab-${id}" data-tab="${id}" role="tab" aria-selected="${tab === id}" tabindex="${tab === id ? 0 : -1}"`)).join("")}</div>
+      <div data-aw-panel role="tabpanel"></div><input type="file" accept=".json,application/json" data-import hidden> <div class="aw-error" data-page-error role="alert"></div><div class="aw-note" data-steam-pending role="status"></div></div>`);
+    const status = node.querySelector("[data-steam-pending]");
+    const notice = state.steamPending ? tr("workflow_ui_saved_changes_take_effect_when_steam_reconnects", "配置已保存，Steam 重新连接后生效。") : "";
+    if (status.textContent !== notice) status.textContent = notice;
     for (const control of node.querySelectorAll('[role="tab"]')) { control.setAttribute("aria-selected", String(control.dataset.tab === tab)); control.tabIndex = control.dataset.tab === tab ? 0 : -1; }
     const panel = node.querySelector("[data-aw-panel]"); panel.setAttribute("aria-labelledby", "aw-tab-" + tab);
     let content;
-    if (tab === "triggers") content = `<div class="aw-toolbar"><span>${bundle.triggers.length} 个触发器</span>${button("trigger-new", "新建触发器", 'class="aw-primary"', "plus")}</div>` +
+    if (tab === "triggers") content = `<div class="aw-toolbar"><span>${esc(tr("workflow_format_triggers", "$count$ 个触发器", { count: bundle.triggers.length }))}</span>${button("trigger-new", tr("workflow_ui_new_trigger", "新建触发器"), 'class="aw-primary"', "plus")}</div>` +
       (bundle.triggers.length ? `<div class="aw-list">${bundle.triggers.map(trigger => {
         const workflow = bundle.workflows.find(item => item.id === trigger.workflowId), { event } = trigger;
         const detail = event.type === "schedule" ? scheduleLabel(event) :
-          event.type === "installed" ? installStages.find(([id]) => id === event.phase)?.[1] : gameEvents[event.type];
+          event.type === "installed" ? installStages().find(([id]) => id === event.phase)?.[1] : gameEvents[event.type];
         const label = [triggerModes[triggerMode(event.type)], detail].filter(Boolean).join(" · ");
-        return `<div class="aw-card" data-id="${esc(trigger.id)}"><div><strong>${esc(trigger.name)}</strong><small>${esc(label)} → ${esc(workflow?.name || "引用已失效：" + trigger.workflowId)}</small></div><div class="aw-tools">${trigger.event.type === "manual" ? iconButton("trigger-run", "运行 " + trigger.name, "player-play", trigger.enabled ? "" : "disabled") : ""}${iconButton("trigger-toggle", (trigger.enabled ? "停用 " : "启用 ") + trigger.name, trigger.enabled ? "circle-check" : "circle-off", `aria-pressed="${trigger.enabled}"`)}${iconButton("trigger-edit", "编辑 " + trigger.name, "pencil")}${iconButton("trigger-delete", "删除 " + trigger.name, "trash")}</div></div>`;
-      }).join("")}</div>` : '<div class="aw-empty">暂无触发器</div>');
-    else if (tab === "workflows") content = `<div class="aw-toolbar"><span>${bundle.workflows.length} 个工作流</span><div class="aw-tools">${button("workflow-import", "导入工作流")}${button("workflow-new", "新建工作流", 'class="aw-primary"', "plus")}</div></div>` +
-      (bundle.workflows.length ? `<div class="aw-list">${bundle.workflows.map(workflow => `<div class="aw-card" data-id="${esc(workflow.id)}"><div><strong>${esc(workflow.name)}</strong><small>${[...flow.walk(workflow.steps)].length} 条指令 · ${bundle.triggers.filter(item => item.workflowId === workflow.id).length} 个触发器引用</small></div><div class="aw-tools">${iconButton("workflow-edit", "编辑 " + workflow.name, "pencil")}${iconButton("workflow-copy", "复制 " + workflow.name, "copy")}${iconButton("workflow-export", "导出 " + workflow.name, "download")}${iconButton("workflow-delete", "删除 " + workflow.name, "trash")}</div></div>`).join("")}</div>` : '<div class="aw-empty">暂无工作流</div>');
+        return `<div class="aw-card" data-id="${esc(trigger.id)}"><div><strong>${esc(trigger.name)}</strong><small>${esc(label)} → ${esc(workflow?.name || tr("workflow_ui_missing_reference", "引用已失效：") + trigger.workflowId)}</small></div><div class="aw-tools">${trigger.event.type === "manual" ? iconButton("trigger-run", tr("workflow_ui_run", "运行") + " " + trigger.name, "player-play", trigger.enabled ? "" : "disabled") : ""}${iconButton("trigger-toggle", (trigger.enabled ? tr("common_disable", "停用") + " " : tr("common_enable", "启用") + " ") + trigger.name, trigger.enabled ? "circle-check" : "circle-off", `aria-pressed="${trigger.enabled}"`)}${iconButton("trigger-edit", tr("store_titleCustomName_edit", "编辑") + " " + trigger.name, "pencil")}${iconButton("trigger-delete", tr("common_delete", "删除") + " " + trigger.name, "trash")}</div></div>`;
+      }).join("")}</div>` : `<div class="aw-empty">${esc(tr("workflow_ui_no_triggers_yet", "暂无触发器"))}</div>`);
+    else if (tab === "workflows") content = `<div class="aw-toolbar"><span>${esc(tr("workflow_format_workflows", "$count$ 个工作流", { count: bundle.workflows.length }))}</span><div class="aw-tools">${button("workflow-import", tr("workflow_ui_import_workflow", "导入工作流"))}${button("workflow-new", tr("workflow_ui_new_workflow", "新建工作流"), 'class="aw-primary"', "plus")}</div></div>` +
+      (bundle.workflows.length ? `<div class="aw-list">${bundle.workflows.map(workflow => `<div class="aw-card" data-id="${esc(workflow.id)}"><div><strong>${esc(workflow.name)}</strong><small>${esc(tr("workflow_format_action_triggers", "$actions$ 条指令 · $count$ 个触发器引用", { actions: [...flow.walk(workflow.steps)].length, count: bundle.triggers.filter(item => item.workflowId === workflow.id).length }))}</small></div><div class="aw-tools">${iconButton("workflow-edit", tr("store_titleCustomName_edit", "编辑") + " " + workflow.name, "pencil")}${iconButton("workflow-copy", tr("common_copy", "复制") + " " + workflow.name, "copy")}${iconButton("workflow-export", tr("common_export", "导出") + " " + workflow.name, "download")}${iconButton("workflow-delete", tr("common_delete", "删除") + " " + workflow.name, "trash")}</div></div>`).join("")}</div>` : `<div class="aw-empty">${esc(tr("workflow_ui_no_workflows_yet", "暂无工作流"))}</div>`);
     else if (tab === "prompts") content = view().promptsHtml(bundle);
-    else content = `<div class="aw-toolbar"><span>运行记录</span>${button("history-refresh", "刷新", state.historyLoading ? "disabled" : "")}</div>` + (state.historyLoading ? '<div class="aw-empty" role="status">正在读取运行记录…</div>' :
-      `<div class="aw-list">${state.jobs.map(job => `<div class="aw-card" data-id="${esc(job.id)}"><div><strong>${esc(job.workflowName)}</strong><small>${esc(job.triggerName)} · ${esc(new Date(job.createdAt).toLocaleString())} · ${esc(runStatus(job))}</small></div>${button("job", "查看")}</div>`).join("")}</div>${state.next ? button("history-more", "加载更多") : !state.jobs.length ? '<div class="aw-empty">暂无运行记录</div>' : ""}`);
+    else content = `<div class="aw-toolbar"><span>${esc(tr("workflow_ui_run_history", "运行记录"))}</span>${button("history-refresh", tr("common_refresh", "刷新"), state.historyLoading ? "disabled" : "")}</div>` + (state.historyLoading ? `<div class="aw-empty" role="status">${esc(tr("workflow_ui_loading_run_history", "正在读取运行记录…"))}</div>` :
+      `<div class="aw-list">${state.jobs.map(job => `<div class="aw-card" data-id="${esc(job.id)}"><div><strong>${esc(job.workflowName)}</strong><small>${esc(job.triggerName)} · ${esc(new Date(job.createdAt).toLocaleString(root.STI18n.intlLocale()))} · ${esc(runStatus(job))}</small></div>${button("job", tr("messageCenter_view", "查看"))}</div>`).join("")}</div>${state.next ? button("history-more", tr("workflow_ui_load_more", "加载更多")) : !state.jobs.length ? `<div class="aw-empty">${esc(tr("workflow_ui_no_runs_yet", "暂无运行记录"))}</div>` : ""}`);
     html(panel, content); panel.tabIndex = panel.querySelector("button,input,select,textarea") ? -1 : 0;
   }
   async function pageAction(state, control) {
     const action = control.dataset.aw, id = control.closest("[data-id]")?.dataset.id;
     if (action === "tab") { if (state.tab === control.dataset.tab) return; state.tab = control.dataset.tab; if (state.tab === "history") await history(state); else renderPage(state); return; }
     if (action === "reset") {
-      const answer = await state.ctx.dialog(state.shadow, { title: "恢复提示词与自动化初始化", className: "aw-automation-dialog", form: true,
-        message: "将替换全部提示词、触发器和工作流，并结束未完成运行。AI 连接、历史消息及已写入的结果会保留。",
-        actions: [{ id: "cancel", label: "取消" }, { id: "reset", label: "恢复初始化", primary: true, danger: true }] });
+      const answer = await state.ctx.dialog(state.shadow, { title: tr("workflow_ui_restore_default_prompts_and_automation", "恢复提示词与自动化初始化"), className: "aw-automation-dialog", form: true,
+        message: tr("workflow_ui_this_replaces_all_prompts_triggers_and_workflows_and_ends_un", "将替换全部提示词、触发器和工作流，并结束未完成运行。AI 连接、历史消息及已写入的结果会保留。"),
+        actions: [{ id: "cancel", label: tr("common_cancel", "取消") }, { id: "reset", label: tr("workflow_ui_restore_defaults", "恢复初始化"), primary: true, danger: true }] });
       if (answer === "reset") {
         const result = await view().rpc("reset");
         state.bundle = result.workflow;
@@ -2125,21 +2243,27 @@
     if (action === "job") return showJob(state, id);
     const next = flow.clone(state.bundle), section = action.startsWith("workflow-") ? "workflows" : "triggers", index = next[section].findIndex(item => item.id === id), item = next[section][index];
     if (!item) return;
-    if (action === "workflow-copy") { const copied = flow.clone(item); copied.id = flow.numericId("wf-", next.workflows); copied.name += "副本"; copied.revision = 1; next.workflows.push(copied); }
+    if (action === "workflow-copy") {
+      const copied = flow.clone(item);
+      copied.id = flow.numericId("wf-", next.workflows);
+      copied.name = tools.copyName(item.name);
+      copied.revision = 1;
+      next.workflows.push(copied);
+    }
     else if (action === "trigger-toggle") {
       if (!item.enabled) {
         const workflow = next.workflows.find(row => row.id === item.workflowId);
-        if (!workflow) throw new Error("引用的工作流已删除，请重新选择工作流");
+        if (!workflow) throw new Error(tr("workflow_ui_the_referenced_workflow_was_deleted_select_another_workflow", "引用的工作流已删除，请重新选择工作流"));
         if (item.event.type === "schedule") {
           validateSchedule(item.event, true);
-          if (!Object.hasOwn(item.inputs, "game") && needsGame(workflow)) throw new Error("所选工作流需要「游戏」输入，请先配置触发器");
+          if (!Object.hasOwn(item.inputs, "game") && needsGame(workflow)) throw new Error(tr("workflow_ui_this_workflow_requires_game_input_configure_the_trigger_firs", "所选工作流需要「游戏」输入，请先配置触发器"));
         }
       }
       item.enabled = !item.enabled;
     }
     else if (action.endsWith("-delete")) {
       const refs = section === "workflows" ? next.triggers.filter(trigger => trigger.workflowId === id) : [];
-      if (!await confirm(state, "删除" + (section === "workflows" ? "工作流" : "触发器"), `将删除“${item.name}”并结束相关未完成运行。该操作无法撤销。${refs.length ? "\n以下触发器会失去工作流引用：" + refs.map(item => item.name).join("、") : ""}`)) return;
+      if (!await confirm(state, tr("common_delete", "删除") + (section === "workflows" ? tr("workflow_ui_workflows", "工作流") : tr("workflow_ui_triggers", "触发器")), tr("workflow_format_delete_record", "将删除“$name$”并结束相关未完成运行。该操作无法撤销。", { name: item.name }) + (refs.length ? "\n" + tr("workflow_ui_these_triggers_will_lose_their_workflow_reference", "以下触发器会失去工作流引用：") + refs.map(item => item.name).join("、") : ""))) return;
       next[section].splice(index, 1);
     } else return;
     await save(state, next);
@@ -2172,13 +2296,7 @@
     node.addEventListener("change", event => {
       if (!event.target.matches("[data-import]")) return;
       const file = event.target.files[0]; event.target.value = ""; if (!file) return;
-      void (async () => {
-        const data = JSON.parse(await file.text());
-        if (data.schemaVersion !== 1) throw new Error("工作流文件版本无效");
-        const workflow = flow.clone(data.workflow); flow.validate(workflow);
-        workflow.id = flow.numericId("wf-", state.bundle.workflows); workflow.revision = 1;
-        const next = flow.clone(state.bundle); next.workflows.push(workflow); await save(state, next);
-      })().catch(error => reportFailure(error, node.querySelector(".aw-error")));
+      void importFlow(state, file).catch(error => reportFailure(error, node.querySelector(".aw-error")));
     });
   }
   root.STAutomationEditor = Object.freeze({ mount, style });

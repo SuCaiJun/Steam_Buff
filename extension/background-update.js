@@ -75,6 +75,12 @@
   });
 
   const text = (key, fallback, value) => root.STMessageCenter.text(key, fallback, value);
+  async function notificationText() {
+    const locale = await root.STSettings.storage.getUiLocale({ strict: true });
+    await root.STI18n.load(locale);
+    const translate = root.STI18n.forLocale(locale);
+    return (key, fallback, value) => translate(key, fallback, { value });
+  }
   const group = info => "extension-update:" + versionKey(info);
 
   function messageInfo(message) {
@@ -99,8 +105,9 @@
 
   async function publishAvailable(info, operation, data) {
     if (!info.hasNew || muted(data, info) || (!operation.manual && hours(data) === 0)) return;
+    const text = await notificationText();
     await messages.send({
-      eventId: operation.eventId, kind: "interactive", level: "info", scope: "device", title: "发现新版本", group: group(info),
+      eventId: operation.eventId, kind: "interactive", level: "info", scope: "device", title: text("messageCenter.newVersion", "发现新版本"), group: group(info),
       body: [text("messageCenter.updateAvailable", "Steam Buff 发现新版本 $value$", info.remote), info.latest.summary || info.latest.title || "", text("messageCenter.currentVersion", "当前版本：$value$", info.current)].filter(Boolean).join("\n"),
       context: { event: "available", channel: info.channel, targetVersion: info.remote, installedVersion: info.current },
       actions: [
@@ -121,8 +128,9 @@
         const info = messageInfo(message);
         return info.channel === source && CFG.versions.compare(info.remote, event.version) <= 0;
       });
+      const text = await notificationText();
       return messages.send({
-        eventId: `extension-installed:${event.version}:${event.updatedAt}`, kind: "interactive", level: "success", title: "升级完成", scope: "device", createdAt: event.updatedAt,
+        eventId: `extension-installed:${event.version}:${event.updatedAt}`, kind: "interactive", level: "success", title: text("messageCenter.installed", "升级完成"), scope: "device", createdAt: event.updatedAt,
         body: text("messageCenter.updateInstalled", "Steam Buff 已更新至 $value$", event.version) + "\n" + text("messageCenter.previousVersion", "原版本：$value$", event.previousVersion) + "\n" + text("messageCenter.installedBody", "扩展已更新，点击查看了解本次更新内容。"),
         context: { event: "installed", installedVersion: event.version, previousVersion: event.previousVersion },
         actions: [{ id: "view-changelog", label: text("messageCenter.view", "查看"), icon: "view", kind: "link", target: "changelog" }],

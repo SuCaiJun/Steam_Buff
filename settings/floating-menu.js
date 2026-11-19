@@ -25,6 +25,8 @@
   const REVIEW_UPDATE_EVT = "STReviewFilterUpdate";
 
   let activeCat = "account";
+  let setupPending = false;
+  let retrySetupRead;
   let states = {};
   let configs = {
     translate: {},
@@ -201,7 +203,7 @@
   }
 
   function getConfig(name) {
-    return configs[name] || {};
+    return configs[name] || (name === "gameLinks" ? globalThis.STGameLinks.empty() : {});
   }
 
   function getMembership() {
@@ -252,6 +254,8 @@
 
   function createShell() {
     shell = globalThis.STSettingsMenuShell.create({
+      setupPending: () => setupPending,
+      getSetupRetry: () => retrySetupRead,
       api,
       storage: api.storage,
       deps,
@@ -287,9 +291,9 @@
     }
   }
 
-  async function loadAiConfig() {
+  async function loadAiConfig(initializationError) {
     try {
-      await api.storage.waitForAiSettings();
+      if (initializationError) throw initializationError;
       return await api.storage.getAi();
     } catch (error) {
       log.error("ai-config-load-failed", "AI 服务配置读取失败", { error });
@@ -297,18 +301,24 @@
     }
   }
 
-  async function loadState() {
-    states = await api.storage?.getAll?.() || api.catalog?.defaults?.() || {};
-    membership = await api.storage?.getMembership?.() || { active: false, features: {} };
+  async function loadState(initializationError) {
+    const nextMembership = await api.storage.getMembership({ strict: true });
+    states = await api.storage.getAll({ strict: true });
+    membership = nextMembership;
+    let reviewFilter;
+    try {
+      reviewFilter = await api.storage.getReviewFilter();
+    } catch (error) {
+      log.error("review-filter-load-failed", "评论过滤规则读取失败", { error });
+      reviewFilter = { unavailable: true };
+    }
     configs = {
       translate: await api.storage?.getTranslate?.() || api.catalog?.translateDefaults?.() || {},
-      reviewFilter: globalThis.STSettingsReviewFilterPanel?.normalizeReviewFilter?.(
-        await api.storage?.getReviewFilter?.() || api.catalog?.reviewFilterDefaults?.() || {}
-      ) || {},
+      reviewFilter,
       searchSuggestion: await api.storage?.getSearchSuggestions?.() || api.catalog?.searchSuggestionDefaults?.() || {},
-      ai: await loadAiConfig(),
-      thirdPartyServices: await api.storage?.getThirdPartyServices?.() || api.catalog?.thirdPartyServicesDefaults?.() || {},
-      storePriceChart: await api.storage?.getStorePriceChart?.() || api.catalog?.storePriceChartDefaults?.() || {},
+      ai: await loadAiConfig(initializationError),
+      thirdPartyServices: await api.storage.getThirdPartyServices({ strict: true }),
+      storePriceChart: await api.storage.getStorePriceChart({ strict: true }),
       gameLinks: await loadGameLinksConfig(),
     };
   }
@@ -377,13 +387,41 @@
       ...mountMeta(),
       error,
     });
+    const caption = globalThis.STI18n.text("settings.center.readFailed", "设置中心加载失败，请重试。");
+    const failed = error?.message && error.message !== caption ? caption + " " + error.message : caption;
+    if (location.protocol !== "chrome-extension:") {
+      // 网页内没有独立设置页的状态区，关闭提示后再次点齿轮才重试挂载。
+      return globalThis.STFeedback.show(document.body, { message: failed }).then(() => {
+        document.documentElement.addEventListener(OPEN_EVT, () => {
+          mount({ retrySetup: true }).catch(handleMountError);
+        }, { once: true });
+      });
+    }
+    const page = document.querySelector(".settings-page-state");
+    if (!page) return;
+    const message = page.querySelector("p");
+    message.setAttribute("role", "alert");
+    message.textContent = failed;
+    const button = page.querySelector("button") || document.createElement("button");
+    button.type = "button";
+    button.textContent = globalThis.STI18n.text("common.retry", "重试");
+    button.disabled = false;
+    button.onclick = () => {
+      button.disabled = true;
+      globalThis.STI18n.retry().then(() => mount({ retrySetup: true })).then(() => {
+        button.remove();
+        message.removeAttribute("role");
+        message.textContent = globalThis.STI18n.text("setup.centerClosed", "设置中心已关闭，请关闭当前标签页。");
+      }).catch(handleMountError);
+    };
+    page.appendChild(button);
   }
 
   /**
    * 挂载设置浮窗 Shadow DOM、菜单壳层和事件控制器。
    * @returns {Promise<void>} 挂载完成后 resolve。
    */
-  async function mount() {
+  async function mount({ retrySetup = false } = {}) {
     const meta = mountMeta();
     if (!topFrame() || !targetPage() || !document.body || document.documentElement.dataset[MARK] === "1") {
       log?.info?.("floating-menu-mount-skipped", "设置中心挂载跳过", {
@@ -406,12 +444,20 @@
       topFrame: topFrame(),
     });
     await globalThis.STI18n?.ready?.();
-    await loadState();
+    let aiInitializationError;
+    try {
+      setupPending = await api.storage.waitForAiSettings({ retry: retrySetup }) === false;
+    } catch (error) {
+      // 旧版 AI 配置迁移失败时，AI 面板显示错误，其余设置仍可使用。
+      if (error.code !== "AI_V222_INVALID_CONNECTION") throw error;
+      aiInitializationError = error;
+    }
+    if (!setupPending) await loadState(aiInitializationError);
     createDeps();
     createPanels();
     createShell();
     await shell.loadPages();
-    if (typeof globalThis.STSettingsCloudUi?.preload === "function") {
+    if (!setupPending && typeof globalThis.STSettingsCloudUi?.preload === "function") {
       await globalThis.STSettingsCloudUi.preload();
     }
 
@@ -436,6 +482,7 @@
     if (!host.isConnected) {
       document.body.appendChild(host);
     }
+    let stopSetupWatch;
     runtime?.registerResource?.({
       owner: "settings:floating-menu:panel",
       key: "shadow-root",
@@ -445,6 +492,8 @@
         globalThis.STSettingsPages?.get("about")?.dispose?.();
         globalThis.STSettingsCloudUi?.dispose?.(shadow);
         globalThis.STSettingsMenu?.dispose?.();
+        stopSetupWatch?.();
+        retrySetupRead = undefined;
         host.remove();
         if (document.documentElement?.dataset) {
           delete document.documentElement.dataset[MARK];
@@ -469,11 +518,38 @@
     }
 
     shell.render(shadow);
-    if (railDetail?.items?.length) {
+    if (!setupPending && railDetail?.items?.length) {
       panels.review().setHiddenReviews(railDetail.items);
     }
-    watchMembership(shadow);
+    if (setupPending) {
+      let refreshing;
+      const refresh = () => refreshing ??= loadState().then(() => {
+        if (!host.isConnected) return;
+        panels.syncConfigs(configs);
+        retrySetupRead = undefined;
+        setupPending = false;
+        stopSetupWatch();
+        if (railDetail?.items?.length) panels.review().setHiddenReviews(railDetail.items);
+        panels.review().updateButton(shadow);
+        watchMembership(shadow);
+        shell.render(shadow);
+      }).catch(error => {
+        refreshing = null;
+        log.error("settings-setup-refresh-failed", "初始化后设置读取失败", { error });
+        if (host.isConnected) {
+          retrySetupRead = refresh;
+          shell.render(shadow);
+        }
+      });
+      const onSetup = (changes, area) => {
+        if (area === "local" && changes[api.storage.SETUP_KEY]?.newValue) void refresh();
+      };
+      chrome.storage.onChanged.addListener(onSetup);
+      stopSetupWatch = () => chrome.storage.onChanged.removeListener(onSetup);
+      if (await api.storage.waitForAiSettings()) await refresh();
+    } else watchMembership(shadow);
     globalThis.STSettingsMenuEvents.bind({
+      setupPending: () => setupPending,
       api,
       shadow,
       btn,

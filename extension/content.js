@@ -26,7 +26,7 @@
   const { cleanAuth } = authSession;
 
   const RUN_MARK = "steamBuffContentStarted";
-  const RUN_VERSION = "steam-buff-runtime-v77";
+  const RUN_VERSION = "steam-buff-runtime-v78";
   const RUN_PENDING = `${RUN_VERSION}:pending`;
   const EXCLUDED_STEAM_CLEANUP_SCRIPT = "steam/runtime/cleanup-stale.js";
   const SETTINGS_OPEN_MESSAGE = "STEAM_BUFF_OPEN_SETTINGS";
@@ -131,7 +131,6 @@
   const USER_NAMES_REQ_ATTR = "data-steam-buff-user-names-request";
   const USER_NAMES_RES_ATTR = "data-steam-buff-user-names-response";
   const API_USER_NAMES = CFG.steamBuff("/user/names");
-  const API_USER_NAMES_META = CFG.steamBuff("/user/names/meta");
   const API_NAME_REFERENCE = `${CFG.steamBuff("/store/names")}?sources=community`;
   const API_FREE_NAME_REFERENCE = `${CFG.steamBuff("/names/resolve")}?sources=community`;
   const AI_SERVICE = "steam-buff.ai";
@@ -221,6 +220,7 @@
     to: "chinese_simplified",
     service: "client.edge",
     aiPerformance: true,
+    aiTarget: "target",
     force: false,
     select: false,
     style: "dashedLine",
@@ -1171,7 +1171,7 @@
       meta: options.meta || {},
       text: encodeURIComponent(JSON.stringify(texts)),
     }, {
-      timeoutMs: NEWS_AI_TIMEOUT_MS,
+      timeoutMs: NEWS_AI_TIMEOUT_MS, displayLocale: options.meta?.displayLocale,
     });
     const out = Array.isArray(response?.text) ? response.text.map((text) => String(text || "")) : [];
     if (out.length !== texts.length) {
@@ -1227,7 +1227,7 @@
         to,
         service,
         ...(isAi ? { mode: NEWS_AI_MODE, meta: options.meta || {} } : {}),
-        ...(isAi ? { timeoutMs: NEWS_AI_TIMEOUT_MS } : {}),
+        ...(isAi ? { timeoutMs: NEWS_AI_TIMEOUT_MS, displayLocale: options.meta?.displayLocale } : {}),
       });
       translated.push(String(result || ""));
     }
@@ -1420,9 +1420,28 @@
     });
   }
 
+  let achievementTargetRead = 0, lastAchievementTarget;
+  const pendingAchievementTargets = new Set();
   function achievementTranslateSettingsChanged(keys) {
-    if (!globalThis.__stAchievementBridge || !keys.includes(transKey("to"))) return;
-    window.postMessage({ source: "steam-buff-achievement-translations-v1", side: "content", action: "invalidated" }, window.location.origin);
+    if (!globalThis.__stAchievementBridge) return;
+    const mode = transKey("aiTarget"), target = transKey("to");
+    const storageKeys = [mode, target, UI_LOCALE_KEY];
+    if (!storageKeys.some(key => keys.includes(key)) || !isSteamNewsTranslateBridgeTarget()) return;
+    for (const key of storageKeys) if (keys.includes(key)) pendingAchievementTargets.add(key);
+    const read = ++achievementTargetRead;
+    const settings = globalThis.STSettingsBus?.rawGet
+      ? globalThis.STSettingsBus.rawGet(storageKeys, { owner: "extension:content", reason: "achievement-translation-target", strict: true })
+      : chrome.storage.local.get(storageKeys);
+    return settings.then(saved => {
+      if (read !== achievementTargetRead) return;
+      const follow = saved[mode] === "display";
+      const affected = pendingAchievementTargets.has(mode) || pendingAchievementTargets.has(follow ? UI_LOCALE_KEY : target);
+      pendingAchievementTargets.clear();
+      const language = follow ? globalThis.STI18n.translationLanguage(saved[UI_LOCALE_KEY]) : saved[target] || TRANSLATE_DEFAULTS.to;
+      if (affected && language !== lastAchievementTarget)
+        window.postMessage({ source: "steam-buff-achievement-translations-v1", side: "content", action: "invalidated", language }, window.location.origin);
+      lastAchievementTarget = language;
+    });
   }
 
   function trustedNamePage() {
@@ -2830,7 +2849,7 @@
       if (globalThis.STSettingsBus?.subscribe) {
         globalThis.STSettingsBus.subscribe((event) => {
           const keys = event.changedKeys || [];
-          achievementTranslateSettingsChanged(keys);
+          const achievementUpdate = achievementTranslateSettingsChanged(keys);
           const localeHit = keys.includes(UI_LOCALE_KEY);
           const membershipHit = keys.includes(MEMBERSHIP_KEY);
           const hit = STEAM_SETTING_IDS.some(id => keys.includes(settingKey(id)));
@@ -2845,6 +2864,7 @@
             writeUiLocale().catch((error) => {
               globalThis.STLoggerFactory.reportError(error, { domain: "extension", feature: "content", event: "watch-settings-changes-failed", message: "监听设置更新失败", level: "error", phase: "watchSettingsChanges" });});
           }
+          return achievementUpdate;
         }, {
           owner: "extension:content",
           key: "settings-watch",
@@ -2857,7 +2877,9 @@
         if (area !== "local") {
           return;
         }
-        achievementTranslateSettingsChanged(Object.keys(changes));
+        achievementTranslateSettingsChanged(Object.keys(changes))?.catch(error => {
+          globalThis.STLoggerFactory.reportError(error, { domain: "extension", feature: "steam-achievement-translate", event: "achievement-target-read-failed", message: "读取成就翻译目标语言失败", level: "error", phase: "settings" });
+        });
         const localeHit = Object.hasOwn(changes || {}, UI_LOCALE_KEY);
         const membershipHit = Object.hasOwn(changes || {}, MEMBERSHIP_KEY);
         const hit = STEAM_SETTING_IDS.some(id => Object.hasOwn(changes, settingKey(id)));

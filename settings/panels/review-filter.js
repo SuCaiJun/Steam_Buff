@@ -46,9 +46,7 @@
   function reviewRuleTypes() {
     return [
       { value: "all", label: uiText("common.all", "全部") },
-      { value: "keyword", label: uiText("settings.reviewFilter.rule.keyword", "关键词") },
-      { value: "regex", label: uiText("settings.reviewFilter.rule.regex", "正则") },
-      { value: "nickname", label: uiText("settings.reviewFilter.rule.nickname", "昵称") },
+      ...globalThis.STSettings.catalog.reviewRuleTypes.map(value => ({ value, label: reviewRuleLabel(value) })),
     ];
   }
 
@@ -57,7 +55,7 @@
     return src.map((rule) => {
       const type = String(rule?.type || "");
       const value = String(rule?.value || "").replace(/\r\n?/g, "\n").trim();
-      if (!value || !["keyword", "regex", "nickname"].includes(type)) {
+      if (!value || !globalThis.STSettings.catalog.reviewRuleTypes.includes(type)) {
         return null;
       }
       return {
@@ -489,7 +487,8 @@
     }
 
     async function addRule(shadow) {
-      const type = shadow.querySelector("[data-review-rule-type]")?.value || "keyword";
+      const typeControl = shadow.querySelector("[data-review-rule-type]");
+      const type = typeControl?.value || "keyword";
       const input = shadow.querySelector("[data-review-rule-value]");
       const value = String(input?.value || "").replace(/\r\n?/g, "\n").trim();
       const error = await checkRule(shadow, type, value);
@@ -508,6 +507,8 @@
       const saved = await setRules(shadow, rules, { activeType: type });
       if (saved && input) {
         input.value = "";
+        globalThis.STSettingsFields.acceptEdit(input);
+        if (typeControl?.value === type) globalThis.STSettingsFields.acceptEdit(typeControl);
         input.focus();
       }
     }
@@ -779,6 +780,9 @@
     }
 
     function html(cat) {
+      if (conf.unavailable) {
+        return `<p role="alert">${esc(uiText("settings.reviewFilter.readFailed", "读取评论过滤规则失败。"))}</p><button type="button" class="btn btn-blue" data-review-reload>${esc(uiText("common.retry", "重试"))}</button>`;
+      }
       const fields = getFields();
       return `
       ${cat.items.map((item) => masterItemHtml(item)).join("")}
@@ -826,6 +830,20 @@
     }
 
     function handleClick(event, shadow) {
+      const reload = event.target.closest("[data-review-reload]");
+      if (reload) {
+        if (reload.disabled) return true;
+        reload.disabled = true;
+        storage.getReviewFilter().then(value => {
+          onConfigChange(setConfig(value));
+          if (reload.isConnected) options.render(shadow);
+        }).catch(error => {
+          log.error("review-filter-reload-failed", "重新读取评论过滤规则失败", { error });
+          reload.disabled = false;
+        });
+        return true;
+      }
+      if (conf.unavailable) return false;
       const ruleFilter = event.target.closest("[data-review-rule-filter]");
       if (ruleFilter) {
         activeRuleType = ruleFilter.dataset.reviewRuleFilter || "all";
@@ -910,6 +928,7 @@
             dialog(shadow, { title: uiText("common.saveFailed", "保存失败"), message: uiText("settings.reviewFilter.saveError", "评测过滤设置保存异常，请稍后重试。") });
           })
           .finally(() => {
+            shadow.querySelectorAll("[data-review-filter]").forEach(globalThis.STSettingsFields.acceptEdit);
             setSavePending(shadow, false);
             save.textContent = oldText;
           });

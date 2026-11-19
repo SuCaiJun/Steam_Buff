@@ -9,9 +9,20 @@
  * @Remind        : 二次开发请保留原版权信息，谢谢。
  */
 
-(() => {
+(async () => {
   "use strict";
 
+  const i18n = globalThis.STI18n;
+  const locale = await i18n.ready();
+  const t = i18n.forLocale(locale);
+  document.documentElement.lang = i18n.intlLocale(locale);
+  for (const node of document.querySelectorAll("[data-msg]")) node.textContent = t(node.dataset.msg, node.textContent);
+  for (const attr of ["aria-label", "placeholder"]) {
+    for (const node of document.querySelectorAll(`[data-msg-${attr}]`)) {
+      node.setAttribute(attr, t(node.getAttribute(`data-msg-${attr}`), node.getAttribute(attr)));
+    }
+  }
+  document.body.hidden = false;
   const authSession = globalThis.STAuthSession;
   if (!authSession) {
     throw new Error("shared/auth-session.js must load before onboarding/script.js");
@@ -25,7 +36,7 @@
   if (!globalThis.STConfig?.urls || !globalThis.STConfig.libraryNameMode) {
     throw new Error("安装引导缺少配置依赖，请先加载 shared/config.js");
   }
-  const LOCAL_STEPS = CONTRACT.LOCAL_STEPS;
+  const LOCAL_STEPS = CONTRACT.localizedSteps(t);
   const OPEN_SETTINGS_MESSAGE = CONTRACT.MESSAGES.openSettings;
   const SETTINGS_PREFIX = "st.settings.";
   const SETTINGS_SUFFIX = ".enabled";
@@ -33,7 +44,7 @@
   const NAME_MODE_ID = globalThis.STConfig.libraryNameMode.key;
   const NAME_MODE_STEAM = globalThis.STConfig.libraryNameMode.values.STEAM_SORT;
   const NAME_MODE_INDEPENDENT = globalThis.STConfig.libraryNameMode.values.INDEPENDENT;
-  const CLIENT_RESTART_NOTE = "部分功能需重启 Steam";
+  const CLIENT_RESTART_NOTE = t("onboarding_restartRequiredNote", "部分功能需重启 Steam");
   const THIRD_PARTY_PREFIX = `${SETTINGS_PREFIX}thirdPartyServices.`;
   const AUTH_KEY = "steam_buff_auth";
   const MEMBERSHIP_KEY = "steam_buff_membership";
@@ -42,9 +53,9 @@
   const ITAD_TEST_TIMEOUT_MS = 12_000;
   const AI_TEST_TIMEOUT_MS = 20_000;
   const AI_PERMISSION_WAIT_MS = 5 * 60 * 1000;
-  const INVALID_TITLE = "当前地址无效";
-  const INVALID_COPY = "当前页面可能已失效或不存在，请点击刷新页面或返回首页。";
-  const INVALID_NOTE = "当前页面已失效";
+  const INVALID_TITLE = t("onboarding_invalidPageAddress", "当前地址无效");
+  const INVALID_COPY = t("onboarding_invalidPageHelp", "当前页面可能已失效或不存在，请点击刷新页面或返回首页。");
+  const INVALID_NOTE = t("onboarding_expiredPage", "当前页面已失效");
   const COMMITTED_PAGE_KEY = "st.onboarding.lastCommittedPage";
   const AI_GATEWAY_PERMISSION_CHECK = "AI_GATEWAY_PERMISSION_CHECK";
   const AI_GATEWAY_PERMISSION_REQUEST = "AI_GATEWAY_PERMISSION_REQUEST";
@@ -58,8 +69,8 @@
 
   const state = {
     phase: "loading",
-    statusTitle: "正在加载引导配置",
-    statusCopy: "正在连接 Steam Buff 官方引导服务。",
+    statusTitle: t("onboarding_loadingSetup", "正在加载引导配置"),
+    statusCopy: t("onboarding_connectingToSetup", "正在连接 Steam Buff 官方引导服务。"),
     page: 0,
     cloudCount: 0,
     total: 0,
@@ -77,6 +88,7 @@
     clientDefaultReady: false,
     restartModalOpen: false,
     restartAcked: false,
+    setupFinished: false,
     initializing: true,
     initError: false,
     results: {},
@@ -111,7 +123,6 @@
     loginMessage: "",
     loginCopy: "",
     loginOperationId: "",
-    loginPollErrorKey: "",
     completeCelebrated: false,
     servicesHydrated: false,
   };
@@ -119,6 +130,8 @@
   let catalogJob = null;
   let loginPollTimer = 0;
   let loginCopyTimer = 0;
+  let pollingDevice = null;
+  let loginAttempt = 0;
   let celebration = null;
   let celebrationTimer = 0;
 
@@ -231,10 +244,10 @@
   }
 
   function gateBlockNote(stepId = activeStep().id) {
-    if (stepId === "account") return "请先登录，或点击“暂不登录”。";
-    if (stepId === "third-party") return "请测试连接，或点击“稍后配置”。";
-    if (stepId === "ai") return "请测试连接，或点击“稍后配置”。";
-    return "请先完成本步配置。";
+    if (stepId === "account") return t("onboarding_signInOrSkipHint", "请先登录，或点击“暂不登录”。");
+    if (stepId === "third-party") return t("onboarding_testOrDeferHint", "请测试连接，或点击“稍后配置”。");
+    if (stepId === "ai") return t("onboarding_testOrDeferHint", "请测试连接，或点击“稍后配置”。");
+    return t("onboarding_finishStepFirst", "请先完成本步配置。");
   }
 
   function loadScript(src) {
@@ -266,7 +279,7 @@
     }
     if (typeof window.STSettings?.catalog?.featureItems !== "function") {
       if (catalogJob === job) catalogJob = null;
-      throw new Error("设置目录模块未初始化");
+      throw new Error(t("onboarding_catalogNotReady", "设置目录模块未初始化"));
     }
     return window.STSettings.catalog;
   }
@@ -297,14 +310,14 @@
 
   function nameModeCopy(value) {
     return value === NAME_MODE_INDEPENDENT
-      ? "覆盖商店、库列表和愿望单。"
-      : "使用自定义排序名称修改库列表显示。";
+      ? t("onboarding_independentNameScope", "覆盖商店、库列表和愿望单。")
+      : t("onboarding_sortNameScope", "使用自定义排序名称修改库列表显示。");
   }
 
   // 设置目录提供方案名称；引导选择与完成摘要使用同一标签，避免各入口再次分叉。
   function nameModeLabel(value) {
     const option = state.clientNameModeOptions.find(item => item.value === value);
-    if (!option || typeof option.label !== "string" || !option.label.trim()) throw new TypeError("名称方案缺少展示名称");
+    if (!option || typeof option.label !== "string" || !option.label.trim()) throw new TypeError(t("onboarding_nameMethodLabelMissing", "名称方案缺少展示名称"));
     return option.label;
   }
 
@@ -316,11 +329,13 @@
     const ids = item?.deps?.ids;
     if (!Array.isArray(ids) || !ids.length) return "";
     const names = ids
-      .map((id) => catalog?.featureById?.(id)?.name || "")
+      .map((id) => catalog.featureById(id))
+      .filter(Boolean)
+      .map((item) => t(item.nameKey, item.name))
       .map((name) => String(name || "").trim())
       .filter(Boolean);
     if (!names.length) return "";
-    return `需开启 ${names.join("、")}`;
+    return t("settings_lock_depRequired", "需开启 $names$", { names: new Intl.ListFormat(document.documentElement.lang).format(names) });
   }
 
   function syncClientFeatures(enabled) {
@@ -332,32 +347,24 @@
 
   function sharedConfig() {
     // index.html 已先加载必需配置；缺失时直接报错，不能静默重复加载。
-    if (!window.STConfig?.urls) throw new Error("配置加载失败，请稍后重试。");
+    if (!window.STConfig?.urls) throw new Error(t("onboarding_configLoadFailed", "配置加载失败，请稍后重试。"));
     return window.STConfig;
-  }
-
-  function parseJson(text) {
-    try {
-      return JSON.parse(text || "{}");
-    } catch (cause) {
-      globalThis.STLoggerSchema?.markJsonError?.(cause);
-      throw new Error("接口返回解析失败，请稍后重试。", { cause });
-    }
   }
 
   // API 发网、消息超时和请求日志复用公共封装；这里只区分引导页的无效消息回复
   async function onboardingApiRequest(options) {
     const api = chromeApi();
     if (!api?.runtime?.sendMessage) {
-      throw new Error("当前是本地预览模式，安装为扩展后可测试连接或获取授权码。");
+      throw new Error(t("onboarding_previewConnectionAndAuth", "当前是本地预览模式，安装为扩展后可测试连接或获取授权码。"));
     }
     const requestApi = globalThis.STSettingsApiRequest;
     if (!requestApi?.request || !requestApi?.parseJson) {
-      throw new Error("引导页请求封装未加载，请重新打开引导页。");
+      throw new Error(t("onboarding_requestModuleMissing", "引导页请求封装未加载，请重新打开引导页。"));
     }
     try {
       return await requestApi.request({
         ...options,
+        translate: t,
         retries: 0,
         // 授权等待轮询只记录异常和状态变化，不新增逐次成功日志
         deferSuccessLog: true,
@@ -365,13 +372,13 @@
           return response.success === true && typeof response.status === "number" && Number.isFinite(response.status)
             && response.status > 0 && typeof response.data === "string";
         },
-        validateMessage: "后台请求回复格式异常：缺少 HTTP 状态码或响应内容。",
+        validateMessage: t("onboarding_invalidHttpResponse", "后台请求回复格式异常：缺少 HTTP 状态码或响应内容。"),
       });
     } catch (cause) {
       // STORE_FETCH 的正式失败回复包含 success:false 和 error；空回复不属于网络错误
       if (cause && Object.hasOwn(cause, "response") && !cause.response?.success
         && !(cause.response?.success === false && typeof cause.response.error === "string" && cause.response.error.trim())) {
-        const error = new Error("后台未返回有效请求结果，请重新打开引导页后重试。", { cause });
+        const error = new Error(t("onboarding_missingResponse", "后台未返回有效请求结果，请重新打开引导页后重试。"), { cause });
         error.name = "MessageError";
         error.code = "BACKGROUND_RESPONSE_INVALID";
         error.response = cause.response;
@@ -400,7 +407,7 @@
     const response = await onboardingApiRequest(options);
     let body;
     try {
-      body = globalThis.STSettingsApiRequest.parseJson(response.data, "接口返回解析失败，请稍后重试。");
+      body = globalThis.STSettingsApiRequest.parseJson(response.data, t("onboarding_responseParseFailed", "接口返回解析失败，请稍后重试。"));
     } catch (error) {
       log.error("onboarding-api-request-failed", "安装引导 API 响应解析失败", {
         ...details, phase: "parse", response: globalThis.STLoggerSchema.responseFacts(response),
@@ -431,7 +438,7 @@
     const api = chromeApi();
     if (api?.storage?.local) return api;
     if (window.location.protocol === "chrome-extension:" || api?.runtime?.id) {
-      throw new Error("扩展本地存储不可用，请重新打开安装引导");
+      throw new Error(t("onboarding_storageUnavailable", "扩展本地存储不可用，请重新打开安装引导"));
     }
     // 普通网页预览沿用来源独立的 localStorage，扩展页不能退回该存储。
     return null;
@@ -443,8 +450,8 @@
       return new Promise((resolve, reject) => {
         api.storage.local.get(keys, data => {
           const error = api.runtime?.lastError;
-          if (error) reject(new Error("设置读取失败", { cause: error }));
-          else if (!data || typeof data !== "object" || Array.isArray(data)) reject(new Error("设置读取结果无效"));
+          if (error) reject(new Error(t("onboarding_settingsReadFailed", "设置读取失败"), { cause: error }));
+          else if (!data || typeof data !== "object" || Array.isArray(data)) reject(new Error(t("onboarding_invalidSettingsData", "设置读取结果无效")));
           else resolve(data);
         });
       });
@@ -460,24 +467,28 @@
     return out;
   }
 
+  async function writeLocalSettings(payload) {
+    const api = storageApi();
+    if (api) {
+      await new Promise((resolve, reject) => {
+        api.storage.local.set(payload, () => {
+          const error = api.runtime?.lastError;
+          if (error) reject(new Error([t("onboarding_settingsSaveFailed", "设置保存失败"), error.message].filter(Boolean).join(" · "), { cause: error }));
+          else resolve();
+        });
+      });
+    } else {
+      Object.entries(payload).forEach(([key, value]) => {
+        localStorage.setItem(key, typeof value === "string" ? value : JSON.stringify(value));
+      });
+    }
+  }
+
   async function storageSetMany(data, diagnostics = {}) {
     const operationId = String(diagnostics?.operationId || "");
     const payload = data && typeof data === "object" ? data : {};
     try {
-      const api = storageApi();
-      if (api) {
-        await new Promise((resolve, reject) => {
-          api.storage.local.set(payload, () => {
-            const error = api.runtime?.lastError;
-            if (error) reject(new Error("设置保存失败", { cause: error }));
-            else resolve();
-          });
-        });
-      } else {
-        Object.entries(payload).forEach(([key, value]) => {
-          localStorage.setItem(key, typeof value === "string" ? value : JSON.stringify(value));
-        });
-      }
+      await writeLocalSettings(payload);
       return true;
     } catch (error) {
       log.error("onboarding-storage-write-failed", "安装引导状态保存失败", {
@@ -492,18 +503,18 @@
   function runtimeSend(payload, timeoutMs = 12_000) {
     const api = chromeApi();
     if (!api?.runtime?.sendMessage) {
-      return Promise.reject(new Error("当前是本地预览模式，安装为扩展后可测试连接。"));
+      return Promise.reject(new Error(t("onboarding_previewConnection", "当前是本地预览模式，安装为扩展后可测试连接。")));
     }
     return new Promise((resolve, reject) => {
       let done = false;
-      const timer = window.setTimeout(() => {
+      const timer = timeoutMs > 0 ? window.setTimeout(() => {
         if (done) return;
         done = true;
-        const error = new Error("请求超时，请稍后重试。");
+        const error = new Error(t("common_requestTimedOut", "请求超时，请稍后重试。"));
         error.name = "TimeoutError";
         error.code = "REQUEST_TIMEOUT";
         reject(error);
-      }, Math.max(1, Number(timeoutMs) || 12_000));
+      }, timeoutMs) : 0;
       try {
         api.runtime.sendMessage(payload, (res) => {
           if (done) return;
@@ -649,7 +660,7 @@
 
   function ensureAiModule() {
     // AI 配置与引导脚本在 index.html 中按固定顺序加载。
-    if (typeof globalThis.STAI?.normalize !== "function") throw new Error("AI 配置模块未加载");
+    if (typeof globalThis.STAI?.normalize !== "function") throw new Error(t("onboarding_aiModuleMissing", "AI 配置模块未加载"));
     return globalThis.STAI;
   }
 
@@ -686,8 +697,8 @@
       messageError: false,
       saved: false,
     });
-    state.savedSummary["third-party"] = stored[thirdPartyKey("enabled")] === true ? "已启用" : "未启用";
-    state.savedSummary.ai = stored[aiStorageKey("enabled")] === true ? "已启用" : "未启用";
+    state.savedSummary["third-party"] = stored[thirdPartyKey("enabled")] === true ? t("common_enabled", "已启用") : t("onboarding_disabled", "未启用");
+    state.savedSummary.ai = stored[aiStorageKey("enabled")] === true ? t("common_enabled", "已启用") : t("onboarding_disabled", "未启用");
     state.servicesHydrated = true;
   }
 
@@ -717,7 +728,7 @@
       return { ok: false, reason: "storage" };
     }
     state.thirdParty.saved = true;
-    state.savedSummary["third-party"] = enabled ? "已配置并测试" : "已关闭";
+    state.savedSummary["third-party"] = enabled ? t("onboarding_configuredAndTested", "已配置并测试") : t("onboarding_off", "已关闭");
     log.info("onboarding-third-party-save-success", "安装引导第三方服务配置保存成功", {
       operationId,
       enabled,
@@ -752,18 +763,11 @@
     const saved = await runtimeSend({
       type: "AUTOMATION", action: "save-ai-services", value: next, operationId,
     }, 120000);
-    const ok = saved?.success === true;
-    if (!ok) {
-      log.warn("onboarding-ai-save-failed", "安装引导 AI 配置保存失败", {
-        operationId,
-        enabled: form.enabled === true,
-        errorCode: "STORAGE_REJECTED",
-      });
-      return { ok: false, reason: "storage" };
-    }
+    if (saved?.success !== true)
+      throw Object.assign(new Error(saved?.error || t("onboarding_aiSaveFailed", "AI 配置保存失败，请稍后重试。")), { code: saved?.errorCode });
     state.aiRegistry = saved.value;
     state.ai.saved = true;
-    state.savedSummary.ai = form.enabled ? "已配置并测试" : "已关闭";
+    state.savedSummary.ai = form.enabled ? t("onboarding_configuredAndTested", "已配置并测试") : t("onboarding_off", "已关闭");
     log.info("onboarding-ai-save-success", "安装引导 AI 配置保存成功", {
       operationId,
       enabled: form.enabled === true,
@@ -773,18 +777,18 @@
 
   function itadFailureFromStatus(status) {
     if (status === 401 || status === 403) {
-      return { code: "PROVIDER_AUTH_FAILED", message: "ITAD API Key 验证失败，请检查密钥是否正确或权限是否可用。" };
+      return { code: "PROVIDER_AUTH_FAILED", message: t("settings_thirdParty_authFailed", "ITAD API Key 验证失败，请检查密钥是否正确或权限是否可用。") };
     }
     if (status === 429) {
-      return { code: "PROVIDER_RATE_LIMITED", message: "ITAD 请求已触发限流，请稍后再试。" };
+      return { code: "PROVIDER_RATE_LIMITED", message: t("settings_thirdParty_rateLimited", "ITAD 请求已触发限流，请稍后再试。") };
     }
     if (status >= 500) {
-      return { code: "PROVIDER_UNAVAILABLE", message: "ITAD 服务暂时不可用，请稍后重试。" };
+      return { code: "PROVIDER_UNAVAILABLE", message: t("settings_thirdParty_unavailable", "ITAD 服务暂时不可用，请稍后重试。") };
     }
     if (status > 0) {
-      return { code: "PROVIDER_HTTP_ERROR", message: `ITAD 测试接口返回状态码 ${status}。` };
+      return { code: "PROVIDER_HTTP_ERROR", message: t("onboarding_itadHttpStatus", "ITAD 测试接口返回状态码 $status$。", { status }) };
     }
-    return { code: "NETWORK_FAILED", message: "网络请求失败，请检查网络连接或稍后重试。" };
+    return { code: "NETWORK_FAILED", message: t("common_networkFailed", "网络请求失败，请检查网络连接或稍后重试。") };
   }
 
   async function testThirdPartyConnection() {
@@ -795,7 +799,7 @@
     const requestId = `itad-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
     if (!key) {
       state.thirdParty.verified = false;
-      resultNotice("请先填写 ITAD API Key。", "thirdParty");
+      resultNotice(t("settings_thirdParty_keyRequired", "请先填写 ITAD API Key。"), "thirdParty");
       state.thirdParty.messageError = true;
       log.warn("onboarding-itad-test-failed", "安装引导 ITAD 连接测试缺少 API Key", {
         operationId,
@@ -806,7 +810,7 @@
       return;
     }
     state.serviceBusy = true;
-    state.thirdParty.message = "测试中...";
+    state.thirdParty.message = t("onboarding_testing", "测试中...");
     state.thirdParty.messageError = false;
     render();
     const startedAt = Date.now();
@@ -822,7 +826,7 @@
     try {
       const cfg = await sharedConfig();
       const url = cfg.vendors?.isthereanydeal?.statsMostPopular?.(1, 0);
-      if (!url) throw new Error("ITAD 测试接口配置未就绪。");
+      if (!url) throw new Error(t("settings_thirdParty_testEndpointUnavailable", "ITAD 测试接口配置未就绪。"));
       const options = {
         url,
         label: "引导页 ITAD 测试接口",
@@ -861,14 +865,14 @@
         return;
       }
       phase = "parse";
-      payload = globalThis.STSettingsApiRequest.parseJson(response.data, "ITAD 测试接口响应解析失败。");
+      payload = globalThis.STSettingsApiRequest.parseJson(response.data, t("onboarding_itadResponseParseFailed", "ITAD 测试接口响应解析失败。"));
       phase = "validate";
       if (!payload || (typeof payload !== "object" && !Array.isArray(payload))) {
-        throw Object.assign(new Error("ITAD 测试接口响应格式异常。"), { code: "RESPONSE_SHAPE_INVALID" });
+        throw Object.assign(new Error(t("settings_thirdParty_invalidResponse", "ITAD 测试接口响应格式异常。")), { code: "RESPONSE_SHAPE_INVALID" });
       }
       state.thirdParty.verified = true;
       state.thirdParty.saved = false;
-      resultNotice("测试通过，可进入下一步。", "thirdParty");
+      resultNotice(t("onboarding_connectionVerified", "测试通过，可进入下一步。"), "thirdParty");
       state.thirdParty.messageError = false;
       log.info("onboarding-itad-test-success", "安装引导 ITAD 连接测试成功", {
         ...details,
@@ -896,9 +900,9 @@
 
   function aiPermissionError(response) {
     const denied = response?.code === "AI_HOST_PERMISSION_DENIED";
-    const error = new Error(response?.error || (denied
-      ? "未获得当前 AI 网关的访问权限，请允许访问后重试。"
-      : "AI 网关访问权限申请失败，请稍后重试。"));
+    const error = new Error(denied
+      ? t("settings_ai_permissionDenied", "未获得当前 AI 网关的访问权限，请允许访问后重试。")
+      : t("settings_ai_permissionFailed", "AI 网关访问权限申请失败，请稍后重试。"), { cause: response?.error });
     error.code = response?.code || "AI_HOST_PERMISSION_REQUEST_FAILED";
     return error;
   }
@@ -906,11 +910,12 @@
   function waitAiPermissionResult(requestId) {
     const api = chromeApi();
     if (!api?.runtime?.onMessage) {
-      return Promise.reject(Object.assign(new Error("AI 网关访问权限申请失败，请稍后重试。"), {
+      throw Object.assign(new Error(t("settings_ai_permissionFailed", "AI 网关访问权限申请失败，请稍后重试。")), {
         code: "AI_HOST_PERMISSION_RESULT_UNAVAILABLE",
-      }));
+      });
     }
-    return new Promise((resolve, reject) => {
+    let cancel;
+    const promise = new Promise((resolve, reject) => {
       let settled = false;
       const finish = (error) => {
         if (settled) return;
@@ -933,10 +938,12 @@
         return false;
       };
       const timer = window.setTimeout(() => {
-        finish(Object.assign(new Error("等待授权超时，请重新操作。"), { code: "AI_HOST_PERMISSION_TIMEOUT" }));
+        finish(Object.assign(new Error(t("settings_ai_permissionTimeout", "等待授权超时，请重新操作。")), { code: "AI_HOST_PERMISSION_TIMEOUT" }));
       }, AI_PERMISSION_WAIT_MS);
+      cancel = () => finish(null);
       api.runtime.onMessage.addListener(onMessage);
     });
+    return { promise, cancel };
   }
 
   async function ensureAiGatewayPermission(ai, operationId = "") {
@@ -957,9 +964,9 @@
       if (response?.granted !== true) throw aiPermissionError(response);
       return true;
     }
-    const ok = window.confirm("该操作需要授权，需打开 Chromium 浏览器进行授权操作。是否继续？");
+    const ok = window.confirm(t("settings_ai_permissionBrowserMessage", "该操作需要授权，需打开 Chromium 浏览器进行授权操作。是否继续？"));
     if (!ok) {
-      const error = new Error("已取消 AI 网关授权。");
+      const error = new Error(t("onboarding_gatewayAuthCanceled", "已取消 AI 网关授权。"));
       error.code = "AI_HOST_PERMISSION_CANCELLED";
       throw error;
     }
@@ -967,26 +974,29 @@
       || `ai-perm-${Date.now().toString(36)}`;
     const waiter = waitAiPermissionResult(requestId);
     try {
-      const response = await runtimeSend({
+      const opening = runtimeSend({
         type: AI_GATEWAY_PERMISSION_OPEN,
         requestId,
         operationId,
         host: ai.host,
-      }, 10_000);
-      if (response?.opened !== true) throw aiPermissionError(response);
-      await waiter;
+      }, 10_000).then(response => {
+        if (response?.opened !== true) throw aiPermissionError(response);
+      });
+      // 结果可能早于打开窗口的回执，两者都从本次操作开始时接管。
+      await Promise.all([opening, waiter.promise]);
       return true;
     } catch (error) {
-      try {
-        await runtimeSend({
+      if (error?.code === "AI_HOST_PERMISSION_TIMEOUT" || error?.code === "REQUEST_TIMEOUT") {
+        const cancelled = await runtimeSend({
           type: AI_GATEWAY_PERMISSION_CANCEL,
           requestId,
           operationId,
         }, 5_000);
-      } catch {
-        // 保留原始权限错误
+        if (cancelled?.success !== true) throw new AggregateError([error, aiPermissionError(cancelled)], error.message);
       }
       throw error;
+    } finally {
+      waiter.cancel();
     }
   }
 
@@ -998,20 +1008,20 @@
     const operationId = createOperationId();
     if (!testConf.host || !testConf.model) {
       state.ai.verified = false;
-      resultNotice("请填写 AI 网关地址和模型。", "ai");
+      resultNotice(t("settings_ai_test_missingConfig", "请填写 AI 网关地址和模型。"), "ai");
       state.ai.messageError = true;
       render();
       return;
     }
     if (aiKeyRequired(testConf.keyMode) && !testConf.key) {
       state.ai.verified = false;
-      resultNotice("请填写访问密钥。", "ai");
+      resultNotice(t("onboarding_enterAnAccessKey", "请填写访问密钥。"), "ai");
       state.ai.messageError = true;
       render();
       return;
     }
     state.serviceBusy = true;
-    state.ai.message = "测试中...";
+    state.ai.message = t("onboarding_testing", "测试中...");
     state.ai.messageError = false;
     render();
     const startedAt = Date.now();
@@ -1032,13 +1042,13 @@
         ],
       }, AI_TEST_TIMEOUT_MS);
       if (response?.success !== true) {
-        throw Object.assign(new Error(response?.error || "AI 测试失败，请检查配置后重试。"), {
+        throw Object.assign(new Error(response?.error || t("onboarding_aiTestFailed", "AI 测试失败，请检查配置后重试。")), {
           code: response?.code || "AI_TEST_FAILED",
         });
       }
       state.ai.verified = true;
       state.ai.saved = false;
-      resultNotice("测试通过，可进入下一步。", "ai");
+      resultNotice(t("onboarding_connectionVerified", "测试通过，可进入下一步。"), "ai");
       state.ai.messageError = false;
       log.info("onboarding-ai-test-success", "安装引导 AI 连接测试成功", {
         operationId,
@@ -1047,7 +1057,7 @@
     } catch (error) {
       if (error?.code === "AI_HOST_PERMISSION_CANCELLED") {
         state.ai.verified = false;
-        state.ai.message = "已取消授权。";
+        state.ai.message = t("onboarding_authorizationCanceled", "已取消授权。");
         state.ai.messageError = true;
         log.info("onboarding-ai-test-permission-cancelled", "安装引导 AI 连接测试授权已取消", {
           operationId,
@@ -1073,7 +1083,7 @@
   function accountProfile() {
     const api = window.STSettingsAccountCenter || window.STAccountProfile;
     if (!api?.normalizeData || !api?.membershipSnapshot) {
-      throw new Error("账号资料模块未加载");
+      throw new Error(t("settings_account_profileModuleUnavailable", "账号资料模块未加载"));
     }
     return api;
   }
@@ -1083,15 +1093,15 @@
   }
 
   function accountMeta(data) {
-    const id = String(data?.user?.id || "用户 ID 暂无").trim() || "用户 ID 暂无";
-    const badge = String(data?.sponsor?.badge || "普通用户").trim() || "普通用户";
-    return `${badge} · ${id === "用户 ID 暂无" ? id : `ID: ${id}`}`;
+    const id = String(data?.user?.id || t("settings_account_userIdUnavailable", "用户 ID 暂无")).trim() || t("settings_account_userIdUnavailable", "用户 ID 暂无");
+    const badge = String(data?.sponsor?.badge || t("settings_account_normalUser", "普通用户")).trim() || t("settings_account_normalUser", "普通用户");
+    return `${badge} · ${data?.user?.id ? `ID: ${id}` : id}`;
   }
 
   async function assertLoginSession(sent) {
     const session = window.STAuthSession.authKey(sent);
     const current = await storageGet(AUTH_KEY);
-    if (!session || session !== window.STAuthSession.authKey(current)) throw new Error("登录账号已变化，请重新获取用户信息");
+    if (!session || session !== window.STAuthSession.authKey(current)) throw new Error(t("onboarding_accountChanged", "登录账号已变化，请重新获取用户信息"));
   }
 
   async function storeMembership(data, auth, operationId = "") {
@@ -1100,7 +1110,7 @@
     await assertLoginSession(auth);
     const saved = await storageSet(MEMBERSHIP_KEY, snapshot, { operationId });
     if (!saved) {
-      throw new Error("会员状态保存失败");
+      throw new Error(t("settings_account_membershipSaveFailed", "会员状态保存失败"));
     }
   }
 
@@ -1158,7 +1168,7 @@
     if (!text) return Promise.resolve(false);
     const done = (ok) => {
       clearLoginCopy();
-      resultNotice(ok ? success : "复制失败，请手动复制。");
+      resultNotice(ok ? success : t("onboarding_copyFailed", "复制失败，请手动复制。"));
       render();
       return ok;
     };
@@ -1192,7 +1202,7 @@
     const delay = Math.max(1, Number(state.loginDevice.interval) || 3) * 1000;
     loginPollTimer = window.setTimeout(() => {
       loginPollTimer = 0;
-      pollLogin(false).catch((error) => reportLoginPollFailure(error, false));
+      void pollLogin(false);
     }, delay);
   }
 
@@ -1206,13 +1216,13 @@
 
   async function refreshStoredAuth(auth, cfg, operationId = "") {
     await assertLoginSession(auth);
-    if (!auth?.refresh_token) throw new Error("登录已过期，请重新登录");
+    if (!auth?.refresh_token) throw new Error(t("store_priceHistory_monitorLoginExpired", "登录已过期，请重新登录"));
     const res = await storeFetch("/auth/refresh", { refresh_token: auth.refresh_token }, "", "POST", cfg.urls.loginAuthBase);
-    if (!okCode(res) || !res.body?.access_token) throw new Error(res.body?.message || "登录刷新失败，请重新登录");
+    if (!okCode(res) || !res.body?.access_token) throw new Error(res.body?.message || t("onboarding_refreshSignInFailed", "登录刷新失败，请重新登录"));
     const next = nextAuth(res.body, auth);
     await assertLoginSession(auth);
     if (!await storageSet(AUTH_KEY, next, { operationId })) {
-      throw new Error("登录令牌保存失败");
+      throw new Error(t("onboarding_tokenSaveFailed", "登录令牌保存失败"));
     }
     state.loginAuth = next;
     return next;
@@ -1230,7 +1240,7 @@
       current = await refreshStoredAuth(current, cfg, operationId);
       res = await fetchUserCenter(current, cfg);
     }
-    if (!okCode(res)) throw new Error(res.body?.message || "获取用户信息失败");
+    if (!okCode(res)) throw new Error(res.body?.message || t("onboarding_profileFetchFailed", "获取用户信息失败"));
     const profile = normalizeAccount(res.body || {}, current);
     await storeMembership(profile, current, operationId);
     state.accountData = profile;
@@ -1252,52 +1262,23 @@
     return profile;
   }
 
-  function reportLoginPollFailure(error, manual) {
-    const key = `${error?.name || "Error"}:${error?.message || String(error || "")}`;
-    if (key === state.loginPollErrorKey && !manual) {
-      return;
-    }
-    state.loginPollErrorKey = key;
-    resultNotice(error?.message || String(error), "login");
-    log.warn("onboarding-device-login-poll-failed", "安装引导设备登录轮询失败，将继续重试", {
-      operationId: state.loginOperationId || "",
-      manual: manual === true,
-      error,
-    });
-  }
-
-  function reportLoginPollRecovery() {
-    if (!state.loginPollErrorKey) {
-      return;
-    }
-    state.loginPollErrorKey = "";
-    log.warn("onboarding-device-login-poll-recovered", "安装引导设备登录轮询已恢复", {
-      operationId: state.loginOperationId || "",
-      recovery: {
-        attempted: true,
-        success: true,
-        strategy: "next-poll-success",
-      },
-    });
-  }
-
   async function startLogin() {
     stopLoginPoll();
     clearLoginCopy();
     const api = chromeApi();
     if (!api?.runtime?.sendMessage) {
       state.loginMode = "preview";
-      state.loginMessage = "当前为本地预览。安装为扩展后，这里会显示授权码和授权地址。";
+      state.loginMessage = t("onboarding_previewSignIn", "当前为本地预览。安装为扩展后，这里会显示授权码和授权地址。");
       state.loginBusy = false;
       render();
       return;
     }
     state.loginMode = "loading";
     state.loginBusy = true;
+    const attempt = ++loginAttempt;
     state.loginOperationId = createOperationId();
-    state.loginPollErrorKey = "";
     state.loginDevice = null;
-    state.loginMessage = "正在获取授权码...";
+    state.loginMessage = t("onboarding_gettingDeviceCode", "正在获取授权码...");
     const startedAt = Date.now();
     log.info("onboarding-device-login-start", "安装引导开始设备登录", {
       operationId: state.loginOperationId,
@@ -1306,8 +1287,9 @@
     try {
       const cfg = await sharedConfig();
       const res = await storeFetch("/auth/device/start", { device_name: "Steam Buff 引导页" }, "", "POST", cfg.urls.loginAuthBase, { traceRequest: true });
+      if (loginAttempt !== attempt) return;
       if (!okCode(res) || !res.body?.device_code) {
-        const error = new Error(res.body?.message || "获取授权码失败");
+        const error = new Error(res.body?.message || t("onboarding_deviceCodeFailed", "获取授权码失败"));
         log.error("onboarding-api-response-invalid", "设备登录接口返回未通过校验", {
           operationId: res.operationId, requestId: res.requestId, phase: "validate",
           request: { method: "POST", endpointKey: "onboarding:/auth/device/start", url: `${cfg.urls.loginAuthBase}/auth/device/start` },
@@ -1324,7 +1306,7 @@
       };
       state.loginMode = "device";
       state.loginBusy = false;
-      state.loginMessage = "等待完成授权";
+      state.loginMessage = t("onboarding_waitingForAuthorization", "等待完成授权");
       log.info("onboarding-device-login-code-success", "安装引导设备授权码获取成功", {
         operationId: state.loginOperationId,
         durationMs: Date.now() - startedAt,
@@ -1332,6 +1314,7 @@
       render();
       scheduleLoginPoll();
     } catch (error) {
+      if (loginAttempt !== attempt) return;
       state.loginMode = "error";
       state.loginBusy = false;
       resultNotice(error?.message || String(error), "login");
@@ -1345,13 +1328,15 @@
   }
 
   async function pollLogin(manual) {
-    if (!state.loginDevice) return;
+    const device = state.loginDevice;
+    if (!device || pollingDevice === device) return;
+    const attempt = loginAttempt;
+    stopLoginPoll();
     if (Date.now() >= Number(state.loginDevice.expires_at)) {
-      stopLoginPoll();
       state.loginMode = "error";
       state.loginBusy = false;
       state.loginDevice = null;
-      resultNotice("授权码已过期，请重新获取。", "login");
+      resultNotice(t("onboarding_deviceCodeExpired", "授权码已过期，请重新获取。"), "login");
       log.warn("onboarding-device-login-failed", "安装引导设备授权码已过期", {
         operationId: state.loginOperationId || "",
         reason: "expired",
@@ -1359,29 +1344,31 @@
       render();
       return;
     }
+    pollingDevice = device;
     state.loginBusy = manual === true;
-    state.loginMessage = manual ? "正在检查授权状态..." : "等待完成授权";
+    state.loginMessage = manual ? t("onboarding_checkingDeviceAuthorization", "正在检查授权状态...") : t("onboarding_waitingForAuthorization", "等待完成授权");
     render();
     try {
       const cfg = await sharedConfig();
-      const res = await storeFetch("/auth/device/token", { device_code: state.loginDevice.device_code }, "", "POST", cfg.urls.loginAuthBase);
+      const res = await storeFetch("/auth/device/token", { device_code: device.device_code }, "", "POST", cfg.urls.loginAuthBase);
+      // 取消、跳过或换一组授权码之后，旧响应不得再写入账号或启动轮询。
+      if (state.loginDevice !== device) return;
       const code = Number(res.body?.code) || Number(res.status) || 0;
       if (code === 202) {
-        reportLoginPollRecovery();
         state.loginBusy = false;
-        state.loginMessage = "等待完成授权";
+        state.loginMessage = t("onboarding_waitingForAuthorization", "等待完成授权");
         render();
         scheduleLoginPoll();
         return;
       }
       if (!okCode(res) || !res.body?.access_token) {
-        throw new Error(res.body?.message || "登录失败，请重新获取授权码。");
+        throw new Error(res.body?.message || t("onboarding_signInFailed", "登录失败，请重新获取授权码。"));
       }
-      reportLoginPollRecovery();
       const auth = nextAuth(res.body, state.loginAuth || {});
-      if (!await storageSet(AUTH_KEY, auth, { operationId: state.loginOperationId })) {
-        throw new Error("登录状态保存失败");
-      }
+      state.loginBusy = true;
+      state.loginMode = "syncing";
+      render();
+      await writeLocalSettings({ [AUTH_KEY]: auth });
       state.loginAuth = auth;
       state.loginMode = "success";
       state.loginBusy = false;
@@ -1399,22 +1386,30 @@
         });
       }
       stopLoginPoll();
-      resultNotice(accountSyncSucceeded ? "登录成功。" : "登录成功，但账号资料同步失败。", "login");
+      resultNotice(accountSyncSucceeded ? t("onboarding_signedInSuccessfully", "登录成功。") : t("onboarding_accountSyncFailedAfterSignIn", "登录成功，但账号资料同步失败。"), "login");
       log.info("onboarding-device-login-success", "安装引导设备登录成功", {
         operationId: state.loginOperationId || "",
         accountSyncSucceeded,
       });
       render();
     } catch (error) {
+      if (attempt !== loginAttempt) return;
+      if (state.loginDevice !== device) throw error;
       state.loginBusy = false;
+      state.loginMode = "error";
+      state.loginDevice = null;
       state.loginMessage = error?.message || String(error);
-      reportLoginPollFailure(error, manual);
+      log.error("onboarding-device-login-poll-failed", "安装引导设备登录失败，已停止轮询", {
+        operationId: state.loginOperationId, manual, error,
+      });
       render();
-      scheduleLoginPoll();
+    } finally {
+      if (pollingDevice === device) pollingDevice = null;
     }
   }
 
-  function cancelLogin() {
+  function cancelLogin(renderPage = true) {
+    loginAttempt++;
     stopLoginPoll();
     clearLoginCopy();
     state.loginMode = "idle";
@@ -1422,8 +1417,7 @@
     state.loginDevice = null;
     state.loginMessage = "";
     state.loginOperationId = "";
-    state.loginPollErrorKey = "";
-    render();
+    if (renderPage) render();
   }
 
   async function ensureLoginState() {
@@ -1433,7 +1427,7 @@
     state.loginOperationId = createOperationId();
     state.loginAuth = auth;
     state.loginMode = "syncing";
-    state.loginMessage = "正在同步账号信息...";
+    state.loginMessage = t("onboarding_syncingProfile", "正在同步账号信息...");
     state.accountData = null;
     log.info("onboarding-account-sync-start", "安装引导开始同步账号资料", {
       operationId: state.loginOperationId,
@@ -1442,14 +1436,14 @@
     try {
       await syncAccountData(auth, state.loginOperationId);
       state.loginMode = "success";
-      state.loginMessage = "已登录";
+      state.loginMessage = t("onboarding_signedIn", "已登录");
       log.info("onboarding-account-sync-success", "安装引导账号资料同步成功", {
         operationId: state.loginOperationId,
       });
     } catch (error) {
       state.accountData = normalizeAccount({}, state.loginAuth || auth);
       state.loginMode = "success";
-      state.loginMessage = error?.message ? "已登录，用户信息暂未同步。" : "已登录";
+      state.loginMessage = error?.message ? t("onboarding_signedInSyncPending", "已登录，用户信息暂未同步。") : t("onboarding_signedIn", "已登录");
       log.warn("onboarding-account-sync-failed", "安装引导账号资料同步失败，保留本地登录状态", {
         operationId: state.loginOperationId,
         error,
@@ -1465,7 +1459,7 @@
       const url = key && typeof cfg.urls.helpSearch === "function"
         ? cfg.urls.helpSearch(key)
         : cfg.urls.onboardingTutorial;
-      if (!url) throw new Error("使用教程地址未配置");
+      if (!url) throw new Error(t("onboarding_tutorialUrlMissing", "使用教程地址未配置"));
       cfg.externalNavigation.open(url);
     } catch (error) {
       globalThis.STLoggerFactory.reportError(error, { domain: "onboarding", feature: "script", event: "open-tutorial-failed", message: "打开引导教程失败", level: "error", phase: "openTutorial" });
@@ -1482,7 +1476,7 @@
     log.info("onboarding-client-save-start", "安装引导开始保存客户端功能", { operationId, settingCount: Object.keys(data).length });
     const ok = await storageSetMany(data, { operationId });
     if (ok) {
-      state.savedSummary.client = Object.values(data).some(Boolean) ? `已开启 · ${CLIENT_RESTART_NOTE}` : "已关闭";
+      state.savedSummary.client = Object.values(data).some(Boolean) ? t("onboarding_enabledRestart", "已开启 · $restart$", { restart: CLIENT_RESTART_NOTE }) : t("onboarding_off", "已关闭");
       log.info("onboarding-client-save-success", "安装引导客户端功能已保存", { operationId });
     }
     return ok;
@@ -1502,7 +1496,12 @@
   function resultNotice(message, section) {
     if (section === "login") state.loginMessage = "";
     else if (section) state[section].message = "";
-    void window.STFeedback.show(document.body, { message });
+    void window.STFeedback.show(document.body, {
+      message,
+      title: t("common.notice", "提示"),
+      closeLabel: t("common.close", "关闭"),
+      confirmLabel: t("common.confirm", "确定"),
+    });
   }
 
   function setNote(note = "", error = false) {
@@ -1523,15 +1522,15 @@
   function openSettings(operationId = "", startedAt = Date.now()) {
     const api = chromeApi();
     if (!api?.runtime?.sendMessage) {
-      setNote("当前是本地预览模式，安装为扩展后可打开设置中心。", false);
+      setNote(t("onboarding_previewSettings", "当前是本地预览模式，安装为扩展后可打开设置中心。"), false);
       return;
     }
-    setBusy(true, "正在打开设置中心...");
+    setBusy(true, t("onboarding_openingSettings", "正在打开设置中心..."));
     try {
       api.runtime.sendMessage({ type: OPEN_SETTINGS_MESSAGE }, (res) => {
         const error = api.runtime.lastError;
         if (error || !res?.success) {
-          const failure = error || new Error(res?.error || "设置中心打开失败，请稍后重试。");
+          const failure = error || new Error(res?.error || t("onboarding_openSettingsFailed", "设置中心打开失败，请稍后重试。"));
           log.error("onboarding-finish-failed", "安装引导打开设置中心失败", {
             operationId,
             durationMs: Date.now() - startedAt,
@@ -1544,7 +1543,7 @@
           operationId,
           durationMs: Date.now() - startedAt,
         });
-        setBusy(false, "已打开 Steam Buff 设置中心。", false);
+        setBusy(false, t("onboarding_settingsOpened", "已打开 Steam Buff 设置中心。"), false);
       });
     } catch (error) {
       log.error("onboarding-finish-failed", "安装引导打开设置中心异常", {
@@ -1560,13 +1559,13 @@
     if (state.clientDefaultReady) return;
     const catalog = await settingsCatalog();
     const items = await clientTopLevelFeatures();
-    if (!catalog || !items.length) throw new Error("客户端功能目录未加载");
+    if (!catalog || !items.length) throw new Error(t("onboarding_clientCatalogMissing", "客户端功能目录未加载"));
     const on = window.STClientEnvironment.isSteamClientPage() === true;
     const stored = await storageGetMany([...items.map(item => settingKey(item.id)), settingValueKey(NAME_MODE_ID)]);
     state.clientFeatureList = items.map((item) => ({
       id: item.id,
-      name: String(item.name || item.id),
-      desc: String(item.desc || ""),
+      name: t(item.nameKey, item.name),
+      desc: item.desc ? t(item.descKey, item.desc) : "",
       lock: clientFeatureLockText(item, catalog),
     }));
     const nameMode = catalog?.featureById?.(NAME_MODE_ID);
@@ -1574,20 +1573,20 @@
       ? nameMode.options
         .filter((option) => typeof option?.value === "string" && option.value)
         .map((option) => {
-          if (typeof option.label !== "string" || !option.label.trim()) throw new TypeError("名称方案缺少展示名称");
+          if (typeof option.label !== "string" || !option.label.trim()) throw new TypeError(t("onboarding_nameMethodLabelMissing", "名称方案缺少展示名称"));
           return {
-          value: String(option.value),
-          label: option.label,
-          lock: String(option.lock || ""),
+            value: String(option.value),
+            label: t(option.labelKey, option.label),
+            lock: String(option.lock || ""),
           };
         })
       : [];
     const storedMode = stored[settingValueKey(NAME_MODE_ID)];
-    if (storedMode !== undefined && !state.clientNameModeOptions.some(option => option.value === storedMode)) throw new Error("已保存的名称方案无效");
+    if (storedMode !== undefined && !state.clientNameModeOptions.some(option => option.value === storedMode)) throw new Error(t("onboarding_invalidNamingMethod", "已保存的名称方案无效"));
     state.clientNameMode = storedMode ?? NAME_MODE_STEAM;
     state.clientFeatures = Object.fromEntries(items.map(item => [item.id, Object.hasOwn(stored, settingKey(item.id)) ? stored[settingKey(item.id)] === true : on]));
     state.clientEnabled = Object.values(state.clientFeatures).some(Boolean);
-    state.savedSummary.client = items.some(item => stored[settingKey(item.id)] === true) ? "已开启" : "未启用";
+    state.savedSummary.client = items.some(item => stored[settingKey(item.id)] === true) ? t("onboarding_on", "已开启") : t("onboarding_disabled", "未启用");
     state.savedSummary["name-mode"] = nameModeLabel(state.clientNameMode);
     state.clientDefaultReady = true;
   }
@@ -1622,10 +1621,14 @@
       steamClient,
     });
     try {
+      setBusy(true, t("setup_creating", "正在完成设置…"));
+      const result = await runtimeSend({ type: CONTRACT.MESSAGES.complete });
+      if (result?.success !== true) throw new Error(result?.error || t("setup_failed", "未能完成设置，请重试。"));
+      state.setupFinished = true;
       if (steamClient) {
         state.busy = false;
         openRestartModal();
-        setNote("请完全退出并重新打开 Steam，客户端增强才会生效。", false);
+        setNote(t("onboarding_restartInstruction", "请完全退出并重新打开 Steam，客户端增强才会生效。"), false);
         log.info("onboarding-finish-restart-required", "安装引导完成，等待用户自行重启 Steam", {
           operationId,
           durationMs: Date.now() - startedAt,
@@ -1640,7 +1643,7 @@
         durationMs: Date.now() - startedAt,
         error,
       });
-      setBusy(false, error?.message || String(error), true);
+      setBusy(false, t("setup_failed", "未能完成设置，请重试。"), true);
     }
   }
 
@@ -1687,7 +1690,7 @@
       if (historyMode === "history") {
         window.history.replaceState(null, "", localUrl(state.page));
       }
-      setNote("请按顺序完成前面的配置步骤。", true);
+      setNote(t("onboarding_completeEarlierSteps", "请按顺序完成前面的配置步骤。"), true);
       return;
     }
     if (page <= state.cloudCount) {
@@ -1707,7 +1710,7 @@
     state.note = "";
     state.noteError = false;
     const stepId = LOCAL_STEPS[index]?.id;
-    if (stepId === "complete" && inSteamClient()) {
+    if (stepId === "complete" && inSteamClient() && state.setupFinished) {
       state.restartAcked = false;
       state.restartModalOpen = true;
     } else {
@@ -1726,57 +1729,30 @@
       setNote(gateBlockNote(stepId), true);
       return;
     }
-    const operationId = createOperationId();
-    if (stepId === "third-party") {
+    const saveStep = {
+      "third-party": [saveThirdPartySettings, "settings_thirdParty_saveFailed", "第三方服务配置保存失败，请稍后重试。"],
+      ai: [saveAiSettings, "onboarding_aiSaveFailed", "AI 配置保存失败，请稍后重试。"],
+      client: [saveClientChoices, "onboarding_clientSaveFailed", "客户端增强设置保存失败，请稍后重试。"],
+      "name-mode": [saveNameMode, "onboarding_namingSaveFailed", "名称方案保存失败，请检查选择后重试。"],
+    }[stepId];
+    if (saveStep) {
+      const [save, key, fallback] = saveStep;
+      const operationId = createOperationId();
+      let failure = "";
       state.serviceBusy = true;
       render();
-      let saved;
       try {
-        saved = await saveThirdPartySettings(operationId);
+        const result = await save(operationId);
+        if (result !== true && !result?.ok)
+          failure = result?.reason === "unverified" ? gateBlockNote(stepId) : t(key, fallback);
+      } catch (error) {
+        log.error("onboarding-step-save-failed", "安装引导步骤保存失败", { operationId, stepId, error });
+        failure = [t(key, fallback), error?.message].filter((message, index, all) => message && all.indexOf(message) === index).join("\n");
       } finally {
         state.serviceBusy = false;
       }
-      if (!saved?.ok) {
-        setNote(saved?.reason === "unverified" ? gateBlockNote(stepId) : "第三方服务配置保存失败，请稍后重试。", true);
-        return;
-      }
-    }
-    if (stepId === "ai") {
-      state.serviceBusy = true;
-      render();
-      let saved;
-      try {
-        saved = await saveAiSettings(operationId);
-      } finally {
-        state.serviceBusy = false;
-      }
-      if (!saved?.ok) {
-        setNote(saved?.reason === "unverified" ? gateBlockNote(stepId) : "AI 配置保存失败，请稍后重试。", true);
-        return;
-      }
-    }
-    if (stepId === "client") {
-      state.serviceBusy = true;
-      render();
-      let ok = false;
-      try {
-        ok = await saveClientChoices(operationId);
-      } finally {
-        state.serviceBusy = false;
-      }
-      if (!ok) {
-        setNote("客户端增强设置保存失败，请稍后重试。", true);
-        return;
-      }
-    }
-    if (stepId === "name-mode") {
-      state.serviceBusy = true;
-      render();
-      let ok;
-      try { ok = await saveNameMode(operationId); }
-      finally { state.serviceBusy = false; }
-      if (!ok) {
-        setNote("名称方案保存失败，请检查选择后重试。", true);
+      if (failure) {
+        setNote(failure, true);
         return;
       }
     }
@@ -1811,7 +1787,7 @@
       advanceFromCurrent();
       return;
     }
-    setNote("请按顺序完成前面的配置步骤。", true);
+    setNote(t("onboarding_completeEarlierSteps", "请按顺序完成前面的配置步骤。"), true);
   }
 
   function progressButton(page) {
@@ -1821,14 +1797,14 @@
     button.dataset.action = "go-page";
     button.dataset.page = String(page);
     const index = CONTRACT.localIndexForPage(page, state.cloudCount);
-    const title = index >= 0 ? LOCAL_STEPS[index].title : "网页介绍";
-    button.setAttribute("aria-label", `第 ${page} 步：${title}`);
+    const title = index >= 0 ? LOCAL_STEPS[index].title : t("onboarding_onlineGuide", "网页介绍");
+    button.setAttribute("aria-label", t("onboarding_stepTitle", "第 $page$ 步：$title$", { page, title }));
     button.classList.toggle("is-complete", page <= state.page);
     if (page === state.page) button.setAttribute("aria-current", "step");
     const reachable = canNavigateToPage(page);
     setControlDisabled(button, page !== state.page && !reachable, false);
     if (!reachable && page !== state.page) {
-      button.title = "请先完成前面的配置步骤";
+      button.title = t("onboarding_completeEarlierStepsFirst", "请先完成前面的配置步骤");
     }
     return button;
   }
@@ -1839,7 +1815,7 @@
     for (let page = 1; page <= state.total; page += 1) fragment.append(progressButton(page));
     progress.replaceChildren(fragment);
     progress.style.setProperty("--wizard-progress-columns", String(state.total));
-    progress.setAttribute("aria-label", `共 ${state.total} 个引导步骤`);
+    progress.setAttribute("aria-label", t("onboarding_stepCount", "共 $total$ 个引导步骤", { total: state.total }));
     progress.setAttribute("aria-busy", "false");
   }
 
@@ -1851,7 +1827,7 @@
     $("#onboarding-status").hidden = false;
     $("#onboarding-status-title").textContent = state.statusTitle;
     $("#onboarding-status-copy").textContent = state.statusCopy;
-    $("#step-label").textContent = state.phase === "loading" ? "正在加载引导配置" : "引导暂不可用";
+    $("#step-label").textContent = state.phase === "loading" ? t("onboarding_loadingSetup", "正在加载引导配置") : t("onboarding_setupUnavailable", "引导暂不可用");
     $("#rail-title").textContent = state.statusTitle;
     $("#rail-copy").textContent = state.statusCopy;
     $("#progress-track").replaceChildren();
@@ -1867,7 +1843,7 @@
     setControlDisabled($("#onboarding-home"), state.phase === "loading", state.phase === "loading");
     const note = $("#footer-note");
     note.textContent = state.phase === "loading"
-      ? "正在验证云端页面数量"
+      ? t("onboarding_verifyingPages", "正在验证云端页面数量")
       : state.phase === "invalid"
         ? INVALID_NOTE
         : state.statusCopy;
@@ -1884,7 +1860,7 @@
       render();
       return;
     }
-    setPhase("loading", "正在加载引导配置", "正在连接 Steam Buff 官方引导服务。");
+    setPhase("loading", t("onboarding_loadingSetup", "正在加载引导配置"), t("onboarding_connectingToSetup", "正在连接 Steam Buff 官方引导服务。"));
     state.page = pageResult.page;
     render();
 
@@ -1906,14 +1882,14 @@
       responseFacts = globalThis.STLoggerSchema.httpFacts(response);
       phase = "http";
       if (!response.ok || !contentType.includes("application/json")) {
-        throw new Error("引导配置响应无效");
+        throw new Error(t("onboarding_invalidFlowResponse", "引导配置响应无效"));
       }
       phase = "parse";
       const flow = await response.json();
       responseFacts = { ...responseFacts, ...globalThis.STLoggerSchema.resultFacts(flow) };
       phase = "validate";
       const pageCount = CONTRACT.cloudPageCount(flow);
-      if (!pageCount) throw new Error("引导配置内容无效");
+      if (!pageCount) throw new Error(t("onboarding_invalidFlow", "引导配置内容无效"));
       state.cloudCount = pageCount;
       state.total = CONTRACT.totalPageCount(pageCount);
       if (state.page > state.total) {
@@ -1926,7 +1902,11 @@
         return;
       }
       const index = CONTRACT.localIndexForPage(state.page, state.cloudCount);
-      if (index < 0) throw new Error("本地引导页码无效");
+      if (index < 0) throw new Error(t("onboarding_invalidLocalPage", "本地引导页码无效"));
+      if (window.location.protocol === "chrome-extension:" && await storageGet(i18n.STORAGE_KEY) == null) {
+        window.location.replace(cfg.urls.onboardingPage(1));
+        return;
+      }
       const firstLocal = firstLocalPage();
       let committed = readCommittedPage(state.cloudCount);
       if (committed < firstLocal) committed = firstLocal;
@@ -1938,9 +1918,9 @@
         window.history.replaceState(null, "", localUrl(state.page));
       }
       state.step = CONTRACT.localIndexForPage(state.page, state.cloudCount);
-      if (state.step < 0) throw new Error("本地引导页码无效");
+      if (state.step < 0) throw new Error(t("onboarding_invalidLocalPage", "本地引导页码无效"));
       setPhase("ready", "", "");
-      if (LOCAL_STEPS[state.step]?.id === "complete" && inSteamClient()) {
+      if (LOCAL_STEPS[state.step]?.id === "complete" && inSteamClient() && state.setupFinished) {
         state.restartAcked = false;
         state.restartModalOpen = true;
       }
@@ -1950,7 +1930,7 @@
       state.initializing = false;
       if (failed) {
         state.initError = true;
-        state.note = "已有设置读取失败，请重试；本次尚未保存配置。";
+        state.note = t("onboarding_hydrateFailed", "已有设置读取失败，请重试；本次尚未保存配置。");
         state.noteError = true;
         log.error("onboarding-service-hydrate-failed", "安装引导设置读取失败，已阻止保存", { error: failed.reason });
       }
@@ -1961,7 +1941,7 @@
         requestId, phase, request: { method: "GET", endpointKey: "onboarding-flow", url: requestUrl, timeoutMs: FLOW_TIMEOUT_MS }, response: responseFacts,
         error,
       });
-      setPhase("error", "引导配置加载失败", "无法验证云端页面数量，请刷新页面或返回首页。");
+      setPhase("error", t("onboarding_couldNotLoadSetup", "引导配置加载失败"), t("onboarding_verifyPagesFailed", "无法验证云端页面数量，请刷新页面或返回首页。"));
       render();
     } finally {
       window.clearTimeout(timeout);
@@ -1977,7 +1957,7 @@
     });
 
     const label = $("#step-label");
-    label.textContent = `步骤 ${state.page} / ${state.total}`;
+    label.textContent = t("onboarding_stepNumber", "步骤 $page$ / $total$", { page: state.page, total: state.total });
     renderProgress();
 
     const railTitle = $("#rail-title");
@@ -1985,15 +1965,15 @@
     if (railTitle) railTitle.textContent = step.title || "";
     if (railCopy) {
       if (step.id === "account") {
-        railCopy.textContent = loggedIn() ? "已登录，可进入下一步。" : "登录素材君账号，也可以暂时跳过。";
+        railCopy.textContent = loggedIn() ? t("onboarding_signedInContinue", "已登录，可进入下一步。") : t("onboarding_signInOrSkip", "登录素材君账号，也可以暂时跳过。");
       } else if (step.id === "third-party") {
         railCopy.textContent = state.thirdParty.enabled
-          ? (state.thirdParty.verified ? "密钥测试已通过，可进入下一步。" : "开启后需填写密钥并测试通过。")
-          : "已关闭第三方服务，可进入下一步。";
+          ? (state.thirdParty.verified ? t("onboarding_keyVerifiedContinue", "密钥测试已通过，可进入下一步。") : t("onboarding_keyTestRequired", "开启后需填写密钥并测试通过。"))
+          : t("onboarding_thirdPartyOffContinue", "已关闭第三方服务，可进入下一步。");
       } else if (step.id === "ai") {
         railCopy.textContent = state.ai.enabled
-          ? (state.ai.verified ? "AI 测试已通过，可进入下一步。" : "开启后需配置并测试通过。")
-          : "已关闭 AI 模块，可进入下一步。";
+          ? (state.ai.verified ? t("onboarding_aiVerifiedContinue", "AI 测试已通过，可进入下一步。") : t("onboarding_configurationTestRequired", "开启后需配置并测试通过。"))
+          : t("onboarding_aiOffContinue", "已关闭 AI 模块，可进入下一步。");
       } else {
         railCopy.textContent = step.copy || "";
       }
@@ -2001,13 +1981,13 @@
   }
 
   function renderComplete() {
-    $("#complete-account").textContent = loggedIn() ? "已登录" : "暂未登录";
+    $("#complete-account").textContent = loggedIn() ? t("onboarding_signedIn", "已登录") : t("onboarding_notSignedInYet", "暂未登录");
     ["third-party", "ai", "client", "name-mode"].forEach(id => {
       const result = state.results[id];
-      const saved = state.savedSummary[id] || "尚未保存";
+      const saved = state.savedSummary[id] || t("onboarding_notSavedYet", "尚未保存");
       const summary = result === "skipped"
-        ? `已跳过 · 原设置：${saved}`
-        : result === "saved" ? saved : `原设置：${saved}`;
+        ? t("onboarding_skippedSetting", "已跳过 · 原设置：$saved$", { saved })
+        : result === "saved" ? saved : t("onboarding_previousSetting", "原设置：$saved$", { saved });
       const target = $("#complete-" + id);
       if (id === "client" && summary.endsWith(CLIENT_RESTART_NOTE)) {
         target.replaceChildren(
@@ -2022,8 +2002,8 @@
 
   function renderAccountGate() {
     $("#account-gate-detail").textContent = loggedIn()
-      ? "已登录，可以继续。"
-      : "部分功能需要登录后方可使用,如不需要使用这些功能可跳过登录。";
+      ? t("onboarding_accountReady", "已登录，可以继续。")
+      : t("onboarding_optionalSignInHint", "部分功能需要登录后方可使用,如不需要使用这些功能可跳过登录。");
   }
 
   function renderAuthField(label, value, action) {
@@ -2040,25 +2020,27 @@
   function renderDeviceLogin(root) {
     const box = el("div", "auth-box");
     const head = el("div", "auth-box-header");
-    const status = el("span", "auth-status", state.loginCopy || state.loginMessage || "等待完成授权");
-    head.append(el("strong", "", "完成设备授权"), status);
+    const status = el("span", "auth-status", state.loginCopy || state.loginMessage || t("onboarding_waitingForAuthorization", "等待完成授权"));
+    head.append(el("strong", "", t("onboarding_authorizeYourDevice", "完成设备授权")), status);
     const fields = el("div", "auth-fields");
     fields.append(
-      renderAuthField("授权码", formatUserCode(state.loginDevice?.user_code), "login-copy-code"),
-      renderAuthField("授权页", loginDisplayUrl(), "login-copy-url")
+      renderAuthField(t("settings_account_authorizationCode", "授权码"), formatUserCode(state.loginDevice?.user_code), "login-copy-code"),
+      renderAuthField(t("settings_account_authorizationPage", "授权页"), loginDisplayUrl(), "login-copy-url")
     );
     const steps = el("ol", "auth-steps");
     steps.append(
-      el("li", "", "点击上方授权码和授权页，复制授权所需信息。"),
-      el("li", "", "在浏览器打开授权页，按页面提示完成登录与设备授权。"),
-      el("li", "", "返回本页等待自动检查；需要时点击“我已完成授权”。")
+      el("li", "", t("onboarding_copyAuthorizationDetails", "点击上方授权码和授权页，复制授权所需信息。")),
+      el("li", "", t("onboarding_openAuthorizationPage", "在浏览器打开授权页，按页面提示完成登录与设备授权。")),
+      el("li", "", t("onboarding_returnAfterAuthorization", "返回本页等待自动检查；需要时点击“我已完成授权”。"))
     );
     const guide = el("div", "auth-guide");
-    guide.append(el("strong", "auth-guide-title", "操作步骤："), steps);
+    guide.append(el("strong", "auth-guide-title", t("onboarding_instructions", "操作步骤：")), steps);
     const actions = el("div", "auth-actions");
+    const cancel = button(t("common_cancel", "取消"), "login-cancel", "secondary");
+    setControlDisabled(cancel, false);
     actions.append(
-      button("取消", "login-cancel", "secondary"),
-      button("我已完成授权", "login-check", "primary", "login")
+      cancel,
+      button(t("onboarding_authorizationComplete", "我已完成授权"), "login-check", "primary", "login")
     );
     box.append(head, fields, guide, actions);
     root.append(box);
@@ -2091,25 +2073,30 @@
   function renderAccountPrompt(root) {
     const mode = state.loginMode;
     const title = mode === "loading"
-      ? "正在准备登录"
+      ? t("onboarding_preparingSignIn", "正在准备登录")
       : mode === "syncing"
-        ? "正在同步账号"
+        ? t("onboarding_syncingAccount", "正在同步账号")
         : mode === "preview"
-          ? "本地预览模式"
+          ? t("onboarding_localPreview", "本地预览模式")
           : mode === "error"
-            ? "登录暂不可用"
-            : "当前未登录";
-    const detail = state.loginMessage || "登录账号后可同步个人信息和账号相关能力。";
+            ? t("onboarding_signInUnavailable", "登录暂不可用")
+            : t("onboarding_currentlySignedOut", "当前未登录");
+    const detail = state.loginMessage || t("onboarding_signInBenefits", "登录账号后可同步个人信息和账号相关能力。");
     const panel = el("div", "account-state");
     const line = el("div", "account-state-line");
     const copy = el("div", "state-copy");
-    copy.append(el("strong", "", title), el("span", "", detail));
+    copy.append(el("strong", "", title));
+    if (mode !== "error" || !state.loginMessage) copy.append(el("span", "", detail));
     line.append(copy);
     if (mode === "idle" || mode === "error") {
-      line.append(button(mode === "error" ? "重新获取" : "登录账号", "login-start", "primary", "login"));
+      line.append(button(mode === "error" ? t("onboarding_getANewCode", "重新获取") : t("onboarding_signIn", "登录账号"), "login-start", "primary", "login"));
     }
     panel.append(line);
-    if (mode === "error") panel.append(el("p", "account-message error", state.loginMessage));
+    if (mode === "error" && state.loginMessage) {
+      const message = el("p", "account-message error", state.loginMessage);
+      message.setAttribute("role", "alert");
+      panel.append(message);
+    }
     root.append(panel);
   }
 
@@ -2132,48 +2119,48 @@
     const selected = state.clientNameMode;
     const focused = root.contains(document.activeElement) ? document.activeElement.value : null;
     const groups = [
-      { title: "商店", features: [
-        ["自定义名称", true, false],
-        ["别名搜索", true, false],
-        ["助记符搜索", true, false],
-        ["拼音全拼搜索", true, false],
-        ["游戏备注", true, false],
+      { title: t("onboarding_store", "商店"), features: [
+        [t("steam_independentName_colCustom", "自定义名称"), true, false],
+        [t("onboarding_aliasSearch", "别名搜索"), true, false],
+        [t("settings_feature_search_suggestions_mnemonic_name", "助记符搜索"), true, false],
+        [t("onboarding_fullPinyinSearch", "拼音全拼搜索"), true, false],
+        [t("settings_account_feature_gameNotes_name", "游戏备注"), true, false],
       ] },
-      { title: "库列表", features: [
-        ["自定义名称", true, true],
-        ["别名搜索", true, false],
-        ["助记符搜索", true, true],
-        ["拼音全拼搜索", true, false],
+      { title: t("onboarding_libraryList", "库列表"), features: [
+        [t("steam_independentName_colCustom", "自定义名称"), true, true],
+        [t("onboarding_aliasSearch", "别名搜索"), true, false],
+        [t("settings_feature_search_suggestions_mnemonic_name", "助记符搜索"), true, true],
+        [t("onboarding_fullPinyinSearch", "拼音全拼搜索"), true, false],
       ] },
-      { title: "愿望单", features: [
-        ["自定义名称", true, false],
-        ["游戏备注", true, false],
+      { title: t("onboarding_wishlist", "愿望单"), features: [
+        [t("steam_independentName_colCustom", "自定义名称"), true, false],
+        [t("settings_account_feature_gameNotes_name", "游戏备注"), true, false],
       ] },
-      { title: "其他", features: [
-        ["批量设置", true, true],
-        ["导入导出", true, true],
-        ["是否影响排序显示", "不影响", "影响"],
-        ["存储位置", "素材君云端", "Steam 云端"],
-        ["使用条件", "需赞助开发者开通", "无任何要求"],
+      { title: t("steam_independentName_bulk_other", "其他"), features: [
+        [t("steam_independentName_batch", "批量设置"), true, true],
+        [t("onboarding_importAndExport", "导入导出"), true, true],
+        [t("onboarding_changesSortOrder", "是否影响排序显示"), t("onboarding_no", "不影响"), t("onboarding_yes", "影响")],
+        [t("onboarding_storageLocation", "存储位置"), t("onboarding_sucaijunCloud", "素材君云端"), t("onboarding_steamCloud", "Steam 云端")],
+        [t("onboarding_requirements", "使用条件"), t("onboarding_donorRequired", "需赞助开发者开通"), t("onboarding_noRequirements", "无任何要求")],
       ] },
     ];
     const modes = [NAME_MODE_INDEPENDENT, NAME_MODE_STEAM]
       .filter(value => state.clientNameModeOptions.some(item => item.value === value));
     const table = el("table", "mode-comparison");
-    table.setAttribute("aria-label", "自定义名称方案功能对比");
+    table.setAttribute("aria-label", t("onboarding_compareNameFeatures", "自定义名称方案功能对比"));
     const columns = el("colgroup");
     columns.append(el("col", "mode-category-column"), el("col", "mode-feature-column"));
     modes.forEach(() => columns.append(el("col")));
     const head = el("thead");
     const header = el("tr");
-    const categoryHeading = el("th", "mode-category-heading", "类别");
+    const categoryHeading = el("th", "mode-category-heading", t("onboarding_category", "类别"));
     categoryHeading.scope = "col";
-    const featureHeading = el("th", "mode-row-heading", "功能");
+    const featureHeading = el("th", "mode-row-heading", t("onboarding_feature", "功能"));
     featureHeading.scope = "col";
     header.append(categoryHeading, featureHeading);
     const foot = el("tfoot");
     const choices = el("tr");
-    const choiceHeading = el("th", "mode-choice-heading", "选择方案");
+    const choiceHeading = el("th", "mode-choice-heading", t("onboarding_chooseAMethod", "选择方案"));
     choiceHeading.scope = "row";
     choiceHeading.colSpan = 2;
     choices.append(choiceHeading);
@@ -2190,7 +2177,7 @@
       const heading = el("h2", "client-name-mode-title");
       heading.append(titleLabel);
       cell.append(
-        el("span", "mode-plan-badge", independent ? "捐赠用户专享" : "无需捐赠用户身份"),
+        el("span", "mode-plan-badge", independent ? t("onboarding_forDonors", "捐赠用户专享") : t("onboarding_openToEveryone", "无需捐赠用户身份")),
         heading,
         el("p", "client-name-mode-desc", nameModeCopy(value)),
       );
@@ -2207,7 +2194,7 @@
       input.disabled = controlsBusy() || !allowed || !nameFeatureEnabled();
       input.dataset.actionChange = "client-name-mode";
       input.setAttribute("aria-label", title);
-      label.append(input, el("span", "mode-choice", !allowed ? "需要捐赠用户身份" : selected === value ? "已选择" : `选择${title}`));
+      label.append(input, el("span", "mode-choice", !allowed ? t("onboarding_donorStatusRequired", "需要捐赠用户身份") : selected === value ? t("onboarding_selected", "已选择") : t("onboarding_chooseMethod", "选择$title$", { title })));
       choiceCell.append(label);
       choices.append(choiceCell);
       inputs.push(input);
@@ -2234,7 +2221,7 @@
           if (typeof content === "boolean") {
             const status = el("span", `mode-support${content ? " is-supported" : ""}`, content ? "✓" : "—");
             status.setAttribute("role", "img");
-            status.setAttribute("aria-label", content ? "支持" : "不支持");
+            status.setAttribute("aria-label", content ? t("onboarding_supported", "支持") : t("onboarding_notSupported", "不支持"));
             cell.append(status);
           } else {
             cell.textContent = content;
@@ -2264,12 +2251,12 @@
     setControlDisabled(toggle, controlsBusy(), controlsBusy());
     const enabledCount = state.clientFeatureList.filter((item) => state.clientFeatures[item.id] === true).length;
     detail.textContent = state.clientEnabled
-      ? (enabledCount ? `已选择 ${enabledCount} 项功能` : "已开启总开关，请至少选择一项功能")
-      : "关闭后不加载相关增强";
+      ? (enabledCount ? t("onboarding_selectedCount", "已选择 $count$ 项功能", { count: enabledCount }) : t("onboarding_chooseClientFeaturesHint", "已开启总开关，请至少选择一项功能"))
+      : t("onboarding_enhancementsOff", "关闭后不加载相关增强");
     if (note) {
       note.textContent = state.clientEnabled
-        ? "开启后将在 Steam 客户端对应页面加载这些增强；部分功能需重启 Steam 后生效。"
-        : "当前已关闭，不会在 Steam 客户端页面加载这些增强。";
+        ? t("onboarding_clientScopeHint", "开启后将在 Steam 客户端对应页面加载这些增强；部分功能需重启 Steam 后生效。")
+        : t("onboarding_enhancementsOffHelp", "当前已关闭，不会在 Steam 客户端页面加载这些增强。");
     }
     if (scope) scope.classList.toggle("is-disabled", state.clientEnabled !== true);
     renderNameMode();
@@ -2313,7 +2300,7 @@
     const thirdPartyBusy = controlsBusy();
     setControlDisabled(keyInput, thirdPartyBusy || state.thirdParty.enabled !== true, thirdPartyBusy);
     setControlDisabled(testButton, thirdPartyBusy || state.thirdParty.enabled !== true, thirdPartyBusy);
-    testButton.textContent = state.serviceBusy && activeStep().id === "third-party" ? "测试中" : "测试连接";
+    testButton.textContent = state.serviceBusy && activeStep().id === "third-party" ? t("settings_thirdParty_testing", "测试中") : t("settings_thirdParty_testConnection", "测试连接");
     status.textContent = state.thirdParty.message || "";
     status.classList.toggle("is-error", state.thirdParty.messageError === true);
     status.classList.toggle("is-success", state.thirdParty.verified === true && !state.thirdParty.messageError);
@@ -2358,7 +2345,7 @@
       setControlDisabled(node, aiLocked, aiBusy);
     });
     setControlDisabled(testButton, aiLocked, aiBusy);
-    testButton.textContent = state.serviceBusy && activeStep().id === "ai" ? "测试中" : "测试连接";
+    testButton.textContent = state.serviceBusy && activeStep().id === "ai" ? t("settings_thirdParty_testing", "测试中") : t("settings_thirdParty_testConnection", "测试连接");
     status.textContent = state.ai.message || "";
     status.classList.toggle("is-error", state.ai.messageError === true);
     status.classList.toggle("is-success", state.ai.verified === true && !state.ai.messageError);
@@ -2368,7 +2355,7 @@
     const step = activeStep();
     const final = state.step === LOCAL_STEPS.length - 1;
     const note = $("#footer-note");
-    note.textContent = state.initializing ? "正在读取已有设置…" : state.note || step.note;
+    note.textContent = state.initializing ? t("onboarding_readingYourSavedSettings", "正在读取已有设置…") : state.note || step.note;
     note.classList.toggle("error", state.noteError);
 
     const back = $("#footer-back");
@@ -2381,23 +2368,23 @@
 
     const skip = $("#footer-skip");
     skip.hidden = !["account", "name-mode", "third-party", "ai"].includes(step.id) || (step.id === "account" && loggedIn());
-    skip.textContent = step.id === "account" ? "暂不登录" : step.id === "name-mode" ? "保留原方案" : "稍后配置";
+    skip.textContent = step.id === "account" ? t("onboarding_skipSignIn", "暂不登录") : step.id === "name-mode" ? t("onboarding_keepCurrentMethod", "保留原方案") : t("onboarding_setUpLater", "稍后配置");
     setControlDisabled(skip, controlsBusy() || state.initError, controlsBusy());
     $("#footer-retry").hidden = !state.initError;
     next.hidden = final;
     const nextBusy = controlsBusy();
     setControlDisabled(next, nextBusy || !stepCanNext(step.id), nextBusy);
-    next.textContent = step.nextLabel || "下一步";
+    next.textContent = step.nextLabel || t("onboarding_next", "下一步");
 
     tutorial.hidden = !final;
     setControlDisabled(tutorial, state.busy, state.busy);
 
     finishButton.hidden = !final;
-    if (final && inSteamClient()) {
-      finishButton.textContent = state.restartAcked ? "请重启 Steam" : "请先确认重启提示";
+    if (final && inSteamClient() && state.setupFinished) {
+      finishButton.textContent = state.restartAcked ? t("onboarding_restartSteamNow", "请重启 Steam") : t("onboarding_acknowledgeRestartFirst", "请先确认重启提示");
       setControlDisabled(finishButton, !state.restartAcked || controlsBusy(), controlsBusy());
     } else {
-      finishButton.textContent = "开始使用";
+      finishButton.textContent = t("setup_finish", "完成设置");
       setControlDisabled(finishButton, controlsBusy(), controlsBusy());
     }
     renderRestartModal();
@@ -2596,7 +2583,7 @@
     if (action === "restart-modal-ack") {
       state.restartAcked = true;
       closeRestartModal();
-      setNote("请完全退出并重新打开 Steam，客户端增强才会生效。", false);
+      setNote(t("onboarding_restartInstruction", "请完全退出并重新打开 Steam，客户端增强才会生效。"), false);
       return;
     }
     if (state.phase !== "ready" || state.initializing) return;
@@ -2612,8 +2599,8 @@
       state.thirdParty.verified = false;
       state.thirdParty.saved = false;
       state.thirdParty.message = state.thirdParty.enabled
-        ? "开启后请填写密钥并测试连接。"
-        : "已关闭，可直接进入下一步。";
+        ? t("onboarding_enterKeyAndTest", "开启后请填写密钥并测试连接。")
+        : t("onboarding_disabledContinue", "已关闭，可直接进入下一步。");
       state.thirdParty.messageError = false;
       clampCommittedPage();
       setNote(state.thirdParty.message, false);
@@ -2625,8 +2612,8 @@
       state.ai.verified = false;
       state.ai.saved = false;
       state.ai.message = state.ai.enabled
-        ? "开启后请配置并测试连接。"
-        : "已关闭，可直接进入下一步。";
+        ? t("onboarding_configureAndTest", "开启后请配置并测试连接。")
+        : t("onboarding_disabledContinue", "已关闭，可直接进入下一步。");
       state.ai.messageError = false;
       clampCommittedPage();
       setNote(state.ai.message, false);
@@ -2636,7 +2623,7 @@
       invalidateProgress();
       state.clientEnabled = state.clientEnabled !== true;
       syncClientFeatures(state.clientEnabled);
-      setNote("客户端增强设置将在进入下一步时保存。", false);
+      setNote(t("onboarding_saveClientOnNext", "客户端增强设置将在进入下一步时保存。"), false);
     }
     if (action === "client-feature-toggle") {
       if (state.clientEnabled !== true) return;
@@ -2644,20 +2631,20 @@
       if (!featureId || !Object.prototype.hasOwnProperty.call(state.clientFeatures, featureId)) return;
       invalidateProgress();
       state.clientFeatures[featureId] = state.clientFeatures[featureId] !== true;
-      setNote("客户端增强设置将在进入下一步时保存。", false);
+      setNote(t("onboarding_saveClientOnNext", "客户端增强设置将在进入下一步时保存。"), false);
     }
     if (action === "login-start") startLogin();
     if (action === "login-check") pollLogin(true);
     if (action === "login-cancel") cancelLogin();
-    if (action === "login-copy-code") copyText(formatUserCode(state.loginDevice?.user_code), "授权码已复制。");
-    if (action === "login-copy-url") copyText(loginFullUrl(), "授权链接已复制。");
+    if (action === "login-copy-code") copyText(formatUserCode(state.loginDevice?.user_code), t("onboarding_authorizationCodeCopied", "授权码已复制。"));
+    if (action === "login-copy-url") copyText(loginFullUrl(), t("onboarding_authorizationLinkCopied", "授权链接已复制。"));
     if (action === "open-tutorial") await openTutorial();
     if (action === "open-step-tutorial") await openTutorial(control.dataset.tutorialKey || "");
     if (action === "open-itad-apps") {
       window.STConfig.externalNavigation.open(window.STConfig.vendors.isthereanydeal.apps);
     }
     if (action === "finish-open") {
-      if (inSteamClient() && !state.restartAcked) {
+      if (inSteamClient() && state.setupFinished) {
         openRestartModal();
         return;
       }
@@ -2701,13 +2688,16 @@
       if (!nameModeAllowed(value)) return;
       invalidateProgress();
       state.clientNameMode = value;
-      setNote("名称方案将在进入下一步时保存。", false);
+      setNote(t("onboarding_saveNamingOnNext", "名称方案将在进入下一步时保存。"), false);
     }
   });
 
-  window.addEventListener("pagehide", () => {
-    stopLoginPoll();
-    clearLoginCopy();
+  window.addEventListener("pagehide", event => {
+    if (state.loginMode === "loading" || state.loginMode === "device") cancelLogin(event.persisted);
+    else {
+      stopLoginPoll();
+      clearLoginCopy();
+    }
     stopCelebration();
   });
 

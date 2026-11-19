@@ -13,7 +13,7 @@
 
   const MARK = "__steamBuffLoopbackGuard";
   const LIFECYCLE = "__steamBuffLoopbackGuardLifecycle";
-  const VERSION = "steam-loopback-guard-v25";
+  const VERSION = "steam-loopback-guard-v26";
   const REQUEST_TYPE = "STEAM_LOOPBACK_INJECT_REQUEST";
   const ROOT_MENU_TITLE = "Steam Root Menu";
   const ROOT_MENU_TARGET_SELECTOR = "#popup_target";
@@ -64,6 +64,8 @@
   let stopped = false;
   let mainLifecycleBound = false;
   let rootMenuHost = null;
+  let rootMenuLabels = null;
+  let labelRequest = 0;
   let rootMenuTarget = null;
   let rootMenuRequestPending = false;
   let rootMenuVisibilityBound = false;
@@ -82,12 +84,23 @@
     return text(location.href);
   }
 
-  function rootMenuLabel(key) {
-    try {
-      return text(chrome.i18n?.getMessage?.(key));
-    } catch {
-      return "";
-    }
+  function refreshRootMenuLabels() {
+    if (document.hidden || stopped) return;
+    const generation = ++labelRequest;
+    chrome.runtime.sendMessage({ type: ROOT_MENU_OPEN_TYPE, action: "labels" }, response => {
+      if (chrome.runtime.lastError || !response?.success || generation !== labelRequest || stopped) return;
+      rootMenuLabels = response.labels;
+      if (!rootMenuTarget?.isConnected || document.hidden) return;
+      for (const { value } of rootMenuHost.entries()) {
+        const node = rootMenuTarget.querySelector(`[data-steam-buff-root-menu-action="${value.action}"]`);
+        const label = rootMenuLabels[value.labelKey];
+        if (node && label && node.textContent !== label) {
+          node.textContent = label;
+          node.setAttribute("aria-label", label);
+        }
+      }
+      ensureRootMenu(rootMenuTarget);
+    });
   }
 
   function requestRootMenuAction(action) {
@@ -121,7 +134,7 @@
 
   function rootMenuItem(template, entry) {
     const action = entry.value.action;
-    const label = rootMenuLabel(entry.value.labelKey);
+    const label = rootMenuLabels?.[entry.value.labelKey];
     const item = template.cloneNode(false);
     item.removeAttribute("id");
     item.textContent = label;
@@ -177,7 +190,7 @@
     }
 
     const entries = rootMenuHost?.entries?.() || [];
-    if (!entries.length || entries.some((entry) => !rootMenuLabel(entry.value.labelKey))) {
+    if (!entries.length || entries.some((entry) => !rootMenuLabels?.[entry.value.labelKey])) {
       return false;
     }
     const separator = separatorTemplate.cloneNode(false);
@@ -214,6 +227,7 @@
       return;
     }
     rootMenuRequestPending = false;
+    refreshRootMenuLabels();
     ensureRootMenu(rootMenuTarget);
     observeRootMenu(rootMenuTarget);
   }
@@ -260,6 +274,7 @@
       return;
     }
     rootMenuTarget = root;
+    refreshRootMenuLabels();
     ensureRootMenu(root);
     observeRootMenu(root);
     if (!rootMenuVisibilityBound) {
@@ -493,6 +508,8 @@
     document.removeEventListener("visibilitychange", onMainVisible);
     window.removeEventListener("pagehide", lifecycle.stop);
     mainLifecycleBound = false;
+    document.removeEventListener("visibilitychange", syncRootMenuVisibility);
+    rootMenuHost?.stop();
     if (globalThis[LIFECYCLE] === lifecycle) delete globalThis[LIFECYCLE];
   } };
   globalThis[LIFECYCLE] = lifecycle;

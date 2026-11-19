@@ -95,10 +95,11 @@
     return String(value ?? "").split(/[,，]/).map((item) => item.trim()).filter(Boolean);
   }
   /** 允许停用的旧配置保留待补的值，结构错误始终拒绝 */
+  const filterError = (message, messageKey) => Object.assign(new TypeError(message), { messageKey });
   function validateCondition(condition, { allowBlank = false, available } = {}) {
-    if (!condition || typeof condition !== "object") throw new TypeError("筛选条件无效");
+    if (!condition || typeof condition !== "object") throw filterError("筛选条件无效", "workflow_error_filter");
     if (["all", "any"].includes(condition.op)) {
-      if (!Array.isArray(condition.children)) throw new TypeError("条件组需要条件列表");
+      if (!Array.isArray(condition.children)) throw filterError("条件组需要条件列表", "workflow_error_filter_group");
       let complete = true;
       for (const child of condition.children)
         if (!validateCondition(child, { allowBlank, available })) complete = false;
@@ -108,9 +109,9 @@
       !root.STWorkflowFields.valid(condition.field) ||
       !operators(condition.field).includes(condition.op)
     )
-      throw new TypeError("条件字段或关系无效");
+      throw filterError("条件字段或关系无效", "workflow_error_filter_op");
     if (condition.op === "regex" && (typeof condition.value !== "string" || !condition.value.trim()))
-      throw new TypeError("请输入正则表达式");
+      throw filterError("请输入正则表达式", "workflow_error_filter_regex");
     const kind = root.STWorkflowFields.kind(condition.field);
     if (
       condition.op === "between" &&
@@ -120,14 +121,14 @@
           key === condition.preset && (condition.field === "date_release" || !key.startsWith("next")),
       )
     )
-      throw new TypeError("日期范围无效");
+      throw filterError("日期范围无效", "workflow_error_filter_date");
     if (kind === "number" && condition.op !== "unknown") {
       const values = condition.op === "between" ? [condition.min, condition.max] : [condition.value];
       if (
         values.some((value) => typeof value !== "number" || !Number.isFinite(value)) ||
         (condition.op === "between" && condition.min > condition.max)
       )
-        throw new TypeError("数值范围无效");
+        throw filterError("数值范围无效", "workflow_error_filter_range");
     }
     if (["unknown", "empty", "notEmpty", "between"].includes(condition.op)) return true;
     const value = condition.value ?? condition.values?.[0];
@@ -135,7 +136,7 @@
       ? (condition.values?.length ? condition.values : setTerms(condition.value))
       : [value];
     if (choices.length && choices.every((item) => item != null && String(item).trim())) return true;
-    if (!allowBlank) throw new TypeError("请填写匹配条件的值");
+    if (!allowBlank) throw filterError("请填写匹配条件的值", "workflow_error_filter_value");
     return false;
   }
   function missing(field) {
@@ -266,8 +267,8 @@
   const engine = root.STWorkflow;
   const walkSteps = engine.walk;
   function newWorkflow(id = "wf-1", name = "未命名工作流") { return { id, name, revision: 1, variables: [], steps: [] }; }
-  function newTrigger(id = "trigger-1", workflowId = "") {
-    return { id, name: "未命名触发器", revision: 1, enabled: false, workflowId, event: { type: "manual" },
+  function newTrigger(id = "trigger-1", workflowId = "", name = "未命名触发器") {
+    return { id, name, revision: 1, enabled: false, workflowId, event: { type: "manual" },
       conditions: group(), inputs: {}, busy: "queue" };
   }
   function initialBindings() { return Object.fromEntries(Object.keys(root.STAI.MANUAL_TASKS).map(scene => [scene, root.STAI.initialBinding(scene)])); }
@@ -330,35 +331,87 @@
     } else throw new TypeError("工作流模板类型无效");
     return workflow;
   }
-  function defaults() {
+  function empty() {
+    return { version: VERSION, epoch: "initial", revision: 1, prompts: [], bindings: initialBindings(), workflows: [], triggers: [] };
+  }
+
+  // 只在构建出厂工作流时为可编辑变量命名。已有配置直接读取其保存的名称。
+  const starterVariables = {
+    "输入数据": "input", "Steam 原名称": "original", "自定义排序名称": "sort", "AI 回复": "ai",
+    "删除文本两端的空白结果": "trim", "设置自定义排序名称结果": "setSort", "字典": "record",
+    "游戏类型": "type", "游戏题材": "genres", "游戏特色": "features", "商店标签": "tags",
+    "读取收藏分组列表结果": "collections", "列表": "list", "当前项目": "item", "当前序号": "index",
+    "追加到列表结果": "append", "JSON 数据": "json", "将游戏加入收藏分组结果": "addCollections",
+    "读取游戏成就列表结果": "achievements", "读取已保存的成就译文结果": "translations",
+    "列表分块结果": "chunks", "保存成就译文结果": "saveTranslations", "刷新家庭库结果": "refresh",
+    "刷新执行结果": "refreshStatus", "消息结果": "message",
+  };
+
+  function localizeStarterWorkflow(workflow, type, text, prompts) {
+    workflow.name = text("seed.workflow." + type, workflow.name);
+    for (const variable of workflow.variables) {
+      const [, base, suffix] = /^(.*?)(\d*)$/.exec(variable.name);
+      variable.name = text("seed.variable." + starterVariables[base], base) + suffix;
+    }
+    for (const node of walkSteps(workflow.steps)) {
+      if (node.action === "ai-call") {
+        const plan = prompts.find(plan => plan.id === node.promptId);
+        node.inputs = Object.fromEntries(Object.entries(node.inputs).map(([field, value]) => [
+          root.STPromptPlans.spelling(plan, field), type === "achievement" && field === "目标语言"
+            ? engine.reference("meta", "", ["translationLanguage"]) : value,
+        ]));
+      }
+      if (type === "achievement" && ["steam-save-translations", "steam-translations"].includes(node.action))
+        node.language = engine.reference("meta", "", ["translationLanguage"]);
+      if (type === "family" && node.kind === "if")
+        node.branches[0].condition.right.display = text("seed.family.successState", "成功");
+      if (type === "family" && node.action === "notify") {
+        if (node.body.template) node.body.template[0] = text("seed.family.failure", node.body.template[0]);
+        else node.body.literal = text("seed.family.success", node.body.literal);
+      }
+    }
+  }
+
+  function defaults(text, locale) {
     const starter = [
       ["name", "游戏入库时处理游戏名称", { type: "added" }],
       ["collection", "游戏入库时处理收藏分组", { type: "added" }],
       ["achievement", "安装完成后翻译成就", { type: "installed", phase: "completed" }],
       ["family", "每天维护家庭库", { type: "schedule", timing: { mode: "day", time: "09:00" } }],
     ];
-    const workflows = [], triggers = [];
+    const workflows = [], triggers = [], prompts = root.STPromptPlans.defaults(text, locale);
     for (const [type, name, event] of starter) {
       const workflow = template(type, "wf-" + (workflows.length + 1));
       const trigger = { ...newTrigger("trigger-" + (triggers.length + 1), workflow.id), name, event };
       if (event.type === "added" || event.type === "installed")
         trigger.inputs = { game: engine.reference("input", "", ["game"]) };
+      if (text) {
+        localizeStarterWorkflow(workflow, type, text, prompts);
+        trigger.name = text("seed.trigger." + type, trigger.name);
+      }
       workflows.push(workflow); triggers.push(trigger);
     }
-    return { version: VERSION, epoch: "initial", revision: 1, prompts: root.STPromptPlans.defaults(),
+    return { version: VERSION, epoch: "initial", revision: 1, prompts,
       bindings: initialBindings(), triggers, workflows };
   }
   /** 正式版没有工作流，只转换全局家庭库配置。现有新版流程用独立的保留 ID 承接旧配置 */
-  function restoreFamilySchedule(bundle, settings, enabled, initial = false) {
+  function restoreFamilySchedule(bundle, settings, enabled, initial = false, text) {
     const next = clone(bundle);
     let trigger = next.triggers.find(item => item.id === "trigger-0");
     if (!trigger) {
       let workflow = next.workflows.find(item => item.id === "wf-0");
       if (!workflow) {
-        workflow = template("family", "wf-0");
-        next.workflows.push(workflow);
+        // 首次生成的 wf-4 已按当前语言写好，迁移只替换其保留 ID 和计划。
+        workflow = initial ? next.workflows.find(item => item.id === "wf-4") : null;
+        if (workflow) {
+          workflow.id = "wf-0";
+        } else {
+          workflow = template("family", "wf-0");
+          if (text) localizeStarterWorkflow(workflow, "family", text);
+          next.workflows.push(workflow);
+        }
       }
-      trigger = { ...newTrigger("trigger-0", workflow.id), name: "维护家庭库" };
+      trigger = { ...newTrigger("trigger-0", workflow.id), name: text ? text("seed.workflow.family", "家庭库维护") : "维护家庭库" };
       if (initial) {
         next.workflows = next.workflows.filter(item => item.id !== "wf-4");
         next.triggers = next.triggers.filter(item => item.id !== "trigger-4");
@@ -422,7 +475,7 @@
   function triggered(trigger, event) {
     return trigger.event.type === event.type && (event.type !== "installed" || trigger.event.phase === event.phase);
   }
-  root.STAutomation = Object.freeze({ KEY, ROUTE, CHANNEL, PREVIEW_CHANNEL, VERSION, DEFAULT_LANGUAGE, CHECK_INTERVAL_MS, isTriggerType,
+  root.STAutomation = Object.freeze({ empty, KEY, ROUTE, CHANNEL, PREVIEW_CHANNEL, VERSION, DEFAULT_LANGUAGE, CHECK_INTERVAL_MS, isTriggerType,
     STEP_STATES, NOTICE_TYPES, TYPES, RANGES, OPS, group, conditionFields,
     newWorkflow, newTrigger, template, defaults, restoreFamilySchedule, normalize, walkSteps, operators, validateCondition, match, matchAsync, dateWindow, inRange, triggered, nativeConfig, clone });
 

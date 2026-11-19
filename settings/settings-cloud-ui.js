@@ -178,7 +178,7 @@
       return tr("settings.cloud.dirty", "有未上传的本机改动，关闭设置页或点击立即同步后会上传。");
     }
     if (state.meta?.lastSyncedAt) {
-      const time = new Date(state.meta.lastSyncedAt).toLocaleString();
+      const time = new Date(state.meta.lastSyncedAt).toLocaleString(root.STI18n.intlLocale());
       return tr("settings.cloud.lastSynced", "上次同步：$time$", { time });
     }
     return tr("settings.cloud.idle", "开启后，设置中心面板配置会加密同步到当前账号。");
@@ -418,7 +418,7 @@
       await showPrompt(shadow, { kind: result.action === "conflict" ? "conflict" : result.action, reason: result.reason });
     }
     await refresh(shadow);
-    if (announce && !["conflict", "decrypt", "upgrade"].includes(result?.action)) void root.STSettingsDialogs.notice(shadow, { title: "同步完成", message: "设置云同步已完成。" });
+    if (announce && !["conflict", "decrypt", "upgrade"].includes(result?.action)) void root.STSettingsDialogs.notice(shadow, { title: tr("settings.cloud.syncDone", "同步完成"), message: tr("settings.cloud.syncDoneBody", "设置云同步已完成。") });
   }
 
   async function resetCloud(shadow) {
@@ -447,7 +447,7 @@
       return;
     }
     await refresh(shadow);
-    void root.STSettingsDialogs.notice(shadow, { title: "重置完成", message: "云端设置已清除。" });
+    void root.STSettingsDialogs.notice(shadow, { title: tr("settings.cloud.resetDone", "重置完成"), message: tr("settings.cloud.resetDoneBody", "云端设置已清除。") });
   }
 
   function watchAuth() {

@@ -27,40 +27,11 @@
 
   function noop() {}
 
-  function fallbackScrollTargets() {
-    function targets(extraTargets = []) {
-      return Array.from(new Set([
-        document.scrollingElement,
-        document.documentElement,
-        document.body,
-        ...(Array.isArray(extraTargets) ? extraTargets : [extraTargets]),
-      ].filter(target => target && typeof target.scrollTop === "number")));
-    }
-    return {
-      fixedScrollTargets: targets,
-      scrollTargets: targets,
-      scrollY(extraTargets = []) {
-        const top = window.scrollY || document.documentElement.scrollTop || document.body.scrollTop || 0;
-        if (top > 0) {
-          return top;
-        }
-        for (const el of targets(extraTargets)) {
-          if (el.scrollTop > 0) {
-            return el.scrollTop;
-          }
-        }
-        return 0;
-      },
-      rememberScrollTarget() {},
-      clear() {},
-    };
+  const scrollModule = globalThis.STSettingsScrollTargets;
+  if (!scrollModule) {
+    throw new Error("设置菜单缺少滚动模块 settings/ui/scroll-targets.js");
   }
-
-  function createScrollTargets() {
-    return globalThis.STSettingsScrollTargets?.create?.() || fallbackScrollTargets();
-  }
-
-  const sharedScrollTargets = createScrollTargets();
+  const sharedScrollTargets = scrollModule.create();
 
   function clampRailTop(value, rail, cfg = DEFAULTS) {
     const height = rail?.offsetHeight || 54;
@@ -107,7 +78,7 @@
     let railSide = options.initialSide === "left" ? "left" : "right";
     let bound = false;
     let disposers = [];
-    const scroll = createScrollTargets();
+    const scroll = scrollModule.create();
 
     function panelOpen() {
       return !!(panel?.classList?.contains("open") && !panel.hidden);
@@ -198,13 +169,7 @@
       if (!topBtn) {
         return;
       }
-      const watch = globalThis.STSettingsScrollTargets?.watchHalfViewport;
-      if (typeof watch !== "function") {
-        // 兼容: 滚动目标模块未加载时无法观察半屏，按钮保持可见
-        topBtn.hidden = false;
-        return;
-      }
-      const release = watch(topBtn);
+      const release = scrollModule.watchHalfViewport(topBtn);
       addDisposer(() => release.dispose());
     }
 
@@ -239,7 +204,7 @@
           globalThis.STLoggerFactory.reportError(error, { domain: "settings", feature: "menu-controller", event: "dispose-failed", message: "释放界面资源失败", level: "warn", phase: "dispose" });
         }
       }
-      scroll.clear?.();
+      scroll.clear();
       log.info("settings-panel-controller-dispose", "设置面板控制器监听已释放", actionMeta());
       return true;
     }
@@ -281,7 +246,7 @@
         callPanelOpen(shadow);
         playStartupAnimation(shadow);
         log.info("settings-panel-open", "设置面板打开", actionMeta());
-        globalThis.STSettingsCloudUi?.notifyOpen?.();
+        if (!options.setupPending?.()) globalThis.STSettingsCloudUi?.notifyOpen?.();
       }
     }
 
@@ -315,7 +280,7 @@
         log.info("settings-panel-open", "设置面板打开", actionMeta({
           source: "toggle",
         }));
-        globalThis.STSettingsCloudUi?.notifyOpen?.();
+        if (!options.setupPending?.()) globalThis.STSettingsCloudUi?.notifyOpen?.();
       } else {
         log.info("settings-panel-close", "设置面板关闭", actionMeta({
           source: "toggle",

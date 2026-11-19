@@ -18,7 +18,6 @@
   const TRANS_PREFIX = `${PREFIX}translate.`;
   const AI_PREFIX = `${PREFIX}ai.`;
   const AI_SERVICE = "steam-buff.ai";
-  const MATCH = globalThis.STConfig?.matchers;
   const MODE_SELECTION = "selection";
   const MODE_MANUAL = "manual";
   const MODE_AUTO_PAGE = "autoPage";
@@ -40,6 +39,7 @@
     to: "chinese_simplified",
     service: "client.edge",
     aiPerformance: true,
+    aiTarget: "target",
     force: false,
     select: false,
     style: "dashedLine",

@@ -42,7 +42,7 @@
   let detailAppid = 0;
   let loadSeq = 0;
   let cache = new Map();
-  let pending = new Set();
+  let pending = new Map();
 
   function storage() {
     return root.STSettings?.storage || null;
@@ -171,57 +171,48 @@
     return out;
   }
 
-  async function fetchNotes(appids) {
-    const ticket = loadSeq;
-    const requestPending = pending;
-    const ids = Array.from(new Set((appids || []).map(Number).filter(id => id > 0 && !cache.has(id) && !pending.has(id))));
-    if (!ids.length) return;
-    try {
-      if (!await hasAuth()) return;
-    } catch (error) {
-      log.warn("game-notes-query-failed", "游戏备注鉴权检查失败", {
-        count: ids.length,
-        error,
-      });
-      return;
-    }
-    if (ticket !== loadSeq) return;
-    ids.forEach(id => requestPending.add(id));
+  async function loadNotes(ids, ticket) {
+    if (!await hasAuth()) return;
     for (const part of chunk(ids, BATCH_SIZE)) {
-      if (ticket !== loadSeq) break;
+      if (ticket !== loadSeq) return;
       const startedAt = Date.now();
-      try {
-        const body = await authedPost(QUERY_URL, { appids: part });
-        if (ticket !== loadSeq) return;
-        const found = new Set();
-        for (const row of body.data || []) {
-          const appid = Number(row.appid) || 0;
-          if (!appid) continue;
-          found.add(appid);
-          cache.set(appid, {
-            note: String(row.note || ""),
-            steamName: String(row.steam_name || ""),
-            updatedAt: String(row.updated_at || ""),
-          });
-        }
-        for (const appid of part) {
-          if (!found.has(appid)) cache.set(appid, { note: "", steamName: "", updatedAt: "" });
-        }
-        log.info("game-notes-query-success", "游戏备注查询完成", {
-          count: part.length,
-          durationMs: Date.now() - startedAt,
-        });
-      } catch (error) {
-        log.warn("game-notes-query-failed", "游戏备注查询失败", {
-          count: part.length,
-          durationMs: Date.now() - startedAt,
-          status: error?.status || 0,
-          error,
-        });
-      } finally {
-        part.forEach(id => requestPending.delete(id));
+      const body = await authedPost(QUERY_URL, { appids: part });
+      if (ticket !== loadSeq) return;
+      if (!Array.isArray(body.data) || body.data.some(row => !part.includes(Number(row?.appid)) || typeof row.note !== "string")) {
+        throw new TypeError(i18n("store.gameNotes.invalidResponse", "游戏备注响应格式错误"));
       }
+      const found = new Map(body.data.map(row => [Number(row.appid), row]));
+      const missing = new Set(body.missing_appids);
+      if (part.some(id => !found.has(id) && !missing.has(id))) {
+        throw new TypeError(i18n("store.gameNotes.invalidResponse", "游戏备注响应格式错误"));
+      }
+      for (const appid of part) {
+        const row = found.get(appid);
+        cache.set(appid, { note: row?.note || "", steamName: row?.steam_name || "", updatedAt: row?.updated_at || "" });
+      }
+      log.info("game-notes-query-success", "游戏备注查询完成", {
+        count: part.length, durationMs: Date.now() - startedAt,
+      });
     }
+  }
+
+  async function fetchNotes(appids) {
+    const requests = pending;
+    const ids = [...new Set(appids.map(Number).filter(id => id > 0 && !cache.has(id)))];
+    const waiting = new Set();
+    const missing = [];
+    for (const id of ids) {
+      if (requests.has(id)) waiting.add(requests.get(id));
+      else missing.push(id);
+    }
+    if (missing.length) {
+      const read = loadNotes(missing, loadSeq).finally(() => {
+        for (const id of missing) requests.delete(id);
+      });
+      for (const id of missing) requests.set(id, read);
+      waiting.add(read);
+    }
+    await Promise.all(waiting);
   }
 
   function isClamped(body) {
@@ -251,15 +242,17 @@
     }, "note");
   }
 
-  function renderNote(host, appid, note, steamName, loading = false) {
+  function renderNote(host, appid, note, steamName, loading = false, error) {
     host.classList.add("st-game-notes");
     const isWishlist = host.classList.contains("st-game-notes-wishlist");
     const idText = String(appid || "");
     const nameText = steamName || "";
+    if (host.dataset.stAppid !== idText || cache.has(appid)) host._stNoteReadError = "";
+    if (error && !cache.has(appid)) host._stNoteReadError = error.message || String(error);
     if (host.hasAttribute("data-appid")) host.removeAttribute("data-appid");
     if (host.dataset.stAppid !== idText) host.dataset.stAppid = idText;
     if (host.dataset.steamName !== nameText) host.dataset.steamName = nameText;
-    const key = JSON.stringify([appid, String(note || ""), steamName || "", loading]);
+    const key = JSON.stringify([appid, String(note || ""), steamName || "", loading, host._stNoteReadError]);
     if (host._stGameNotesKey === key && host.querySelector(".st-game-notes-body")) {
       if (!loading) requestAnimationFrame(() => updateMore(host));
       return;
@@ -286,6 +279,8 @@
     const value = String(note || "");
     if (loading) {
       api.dom.loading.show(body, "line");
+    } else if (host._stNoteReadError) {
+      body.textContent = host._stNoteReadError;
     } else if (value) {
       const rendered = core.renderBBCode(value).html;
       dom.setTrustedHTML(body, dom.trustedHTML(rendered, "game-notes-bbcode-sanitized"));
@@ -394,6 +389,7 @@
     const ticket = loadSeq;
     const valid = () => ticket === loadSeq && host.isConnected && host.dataset.stAppid === String(info.appid) && pageInfo()?.appid === info.appid && api.settings.on(FEATURE_ID);
     (loading ? api.dom.loading.afterPaint(valid).then(ready => ready ? fetchNotes([info.appid]) : null) : Promise.resolve()).then(() => { if (valid()) updateVisible(info.appid); }).catch((error) => {
+      if (valid()) renderNote(host, info.appid, "", steamNameForApp(info.appid), false, error);
       globalThis.STLoggerFactory.reportError(error, { domain: "store", feature: "notes", event: "start-detail-failed", message: "商店功能处理失败", level: "error", phase: "startDetail" });});
     scheduleDetailSettleCheck();
     return true;
@@ -432,7 +428,7 @@
     return host;
   }
 
-  function renderWishlistRow(row, completed = false) {
+  function renderWishlistRow(row, completed = false, error) {
     const appid = rowAppid(row);
     if (!appid) {
       const host = row.querySelector(".st-game-notes-wishlist");
@@ -444,7 +440,7 @@
     const cached = cache.get(appid) || { note: "", steamName: steamNameForApp(appid, row) };
     const loading = !completed && !cache.has(appid)
       && (!host._stGameNotesKey || host.dataset.stAppid !== String(appid) || !!host.querySelector(".st-store-skeleton"));
-    renderNote(host, appid, cached.note, cached.steamName || steamNameForApp(appid, row), loading);
+    renderNote(host, appid, cached.note, cached.steamName || steamNameForApp(appid, row), loading, error);
     return loading ? appid : 0;
   }
 
@@ -454,12 +450,20 @@
 
   async function batchFetchWishlistNotes(appids) {
     const ticket = loadSeq;
-    await fetchNotes(appids);
-    if (ticket !== loadSeq || !isWishlistPath() || !api.settings.on(FEATURE_ID) || document.hidden) return;
-    const ids = new Set(appids);
-    for (const row of wishlistDom.rows()) {
-      if (ids.has(rowAppid(row))) renderWishlistRow(row, true);
+    const repaint = error => {
+      if (ticket !== loadSeq || !isWishlistPath() || !api.settings.on(FEATURE_ID) || document.hidden) return;
+      const ids = new Set(appids);
+      for (const row of wishlistDom.rows()) {
+        if (ids.has(rowAppid(row))) renderWishlistRow(row, true, error);
+      }
+    };
+    try {
+      await fetchNotes(appids);
+    } catch (error) {
+      repaint(error);
+      throw error;
     }
+    repaint();
   }
 
   function startWishlist() {
@@ -500,9 +504,12 @@
 
   async function getNote(appid) {
     const id = Number(appid) || 0;
-    if (!id) return { note: "", steamName: "", updatedAt: "" };
+    if (!id) throw new TypeError("游戏 ID 无效");
+    const ticket = loadSeq;
     if (!cache.has(id)) await fetchNotes([id]);
-    return cache.get(id) || { note: "", steamName: "", updatedAt: "" };
+    if (ticket !== loadSeq) throw new DOMException("备注读取已取消", "AbortError");
+    if (!cache.has(id)) throw new Error(i18n("store.gameNotes.loginRequired", "请先在设置中登录"));
+    return cache.get(id);
   }
 
   function refresh() {
@@ -518,7 +525,7 @@
 
   function stop() {
     loadSeq += 1;
-    pending = new Set();
+    pending = new Map();
     wishlistSubscription?.dispose();
     wishlistSubscription = null;
     clearTimeout(detailTimer);

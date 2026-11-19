@@ -16,7 +16,7 @@
   /**
    * 在调用方明确提供的宿主中显示一次操作结果；不持有全局队列或业务状态
    * @param {Element|ShadowRoot} host 弹窗所属页面或编辑器的宿主
-   * @param {{title?:string,message:string,focus?:HTMLElement,inheritTheme?:boolean}} options focus 定位校验字段；inheritTheme 保留宿主的局部主题
+   * @param {{title?:string,closeLabel?:string,confirmLabel?:string,message:string,focus?:HTMLElement,inheritTheme?:boolean}} options focus 定位校验字段；inheritTheme 保留宿主的局部主题
    * @returns {Promise<void>} 用户关闭结果弹窗后完成，不代表业务操作成功
    */
   function show(host, options) {
@@ -46,12 +46,12 @@
     header.className = "st-feedback-head";
     close.className = "st-feedback-close";
     close.type = ok.type = "button";
-    close.title = text("common.close", "关闭");
+    close.title = options.closeLabel || text("common.close", "关闭");
     close.setAttribute("aria-label", close.title);
     body.className = "st-feedback-body";
     footer.className = "st-feedback-actions";
     ok.className = "st-feedback-ok";
-    ok.textContent = text("common.confirm", "确定");
+    ok.textContent = options.confirmLabel || text("common.confirm", "确定");
     ok.autofocus = true;
     style.textContent = css.compose(
       css.dialog({ variant: "standard", surfaceSelectors: ".st-feedback-dialog",

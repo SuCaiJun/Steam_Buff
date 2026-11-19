@@ -14,6 +14,7 @@
   importScripts(chrome.runtime.getURL("shared/config.js"));
   importScripts(chrome.runtime.getURL("shared/client-environment.js"));
   importScripts(chrome.runtime.getURL("shared/family-library.js"));
+  importScripts(chrome.runtime.getURL("shared/cart-restore.js"));
   importScripts(chrome.runtime.getURL("onboarding/contract.js"));
   importScripts(chrome.runtime.getURL("shared/logger-schema.js"));
   importScripts(chrome.runtime.getURL("extension/background-logger.js"));
@@ -31,6 +32,7 @@
   importScripts(chrome.runtime.getURL("shared/logger-factory.js"));
   importScripts(chrome.runtime.getURL("extension/background-debug.js"));
   importScripts(chrome.runtime.getURL("shared/error-boundary.js"));
+  importScripts(chrome.runtime.getURL("shared/i18n.js"));
   importScripts(chrome.runtime.getURL("shared/utils/network-request.js"));
   importScripts(chrome.runtime.getURL("shared/lifecycle-prompt-contract.js"));
   importScripts(chrome.runtime.getURL("extension/background-lifecycle.js"));
@@ -351,6 +353,7 @@
       "store/features/dlc/dlc-bridge.js",
       "store/features/dlc/dlc-scan.js",
       "store/features/dlc/dlc-checkboxes.js",
+      "shared/cart-restore.js",
       "store/features/cart/cart-select.js",
       "shared/review-regex.js",
       "store/features/review/review-filter-core.js",
@@ -390,6 +393,7 @@
     cart: Object.freeze([
       "store/api/subscription-info.js",
       "store/features/reminders/app-card-badge-scanner.js",
+      "shared/cart-restore.js",
       "store/features/cart/cart-select.js",
       "store/features/search/search-suggestions.js",
       "store/features/reminders/subscription-info.js",
@@ -461,7 +465,7 @@
     "store/main.js": ["store/features/features.js"],
   });
   const CONTENT_MARK = "steamBuffContentStarted";
-  const CONTENT_MARK_VERSION = "steam-buff-runtime-v77";
+  const CONTENT_MARK_VERSION = "steam-buff-runtime-v78";
   const RUNTIME_READY_ATTR = "steamBuffRuntimeReady";
   const RUNTIME_READY_OPERATION_ATTR = "steamBuffRuntimeReadyOperationId";
   const STEAM_RUNTIME_READY_WAIT_MS = 6000;
@@ -1115,6 +1119,19 @@
       && Number.isInteger(sender?.tab?.id);
   }
 
+  async function onboardingLocale(request, sender, sendResponse) {
+    if (!isOnboardingCloudSender(sender)) throw new Error("云端引导页来源无效");
+    const { storage, panelSnapshot } = globalThis.STSettings;
+    if (request.type === ONBOARDING.MESSAGES.getLocale) {
+      sendResponse({ success: true, ...await storage.getOnboardingState() });
+      return;
+    }
+    if (!panelSnapshot.LOCALES.includes(request.locale)) throw new Error("引导语言无效");
+    const locale = await storage.setUiLocale(request.locale, { reason: "onboarding-language" });
+    if (locale !== request.locale) throw new Error("引导语言保存失败");
+    sendResponse({ success: true, locale });
+  }
+
   function openOnboardingLocalPage(request, sender, sendResponse) {
     if (!isOnboardingCloudSender(sender)) {
       sendResponse({ success: false, error: "云端引导页来源无效" });
@@ -1677,11 +1694,6 @@
   function httpError(status, text) {
     void text;
     return `HTTP状态码错误: ${status}`;
-  }
-
-  function aiLimit(conf) {
-    const limit = globalThis.STAI?.concurrency?.(conf);
-    return Number.isFinite(limit) ? limit : 10;
   }
 
   function aiGatewayPermissionPattern(value) {
@@ -2276,6 +2288,23 @@
 
   async function openSteamRootMenuChromiumRequest(request, sender, sendResponse) {
     const action = String(request?.action || "");
+    // These public labels need only the extension's own Steam loopback sender. Window-opening actions still verify the native menu.
+    if (action === "labels" && sender?.id === chrome.runtime.id && isSteamLoopbackUrl(sender.url)) {
+      try {
+        const locale = await globalThis.STSettings.storage.getUiLocale({ strict: true });
+        await globalThis.STI18n.load(locale);
+        const label = globalThis.STI18n.forLocale(locale);
+        sendResponse({ success: true, labels: {
+          steamRootMenu_chromiumBrowser: label("steamRootMenu.chromiumBrowser", "浏览器"),
+          steamRootMenu_extensionManagement: label("steamRootMenu.extensionManagement", "扩展管理"),
+          steamRootMenu_settingsCenter: label("steamRootMenu.settingsCenter", "设置中心"),
+        } });
+      } catch (error) {
+        logError("steam-root-menu", "locale-read-failed", "读取 Steam 菜单显示语言失败", error);
+        sendResponse({ success: false, error: error.message });
+      }
+      return;
+    }
     if (!["browser", "extensions", "settings"].includes(action)) {
       sendResponse({ success: false, code: "STEAM_ROOT_MENU_ACTION_INVALID", error: "Steam Root Menu 操作无效" });
       return;
@@ -2558,19 +2587,25 @@
     return { serviceId: service.id, serviceRevision: service.revision, model: service.model, protocol: service.protocol };
   }
 
-  function resolveBinding(registry, bundle, binding) {
+  async function resolveBinding(registry, bundle, binding, config, requestLocale) {
     const plan = globalThis.STPromptPlans.resolve(bundle, binding.promptId);
-    const service = globalThis.STAI.resolveService(registry, binding.serviceId, { bound: true });
+    const service = await globalThis.STAI.resolveService(registry, binding.serviceId);
+    const dependsOnLocale = globalThis.STPromptPlans.usesDisplay(plan, service.protocol) || config?.aiTarget === "display";
+    if (requestLocale !== undefined && !globalThis.STI18n.SUPPORTED.includes(requestLocale))
+      throw new TypeError("翻译请求的显示语言无效");
+    const locale = dependsOnLocale ? requestLocale ?? await globalThis.STSettings.storage.getUiLocale({ strict: true }) : null;
     const info = {
+      ...(locale ? { displayLocale: locale, displayLanguage: globalThis.STI18n.languageName(locale) } : {}),
+      ...(config?.aiTarget === "display" ? { targetLanguage: globalThis.STI18n.translationLanguage(locale) } : {}),
       ...serviceIdentity(service),
       promptId: plan.id,
-      promptRevision: globalThis.STPromptPlans.revisionKey(bundle, plan),
+      promptRevision: globalThis.STPromptPlans.revisionKey(bundle, plan) + (locale ? ':' + locale : ''),
       aiConcurrency: service.aiConcurrency,
     };
     return { service, plan, info };
   }
 
-  async function resolveTranslation(sender, surface) {
+  async function resolveTranslation(sender, surface, requestLocale) {
     await globalThis.STBackgroundAutomation.ready();
     const storage = globalThis.STSettings.storage;
     const config = await storage.getTranslate({ storedBindings: true });
@@ -2579,7 +2614,7 @@
     if (binding.method !== globalThis.STAI.TRANSLATION_SERVICE)
       throw new Error("当前翻译入口未选择 AI 翻译");
     const [registry, bundle] = await Promise.all([storage.getAi(), storage.getWorkflow()]);
-    return resolveBinding(registry, bundle, binding);
+    return resolveBinding(registry, bundle, binding, config, requestLocale);
   }
 
   async function resolveTask(sender, scene) {
@@ -2593,16 +2628,17 @@
   async function prepareAiRequest(request, sender) {
     const storage = globalThis.STSettings.storage;
     let { messages } = request;
-    let body, ai, plan;
+    let body, ai, plan, displayLanguage;
     if (request[AI_PREPARED] === true) {
-      ai = globalThis.STAI.resolveService(await storage.getAi(), request.serviceId);
+      ai = await globalThis.STAI.resolveService(await storage.getAi(), request.serviceId);
       if (ai.revision !== request.serviceRevision) throw new Error("AI 服务已变化，请重试");
       body = request.preparedBody;
     } else if (request.translationSurface !== undefined || request.promptTask) {
       const translation = request.translationSurface !== undefined;
-      const resolved = translation ? await resolveTranslation(sender, request.translationSurface)
+      const resolved = translation ? await resolveTranslation(sender, request.translationSurface, request.displayLocale)
         : await resolveTask(sender, request.promptTask);
       ({ service: ai, plan } = resolved);
+      displayLanguage = resolved.info.displayLanguage;
       if (translation) {
         for (const key of ["serviceId", "serviceRevision", "promptId", "promptRevision"])
           if (request[key] !== resolved.info[key]) throw new Error("AI 绑定已更新，请重新发起本次操作");
@@ -2611,7 +2647,7 @@
       if (request.action !== "test-connection" || sender?.id !== chrome.runtime.id ||
         !(isSettingsSender(sender) || isOnboardingSender(sender)))
         throw new Error("AI 连接测试只接受设置中心与安装引导");
-      ai = { ...request.ai, aiConcurrency: (await storage.getAiFlags()).aiConcurrency };
+      ai = request.ai;
     }
     if (plan) {
       let context = request.promptContext;
@@ -2622,17 +2658,16 @@
       const names = prompts.parameters(plan, ai.protocol);
       const appid = Number(context.game?.appid);
       if (task && Number.isSafeInteger(appid) && appid > 0) {
-        const required = prompts.requiredGameFields(names).filter(field => context.game?.[field.slice(5)] === undefined);
+        const required = prompts.requiredGameFields(names, plan).filter(field => context.game?.[field.slice(5)] === undefined);
         if (required.length) context = {
           ...context,
           game: { ...(await globalThis.STBackgroundAutomation.context(appid, required)).game, ...context.game },
         };
       }
-      const values = prompts.contextValues(names, context);
-      ({ messages, body } = prompts.prepare(plan, ai, values));
+      const values = prompts.contextValues(names, context, plan);
+      ({ messages, body } = prompts.prepare(plan, ai, values, { displayLanguage }));
     }
-    const prepared = globalThis.STAI.chatRequest(ai, messages, body);
-    return prepared && { ...prepared, limit: aiLimit(ai) };
+    return globalThis.STAI.chatRequest(ai, messages, body);
   }
 
 
@@ -2663,7 +2698,7 @@
     const timeoutMs = capTimeout(request.timeoutMs, AI_FETCH_TIMEOUT_MS, AI_FETCH_TIMEOUT_MAX_MS);
     try {
       if (request.action === "resolve-translation") {
-        const { info } = await resolveTranslation(sender, request.translationSurface);
+        const { info } = await resolveTranslation(sender, request.translationSurface, request.displayLocale);
         sendResponse({ success: true, value: info });
         return;
       }
@@ -2672,19 +2707,18 @@
         sendResponse({ success: true, value: info });
         return;
       }
-      next = await prepareAiRequest(request, sender);
-      if (!next) throw Object.assign(new Error("AI 配置不完整"), { code: "AI_CONFIG_INCOMPLETE" });
-      url = new URL(next.url);
-      if (!(await hasAiGatewayPermission(url.toString())))
-        throw Object.assign(
-          new Error("未获得当前 AI 网关的访问权限，请在设置中心重新保存 AI 配置并允许访问"),
-          { code: "AI_HOST_PERMISSION_REQUIRED" },
-        );
-      const result = await runAiLimited(
-        next.limit,
-        () => fetchPreparedAi(next, url.toString(), timeoutMs, request.signal),
-        request.signal,
-      );
+      const { aiConcurrency } = await globalThis.STSettings.storage.getAiFlags();
+      const result = await runAiLimited(aiConcurrency, async () => {
+        next = await prepareAiRequest(request, sender);
+        if (!next) throw Object.assign(new Error("AI 配置不完整"), { code: "AI_CONFIG_INCOMPLETE" });
+        url = new URL(next.url);
+        if (!(await hasAiGatewayPermission(url.toString())))
+          throw Object.assign(
+            new Error("未获得当前 AI 网关的访问权限，请在设置中心重新保存 AI 配置并允许访问"),
+            { code: "AI_HOST_PERMISSION_REQUIRED" },
+          );
+        return fetchPreparedAi(next, url.toString(), timeoutMs, request.signal);
+      }, request.signal);
       sendResponse({ success: true, text: result.content, status: result.status });
     } catch (error) {
       if (error?.name === "SyntaxError") globalThis.STLoggerSchema.markJsonError(error);
@@ -3105,6 +3139,7 @@
       sendResponse({
         success: false,
         error: error.name === "SyntaxError" ? "JSON 格式无效，请检查高级配置" : error.message,
+        ...(error.code ? { errorCode: error.code } : {}),
       });
     }
   }
@@ -3643,6 +3678,8 @@
     try {
       const storage = globalThis.STSettings.storage;
       const [features, translate] = await Promise.all([storage.getAll(), storage.getTranslate()]);
+      if (translate.aiTarget === "display")
+        translate.to = globalThis.STI18n.translationLanguage(await storage.getUiLocale({ strict: true }));
       const settings = { features, translate };
       if (request.action === "load") {
         await globalThis.STBackgroundAutomation.ready();
@@ -3855,6 +3892,44 @@
     }
   }
 
+  let cartRestoreQueue = Promise.resolve();
+
+  async function cartRestoreMutation(request, sender, respond) {
+    const cart = globalThis.STCartRestore;
+    const url = senderUrlObject({ url: sender?.url });
+    const storeCart = url?.origin === CFG.vendors.steamStore.origin && /^\/cart\/?$/.test(url.pathname);
+    const checkout = url?.protocol === "https:" && !url.port && MATCH.isSteamCheckoutHost(url.hostname);
+    if (sender?.id !== chrome.runtime.id || sender.frameId !== 0 || !Number.isInteger(sender.tab?.id)
+      || sender.tab.id < 0 || !(storeCart || (checkout && request.action === "prune"))) {
+      throw new Error("购物车暂存写入来源无效");
+    }
+    const { action, batch, ids } = request;
+    if (action === "append") {
+      if (!cart.valid(batch) || !cart.validAccount(batch.accountSteamId) || !batch.items.length || !cart.active(batch)) throw new TypeError("购物车追加批次无效");
+    } else if (action === "confirm") {
+      if (!Array.isArray(ids) || !ids.length || !ids.every(id => typeof id === "string" && id.length)) throw new TypeError("购物车确认批次无效");
+    } else if (action !== "prune") {
+      throw new TypeError("购物车暂存操作无效");
+    }
+
+    // 每个写入只在轮到自己后才读取最新记录；前次失败仍由其调用者收到。
+    const commit = async () => {
+      const raw = await chrome.storage.local.get(cart.KEY);
+      const before = cart.records(raw[cart.KEY]);
+      const confirmed = new Set(action === "confirm" ? ids : []);
+      const next = before.filter(row => cart.active(row) && !confirmed.has(row.id));
+      const add = action === "append" && !next.some(row => row.id === batch.id);
+      if (add || next.length !== before.length) {
+        if (add) next.push(batch);
+        if (next.length) await chrome.storage.local.set({ [cart.KEY]: next });
+        else await chrome.storage.local.remove(cart.KEY);
+      }
+      return next.length;
+    };
+    cartRestoreQueue = cartRestoreQueue.then(commit, commit);
+    respond({ success: true, remaining: await cartRestoreQueue });
+  }
+
   const ROUTES = Object.freeze({
     async LOG_DEBUG_GET(request, sender, sendResponse) {
       try {
@@ -3891,6 +3966,7 @@
     UPDATE_CHECK: globalThis.STBackgroundUpdate.updateCheck,
     NETWORK_REQUEST_CANCEL: cancelNetworkRequest,
     STORE_FETCH: networkRoute(storeFetch),
+    [globalThis.STCartRestore.TYPE]: cartRestoreMutation,
     [PLAYER_STATS_FETCH]: playerStatsFetch,
     TRANSLATE_INJECT: translateInject,
     CONTENT_FILES_INJECT: injectContentFiles,
@@ -3911,6 +3987,13 @@
     MESSAGE_CENTER: messageCenter,
     AUTOMATION: automationRoute,
     [ONBOARDING_OPEN_LOCAL_MESSAGE]: openOnboardingLocalPage,
+    [ONBOARDING.MESSAGES.getLocale]: onboardingLocale,
+    [ONBOARDING.MESSAGES.setLocale]: onboardingLocale,
+    [ONBOARDING.MESSAGES.complete]: async (_request, sender, respond) => {
+      if (!isOnboardingSender(sender)) throw new Error("引导页来源无效");
+      await globalThis.STBackgroundAutomation.completeSetup();
+      respond({ success: true });
+    },
     [ONBOARDING_OPEN_SETTINGS_MESSAGE]: openOnboardingSettings,
     SETTINGS_CLOUD_SYNC: globalThis.STBackgroundSettingsSync.handleMessage,
     USER_NAMES_COMMIT: commitUserNames,

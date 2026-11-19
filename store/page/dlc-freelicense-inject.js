@@ -9,221 +9,123 @@
  * @Remind        : 二次开发请保留原版权信息，谢谢。
  */
 
+(() => {
+    'use strict';
+    const script = document.currentScript;
+    const batchId = script.dataset.batchId;
+    const results = [];
+    const timeoutMs = 12_000;
 
-(function() {
-    const EVENT_NAME = 'STStoreFreeDLCClaim';
-    const REQUEST_TIMEOUT_MS = 12 * 1000;
-    const currentScript = document.currentScript;
-
-    // 免费 DLC 领取必须在页面主上下文读取 g_sessionID 并复用 Steam 会话。
-    function emit(detail) {
-        document.dispatchEvent(new CustomEvent(EVENT_NAME, { detail }));
+    function emit(type, data) {
+        document.dispatchEvent(new CustomEvent('STStoreFreeDLCClaim', { detail: { type, batchId, ...data } }));
     }
 
-    function sleep(ms) {
-        return new Promise(resolve => setTimeout(resolve, ms));
+    function diagnostic(error) {
+        // Chromium 的 JSON 语法错误可能包含响应正文。保留错误类型、调用栈及对应操作。
+        if (error.name === 'SyntaxError') {
+            const message = 'Steam 数据格式错误';
+            const frames = String(error.stack || '').split('\n').filter(line => /^\s+at /.test(line));
+            return { name: error.name, message, stack: [error.name + ': ' + message, ...frames].join('\n') };
+        }
+        return { name: error.name, message: error.message, stack: error.stack };
     }
 
-    function getSessionId() {
-        if (typeof window.g_sessionID === 'string' && window.g_sessionID) {
-            return window.g_sessionID;
-        }
-
-        const match = document.cookie.match(/(?:^|;\s*)sessionid=([^;]+)/);
-        return match ? decodeURIComponent(match[1]) : '';
-    }
-
-    function parseResponseText(text) {
-        if (!text) return null;
-
-        try {
-            return JSON.parse(text);
-        } catch (error) {
-            return null;
-        }
-    }
-
-    function classifyResponse(response, bodyText) {
-        const data = parseResponseText(bodyText);
-        const lowerText = (bodyText || '').toLowerCase();
-
-        if (!response.ok) {
-            return {
-                ok: false,
-                retryable: response.status === 429 || response.status >= 500,
-                message: `HTTP ${response.status}`
-            };
-        }
-
-        if (lowerText.includes('add_free_content_success_area')) {
-            return { ok: true, alreadyOwned: false, message: '领取成功' };
-        }
-
-        if (lowerText.includes('error_box')) {
-            return { ok: false, retryable: false, message: 'Steam返回错误页面' };
-        }
-
-        if (Array.isArray(data)) {
-            return { ok: true, alreadyOwned: false, message: '领取成功' };
-        }
-
-        const detail = Number(data?.purchaseresultdetail ?? data?.purchase_result_details ?? data?.result);
-        if (detail === 0 || data?.success === true || data?.success === 1) {
-            return { ok: true, alreadyOwned: false, message: '领取成功' };
-        }
-
-        if (detail === 9) {
-            return { ok: true, alreadyOwned: true, message: '已拥有' };
-        }
-
-        if (detail === 53) {
-            return { ok: false, retryable: true, message: '请求过于频繁' };
-        }
-
-        if (Number.isFinite(detail)) {
-            return { ok: false, retryable: false, message: `Steam返回代码 ${detail}` };
-        }
-
-        return {
-            ok: false,
-            retryable: false,
-            message: bodyText ? bodyText.slice(0, 120) : 'Steam未返回可识别结果'
-        };
-    }
-
-    async function fetchWithTimeout(url, init) {
-        if (typeof AbortController !== 'function') {
-            return fetch(url, init);
-        }
-
-        const controller = new AbortController();
-        const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+    // Steam 商店的 AddFreeLicense 对每个包提交一次；9 和 24 来自它的失败回调。
+    async function submit(subid, sessionid) {
+        const signal = AbortSignal.timeout(timeoutMs);
+        let response;
         try {
             // ⚠️ 例外：免费 DLC 领取必须在页面主上下文携带 Steam sessionid。
-            return await fetch(url, { ...init, signal: controller.signal });
-        } finally {
-            clearTimeout(timer);
-        }
-    }
-
-    async function postForm(url, params) {
-        const response = await fetchWithTimeout(url, {
-            method: 'POST',
-            credentials: 'include',
-            headers: {
-                'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
-                'X-Requested-With': 'XMLHttpRequest'
-            },
-            body: new URLSearchParams(params).toString()
-        });
-
-        const bodyText = await response.text();
-        return classifyResponse(response, bodyText);
-    }
-
-    async function requestFreeLicense(subid, sessionid) {
-        const endpoints = [
-            {
-                url: `/checkout/addfreelicense/${encodeURIComponent(subid)}`,
-                params: { ajax: 'true', sessionid }
-            },
-            {
-                url: '/checkout/addfreelicense',
-                params: { action: 'add_to_cart', sessionid, subid }
-            },
-            {
-                url: `/freelicense/addfreelicense/${encodeURIComponent(subid)}`,
-                params: { ajax: 'true', sessionid }
+            response = await fetch('/freelicense/addfreelicense/' + subid, {
+                method: 'POST', credentials: 'same-origin', redirect: 'manual', signal,
+                headers: { 'X-Requested-With': 'XMLHttpRequest' },
+                body: new URLSearchParams({ ajax: 'true', sessionid }),
+            });
+            if (response.type === 'opaqueredirect' || (response.status >= 300 && response.status < 400)) {
+                return { status: 'unconfirmed', labelId: 'redirected', stop: true };
             }
-        ];
-
-        let lastResult = null;
-        for (const endpoint of endpoints) {
-            try {
-                const result = await postForm(endpoint.url, endpoint.params);
-                if (result.ok || result.retryable) return result;
-                lastResult = result;
-            } catch (error) {
-                lastResult = {
-                    ok: false,
-                    retryable: true,
-                    message: error.message || '网络请求失败'
-                };
+            if (response.ok) return { status: 'unconfirmed', verify: true };
+            if (response.status === 429) return { status: 'failed', labelId: 'rateLimit', stop: true };
+            const body = await response.text();
+            if (body.trimStart().startsWith('{')) {
+                const data = JSON.parse(body);
+                if (data.purchaseresultdetail === 9) return { status: 'owned' };
+                if (data.purchaseresultdetail === 24) return { status: 'failed', labelId: 'baseRequired' };
+            }
+        } catch (error) {
+            // Steam 的错误页可能是 HTML 或无效 JSON；HTTP 错误在下方照实返回。
+            if (!(error instanceof SyntaxError && response && !response.ok)) {
+                if (!(error instanceof TypeError) && !signal.aborted) throw error;
+                return { status: 'unconfirmed', labelId: 'networkUnconfirmed', stop: true, error: diagnostic(error) };
             }
         }
-
-        return lastResult || { ok: false, retryable: false, message: '领取请求失败' };
+        return { status: response.status >= 500 ? 'unconfirmed' : 'failed', labelId: 'http',
+            http: response.status, stop: response.status >= 500 || response.status === 401 };
     }
 
-    async function claimOne(item, sessionid, maxRetries) {
-        let result = null;
-        for (let attempt = 0; attempt <= maxRetries; attempt++) {
-            result = await requestFreeLicense(item.subid, sessionid);
-            if (result.ok || !result.retryable) break;
-            await sleep(800 + attempt * 700);
+    // 2xx 只说明提交已返回。批次结束时只读一次当前账户的包列表，按 subid 核对。
+    async function ownedPackages(account) {
+        const config = document.getElementById('application_config')?.dataset.config;
+        const country = config && JSON.parse(config).COUNTRY;
+        if (!account || window.g_AccountID !== account || !/^[A-Z]{2}$/.test(country)) {
+            throw new Error('缺少核对 Steam 所有权所需的账号或商店地区');
         }
-
-        return {
-            ...item,
-            ok: !!result?.ok,
-            alreadyOwned: !!result?.alreadyOwned,
-            message: result?.message || '未知错误'
-        };
+        const url = new URL(script.dataset.userdataBase);
+        if (url.origin !== location.origin) throw new Error('Steam 所有权核对地址无效');
+        url.searchParams.set('id', account);
+        url.searchParams.set('cc', country);
+        const version = window.WebStorage?.GetLocal('unUserdataVersion');
+        if (version) url.searchParams.set('v', version);
+        // ⚠️ 例外：读取当前登录用户的 Steam 动态商店包列表只用于本次领取结果核对。
+        const response = await fetch(url, { credentials: 'same-origin', cache: 'no-store', signal: AbortSignal.timeout(timeoutMs) });
+        if (!response.ok || response.redirected) throw new Error('Steam 所有权核对失败，HTTP ' + response.status);
+        const { rgOwnedPackages } = await response.json();
+        if (!Array.isArray(rgOwnedPackages) || !rgOwnedPackages.every(id => Number.isSafeInteger(id) && id > 0)) {
+            throw new Error('Steam 未返回有效的已拥有包 ID 列表');
+        }
+        return new Set(rgOwnedPackages);
     }
 
     async function run() {
-        const batchId = currentScript?.dataset.batchId || '';
-        let items = [];
-
-        try {
-            items = JSON.parse(currentScript?.dataset.items || '[]');
-        } catch (error) {
-            emit({ type: 'error', batchId, message: '领取参数解析失败' });
+        const items = JSON.parse(script.dataset.items);
+        const ids = new Set();
+        for (const item of items) {
+            const subid = Number(item.subid);
+            if (!Number.isSafeInteger(subid) || subid <= 0 || ids.has(subid)) throw new Error('免费 DLC 包 ID 无效或重复');
+            ids.add(subid);
+            results.push({ ...item, subid, status: 'unattempted' });
+        }
+        const account = window.g_AccountID;
+        const sessionid = window.g_sessionID;
+        if (!account || !sessionid) {
+            emit('done', { results, labelId: 'sessionId' });
             return;
         }
-
-        items = items
-            .map(item => ({
-                subid: parseInt(item.subid, 10),
-                name: item.name || `Package ${item.subid}`
-            }))
-            .filter(item => Number.isFinite(item.subid) && item.subid > 0);
-
-        const sessionid = getSessionId();
-        if (!sessionid) {
-            emit({ type: 'error', batchId, message: '无法读取 Steam sessionid' });
-            return;
+        for (const [index, item] of results.entries()) {
+            emit('progress', { index: index + 1, name: item.name });
+            item.status = 'unconfirmed';
+            Object.assign(item, await submit(item.subid, sessionid));
+            if (item.stop) break;
+            if (index + 1 < results.length) await new Promise(resolve => setTimeout(resolve, 900));
         }
-
-        const delayMs = Math.max(300, parseInt(currentScript?.dataset.delayMs || '800', 10));
-        const maxRetries = Math.max(0, parseInt(currentScript?.dataset.maxRetries || '2', 10));
-        const results = [];
-
-        emit({ type: 'start', batchId, total: items.length });
-
-        for (let index = 0; index < items.length; index++) {
-            const item = items[index];
-            emit({ type: 'progress', batchId, index: index + 1, total: items.length, item });
-
-            const result = await claimOne(item, sessionid, maxRetries);
-            results.push(result);
-            emit({ type: 'item', batchId, index: index + 1, total: items.length, result });
-
-            if (index < items.length - 1) {
-                await sleep(delayMs);
+        const pending = results.filter(item => item.verify);
+        if (pending.length || results.some(item => item.status === 'owned')) {
+            window.GDynamicStore?.InvalidateCache();
+            window.StoreItemCache?.ResetCache?.();
+        }
+        if (pending.length) {
+            emit('checking');
+            const owned = await ownedPackages(account);
+            for (const item of pending) {
+                if (owned.has(item.subid)) item.status = 'confirmed';
             }
         }
-
-        try { window.GDynamicStore?.InvalidateCache?.(); } catch (error) { void error; }
-        try { window.StoreItemCache?.ResetCache?.(); } catch (error) { void error; }
-        emit({ type: 'done', batchId, total: items.length, results });
+        emit('done', { results });
     }
 
-    run().catch(error => {
-        emit({
-            type: 'error',
-            batchId: currentScript?.dataset.batchId || '',
-            message: error.message || '批量领取执行失败'
-        });
-    });
+    // 跨主世界边界交回已处理项目和真实异常，操作界面负责显示结果和写诊断日志。
+    function reportFailure(error) {
+        emit('error', { results, error: diagnostic(error) });
+    }
+    run().catch(reportFailure);
 })();

@@ -128,6 +128,7 @@
     }
 
     function callPageOpen(shadow, id = getActiveCat()) {
+      if (options.setupPending?.()) return;
       const page = pageById(id);
       if (typeof page?.onOpen === "function") {
         runPage(page.onOpen, shadow, pageCtx(shadow), {
@@ -140,6 +141,7 @@
     }
 
     function callPanelOpen(shadow) {
+      if (options.setupPending?.()) return;
       const ctx = pageCtx(shadow);
       for (const page of pageList()) {
         if (typeof page.onPanelOpen === "function") {
@@ -352,6 +354,21 @@
       }
     }
 
+    let renderedLocale;
+    function refreshLocale(shadow) {
+      if (renderedLocale === root.STI18n.locale()) return;
+      const body = shadow.querySelector(".body");
+      const hasDraft = shadow.querySelector(".settings-dialog-layer") || (body && root.STSettingsFields.hasEdits(body));
+      if (hasDraft) {
+        // 保留正在填写的表单；主内容在下一次正常渲染时使用新语言。
+        syncChromeText(shadow);
+        syncModuleNav(shadow);
+        renderedLocale = root.STI18n.locale();
+        return;
+      }
+      render(shadow);
+    }
+
     function render(shadow) {
       const categories = allCategories();
       const nav = shadow.querySelector(".nav");
@@ -360,7 +377,36 @@
         return;
       }
 
+      renderedLocale = root.STI18n.locale();
       syncChromeText(shadow);
+      const pending = options.setupPending?.() === true;
+      nav.parentElement.hidden = pending;
+      if (pending) {
+        nav.replaceChildren();
+        const title = root.document.createElement("h2");
+        title.className = "page-title";
+        const retry = options.getSetupRetry?.();
+        if (retry) {
+          title.textContent = tr("setup.readFailed", "首次设置已完成，读取设置失败。");
+          title.setAttribute("role", "alert");
+          const button = root.document.createElement("button");
+          button.type = "button";
+          button.className = "btn btn-blue";
+          button.textContent = tr("common.retry", "重试");
+          button.addEventListener("click", () => { button.disabled = true; void retry(); });
+          body.replaceChildren(title, button);
+          return;
+        }
+        title.textContent = tr("setup.pending", "请先完成首次设置");
+        const link = root.document.createElement("a");
+        link.href = root.STConfig.urls.onboardingPage(1);
+        link.target = "_blank";
+        link.rel = "noopener";
+        link.className = "btn btn-blue";
+        link.textContent = tr("setup.open", "打开安装引导");
+        body.replaceChildren(title, link);
+        return;
+      }
       const visible = categories.filter(showCat);
       if (!visible.some((cat) => cat.id === getActiveCat())) {
         setActiveCat(visible[0]?.id || categories[0].id);
@@ -477,6 +523,7 @@
     return Object.freeze({
       allCategories,
       refreshUpdateCheck,
+      refreshLocale,
       pageCtx,
       pageList,
       pageById,

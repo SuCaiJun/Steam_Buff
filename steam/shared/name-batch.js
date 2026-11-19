@@ -811,7 +811,7 @@
     );
     return ["notContains", "notEquals"].includes(filter.op) ? !found : found;
   }
-  const FILTER_GROUPS = window.STWorkflowFields.groups.map(([title,entries])=>[title,entries.map(([key])=>key).filter(key=>!["official","current","sort","appid"].includes(key))]);
+  const FILTER_GROUPS = window.STWorkflowFields.groups.map(([title,entries])=>[title,entries[0][0],entries.map(([key])=>key).filter(key=>!["official","current","sort","appid"].includes(key))]);
   const LANGUAGE_LABELS = Object.freeze({
     sc_schinese: "简体中文", schinese: "简体中文", tchinese: "繁体中文", english: "英文", koreana: "韩语", japanese: "日语",
     german: "德语", french: "法语", italian: "意大利语", spanish: "西班牙语", latam: "拉丁美洲西班牙语", russian: "俄语",
@@ -819,6 +819,14 @@
     norwegian: "挪威语", swedish: "瑞典语", hungarian: "匈牙利语", czech: "捷克语", romanian: "罗马尼亚语", turkish: "土耳其语",
     greek: "希腊语", bulgarian: "保加利亚语", ukrainian: "乌克兰语", thai: "泰语", arabic: "阿拉伯语", vietnamese: "越南语",
     indonesian: "印尼语", malay: "马来语",
+  });
+  const LANGUAGE_TAGS = Object.freeze({
+    schinese: "zh-Hans", tchinese: "zh-Hant", english: "en", koreana: "ko", japanese: "ja", german: "de",
+    french: "fr", italian: "it", spanish: "es", latam: "es-419", russian: "ru", portuguese: "pt",
+    brazilian: "pt-BR", polish: "pl", dutch: "nl", danish: "da", finnish: "fi", norwegian: "no",
+    swedish: "sv", hungarian: "hu", czech: "cs", romanian: "ro", turkish: "tr", greek: "el",
+    bulgarian: "bg", ukrainian: "uk", thai: "th", arabic: "ar", vietnamese: "vi", indonesian: "id",
+    malay: "ms", zh_hans: "zh-Hans", zh_hant: "zh-Hant", korean: "ko",
   });
   const ACCESSIBILITY_LABELS = Object.freeze({
     adjustable_difficulty: "可调整难度", save_anytime: "随时保存", adjustable_text: "可调整文字大小", subtitles: "字幕选项",
@@ -840,7 +848,7 @@
   function createFilters({state,i18n,expressions:filterExpressions,nameFields,readValues,defaultField,isNameReady=()=>true}) {
     const text=value=>String(value??'').trim();
     let collectionMeta=null, collectionLabels=null;
-    const groups=FILTER_GROUPS.map(([title,fields])=>[title,title==='名称'?nameFields.filter(([key])=>key!=='appid').map(([key])=>key):title==='应用'&&nameFields.some(([key])=>key==='appid')?['appid',...fields]:fields]);
+    const groups=FILTER_GROUPS.map(([title,id,fields])=>[title,id==='official'?nameFields.filter(([key])=>key!=='appid').map(([key])=>key):id==='appid'&&nameFields.some(([key])=>key==='appid')?['appid',...fields]:fields,id]);
     function filterFields() {
       const names = new Map(nameFields);
       return groups.flatMap(([, fields]) => fields.map(field => [field, names.get(field) || (field==='app_type'?i18n('steam.independentName.gameType','游戏类型'):i18n('steam.independentName.filterField'+field, FIELD_LABELS[field]))]));
@@ -848,7 +856,7 @@
 
     function filterGroups() {
       const labels = Object.fromEntries(filterFields());
-      return groups.map(([group, fields]) => [group, fields.map(field => [field, labels[field]])]);
+      return groups.map(([group, fields, id]) => [i18n(`nameFilter.group.${id}`, group), fields.map(field => [field, labels[field]])]);
     }
 
     function gameTypes() {
@@ -936,9 +944,13 @@
       const dynamic = state.meta?.options?.[field === "collections" ? "collections" : field === "tags" ? "tags" : field === "languages" ? "languages" : field === "original_language" ? "originalLanguages" : ""];
       const source = Array.isArray(dynamic) && dynamic.length ? dynamic.map(item => [String(item.value), text(item.label)]) : fallback[field] || [];
       const unique = new Map();
+      const languageNames = ["languages", "original_language"].includes(field)
+        ? new Intl.DisplayNames([window.STI18n?.intlLocale() || "zh-CN"], { type: "language" }) : null;
       for (const [rawValue, rawLabel] of source) {
         const value = field === "languages" ? (String(rawValue) === "sc_schinese" ? "schinese" : String(rawValue)) : String(rawValue);
-        const label = text(rawLabel);
+        const label = field === "collections" ? text(rawLabel)
+          : languageNames && Object.hasOwn(LANGUAGE_TAGS, value) ? languageNames.of(LANGUAGE_TAGS[value])
+          : i18n(`nameFilter.option.${field}.${value}`, text(rawLabel));
         if (value && label && !unique.has(value)) unique.set(value, label);
       }
       return Array.from(unique, ([value, label]) => [value, label]);

@@ -241,11 +241,11 @@
         try {
           if (action === "cancel" && options.isDirty?.()) {
             const answer = await dialog(shadow, {
-              title: "放弃未保存的修改？",
-              message: "本次修改尚未保存，放弃后无法恢复。",
+              title: text("settings.dialog.discardTitle", "放弃未保存的修改？"),
+              message: text("settings.dialog.discardWarning", "本次修改尚未保存，放弃后无法恢复。"),
               actions: [
-                { id: "keep", label: "继续编辑", primary: true },
-                { id: "discard", label: "放弃修改", danger: true },
+                { id: "keep", label: text("settings.dialog.keepEditing", "继续编辑"), primary: true },
+                { id: "discard", label: text("settings.dialog.discard", "放弃修改"), danger: true },
               ],
             });
             if (done || answer !== "discard") return;

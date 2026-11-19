@@ -1550,7 +1550,11 @@
       setButton(button, "error", i18n("steam.newsTranslate.noContent", "没有可翻译内容"));
       return;
     }
-    const cached = rt.cache.get(data.hash);
+    if (rt.config.resolvedService === "steam-buff.ai") data.meta.displayLocale = globalThis.STI18n.locale();
+    const cacheKey = JSON.stringify([data.hash, rt.config.resolvedService, rt.config.to, data.meta.displayLocale]);
+    // AI 适配器按完整服务、提示词修订和目标复用译文。
+    const cachePageResult = rt.config.resolvedService !== "steam-buff.ai";
+    const cached = cachePageResult && rt.cache.get(cacheKey);
     if (cached && cachedCoversNeeds(cached, needs)) {
       try {
         renderTranslation(rt, card, data, cached, needs);
@@ -1591,8 +1595,10 @@
         renderTranslation(rt, card, data, result, needs);
       }
       if (!failedCount) {
-        rt.cache.set(data.hash, result);
-        trimCache(rt.cache);
+        if (cachePageResult) {
+          rt.cache.set(cacheKey, result);
+          trimCache(rt.cache);
+        }
       }
       setButton(button, failedCount ? "error" : "done", failedCount
         ? i18n("steam.newsTranslate.partialFailed", "部分内容翻译失败")

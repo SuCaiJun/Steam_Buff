@@ -192,6 +192,7 @@
   }
 
   const SERVICES_KEY = storageKey("services.v1");
+  const ONBOARDING_CONNECTION_KEY = "st.onboarding.aiConnection";
   const DEFAULT_SERVICE_ID = "AI-0";
   const SERVICE_FIELDS = FIELDS.filter((field) => !["enabled", "aiConcurrency"].includes(field.key));
   const TRANSLATION_SERVICE = "steam-buff.ai";
@@ -272,7 +273,7 @@
   const CONCURRENCY_KEY = storageKey("aiConcurrency");
   const LEGACY_CONCURRENCY_KEY = "st.settings.translate.aiConcurrency";
   const FLAG_KEYS = Object.freeze([storageKey("enabled"), CONCURRENCY_KEY, LEGACY_CONCURRENCY_KEY]);
-  const SETTINGS_KEYS = Object.freeze([SERVICES_KEY, ...FLAG_KEYS]);
+  const SETTINGS_KEYS = Object.freeze([SERVICES_KEY, ONBOARDING_CONNECTION_KEY, ...FLAG_KEYS]);
 
   // 冻结 2.2.2 的单连接字段和缺省值，供本机升级与旧快照转换共用
   const V222_CONNECTION = Object.freeze({
@@ -297,7 +298,7 @@
     const connection = { ...V222_CONNECTION, ...source, protocol: "chat-completions" };
     if (typeof enabled !== "boolean" || !Number.isInteger(aiConcurrency) ||
       V222_CONNECTION_FIELDS.some((field) => typeof connection[field] !== "string"))
-      throw new TypeError("2.2.2 AI 连接配置无效");
+      throw Object.assign(new TypeError("2.2.2 AI 连接配置无效"), { code: "AI_V222_INVALID_CONNECTION" });
     const service = {
       ...defaultService(),
       ...connectionFields(normalize(connection)),
@@ -315,24 +316,33 @@
 
   function servicesFromStorage(data) {
     const shared = flagsFromStorage(data);
-    if (!Object.hasOwn(data, SERVICES_KEY)) return { ...normalizeServices(), ...shared };
-    return normalizeServices({ ...data[SERVICES_KEY], ...shared });
+    if (Object.hasOwn(data, SERVICES_KEY)) return normalizeServices({ ...data[SERVICES_KEY], ...shared });
+    const pending = data[ONBOARDING_CONNECTION_KEY];
+    if (pending == null) return { ...normalizeServices(), ...shared };
+    return normalizeServices({ ...shared, revision: pending.revision,
+      services: [{ ...defaultService(), ...pending.connection }] });
   }
   function findService(settings, id) {
     return settings.services.find((service) => service.id === id);
   }
 
-  /** 已保存的服务 ID 缺失时解析为固定服务。空值和格式错误仍要求选择 */
-  function boundService(settings, id) {
-    if (!isServiceId(id)) return undefined;
-    return findService(settings, id) ?? findService(settings, DEFAULT_SERVICE_ID);
-  }
-
-  /** bound 只用于已保存的功能绑定。预览和已生成请求按指定服务精确查找 */
-  function resolveService(settings, id, { preview = false, bound = false } = {}) {
+  async function resolveService(settings, id, { preview = false } = {}) {
     if (!preview && !settings.enabled) throw Object.assign(new Error("AI 模块已停用"), { code: "AI_CONFIG_UNAVAILABLE" });
-    const service = bound ? boundService(settings, id) : findService(settings, id);
-    if (!service) throw Object.assign(new Error("请选择可用的 AI 服务"), { code: "AI_CONFIG_UNAVAILABLE" });
+    const service = findService(settings, id);
+    if (!service) {
+      const selected = isServiceId(id);
+      const i18n = globalThis.STI18n;
+      let locale;
+      try {
+        locale = await globalThis.STSettings.storage.getUiLocale({ strict: true });
+        await i18n.load(locale);
+      } catch (cause) {
+        throw new Error(`找不到指定的 AI 服务（${selected ? id : "未选择"}），读取提示语言失败：${cause.message}`, { cause });
+      }
+      const key = selected ? "workflow_missing_local_service" : "workflow_ui_select_an_ai_service_again";
+      const message = i18n.forLocale(locale)(key, undefined, { id });
+      throw Object.assign(new Error(message), { code: "AI_CONFIG_UNAVAILABLE" });
+    }
     if (!preview && !service.enabled) throw Object.assign(new Error("AI 服务「" + service.name + "」已停用"), { code: "AI_CONFIG_UNAVAILABLE" });
     if (!service.model || !service.host) {
       if (service.id === DEFAULT_SERVICE_ID) throw Object.assign(new Error("请在「第三方服务」配置默认 AI 服务"), { code: "AI_CONFIG_UNAVAILABLE" });
@@ -457,8 +467,7 @@
     return typeof content === "string" ? content : "";
   }
 
-  /** 校验完整高级请求体；不合并基础模式参数，返回独立对象以隔离鉴权注入 */
-  function validateBody(value, protocol, isTemplateValue = () => false) {
+  function bodyIssue(value, protocol, isTemplateValue = () => false) {
     if (
       !value ||
       typeof value !== "object" ||
@@ -466,20 +475,24 @@
       typeof value.model !== "string" ||
       !value.model.trim()
     )
-      throw new TypeError("AI 请求体需要有效的 model");
-    if (value.background === true) throw new TypeError("当前任务不支持 background 异步响应");
+      return "AI 请求体需要有效的 model";
+    if (value.background === true) return "当前任务不支持 background 异步响应";
     const input = protocol === "responses" ? value.input : value.messages;
     if (
       !(protocol === "responses" && typeof input === "string" && input.trim()) &&
       !(Array.isArray(input) && input.length) && !isTemplateValue(input)
     )
-      throw new TypeError(
-        protocol === "responses"
+      return protocol === "responses"
           ? "Responses 请求体需要 input"
-          : "Chat Completions 请求体需要 messages 数组",
-      );
+          : "Chat Completions 请求体需要 messages 数组";
     if (value.stream !== undefined && typeof value.stream !== "boolean" && !isTemplateValue(value.stream))
-      throw new TypeError("stream 必须是布尔值");
+      return "stream 必须是布尔值";
+    return "";
+  }
+  /** 校验完整高级请求体；不合并基础模式参数，返回独立对象以隔离鉴权注入 */
+  function validateBody(value, protocol, isTemplateValue) {
+    const issue = bodyIssue(value, protocol, isTemplateValue);
+    if (issue) throw new TypeError(issue);
     return JSON.parse(JSON.stringify(value));
   }
 
@@ -524,6 +537,7 @@
   Object.assign(api, {
     ready: true,
     SERVICES_KEY,
+    ONBOARDING_CONNECTION_KEY,
     DEFAULT_SERVICE_ID,
     MANUAL_TASKS,
     PRESET_PROMPTS,
@@ -538,7 +552,6 @@
     flagsFromStorage,
     servicesFromStorage,
     findService,
-    boundService,
     resolveService,
     isServiceId,
     isPromptId,
@@ -560,7 +573,7 @@
     chatBody,
     chatText,
     chatDelta,
-    validateBody,
+    validateBody, bodyIssue,
     responseText,
     responseEvent,
     requestConfig,

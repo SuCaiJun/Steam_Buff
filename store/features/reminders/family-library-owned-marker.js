@@ -60,10 +60,6 @@
   let familySharingResultListener = null;
   let lastFamilySharingHideLogKey = "";
 
-  function rid() {
-    return `fl-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-  }
-
   function noTranslate(element) {
     if (!element) return element;
     element.setAttribute("translate", "no");
@@ -250,8 +246,8 @@
   }
 
   function memberName(cache, steamid, index) {
-    const name = cache?.membersBySteamId?.[steamid]?.name;
-    return name ? String(name) : i18n("store.familyLibrary.memberFallback", "家庭成员 $index$", { index: index + 1 });
+    const member = cache?.membersBySteamId?.[steamid];
+    return member?.name || i18n("store.familyLibrary.memberFallback", "家庭成员 $index$", { index: member?.number ?? index + 1 });
   }
 
   function excludeSelfEnabled() {
@@ -829,7 +825,7 @@
     browserRefreshAttempted = true;
     if (!prefs.autoRefresh) {
       const confirmed = await showAlert(i18n("store.familyLibrary.title", "家庭库检查"),
-        cache ? "家庭库缓存已过期，是否立即更新？" : "还没有家庭库数据，是否立即扫描？",
+        cache ? i18n("store.familyLibrary.expiredConfirm", "家庭库缓存已过期，是否立即更新？") : i18n("store.familyLibrary.firstConfirm", "还没有家庭库数据，是否立即扫描？"),
         i18n("common.update", "更新"));
       if (!confirmed || !detailActive || detailAppId !== String(id) || !container.isConnected) return;
     }

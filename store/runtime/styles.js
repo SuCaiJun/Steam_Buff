@@ -2090,6 +2090,12 @@
             background: var(--st-gradient-primary-horizontal);
         }
 
+        button.es_dlc_option {
+            border: 0;
+            font-family: inherit;
+        }
+
+        .es_dlc_option:disabled,
         .es_dlc_option_disabled {
             opacity: 0.55;
             pointer-events: none;
@@ -2251,48 +2257,6 @@
             white-space: pre-line;
         }
 
-        .es_dlc_confirm_overlay {
-            position: fixed;
-            inset: 0;
-            z-index: var(--st-z-index-dialog);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            padding: 20px;
-            background: var(--st-color-overlay);
-        }
-
-        .es_dlc_confirm_panel {
-            width: min(460px, calc(100vw - 40px));
-            padding: 20px 22px;
-            border: 1px solid var(--st-color-surface-control-hover);
-            border-radius: 6px;
-            color: var(--st-color-text-secondary);
-            background: var(--st-color-bg-body);
-            box-shadow: var(--st-shadow-dialog);
-            font-size: 14px;
-            line-height: 1.6;
-        }
-
-        .es_dlc_confirm_title {
-            color: var(--st-color-steam-blue);
-            font-size: 16px;
-            font-weight: 700;
-        }
-
-        .es_dlc_confirm_detail {
-            margin-top: 10px;
-            white-space: pre-line;
-        }
-
-        .es_dlc_confirm_footer {
-            display: flex;
-            justify-content: flex-end;
-            gap: 10px;
-            margin-top: 18px;
-        }
-
-        .es_dlc_confirm_btn,
         .es_free_dlc_close {
             border: 1px solid var(--st-color-border-primary);
             border-radius: 3px;
@@ -2300,11 +2264,6 @@
             color: var(--st-color-white);
             background: var(--st-color-surface-control-hover);
             cursor: pointer;
-        }
-
-        .es_dlc_confirm_btn_primary {
-            border-color: var(--st-color-steam-blue);
-            background: var(--st-color-steam-blue);
         }
 
         .es_free_dlc_overlay {
@@ -2321,8 +2280,7 @@
             font-size: 16px;
         }
 
-        .es_free_dlc_count,
-        .es_free_dlc_current {
+        .es_free_dlc_count {
             margin-top: 8px;
             color: var(--st-color-text-secondary);
             font-size: 13px;
@@ -2334,38 +2292,19 @@
             font-size: 24px;
         }
 
-        .es_free_dlc_success,
-        .es_free_dlc_done {
-            margin-top: 10px;
-            color: var(--st-color-success);
-        }
-
-        .es_free_dlc_done {
-            margin-bottom: 15px;
-            font-size: 20px;
-        }
-
-        .es_free_dlc_error,
-        .es_free_dlc_cache_notice {
+        .es_free_dlc_error {
             color: var(--st-color-danger);
             font-size: 14px;
         }
 
-        .es_free_dlc_current {
-            max-width: 360px;
-        }
-
         .es_free_dlc_failed_items {
             max-width: 420px;
+            max-height: 32vh;
+            overflow-y: auto;
+            overflow-wrap: anywhere;
             margin-top: 10px;
             color: var(--st-color-danger-text);
             font-size: 12px;
-        }
-
-        .es_free_dlc_cache_notice {
-            max-width: 420px;
-            margin-top: 10px;
-            line-height: 1.5;
         }
 
         .es_free_dlc_footer {
