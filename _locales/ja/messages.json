@@ -8335,14 +8335,73 @@
   "settings_page_automation_name": {
     "message": "自動化"
   },
-  "settings_field_ai_protocol_label": {
-    "message": "API 形式"
+  "settings_ai_provider": {
+    "message": "プロバイダー"
   },
-  "settings_field_ai_protocol_option_chat_completions": {
-    "message": "Chat Completions"
+  "settings_ai_modelPlaceholder": {
+    "message": "モデルを選択または入力"
   },
-  "settings_field_ai_protocol_option_responses": {
-    "message": "OpenAI Responses"
+  "settings_ai_detectModels": {
+    "message": "モデルを検出"
+  },
+  "settings_ai_detectingModels": {
+    "message": "モデルを検出中…"
+  },
+  "settings_ai_modelsDetected": {
+    "message": "モデルが $count$ 件見つかりました",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "settings_ai_modelsEmpty": {
+    "message": "モデルが返されませんでした。手動で入力できます。"
+  },
+  "settings_ai_modelsUnavailable": {
+    "message": "このゲートウェイではモデルを検出できません。候補から選ぶか手動で入力してください。"
+  },
+  "settings_ai_modelWorkspaceRequired": {
+    "message": "モデルを検出するには、Model Studio のワークスペース API URL を入力してください。"
+  },
+  "settings_ai_modelHostRequired": {
+    "message": "AI ゲートウェイの URL を入力してください。"
+  },
+  "settings_ai_modelHostInvalid": {
+    "message": "有効な HTTP または HTTPS のゲートウェイ URL を入力してください。"
+  },
+  "settings_ai_modelKeyModeRequired": {
+    "message": "Qwen のモデル検出には Authorization Bearer が必要です。"
+  },
+  "settings_ai_modelKeyRequired": {
+    "message": "API キーを入力してください。"
+  },
+  "settings_ai_modelsFailed": {
+    "message": "モデルを検出できませんでした"
+  },
+  "settings_ai_provider_zhipu": {
+    "message": "智譜 GLM"
+  },
+  "settings_ai_provider_qwen": {
+    "message": "通義千問 (Qwen)"
+  },
+  "settings_ai_provider_hunyuan": {
+    "message": "Tencent 混元"
+  },
+  "settings_ai_provider_qianfan": {
+    "message": "Baidu 千帆"
+  },
+  "settings_ai_provider_mimo": {
+    "message": "Xiaomi MiMo"
+  },
+  "settings_ai_provider_baichuan": {
+    "message": "Baichuan"
+  },
+  "settings_ai_provider_doubao": {
+    "message": "ByteDance Doubao"
+  },
+  "settings_ai_provider_custom": {
+    "message": "カスタム"
   },
   "common_error": {
     "message": "エラー"
@@ -11431,7 +11490,7 @@
     "message": "今回のシステムプロンプトとユーザープロンプトを編集します。"
   },
   "workflow_ui_the_chat_history_token_can_be_a_string_element_of_the_messag": {
-    "message": "会話履歴のプレースホルダーは messages または input 配列内の文字列要素にできます。"
+    "message": "会話履歴タグは messages 配列の文字列要素に指定できます。"
   },
   "workflow_ui_preview_ai_service": {
     "message": "プレビュー用 AI サービス"
@@ -11447,9 +11506,6 @@
   },
   "workflow_ui_new_prompt": {
     "message": "新しいプロンプト"
-  },
-  "workflow_ui_select_a_preview_service_matching_the_current_api_format": {
-    "message": "現在の API 形式に対応するプレビュー用サービスを選んでください。"
   },
   "workflow_ui_prompt_plan_saved": {
     "message": "プロンプトプランを保存しました。"

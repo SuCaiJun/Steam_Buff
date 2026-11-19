@@ -2545,7 +2545,7 @@
         }
         check();
         phase = "validate";
-        const content = next.protocol === "responses" ? globalThis.STAI.responseText(data) : globalThis.STAI?.chatText?.(data);
+        const content = globalThis.STAI.chatText(data);
         if (!content) throw Object.assign(new Error("AI 响应格式异常"), { code: "AI_RESPONSE_INVALID" });
         return { content, status: response.status };
       } catch (error) {
@@ -2684,6 +2684,43 @@
     }
   }
 
+  async function fetchAiModels(request, timeoutMs, signal) {
+    return globalThis.STNetworkRequest.run(timeoutMs, async (signal, check) => {
+      const url = new URL(request.url);
+      const read = async () => {
+        const response = await fetch(url.href, {
+          method: "GET", headers: request.headers, cache: "no-store", credentials: "omit", redirect: "error", signal,
+        });
+        if (!response.ok) {
+          throw Object.assign(new Error(`HTTP ${response.status}`), { code: "AI_MODELS_HTTP_FAILED", status: response.status, phase: "http" });
+        }
+        const data = parseJson(await response.text());
+        check();
+        return data;
+      };
+      const { modelIds } = globalThis.STAI;
+      if (!request.paged) return [...new Set(modelIds((await read())?.data))];
+
+      // 百炼返回分页目录。整个检测共用一个超时，缺页或总数变化时让用户重新检测。
+      const ids = [];
+      let total;
+      for (let page = 1; total === undefined || ids.length < total; page++) {
+        url.searchParams.set("page_no", String(page));
+        const data = await read();
+        const output = data?.output;
+        if (data?.success !== true || output?.page_no !== page ||
+            !Number.isSafeInteger(output.total) || output.total < 0 || (total !== undefined && total !== output.total))
+          throw new TypeError("百炼模型列表分页状态无效");
+        total = output.total;
+        const batch = modelIds(output.models, "model");
+        if (ids.length + batch.length > total || (!batch.length && ids.length < total))
+          throw new TypeError("百炼模型列表返回不完整");
+        for (const id of batch) ids.push(id);
+      }
+      return [...new Set(ids)];
+    }, signal);
+  }
+
   async function aiChat(request, sender, sendResponse) {
     if (!aiReady) {
       sendResponse({
@@ -2695,6 +2732,7 @@
     }
 
     let next, url;
+    const listModels = request.action === "list-models";
     const timeoutMs = capTimeout(request.timeoutMs, AI_FETCH_TIMEOUT_MS, AI_FETCH_TIMEOUT_MAX_MS);
     try {
       if (request.action === "resolve-translation") {
@@ -2707,9 +2745,11 @@
         sendResponse({ success: true, value: info });
         return;
       }
+      if (listModels && (sender?.id !== chrome.runtime.id || !isSettingsSender(sender) || (sender.frameId ?? 0) !== 0))
+        throw new Error("模型检测只接受设置中心");
       const { aiConcurrency } = await globalThis.STSettings.storage.getAiFlags();
       const result = await runAiLimited(aiConcurrency, async () => {
-        next = await prepareAiRequest(request, sender);
+        next = listModels ? globalThis.STAI.modelListRequest(request.ai) : await prepareAiRequest(request, sender);
         if (!next) throw Object.assign(new Error("AI 配置不完整"), { code: "AI_CONFIG_INCOMPLETE" });
         url = new URL(next.url);
         if (!(await hasAiGatewayPermission(url.toString())))
@@ -2717,9 +2757,11 @@
             new Error("未获得当前 AI 网关的访问权限，请在设置中心重新保存 AI 配置并允许访问"),
             { code: "AI_HOST_PERMISSION_REQUIRED" },
           );
-        return fetchPreparedAi(next, url.toString(), timeoutMs, request.signal);
+        return listModels
+          ? fetchAiModels(next, timeoutMs, request.signal)
+          : fetchPreparedAi(next, url.href, timeoutMs, request.signal);
       }, request.signal);
-      sendResponse({ success: true, text: result.content, status: result.status });
+      sendResponse(listModels ? { success: true, models: result } : { success: true, text: result.content, status: result.status });
     } catch (error) {
       if (error?.name === "SyntaxError") globalThis.STLoggerSchema.markJsonError(error);
       if (error?.name !== "AbortError")
@@ -2730,11 +2772,11 @@
           ...(url
             ? {
                 request: globalThis.STLoggerSchema.requestFacts({
-                  ...next,
-                  url: url.toString(),
-                  method: "POST",
+                  ...(listModels ? { accept: "application/json" } : next),
+                  url: listModels ? url.origin : url.href,
+                  method: listModels ? "GET" : "POST",
                   timeoutMs,
-                  endpointKey: "ai-chat",
+                  endpointKey: listModels ? "ai-models" : "ai-chat",
                 }),
               }
             : {}),
@@ -2749,7 +2791,7 @@
     }
   }
 
-  function parseAiStreamEvent(block, protocol = "chat-completions") {
+  function parseAiStreamEvent(block) {
     const dataText = String(block || "")
       .split(/\r?\n/)
       .filter(line => line.startsWith("data:"))
@@ -2757,7 +2799,7 @@
       .join("\n")
       .trim();
     if (!dataText) return { done: false, text: "" };
-    if (dataText === "[DONE]" && protocol === "chat-completions") return { done: true, text: "" };
+    if (dataText === "[DONE]") return { done: true, text: "" };
     let data;
     try { data = parseJson(dataText); }
     catch (error) {
@@ -2769,7 +2811,6 @@
       error.code = "AI_STREAM_EVENT_INVALID";
       throw error;
     }
-    if (protocol === "responses") return globalThis.STAI.responseEvent(data);
     return {
       done: false,
       text: globalThis.STAI?.chatDelta?.(data) || "",
@@ -2821,9 +2862,8 @@
 
       const consume = (block) => {
         phase = "parse";
-        const event = parseAiStreamEvent(block, next.protocol);
+        const event = parseAiStreamEvent(block);
         if (event.done) {
-          if (event.finalText !== undefined) content = event.finalText;
           finished = true;
           return;
         }
@@ -2851,8 +2891,6 @@
       }
       buffer += decoder.decode();
       if (!finished && buffer.trim()) consume(buffer);
-      if (next.protocol === "responses" && !finished)
-        throw Object.assign(new Error("Responses 流在完成事件前关闭"), { code: "AI_RESPONSE_INVALID" });
       if (!content.trim()) {
         const error = new Error("AI 流式响应没有返回文本");
         error.code = "AI_STREAM_TEXT_EMPTY";

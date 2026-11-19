@@ -754,7 +754,7 @@
     if (form.enabled) {
       const defaultId = globalThis.STAI.DEFAULT_SERVICE_ID;
       next.services = previous.services.map((service) => service.id === defaultId
-        ? { ...service, ...form, enabled: true } : service);
+        ? { ...service, ...form, enabled: true, provider: form.host === service.host ? service.provider : undefined } : service);
     }
     log.info("onboarding-ai-save-start", "安装引导开始保存 AI 配置", {
       operationId,

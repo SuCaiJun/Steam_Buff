@@ -648,7 +648,7 @@
     await flow.evaluateValues(values, state, evaluate);
     const inputs = Object.fromEntries(entries.map(([name, value]) => [name, flow.read(value, state)]));
     const history = context ? flow.read(context, state) : undefined;
-    const displayLanguage = prompts.usesDisplay(prompt, ai.protocol)
+    const displayLanguage = prompts.usesDisplay(prompt)
       ? root.STI18n.languageName(await root.STSettings.storage.getUiLocale({ strict: true })) : undefined;
     return prompts.prepare(prompt, ai, inputs, { history, captureTurn: !!node.contextOutput, displayLanguage });
   }
@@ -1404,7 +1404,7 @@
       const plan = root.STPromptPlans.validate(request.plan, ai.protocol);
       if (!request.values || typeof request.values !== "object" || Array.isArray(request.values))
         throw new TypeError("预览数据需要对象");
-      const displayLanguage = root.STPromptPlans.usesDisplay(plan, ai.protocol)
+      const displayLanguage = root.STPromptPlans.usesDisplay(plan)
         ? root.STI18n.languageName(await root.STSettings.storage.getUiLocale({ strict: true })) : undefined;
       const prepared = root.STPromptPlans.prepare(plan, ai, request.values, { displayLanguage });
       const result = root.STAI.chatRequest(ai, prepared.messages, prepared.body);

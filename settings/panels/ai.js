@@ -322,18 +322,58 @@
       </button>`;
     }
 
-    function editorHtml(draft) {
+    function providerLabel(preset) {
+      return uiText("settings.ai.provider." + preset.id, preset.label);
+    }
+
+    function presetConnection(preset) {
+      return {
+        host: ai.endpoint({ host: preset.base }),
+        model: preset.models[0],
+        keyMode: preset.keyMode || "bearer",
+        keyName: preset.keyName || "",
+      };
+    }
+
+    function modelControl(form, models, value, serviceId) {
+      const fields = root.STSettingsFields;
+      const label = uiText("settings.field.ai.model.label", "模型");
+      const slot = form.querySelector("[data-ai-model-control]");
+      const html = fields.searchComboHtml(models.map(id => ({ value: id, label: id })), {
+        id: serviceId + "-model",
+        label,
+        text: value,
+        value,
+        placeholder: uiText("settings.ai.modelPlaceholder", "选择或输入模型"),
+        expandLabel: uiText("settings.controls.expand", "展开$label$", { label }),
+        emptyLabel: uiText("settings.controls.empty", "暂无可选项"),
+        modal: true,
+      });
+      root.STDomUtils.setTrustedHTML(slot, root.STDomUtils.trustedHTML(html, "settings-ai-services"));
+      const input = slot.querySelector("[data-st-combo-input]");
+      input.classList.add("settings-control");
+      input.dataset.ai = "model";
+      return input;
+    }
+
+    function editorHtml(draft, providers, provider) {
       const { keyMode } = draft;
       const name = `<input class="settings-control" type="text" data-ai="name" value="${esc(draft.name)}" maxlength="200" autocomplete="off">`;
+      const providerLabelText = uiText("settings.ai.provider", "供应商");
+      const chooser = fieldInput({ field: {
+        key: "provider", label: providerLabelText, type: "select",
+        options: providers.map(preset => ({ value: preset.id, label: providerLabel(preset) })),
+      }, value: provider.id, dataset: "data-ai" });
       const fields = (options.catalog?.aiFields?.() || ai.SERVICE_FIELDS).filter((field) =>
         field.key !== "enabled" && field.key !== "aiConcurrency").map((field) => {
+        if (field.key === "model") return row(root.STSettingsFields.label(field), '<span data-ai-model-control></span>');
         const hide = field.key === "key" && keyMode === "none" ||
           field.key === "keyName" && !["header", "param"].includes(keyMode);
         return row(root.STSettingsFields.label(field), fieldInput({
           field, value: draft[field.key], dataset: "data-ai", className: "settings-control",
         }), `data-ai-field="${field.key}" ${hide ? "hidden" : ""}`);
       }).join("");
-      return `<div class="settings-grid" data-ai-editor>${row(uiText("settings.ai.serviceName", "服务名称"), name)}${fields}</div>
+      return `<div class="settings-grid" data-ai-editor>${row(providerLabelText, chooser)}${row(uiText("settings.ai.serviceName", "服务名称"), name)}${fields}</div>
 
         <div class="ai-permission-wait" data-ai-permission-wait role="status" aria-label="${esc(uiText("settings_ai_permissionWaiting", "等待浏览器授权"))}" hidden>
           <span class="ai-permission-spinner" aria-hidden="true"></span>
@@ -344,7 +384,7 @@
       const rows = conf.services.map((service) => {
         const fixed = service.id === ai.DEFAULT_SERVICE_ID;
         const details = [service.host && service.model ? service.model : uiText("settings.ai.pendingSetup", "待配置"),
-          service.protocol === "responses" ? "Responses" : "Chat Completions",
+          service.provider ? providerLabel(root.STConfig.aiProviders.find(row => row.id === service.provider) || root.STConfig.aiProviders.at(-1)) : "",
           service.enabled ? "" : uiText("settings.ai.disabled", "已停用")].filter(Boolean).join(" · ");
         return `<div class="ai-service-row" data-ai-id="${esc(service.id)}">
           <div class="ai-service-copy"><strong>${esc(service.name)}</strong><small>${esc(details)}</small></div>
@@ -431,10 +471,32 @@
 
     async function openEditor(service, shadow) {
       const draft = service ? { ...service } : {
-        ...ai.defaults(), id: ai.newServiceId(), revision: "draft", name: "",
-        host: "", model: "", enabled: true,
+        ...ai.defaults(), id: ai.newServiceId(), revision: "draft", name: "", enabled: true,
       };
-      let form, initial;
+      const providers = root.STConfig.aiProviders;
+      const prefill = !service || (draft.id === ai.DEFAULT_SERVICE_ID &&
+        !draft.provider && !draft.host && !draft.model && !draft.key);
+      let provider = prefill
+        ? providers.find(row => row.id === "deepseek")
+        : providers.find(row => row.id === draft.provider) || providers.at(-1);
+      if (prefill) {
+        Object.assign(draft, presetConnection(provider), { provider: provider.id });
+        if (!draft.name) draft.name = providerLabel(provider);
+      }
+      let form, initial, modelsButton;
+      let autoName = !service;
+      let autoTemperature = false;
+      let detected = false;
+      const life = new AbortController();
+      const control = name => form.querySelector(`[data-ai="${name}"]`);
+      const origin = value => URL.canParse(value) ? new URL(value).origin : "";
+      let hostOrigin = origin(draft.host);
+      const modelsLabel = uiText("settings.ai.detectModels", "检测模型");
+      const clearDetected = () => {
+        if (!detected) return;
+        detected = false;
+        modelControl(form, provider.models, control("model").value, draft.id);
+      };
       const action = await dialog(shadow, {
         title: service ? uiText("settings.ai.editService", "编辑 AI 服务") : uiText("settings.ai.newService", "新建 AI 服务"),
         form: true,
@@ -445,17 +507,104 @@
           form = node;
           node.classList.add("ai-service-editor");
           node.setAttribute("data-ai-modal", "");
-          root.STDomUtils.setTrustedHTML(node, root.STDomUtils.trustedHTML(editorHtml(draft), "settings-ai-services"));
+          root.STDomUtils.setTrustedHTML(node, root.STDomUtils.trustedHTML(editorHtml(draft, providers, provider), "settings-ai-services"));
+          modelControl(form, provider.models, draft.model, draft.id);
           initial = JSON.stringify(draftValues(node));
+          root.STSettingsFields.bindSearchCombos(node, life.signal);
+          node.addEventListener("input", event => {
+            const field = event.target.dataset.ai;
+            if (field === "name") autoName = false;
+            if (field === "temperature") autoTemperature = false;
+            if (field === "host") {
+              const nextOrigin = origin(event.target.value);
+              if (hostOrigin && hostOrigin !== nextOrigin) control("key").value = "";
+              hostOrigin = nextOrigin;
+            }
+            if (["host", "key", "keyName"].includes(field)) clearDetected();
+            if (field === "model") root.STSettingsFields.handleSearchCombo(event, node);
+          });
+          node.addEventListener("change", event => {
+            const field = event.target.dataset.ai;
+            if (field === "keyMode") clearDetected();
+            if (field !== "provider") return;
+            provider = providers.find(row => row.id === event.target.value);
+            detected = false;
+            control("key").value = "";
+            if (autoTemperature || provider.temperature !== undefined) control("temperature").value = provider.temperature ?? "";
+            autoTemperature = provider.temperature !== undefined;
+            if (provider.id === "custom") {
+              modelControl(form, [], control("model").value, draft.id);
+              return;
+            }
+            const { host, model, keyMode, keyName } = presetConnection(provider);
+            control("host").value = host;
+            hostOrigin = origin(host);
+            control("keyMode").value = keyMode;
+            control("keyName").value = keyName;
+            handleChange({ target: control("keyMode") });
+            modelControl(form, provider.models, model, draft.id);
+            if (autoName || !control("name").value.trim()) {
+              control("name").value = providerLabel(provider);
+              autoName = true;
+            }
+          });
         },
         actions: [
           { id: "cancel", label: uiText("common_cancel", "取消") },
+          { id: "models", label: modelsLabel },
           { id: "test", label: uiText("common_testConnection", "测试连接") },
           { id: "save", label: uiText("settings.ai.saveService", "保存服务"), primary: true },
         ],
+        renderFooter: (footer) => { modelsButton = footer.querySelector('[data-dialog-action="models"]'); },
         onAction: async (id) => {
           if (id === "cancel") return true;
           const operationId = root.STLoggerFactory.createOperationId();
+          if (id === "models") {
+            modelsButton.setAttribute("aria-busy", "true");
+            modelsButton.textContent = uiText("settings.ai.detectingModels", "正在检测模型…");
+            try {
+              const { host, key, keyMode, keyName, provider } = draftValues(form);
+              const connection = { host, key, keyMode, keyName, provider };
+              ai.modelListRequest(connection);
+              await requestAiGatewayPermission({ host, enabled: true }, shadow, operationId);
+              if (!form.isConnected) return false;
+              const response = await root.STMessageBus.send({
+                type: "AI_CHAT_COMPLETIONS", action: "list-models", ai: connection, operationId, timeoutMs: 15_000,
+              }, { timeoutMs: 20_000, signal: life.signal });
+              if (!form.isConnected) return false;
+              if (response?.success !== true) throw Object.assign(new Error(response?.error), { code: response?.code });
+              detected = true;
+              const input = modelControl(form, response.models, control("model").value, draft.id);
+              void root.STSettingsDialogs.notice(shadow, {
+                title: modelsLabel,
+                message: response.models.length
+                  ? uiText("settings.ai.modelsDetected", "找到 $count$ 个模型", { count: response.models.length })
+                  : uiText("settings.ai.modelsEmpty", "接口未返回模型，可手动输入。"),
+                focus: input,
+              });
+            } catch (error) {
+              if (!form.isConnected || error.name === "AbortError" || error.code === "AI_HOST_PERMISSION_CANCELLED") return false;
+              const help = {
+                AI_MODELS_UNAVAILABLE: [uiText("settings.ai.modelsUnavailable", "此网关无法检测模型，请选择预设或手动输入。"), "model"],
+                AI_MODEL_WORKSPACE_REQUIRED: [uiText("settings.ai.modelWorkspaceRequired", "请填写百炼业务空间的 API 地址后检测。"), "host"],
+                AI_MODEL_HOST_REQUIRED: [uiText("settings.ai.modelHostRequired", "请填写 AI 网关地址。"), "host"],
+                AI_MODEL_HOST_INVALID: [uiText("settings.ai.modelHostInvalid", "请输入有效的 HTTP 或 HTTPS 网关地址。"), "host"],
+                AI_MODEL_KEY_REQUIRED: [uiText("settings.ai.modelKeyRequired", "请填写访问密钥。"), "key"],
+                AI_MODEL_KEY_MODE_REQUIRED: [uiText("settings.ai.modelKeyModeRequired", "千问模型检测需要使用 Authorization Bearer。"), "keyMode"],
+              }[error.code];
+              const failure = uiText("settings.ai.modelsFailed", "模型检测失败");
+              void root.STSettingsDialogs.notice(shadow, {
+                title: failure,
+                message: help?.[0] || error.message || failure,
+                focus: help ? control(help[1]) : modelsButton,
+              });
+              if (!help) log.error("ai-models-action-failed", failure, { operationId, error });
+            } finally {
+              modelsButton.removeAttribute("aria-busy");
+              modelsButton.textContent = modelsLabel;
+            }
+            return false;
+          }
           try {
             const item = readDraft(form, draft);
             if (id === "test") {
@@ -480,7 +629,7 @@
             return false;
           }
         },
-      });
+      }).finally(() => life.abort());
       if (action === "save") {
         render(shadow, `[data-ai-id="${CSS.escape(draft.id)}"] [data-ai-action="edit"]`);
         void root.STSettingsDialogs.notice(shadow, { title: uiText("settings_savePrompt_title", "保存成功"), message: uiText("settings.ai.savedService", "AI 服务已保存。") });

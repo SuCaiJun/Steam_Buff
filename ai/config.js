@@ -19,6 +19,7 @@
 
   const PREFIX = "st.settings.ai.";
   const CHAT_PATH = "chat/completions";
+  const QWEN_WORKSPACE = /^[a-z0-9-]+\.(?:cn-beijing|ap-southeast-1|cn-hongkong|ap-northeast-1|eu-central-1)\.maas\.aliyuncs\.com$/;
   const CONCURRENCY_MIN = 1;
   const CONCURRENCY_MAX = 10;
   const DEFAULTS = Object.freeze({
@@ -38,15 +39,6 @@
       type: "checkbox",
       key: "enabled",
       label: "AI模块",
-    },
-    {
-      type: "select",
-      key: "protocol",
-      label: "API 格式",
-      options: Object.freeze([
-        { value: "chat-completions", label: "Chat Completions" },
-        { value: "responses", label: "Responses" },
-      ]),
     },
     {
       type: "text",
@@ -147,12 +139,9 @@
     const url = new URL(raw);
     if (!["http:", "https:"].includes(url.protocol) || url.username || url.password)
       throw new TypeError("AI 网关需要不含登录信息的 HTTP/HTTPS 地址");
-    const path = conf?.protocol === "responses" ? "responses" : CHAT_PATH;
     url.pathname = url.pathname.replace(/\/+$/, "");
-    // 已发布配置允许基址和完整端点；切换协议只替换已知的两种后缀
-    if (/\/(?:chat\/completions|responses)$/i.test(url.pathname))
-      url.pathname = url.pathname.replace(/\/(?:chat\/completions|responses)$/i, `/${path}`);
-    else url.pathname = `${url.pathname}/${path}`.replace(/\/{2,}/g, "/");
+    if (!/\/chat\/completions$/i.test(url.pathname))
+      url.pathname = `${url.pathname}/${CHAT_PATH}`.replace(/\/{2,}/g, "/");
     return url.toString();
   }
 
@@ -177,7 +166,7 @@
   function normalize(values) {
     const src = values && typeof values === "object" ? values : {};
     const protocol = str(src.protocol) || DEFAULTS.protocol;
-    if (!["chat-completions", "responses"].includes(protocol)) throw new TypeError("AI API 格式无效");
+    if (protocol !== DEFAULTS.protocol) throw new TypeError("AI API 格式无效");
     return {
       enabled: bool(src.enabled),
       protocol,
@@ -228,7 +217,7 @@
   }
 
   function connectionFields(conf) {
-    return Object.fromEntries(SERVICE_FIELDS.map(({ key }) => [key, conf[key]]));
+    return { protocol: conf.protocol, ...Object.fromEntries(SERVICE_FIELDS.map(({ key }) => [key, conf[key]])) };
   }
 
   function defaultService() {
@@ -258,6 +247,7 @@
       return {
         id: item.id, name: item.name.trim(), enabled: item.enabled, revision: item.revision,
         ...connectionFields(normalize(item)),
+        ...(typeof item.provider === "string" && item.provider ? { provider: item.provider } : {}),
       };
     });
     const fixed = services.find((item) => item.id === DEFAULT_SERVICE_ID);
@@ -405,6 +395,53 @@
     return out;
   }
 
+  /**
+   * 从同一网关构造只读模型目录请求，鉴权密钥仅放在请求头。
+   * 自定义服务采用 OpenAI Models API 路径，供应商预设只使用其声明的官方入口。
+   */
+  function modelListRequest(values) {
+    const conf = normalize(values);
+    if (!conf.host) throw Object.assign(new Error("请填写 AI 网关地址"), { code: "AI_MODEL_HOST_REQUIRED" });
+    let url;
+    try {
+      url = new URL(endpoint(conf));
+    } catch (cause) {
+      if (!(cause instanceof TypeError)) throw cause;
+      throw Object.assign(new TypeError("AI 网关地址无效", { cause }), { code: "AI_MODEL_HOST_INVALID" });
+    }
+    const preset = globalThis.STConfig.aiProviders.find(row => row.id === values.provider);
+    const unsupported = () => Object.assign(new Error("此网关的模型列表不可检测"), { code: "AI_MODELS_UNAVAILABLE" });
+    if (url.search || url.hash) throw unsupported();
+    if (preset?.id === "qwen") {
+      const knownHost = QWEN_WORKSPACE.test(url.hostname) || url.hostname === "dashscope-us.aliyuncs.com";
+      if (url.protocol !== "https:" || url.port || !knownHost ||
+          url.pathname !== "/compatible-mode/v1/chat/completions")
+        throw Object.assign(new Error("请填写百炼业务空间的 Chat Completions 地址"), { code: "AI_MODEL_WORKSPACE_REQUIRED" });
+      if (conf.keyMode !== "bearer")
+        throw Object.assign(new Error("千问模型检测需要使用 Authorization Bearer"), { code: "AI_MODEL_KEY_MODE_REQUIRED" });
+      url.pathname = "/api/v1/models";
+      url.searchParams.set("capabilities", "TG");
+    } else if (preset && preset.id !== "custom") {
+      if (!preset.list || url.href !== endpoint({ host: preset.base })) throw unsupported();
+      url.pathname = preset.list;
+    } else {
+      url.pathname = url.pathname.slice(0, -CHAT_PATH.length) + "models";
+    }
+    if (conf.keyMode === "param") throw unsupported();
+    if (["bearer", "header"].includes(conf.keyMode) && !conf.key)
+      throw Object.assign(new Error("请填写访问密钥"), { code: "AI_MODEL_KEY_REQUIRED" });
+    return { url: url.href, headers: { Accept: "application/json", ...appendHeaders(conf) }, paged: preset?.id === "qwen" };
+  }
+
+  function modelIds(rows, field = "id") {
+    if (!Array.isArray(rows)) throw new TypeError("模型响应缺少列表");
+    return rows.map(row => {
+      const id = row?.[field];
+      if (typeof id !== "string" || !id.trim()) throw new TypeError("模型列表包含无效的模型 ID");
+      return id;
+    });
+  }
+
   function chatHeaders(conf) {
     return {
       "content-type": "application/json",
@@ -416,7 +453,7 @@
     if (!conf.model || !Array.isArray(messages) || !messages.length) {
       return null;
     }
-    const body = conf.protocol === "responses" ? { model: conf.model, input: messages, store: false } : { model: conf.model, messages };
+    const body = { model: conf.model, messages };
     const temperature = temp(conf.temperature);
     if (temperature !== null) {
       body.temperature = temperature;
@@ -476,15 +513,9 @@
       !value.model.trim()
     )
       return "AI 请求体需要有效的 model";
-    if (value.background === true) return "当前任务不支持 background 异步响应";
-    const input = protocol === "responses" ? value.input : value.messages;
-    if (
-      !(protocol === "responses" && typeof input === "string" && input.trim()) &&
-      !(Array.isArray(input) && input.length) && !isTemplateValue(input)
-    )
-      return protocol === "responses"
-          ? "Responses 请求体需要 input"
-          : "Chat Completions 请求体需要 messages 数组";
+    if (protocol !== DEFAULTS.protocol) return "AI API 格式无效";
+    if (!(Array.isArray(value.messages) && value.messages.length) && !isTemplateValue(value.messages))
+      return "Chat Completions 请求体需要 messages 数组";
     if (value.stream !== undefined && typeof value.stream !== "boolean" && !isTemplateValue(value.stream))
       return "stream 必须是布尔值";
     return "";
@@ -494,44 +525,6 @@
     const issue = bodyIssue(value, protocol, isTemplateValue);
     if (issue) throw new TypeError(issue);
     return JSON.parse(JSON.stringify(value));
-  }
-
-  function responseText(data) {
-    if (!data || data.status !== "completed" || !Array.isArray(data.output))
-      throw Object.assign(new TypeError("Responses 未返回已完成的结果"), { code: "AI_RESPONSE_INVALID" });
-    const texts = [];
-    for (const item of data.output) {
-      if (!item || typeof item !== "object")
-        throw Object.assign(new TypeError("Responses 消息结构异常"), { code: "AI_RESPONSE_INVALID" });
-      if (item.type !== "message") continue;
-      if (item.role !== "assistant" || !Array.isArray(item.content))
-        throw Object.assign(new TypeError("Responses 消息结构异常"), { code: "AI_RESPONSE_INVALID" });
-      for (const part of item.content) {
-        if (!part || typeof part !== "object")
-          throw Object.assign(new TypeError("Responses 内容结构异常"), { code: "AI_RESPONSE_INVALID" });
-        if (part.type === "refusal")
-          throw Object.assign(new Error(typeof part.refusal === "string" ? part.refusal : "AI 拒绝处理本任务"), { code: "AI_RESPONSE_REFUSED" });
-        if (part.type === "output_text") {
-          if (typeof part.text !== "string") throw Object.assign(new TypeError("Responses 文本结构异常"), { code: "AI_RESPONSE_INVALID" });
-          texts.push(part.text);
-        }
-      }
-    }
-    return texts.join("").trim();
-  }
-
-  function responseEvent(data) {
-    if (!data || typeof data.type !== "string") throw Object.assign(new TypeError("Responses 流式事件结构异常"), { code: "AI_RESPONSE_INVALID" });
-    if (["error", "response.failed", "response.incomplete", "response.cancelled"].includes(data.type))
-      throw Object.assign(new Error(data.error?.message || data.message || `Responses 请求结束：${data.type}`), { code: "AI_RESPONSE_INVALID" });
-    if (data.type === "response.refusal.delta") throw Object.assign(new Error("AI 拒绝处理本任务"), { code: "AI_RESPONSE_REFUSED" });
-    if (data.type === "response.completed")
-      return { done: true, text: "", finalText: responseText(data.response) };
-    if (data.type === "response.output_text.delta") {
-      if (typeof data.delta !== "string") throw Object.assign(new TypeError("Responses 文本增量结构异常"), { code: "AI_RESPONSE_INVALID" });
-      return { done: false, text: data.delta };
-    }
-    return { done: false, text: "" };
   }
 
   Object.assign(api, {
@@ -574,8 +567,8 @@
     chatText,
     chatDelta,
     validateBody, bodyIssue,
-    responseText,
-    responseEvent,
+    modelListRequest,
+    modelIds,
     requestConfig,
   });
 })();

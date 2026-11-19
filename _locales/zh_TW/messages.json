@@ -8335,14 +8335,73 @@
   "settings_page_automation_name": {
     "message": "自動化"
   },
-  "settings_field_ai_protocol_label": {
-    "message": "API 格式"
+  "settings_ai_provider": {
+    "message": "供應商"
   },
-  "settings_field_ai_protocol_option_chat_completions": {
-    "message": "Chat Completions"
+  "settings_ai_modelPlaceholder": {
+    "message": "選擇或輸入模型"
   },
-  "settings_field_ai_protocol_option_responses": {
-    "message": "OpenAI Responses"
+  "settings_ai_detectModels": {
+    "message": "偵測模型"
+  },
+  "settings_ai_detectingModels": {
+    "message": "正在偵測模型…"
+  },
+  "settings_ai_modelsDetected": {
+    "message": "找到 $count$ 個模型",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "settings_ai_modelsEmpty": {
+    "message": "介面未傳回模型，可手動輸入。"
+  },
+  "settings_ai_modelsUnavailable": {
+    "message": "此閘道無法偵測模型，請選取預設或手動輸入。"
+  },
+  "settings_ai_modelWorkspaceRequired": {
+    "message": "請填寫百煉工作空間的 API 網址後再偵測。"
+  },
+  "settings_ai_modelHostRequired": {
+    "message": "請填寫 AI 閘道網址。"
+  },
+  "settings_ai_modelHostInvalid": {
+    "message": "請輸入有效的 HTTP 或 HTTPS 閘道網址。"
+  },
+  "settings_ai_modelKeyModeRequired": {
+    "message": "千問模型偵測需要使用 Authorization Bearer。"
+  },
+  "settings_ai_modelKeyRequired": {
+    "message": "請填寫存取金鑰。"
+  },
+  "settings_ai_modelsFailed": {
+    "message": "模型偵測失敗"
+  },
+  "settings_ai_provider_zhipu": {
+    "message": "智譜 GLM"
+  },
+  "settings_ai_provider_qwen": {
+    "message": "通義千問"
+  },
+  "settings_ai_provider_hunyuan": {
+    "message": "騰訊混元"
+  },
+  "settings_ai_provider_qianfan": {
+    "message": "百度千帆"
+  },
+  "settings_ai_provider_mimo": {
+    "message": "小米 MiMo"
+  },
+  "settings_ai_provider_baichuan": {
+    "message": "百川"
+  },
+  "settings_ai_provider_doubao": {
+    "message": "字節豆包"
+  },
+  "settings_ai_provider_custom": {
+    "message": "自訂"
   },
   "common_error": {
     "message": "錯誤"
@@ -11431,7 +11490,7 @@
     "message": "編輯本輪的系統與使用者提示詞。"
   },
   "workflow_ui_the_chat_history_token_can_be_a_string_element_of_the_messag": {
-    "message": "對話歷史佔位符可作為 messages 或 input 陣列中的一個字串元素。"
+    "message": "對話歷史預留位置可作為 messages 陣列中的字串項目。"
   },
   "workflow_ui_preview_ai_service": {
     "message": "預覽用 AI 服務"
@@ -11447,9 +11506,6 @@
   },
   "workflow_ui_new_prompt": {
     "message": "新建提示詞"
-  },
-  "workflow_ui_select_a_preview_service_matching_the_current_api_format": {
-    "message": "請選擇與當前 API 格式匹配的預覽服務"
   },
   "workflow_ui_prompt_plan_saved": {
     "message": "提示詞方案已儲存。"

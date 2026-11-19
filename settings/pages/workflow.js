@@ -145,7 +145,7 @@
     const draft = existing ? model.clone(existing) : prompts.createLocalized(tokenText, locale);
     const ai = await state.ctx.storage.getAi();
     let serviceId = root.STAI.DEFAULT_SERVICE_ID;
-    let protocol = root.STAI.findService(ai, serviceId).protocol;
+    const protocol = "chat-completions";
     let node;
     const previewSamples = new Map();
     const flow = root.STWorkflow, values = root.STWorkflowValues;
@@ -186,11 +186,7 @@
       const editor = draft.mode === "basic"
         ? promptText(tr("workflow_ui_system_prompt", "系统提示词"), "basic.system", draft.basic.system) +
           promptText(tr("workflow_ui_user_prompt", "用户提示词"), "basic.user", draft.basic.user)
-        : `<label>${esc(tr("settings_field_ai_protocol_label", "API 格式"))}<select data-protocol>
-            ${option("chat-completions", "Chat Completions", protocol)}
-            ${option("responses", "OpenAI Responses", protocol)}
-          </select></label>
-          ${promptText(tr("workflow_ui_full_request_json", "完整请求 JSON"), "advanced." + protocol, draft.advanced[protocol], true)}
+        : `${promptText(tr("workflow_ui_full_request_json", "完整请求 JSON"), "advanced." + protocol, draft.advanced[protocol], true)}
           <div class="wf-actions">${button("format", tr("workflow_ui_format_json", "格式化 JSON"))}</div>`;
       html(node, `<div class="wf-editor">
         <div class="wf-grid">
@@ -201,7 +197,7 @@
         <div class="wf-toolbar">
           <div class="wf-segment">${button("basic", tr("store_titleCustomName_baseTab", "基础"), `aria-pressed="${draft.mode === "basic"}"`)}
             ${button("advanced", tr("workflow_ui_advanced", "高级"), `aria-pressed="${draft.mode === "advanced"}"`)}</div>
-          <span title="${draft.mode === "basic" ? tr("workflow_ui_edit_the_system_and_user_prompts_for_this_turn", "编辑本轮的系统与用户提示词。") : tr("workflow_ui_the_chat_history_token_can_be_a_string_element_of_the_messag", "对话历史占位符可作为 messages 或 input 数组中的一个字符串元素。")}" tabindex="0" aria-label="${esc(tr("workflow_ui_mode_details", "模式说明"))}">ⓘ</span>
+          <span title="${draft.mode === "basic" ? tr("workflow_ui_edit_the_system_and_user_prompts_for_this_turn", "编辑本轮的系统与用户提示词。") : tr("workflow_ui_the_chat_history_token_can_be_a_string_element_of_the_messag", "对话历史占位符可作为 messages 数组中的一个字符串元素。")}" tabindex="0" aria-label="${esc(tr("workflow_ui_mode_details", "模式说明"))}">ⓘ</span>
         </div>
         ${editor}
         <div class="wf-actions">
@@ -272,13 +268,8 @@
           const control = event.target;
           if (control.dataset.edit === "previewService") {
             serviceId = control.value;
-            protocol = root.STAI.findService(ai, serviceId).protocol;
-            render();
-            node.querySelector('[data-edit="previewService"]').focus();
-          } else if (control.hasAttribute("data-protocol")) {
-            protocol = control.value;
-            render();
-            node.querySelector("[data-protocol]").focus();
+            previewGeneration++;
+            node.querySelector("[data-preview]").hidden = true;
           }
         });
         node.addEventListener("click", (event) => {
@@ -315,10 +306,7 @@
             else if (action === "format") {
               draft.advanced[protocol] = JSON.stringify(JSON.parse(draft.advanced[protocol]), null, 2);
             } else if (action === "preview") {
-              if (draft.mode === "advanced" && protocol !== root.STAI.findService(ai, serviceId).protocol)
-                throw new Error(tr("workflow_ui_select_a_preview_service_matching_the_current_api_format", "请选择与当前 API 格式匹配的预览服务"));
-              const serviceProtocol = root.STAI.findService(ai, serviceId).protocol;
-              const names = prompts.parameters(draft, serviceProtocol);
+              const names = prompts.parameters(draft, protocol);
               const generation = ++previewGeneration;
               const isCurrent = () => control.isConnected && generation === previewGeneration;
               control.disabled = true;

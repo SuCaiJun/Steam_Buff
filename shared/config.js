@@ -546,7 +546,26 @@
     }),
   });
 
+  // AI 服务表单使用的官方入口。有模型目录的预设单独声明其路径。
+  const aiProviders = Object.freeze([
+    { id: "deepseek", label: "DeepSeek", base: "https://api.deepseek.com", models: ["deepseek-flash", "deepseek-v4-pro"], list: "/models" },
+    { id: "zhipu", label: "智谱 GLM", base: "https://open.bigmodel.cn/api/paas/v4", models: ["glm-4-flash-250414", "glm-4-flashx-250414"] },
+    { id: "qwen", label: "通义千问", base: "https://dashscope.aliyuncs.com/compatible-mode/v1", models: ["qwen-flash", "qwen-plus", "qwen3.8-max"] },
+    { id: "hunyuan", label: "腾讯混元", base: "https://tokenhub.tencentmaas.com/v1", models: ["hy4-flash", "hy4"], list: "/v1/models" },
+    { id: "qianfan", label: "百度千帆", base: "https://qianfan.baidubce.com/v2", models: ["ernie-4.5-turbo-32k"], list: "/v2/models" },
+    { id: "mimo", label: "小米 MiMo", base: "https://api.xiaomimimo.com/v1", models: ["mimo-v2.6-pro", "mimo-v2.6-pro-ultraspeed"], temperature: "1", list: "/v1/models", keyMode: "header", keyName: "api-key" },
+    { id: "kimi", label: "Kimi", base: "https://api.moonshot.cn/v1", models: ["kimi-k3.1-pro", "kimi-k3"], temperature: "1", list: "/v1/models" },
+    { id: "baichuan", label: "百川", base: "https://api.baichuan-ai.com/v1", models: ["Baichuan4-Turbo", "Baichuan4"] },
+    { id: "minimax", label: "MiniMax", base: "https://api.minimax.cn/v1", models: ["MiniMax-M3.1-Flash", "MiniMax-M3"] },
+    { id: "doubao", label: "字节豆包", base: "https://ark.cn-beijing.volces.com/api/v3", models: ["doubao-seed-2-1-pro-260915"], list: "/api/v3/models" },
+    { id: "openai", label: "OpenAI", base: "https://api.openai.com/v1", models: ["gpt-4o-mini"], list: "/v1/models" },
+    { id: "grok", label: "Grok", base: "https://api.x.ai/v1", models: ["grok-4.7"], list: "/v1/models" },
+    { id: "gemini", label: "Gemini", base: "https://generativelanguage.googleapis.com/v1beta/openai", models: ["gemini-4-hydrogen"], list: "/v1beta/openai/models" },
+    { id: "custom", label: "自定义", base: "", models: [] },
+  ].map(row => Object.freeze({ ...row, models: Object.freeze(row.models) })));
+
   root.STConfig = Object.freeze({
+    aiProviders,
     hosts,
     urls,
     vendors,

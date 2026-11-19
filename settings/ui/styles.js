@@ -461,6 +461,8 @@
         .ai-service-editor { position: relative; }
         .ai-service-editor .settings-row { padding-inline: 0; }
         .ai-service-editor .settings-value { max-width: 100%; }
+        .ai-service-editor [data-ai-model-control] { width: min(280px, 100%); }
+        .ai-service-editor [data-ai="model"] { width: 100%; box-sizing: border-box; padding-inline-end: 36px; }
         .ai-service-editor .ai-permission-wait { inset: 0; }
         .ai-service-editor .ai-service-feedback { padding: 12px 0 0; }
 
@@ -2132,7 +2134,7 @@
           min-width: 0;
         }
 
-        .st-search-combo__control input {
+        .st-search-combo__control input:not(.settings-control) {
           width: 100%;
           min-width: 0;
           height: 34px;
@@ -2144,7 +2146,7 @@
           box-sizing: border-box;
         }
 
-        .st-search-combo__control input:focus {
+        .st-search-combo__control input:not(.settings-control):focus {
           border-color: var(--st-color-primary);
           outline: none;
           box-shadow: 0 0 0 1px var(--st-color-primary-alpha-35);

@@ -8335,14 +8335,73 @@
   "settings_page_automation_name": {
     "message": "자동화"
   },
-  "settings_field_ai_protocol_label": {
-    "message": "API 형식"
+  "settings_ai_provider": {
+    "message": "공급자"
   },
-  "settings_field_ai_protocol_option_chat_completions": {
-    "message": "Chat Completions"
+  "settings_ai_modelPlaceholder": {
+    "message": "모델 선택 또는 입력"
   },
-  "settings_field_ai_protocol_option_responses": {
-    "message": "OpenAI Responses"
+  "settings_ai_detectModels": {
+    "message": "모델 검색"
+  },
+  "settings_ai_detectingModels": {
+    "message": "모델 검색 중…"
+  },
+  "settings_ai_modelsDetected": {
+    "message": "모델 $count$개를 찾았습니다",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "settings_ai_modelsEmpty": {
+    "message": "API에서 모델을 반환하지 않았습니다. 직접 입력할 수 있습니다."
+  },
+  "settings_ai_modelsUnavailable": {
+    "message": "이 게이트웨이에서는 모델을 검색할 수 없습니다. 후보를 선택하거나 직접 입력하세요."
+  },
+  "settings_ai_modelWorkspaceRequired": {
+    "message": "모델을 검색하려면 Model Studio 작업 공간 API URL을 입력하세요."
+  },
+  "settings_ai_modelHostRequired": {
+    "message": "AI 게이트웨이 URL을 입력하세요."
+  },
+  "settings_ai_modelHostInvalid": {
+    "message": "유효한 HTTP 또는 HTTPS 게이트웨이 URL을 입력하세요."
+  },
+  "settings_ai_modelKeyModeRequired": {
+    "message": "Qwen 모델 검색에는 Authorization Bearer가 필요합니다."
+  },
+  "settings_ai_modelKeyRequired": {
+    "message": "API 키를 입력하세요."
+  },
+  "settings_ai_modelsFailed": {
+    "message": "모델 검색 실패"
+  },
+  "settings_ai_provider_zhipu": {
+    "message": "Zhipu GLM"
+  },
+  "settings_ai_provider_qwen": {
+    "message": "Qwen"
+  },
+  "settings_ai_provider_hunyuan": {
+    "message": "Tencent Hunyuan"
+  },
+  "settings_ai_provider_qianfan": {
+    "message": "Baidu Qianfan"
+  },
+  "settings_ai_provider_mimo": {
+    "message": "Xiaomi MiMo"
+  },
+  "settings_ai_provider_baichuan": {
+    "message": "Baichuan"
+  },
+  "settings_ai_provider_doubao": {
+    "message": "ByteDance Doubao"
+  },
+  "settings_ai_provider_custom": {
+    "message": "사용자 지정"
   },
   "common_error": {
     "message": "오류"
@@ -11431,7 +11490,7 @@
     "message": "이번 차례의 시스템 및 사용자 프롬프트를 편집합니다."
   },
   "workflow_ui_the_chat_history_token_can_be_a_string_element_of_the_messag": {
-    "message": "대화 기록 자리표시자는 messages 또는 input 배열의 문자열 요소로 사용할 수 있습니다."
+    "message": "대화 기록 토큰을 messages 배열의 문자열 요소로 넣을 수 있습니다."
   },
   "workflow_ui_preview_ai_service": {
     "message": "미리보기용 AI 서비스"
@@ -11447,9 +11506,6 @@
   },
   "workflow_ui_new_prompt": {
     "message": "새 프롬프트"
-  },
-  "workflow_ui_select_a_preview_service_matching_the_current_api_format": {
-    "message": "현재 API 형식과 일치하는 미리보기 서비스를 선택하세요."
   },
   "workflow_ui_prompt_plan_saved": {
     "message": "프롬프트 구성을 저장했습니다."

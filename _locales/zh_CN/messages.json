@@ -8335,14 +8335,73 @@
   "settings_page_automation_name": {
     "message": "自动化"
   },
-  "settings_field_ai_protocol_label": {
-    "message": "API 格式"
+  "settings_ai_provider": {
+    "message": "供应商"
   },
-  "settings_field_ai_protocol_option_chat_completions": {
-    "message": "Chat Completions"
+  "settings_ai_modelPlaceholder": {
+    "message": "选择或输入模型"
   },
-  "settings_field_ai_protocol_option_responses": {
-    "message": "OpenAI Responses"
+  "settings_ai_detectModels": {
+    "message": "检测模型"
+  },
+  "settings_ai_detectingModels": {
+    "message": "正在检测模型…"
+  },
+  "settings_ai_modelsDetected": {
+    "message": "找到 $count$ 个模型",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "settings_ai_modelsEmpty": {
+    "message": "接口未返回模型，可手动输入。"
+  },
+  "settings_ai_modelsUnavailable": {
+    "message": "此网关无法检测模型，请选择预设或手动输入。"
+  },
+  "settings_ai_modelWorkspaceRequired": {
+    "message": "请填写百炼业务空间的 API 地址后检测。"
+  },
+  "settings_ai_modelHostRequired": {
+    "message": "请填写 AI 网关地址。"
+  },
+  "settings_ai_modelHostInvalid": {
+    "message": "请输入有效的 HTTP 或 HTTPS 网关地址。"
+  },
+  "settings_ai_modelKeyModeRequired": {
+    "message": "千问模型检测需要使用 Authorization Bearer。"
+  },
+  "settings_ai_modelKeyRequired": {
+    "message": "请填写访问密钥。"
+  },
+  "settings_ai_modelsFailed": {
+    "message": "模型检测失败"
+  },
+  "settings_ai_provider_zhipu": {
+    "message": "智谱 GLM"
+  },
+  "settings_ai_provider_qwen": {
+    "message": "通义千问"
+  },
+  "settings_ai_provider_hunyuan": {
+    "message": "腾讯混元"
+  },
+  "settings_ai_provider_qianfan": {
+    "message": "百度千帆"
+  },
+  "settings_ai_provider_mimo": {
+    "message": "小米 MiMo"
+  },
+  "settings_ai_provider_baichuan": {
+    "message": "百川"
+  },
+  "settings_ai_provider_doubao": {
+    "message": "字节豆包"
+  },
+  "settings_ai_provider_custom": {
+    "message": "自定义"
   },
   "common_error": {
     "message": "错误"
@@ -11431,7 +11490,7 @@
     "message": "编辑本轮的系统与用户提示词。"
   },
   "workflow_ui_the_chat_history_token_can_be_a_string_element_of_the_messag": {
-    "message": "对话历史占位符可作为 messages 或 input 数组中的一个字符串元素。"
+    "message": "对话历史占位符可作为 messages 数组中的一个字符串元素。"
   },
   "workflow_ui_preview_ai_service": {
     "message": "预览用 AI 服务"
@@ -11447,9 +11506,6 @@
   },
   "workflow_ui_new_prompt": {
     "message": "新建提示词"
-  },
-  "workflow_ui_select_a_preview_service_matching_the_current_api_format": {
-    "message": "请选择与当前 API 格式匹配的预览服务"
   },
   "workflow_ui_prompt_plan_saved": {
     "message": "提示词方案已保存。"

@@ -47,7 +47,7 @@
   const DISPLAY_LANGUAGE = "显示语言";
   const TOKEN = /\{\{\s*([^{}]*?)\s*\}\}/g;
   const WHOLE_TOKEN = /^\{\{\s*([^{}]*?)\s*\}\}$/;
-  const PROTOCOLS = ["chat-completions", "responses"];
+  const CHAT = "chat-completions";
   const clone = (value) => JSON.parse(JSON.stringify(value));
 
   function gameTokenGroups() {
@@ -108,8 +108,8 @@
     return alias;
   }
 
-  function usesDisplay(plan, protocol) {
-    const source = plan.mode === "basic" ? plan.basic : advancedTemplate(plan, protocol).body;
+  function usesDisplay(plan) {
+    const source = plan.mode === "basic" ? plan.basic : advancedTemplate(plan).body;
     return [...templateTokens(source)].some(name => plan.tokens?.[name] === DISPLAY_LANGUAGE);
   }
 
@@ -196,7 +196,6 @@
       basic,
       advanced: {
         "chat-completions": JSON.stringify({ model: "{{模型}}", messages, stream: false }, null, 2),
-        responses: JSON.stringify({ model: "{{模型}}", input: messages, store: false, stream: false }, null, 2),
       },
     };
   }
@@ -208,9 +207,9 @@
 
   const promptError = message => Object.assign(new TypeError(message), { code: "PROMPT_INVALID" });
 
-  function advancedTemplate(plan, protocol) {
-    const body = JSON.parse(plan.advanced[protocol]);
-    const key = protocol === "responses" ? "input" : "messages";
+  function advancedTemplate(plan) {
+    const body = JSON.parse(plan.advanced[CHAT]);
+    const key = "messages";
     let historyIndex = -1;
     if (Array.isArray(body?.[key])) {
       body[key] = body[key].filter((item, index) => {
@@ -225,7 +224,7 @@
 
   /** 返回当前模板中需要调用方填写的名称 */
   function parameters(plan, protocol, { validateRequest = false } = {}) {
-    const source = plan.mode === "basic" ? plan.basic : advancedTemplate(plan, protocol).body;
+    const source = plan.mode === "basic" ? plan.basic : advancedTemplate(plan).body;
     if (validateRequest && plan.mode === "advanced") {
       const issue = root.STAI.bodyIssue(source, protocol, value => typeof value === "string" && WHOLE_TOKEN.test(value));
       if (issue) throw promptError(issue);
@@ -259,16 +258,16 @@
       throw new TypeError("提示词方案结构无效");
     if (!["basic", "advanced"].includes(plan.mode)) throw new TypeError("提示词模式配置无效");
     if (typeof plan.basic?.system !== "string" || typeof plan.basic?.user !== "string" ||
-        !PROTOCOLS.every(key => typeof plan.advanced?.[key] === "string"))
+        typeof plan.advanced?.[CHAT] !== "string")
       throw new TypeError("提示词模板结构无效");
     if (plan.mode === "advanced" && protocol) {
       parameters(plan, protocol, { validateRequest: true });
     } else {
-      const sources = plan.mode === "basic" ? [plan.basic] : Object.values(plan.advanced);
-      for (const source of sources) validateNames(templateTokens(source));
+      const source = plan.mode === "basic" ? plan.basic : plan.advanced[CHAT];
+      validateNames(templateTokens(source));
     }
-    const { id, name, enabled, revision, mode, basic, advanced } = plan;
-    const result = { id, name, enabled, revision, mode, basic, advanced };
+    const { id, name, enabled, revision, mode, basic } = plan;
+    const result = { id, name, enabled, revision, mode, basic, advanced: { [CHAT]: plan.advanced[CHAT] } };
     if (plan.tokenLocale !== undefined) {
       if (!["zh_CN", "en", "zh_TW", "ja", "ko"].includes(plan.tokenLocale)) throw promptError("提示词语言无效");
       result.tokenLocale = plan.tokenLocale;
@@ -299,7 +298,7 @@
     }
     const localize = value => value.replace(TOKEN, (_, field) => "{{" + spelling(next, field) + "}}");
     next.basic = { system: localize(plan.basic.system), user: localize(plan.basic.user) };
-    for (const protocol of PROTOCOLS) next.advanced[protocol] = localize(next.advanced[protocol]);
+    next.advanced[CHAT] = localize(next.advanced[CHAT]);
     return next;
   }
 
@@ -340,12 +339,10 @@
     return history.map(({ role, content }) => ({ role, content }));
   }
 
-  function userMessage(input, protocol) {
-    if (typeof input === "string") return input;
-    const content = input.findLast(message => message?.role === "user")?.content;
+  function userMessage(messages) {
+    const content = messages.findLast(message => message?.role === "user")?.content;
     if (typeof content === "string" && content.trim()) return content;
-    const partType = protocol === "responses" ? "input_text" : "text";
-    if (Array.isArray(content) && content.every(part => part?.type === partType && typeof part.text === "string")) {
+    if (Array.isArray(content) && content.every(part => part?.type === "text" && typeof part.text === "string")) {
       const text = content.map(part => part.text).join("\n");
       if (text.trim()) return text;
     }
@@ -361,11 +358,11 @@
     }
     const previous = conversation(history);
     if (plan.mode === "advanced") {
-      const { body: source, key, historyIndex } = advancedTemplate(plan, ai.protocol);
+      const { body: source, key, historyIndex } = advancedTemplate(plan);
       if (history !== undefined && historyIndex === -1)
         throw promptError("请在高级提示词的 " + key + " 数组中添加「{{对话历史}}」");
       const body = root.STAI.validateBody(expand(source, values), ai.protocol);
-      const turn = captureTurn ? [...previous, { role: "user", content: userMessage(body[key], ai.protocol) }] : undefined;
+      const turn = captureTurn ? [...previous, { role: "user", content: userMessage(body[key]) }] : undefined;
       if (historyIndex !== -1 && previous.length) {
         const messages = body[key];
         body[key] = [...messages.slice(0, historyIndex), ...previous, ...messages.slice(historyIndex)];

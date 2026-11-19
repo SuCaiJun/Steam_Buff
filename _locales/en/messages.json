@@ -8335,14 +8335,73 @@
   "settings_page_automation_name": {
     "message": "Automation"
   },
-  "settings_field_ai_protocol_label": {
-    "message": "API format"
+  "settings_ai_provider": {
+    "message": "Provider"
   },
-  "settings_field_ai_protocol_option_chat_completions": {
-    "message": "Chat Completions"
+  "settings_ai_modelPlaceholder": {
+    "message": "Select or enter a model"
   },
-  "settings_field_ai_protocol_option_responses": {
-    "message": "OpenAI Responses"
+  "settings_ai_detectModels": {
+    "message": "Detect models"
+  },
+  "settings_ai_detectingModels": {
+    "message": "Detecting models…"
+  },
+  "settings_ai_modelsDetected": {
+    "message": "Models found: $count$",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "settings_ai_modelsEmpty": {
+    "message": "The API returned no models. Enter a model manually."
+  },
+  "settings_ai_modelsUnavailable": {
+    "message": "Model detection is unavailable for this gateway. Select a preset or enter a model."
+  },
+  "settings_ai_modelWorkspaceRequired": {
+    "message": "Enter the Model Studio workspace API URL to detect models."
+  },
+  "settings_ai_modelHostRequired": {
+    "message": "Enter the AI gateway URL."
+  },
+  "settings_ai_modelHostInvalid": {
+    "message": "Enter a valid HTTP or HTTPS gateway URL."
+  },
+  "settings_ai_modelKeyModeRequired": {
+    "message": "Qwen model detection requires Authorization Bearer."
+  },
+  "settings_ai_modelKeyRequired": {
+    "message": "Enter the API key."
+  },
+  "settings_ai_modelsFailed": {
+    "message": "Could not detect models"
+  },
+  "settings_ai_provider_zhipu": {
+    "message": "Zhipu GLM"
+  },
+  "settings_ai_provider_qwen": {
+    "message": "Qwen"
+  },
+  "settings_ai_provider_hunyuan": {
+    "message": "Tencent Hunyuan"
+  },
+  "settings_ai_provider_qianfan": {
+    "message": "Baidu Qianfan"
+  },
+  "settings_ai_provider_mimo": {
+    "message": "Xiaomi MiMo"
+  },
+  "settings_ai_provider_baichuan": {
+    "message": "Baichuan"
+  },
+  "settings_ai_provider_doubao": {
+    "message": "ByteDance Doubao"
+  },
+  "settings_ai_provider_custom": {
+    "message": "Custom"
   },
   "common_error": {
     "message": "Error"
@@ -11431,7 +11490,7 @@
     "message": "Edit the system and user prompts for this turn."
   },
   "workflow_ui_the_chat_history_token_can_be_a_string_element_of_the_messag": {
-    "message": "The chat history token can be a string element of the messages or input array."
+    "message": "The chat history token can be a string element of the messages array."
   },
   "workflow_ui_preview_ai_service": {
     "message": "Preview AI service"
@@ -11447,9 +11506,6 @@
   },
   "workflow_ui_new_prompt": {
     "message": "New prompt"
-  },
-  "workflow_ui_select_a_preview_service_matching_the_current_api_format": {
-    "message": "Select a preview service matching the current API format."
   },
   "workflow_ui_prompt_plan_saved": {
     "message": "Prompt plan saved."
