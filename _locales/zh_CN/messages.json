@@ -10895,12 +10895,6 @@
   "workflow_tool_import_copy": {
     "message": "另存副本"
   },
-  "workflow_tool_references": {
-    "message": "工具引用"
-  },
-  "workflow_tool_open_reference": {
-    "message": "定位指令"
-  },
   "workflow_tool_credentials": {
     "message": "本机密钥"
   },
@@ -10934,21 +10928,10 @@
   "workflow_tool_builtin": {
     "message": "内置"
   },
-  "workflow_tool_referenced_delete": {
-    "message": "请先解除工作流中的工具引用。"
-  },
   "workflow_tool_missing": {
     "message": "找不到工具 $id$，请导入或重新选择。",
     "placeholders": {
       "id": {
-        "content": "$1"
-      }
-    }
-  },
-  "workflow_tool_reference_count": {
-    "message": "$count$ 条指令引用",
-    "placeholders": {
-      "count": {
         "content": "$1"
       }
     }
@@ -10961,13 +10944,48 @@
       }
     }
   },
+  "workflow_prompt_delete_references_changed": {
+    "message": "提示词的使用方已变更，请重新打开删除确认。"
+  },
+  "workflow_delete_reference_warning": {
+    "message": "$names$ 正在使用此$kind$。删除后可能导致相关功能无法使用，确定要删除吗？",
+    "placeholders": {
+      "names": {
+        "content": "$1"
+      },
+      "kind": {
+        "content": "$2"
+      }
+    }
+  },
+  "workflow_reference_name_separator": {
+    "message": "、"
+  },
+  "workflow_reference_kind_workflow": {
+    "message": "工作流"
+  },
+  "workflow_reference_kind_prompt": {
+    "message": "提示词"
+  },
+  "workflow_tool_delete": {
+    "message": "删除工具"
+  },
+  "workflow_ui_delete_workflow": {
+    "message": "删除工作流"
+  },
+  "workflow_ui_delete_trigger": {
+    "message": "删除触发器"
+  },
   "workflow_tool_delete_confirm": {
-    "message": "将删除「$name$」及其本机密钥。",
+    "message": "将删除「$name$」。",
     "placeholders": {
       "name": {
         "content": "$1"
       }
     }
+  },
+  "workflow_tool_delete_credentials": {
+    "message": "此工具的 HTTP 指令若有单独保存在本机的密钥，也会一并删除。"
   },
   "workflow_error_tool_instruction": {
     "message": "此处不能使用该指令"
@@ -10983,14 +11001,6 @@
   },
   "workflow_command_tool_return_hint": {
     "message": "返回数据并结束工具执行"
-  },
-  "ai_chat_tool_references": {
-    "message": "$count$ 条调用 AI 指令引用",
-    "placeholders": {
-      "count": {
-        "content": "$1"
-      }
-    }
   },
   "ai_chat_new": {
     "message": "新建对话"
@@ -12905,12 +12915,6 @@
   },
   "workflow_ui_run_log": {
     "message": "运行日志"
-  },
-  "workflow_ui_these_triggers_will_lose_their_workflow_reference": {
-    "message": "以下触发器会失去工作流引用："
-  },
-  "workflow_ui_check_prompt_bindings_in": {
-    "message": "以下位置需要检查提示词绑定："
   },
   "workflow_ui_full_snippet": {
     "message": "完整片段："

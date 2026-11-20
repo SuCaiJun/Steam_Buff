@@ -55,7 +55,9 @@
     .settings-dialog.aw-workflow-dialog{width:min(1180px,calc(100vw - 32px));max-width:none;padding:0;display:flex;flex-direction:column;max-height:calc(100vh - 32px)}.aw-workflow-dialog .settings-dialog-message{padding:0;flex:1;min-height:0;overflow:hidden;white-space:normal}.aw-workflow-dialog .settings-dialog-actions{align-items:center;padding:12px 16px;border-top:1px solid var(--st-dialog-divider);margin:0}.aw-workflow-dialog .settings-dialog-header{padding-inline:16px}
     .aw-editor{height:min(720px,calc(100vh - 156px));min-height:300px;display:grid;grid-template-rows:auto minmax(0,1fr) auto}.aw-editor-top{display:flex;align-items:center;gap:8px;padding:12px 16px;border-bottom:1px solid var(--st-dialog-divider)}.aw-editor-top{padding:8px 16px;min-height:52px}.aw-editor-top>.aw-workflow-name{display:flex;align-items:center;gap:10px;flex:1;min-width:0;max-width:440px}.aw-workflow-name>.aw-command-icon{color:var(--st-color-steam-blue)}.aw .aw-workflow-name input{border-color:transparent;background:transparent;font-size:14px;font-weight:var(--st-font-weight-medium)}.aw .aw-workflow-name input:hover{border-color:var(--st-dialog-border)}.aw-editor-toolbar{display:flex;align-items:center;gap:4px}.aw-editor-toolbar .aw-command-icon{width:18px;height:18px}.aw-editor-toolbar .aw-icon{width:32px;height:32px}.aw-editor-toolbar .aw-icon[aria-disabled=true]{opacity:.4;cursor:default}.aw-tool-separator{height:20px;border-inline-start:1px solid var(--st-dialog-divider);margin-inline:6px}.aw-editor-main{display:grid;grid-template-columns:210px minmax(0,1fr);min-height:0}
     .aw-palette{overflow:auto;padding:12px 8px;border-inline-end:1px solid var(--st-dialog-divider);scrollbar-width:thin}.aw-palette>input{margin-bottom:12px}.aw-palette details{margin:4px 0}.aw-palette summary{display:flex;align-items:center;gap:8px;cursor:pointer;padding:8px 6px;font-weight:var(--st-font-weight-medium);border-radius:var(--st-radius-sm);list-style:none}.aw-palette summary::-webkit-details-marker{display:none}.aw-command-icon.aw-category-caret{width:12px;height:12px;color:var(--st-color-text-muted)}.aw-palette details[open]>summary>.aw-category-caret{transform:rotate(90deg)}.aw-palette summary:hover{background:var(--st-color-surface-subtle-hover)}
-    .aw .aw-palette [data-instruction]{display:flex;align-items:center;justify-content:flex-start;gap:8px;width:100%;height:auto;min-height:34px;padding:6px 8px 6px 30px;text-align:start;background:transparent;border-color:transparent;white-space:normal;line-height:1.5}.aw-palette [data-instruction]:hover{background:var(--st-color-surface-subtle-hover)}.aw-command-icon{display:block;flex:none;width:20px;height:20px;background:currentColor;mask:var(--aw-command-icon) center/contain no-repeat;pointer-events:none;forced-color-adjust:none}.aw-category-icon{width:18px;height:18px;color:var(--st-color-text-muted)}.aw-palette [data-instruction] .aw-command-icon{width:16px;height:16px}
+    .aw .aw-palette-entry{display:flex;align-items:center;justify-content:flex-start;gap:8px;width:100%;height:auto;min-height:34px;padding:6px 8px 6px 30px;text-align:start;background:transparent;border-color:transparent;white-space:normal;line-height:1.5;cursor:grab;touch-action:none;user-select:none}
+    .aw button.aw-palette-entry:is(:hover,.aw-drag-preview){border-color:var(--st-color-border-hover);background:color-mix(in srgb,var(--st-dialog-surface),var(--st-color-white) 10%)}
+    .aw-command-icon{display:block;flex:none;width:20px;height:20px;background:currentColor;mask:var(--aw-command-icon) center/contain no-repeat;pointer-events:none;forced-color-adjust:none}.aw-category-icon{width:18px;height:18px;color:var(--st-color-text-muted)}.aw-palette-entry .aw-command-icon{width:16px;height:16px}
     .aw summary:has(>.aw-disclosure){display:flex;align-items:center;gap:6px;list-style:none}
     .aw summary:has(>.aw-disclosure)::-webkit-details-marker{display:none}
     .aw-command-icon.aw-disclosure{width:14px;height:14px;color:var(--st-color-text-secondary)}
@@ -71,10 +73,12 @@
     .aw-param-dialog .settings-dialog-title-icon{background:var(--aw-icon-color,var(--st-color-text-secondary))}
     .aw button:has(>.aw-button-label){display:inline-flex;align-items:center;justify-content:center;gap:6px}
     .aw button:has(>.aw-button-label)>.aw-command-icon,.aw-insert-control>.aw-command-icon{width:14px;height:14px}
-    .aw-canvas{overflow:auto;min-height:0;padding:8px;scrollbar-width:thin;position:relative;--aw-gutter:64px;--aw-indent:28px}.aw-line{display:grid;grid-template-columns:36px 28px minmax(0,1fr) 32px;align-items:center;min-height:64px;padding:10px 0;border:1px solid transparent;border-radius:var(--st-radius-sm);position:relative;outline:none;transition:background-color var(--st-motion-fast),border-color var(--st-motion-fast)}.aw-line:hover{background:var(--st-color-surface-subtle)}.aw-line[aria-selected=true]{background:var(--st-color-primary-surface);border-color:var(--st-color-border-hover)}.aw-line:focus-visible,.aw-line:has(.aw-handle:focus-visible){outline:2px solid var(--st-color-steam-blue);outline-offset:-2px}
+    .aw-editor-main{--aw-gutter:64px;--aw-indent:28px}.aw-canvas{overflow:auto;min-height:0;padding:8px;scrollbar-width:thin;position:relative}.aw-line{display:grid;grid-template-columns:36px 28px minmax(0,1fr) 32px;align-items:center;min-height:64px;padding:10px 0;border:1px solid transparent;border-radius:var(--st-radius-sm);position:relative;outline:none;transition:background-color var(--st-motion-fast),border-color var(--st-motion-fast)}.aw-line:hover{background:var(--st-color-surface-subtle)}.aw-line[aria-selected=true]{background:var(--st-color-primary-surface);border-color:var(--st-color-border-hover)}.aw-line:focus-visible,.aw-line:has(.aw-handle:focus-visible){outline:2px solid var(--st-color-steam-blue);outline-offset:-2px}
     .aw-number{color:var(--st-color-text-muted);font-variant-numeric:tabular-nums;text-align:center;font-size:var(--st-font-size-caption)}.aw-fold{display:grid;place-items:center}.aw-fold .aw-icon{width:24px;height:24px}.aw-content{display:grid;grid-template-columns:28px minmax(0,1fr) auto;align-items:center;gap:8px;min-width:0;padding-inline:12px 8px;padding-inline-start:calc(12px + var(--aw-depth,0)*var(--aw-indent))}.aw .aw-node-icon{width:28px;height:28px;border:0;background:transparent;box-shadow:none;color:var(--st-color-text-secondary);display:grid;place-items:center;padding:0}.aw-line-copy{min-width:0}.aw-line-copy strong{display:block;font-size:var(--st-font-size-body-small);line-height:1.5;font-weight:var(--st-font-weight-medium)}.aw-line-copy small{display:block;color:var(--st-color-text-secondary);font-size:var(--st-font-size-caption);overflow-wrap:anywhere;white-space:normal;line-height:1.65;margin-top:3px}.aw-summary-value{color:var(--st-color-steam-blue);overflow-wrap:anywhere}.aw-indent{position:absolute;inset-block:-1px;left:calc(var(--aw-gutter) + var(--aw-level,0)*var(--aw-indent));border-inline-start:1px solid var(--st-dialog-divider);pointer-events:none}.aw-row-delete{opacity:0}.aw-line:hover .aw-row-delete,.aw-line[aria-selected=true] .aw-row-delete,.aw-line:focus-within .aw-row-delete{opacity:1}
-    .aw .aw-insert-control{position:absolute;left:calc(var(--aw-gutter) - 10px);bottom:-10px;z-index:var(--st-z-index-dropdown);display:grid;place-items:center;width:20px;height:20px;min-height:20px;padding:0;border:1px solid var(--st-color-border-hover);border-radius:50%;background:var(--st-dialog-surface);color:var(--st-color-steam-blue);font-size:16px;opacity:0;pointer-events:none}.aw .aw-insert-control[data-position=before]{top:-10px;bottom:auto}.aw-line:hover>.aw-insert-control,.aw-insert-control:focus-visible{opacity:1;pointer-events:auto}.aw .aw-insert-control:hover,.aw .aw-insert-control:focus-visible{background:var(--st-color-primary);color:var(--st-color-white)}.aw-line:has(>.aw-insert-control:hover)::after,.aw-line[data-drop]::after,.aw-gap[data-drop]::after{content:"";position:absolute;left:var(--aw-gutter);right:0;bottom:-1px;height:1px;background:var(--st-color-steam-blue);pointer-events:none}.aw-line:has(>[data-position=before]:hover)::after,.aw-line[data-drop=before]::after,.aw-gap[data-drop=before]::after{top:-1px;bottom:auto}
-    .aw-gap{position:relative;min-height:40px;padding:4px 8px 4px calc(var(--aw-gutter) + 12px + var(--aw-depth,0)*var(--aw-indent))}.aw-gap button{border:0;background:transparent;color:var(--st-color-text-muted);padding-inline:0}.aw-gap button:hover{color:var(--st-color-steam-blue)}.aw-end-gap>button{display:flex;align-items:center;gap:8px;min-height:40px}.aw-end-plus{display:grid;place-items:center;width:28px;flex:none;font-size:18px}.aw-insert-row{display:flex;gap:8px;align-items:center;min-height:48px;position:relative;padding:6px 8px 6px calc(var(--aw-gutter) + 12px + var(--aw-depth,0)*var(--aw-indent));border-block:1px solid var(--st-color-border-primary)}.aw-insert-row>input{flex:1}.aw-handle{cursor:grab!important;touch-action:none;user-select:none;-webkit-user-select:none}.aw-line.aw-dragging{opacity:.6}.aw-canvas.aw-grabbing,.aw-canvas.aw-grabbing *{cursor:grabbing!important}
+    .aw .aw-insert-control{position:absolute;left:calc(var(--aw-gutter) - 10px);bottom:-10px;z-index:var(--st-z-index-dropdown);display:grid;place-items:center;width:20px;height:20px;min-height:20px;padding:0;border:1px solid var(--st-color-border-hover);border-radius:50%;background:var(--st-dialog-surface);color:var(--st-color-steam-blue);font-size:16px;opacity:0;pointer-events:none}.aw .aw-insert-control[data-position=before]{top:-10px;bottom:auto}.aw-line:hover>.aw-insert-control,.aw-insert-control:focus-visible{opacity:1;pointer-events:auto}.aw .aw-insert-control:hover,.aw .aw-insert-control:focus-visible{background:var(--st-color-primary);color:var(--st-color-white)}
+    .aw-line:has(>.aw-insert-control:hover)::after,.aw-canvas [data-drop]::after{content:"";position:absolute;inset-inline:var(--aw-gutter) 0;inset-block-end:-1px;height:1px;background:var(--st-color-steam-blue);pointer-events:none}.aw-line:has(>[data-position=before]:hover)::after,.aw-canvas [data-drop=before]::after{inset-block: -1px auto}
+    .aw-gap{position:relative}
+    .aw-insert-row{display:flex;gap:8px;align-items:center;min-height:48px;position:relative;padding:6px 8px 6px calc(var(--aw-gutter) + 12px + var(--aw-depth,0)*var(--aw-indent));border-block:1px solid var(--st-color-border-primary)}.aw-insert-row>input{flex:1}.aw-handle{cursor:grab!important;touch-action:none;user-select:none;-webkit-user-select:none}.aw-canvas.aw-grabbing,.aw-canvas.aw-grabbing *{cursor:grabbing!important}
     .aw.aw-command-picker{position:fixed;inset:auto;left:var(--aw-picker-left);top:var(--aw-picker-top);margin:0;width:var(--aw-picker-width);max-height:var(--aw-picker-height);padding:4px;overflow:auto;overscroll-behavior:contain;scrollbar-width:thin;background:var(--st-dialog-surface-raised);color:var(--st-dialog-text-color);border:1px solid var(--st-dialog-border-hover);border-radius:var(--st-radius-sm);box-shadow:var(--st-shadow-tooltip)}.aw-command-picker:not(:popover-open){display:none}.aw .aw-candidate{display:flex;align-items:center;justify-content:flex-start;gap:10px;width:100%;height:auto;min-height:48px;padding:8px;text-align:start;background:transparent;border-color:transparent;color:var(--st-dialog-text-color);white-space:normal}.aw-candidate[aria-selected=true],.aw-candidate:hover{background:var(--st-color-primary-surface);border-color:var(--st-color-border-primary)}.aw-candidate>span:last-child{display:grid;gap:3px;min-width:0}.aw-candidate small{font-size:var(--st-font-size-caption);color:var(--st-color-text-muted)}.aw-picker-empty{padding:16px;color:var(--st-color-text-secondary)}
     .aw-inspector{border-top:1px solid var(--st-dialog-divider);min-height:0}.aw-inspector-head{display:flex;align-items:center;gap:12px;padding:0 12px}.aw-inspector-head .aw-tabs{margin:0;border:0;gap:0}.aw-inspector-head>[data-count]{margin-inline-start:auto;color:var(--st-color-text-muted);font-size:var(--st-font-size-caption)}.aw-inspector-panel{height:min(192px,25vh);box-sizing:border-box;overflow:auto;border-top:1px solid var(--st-dialog-divider);scrollbar-width:thin;padding:0 12px}.aw-inspector table{width:100%;border-collapse:collapse;text-align:start;font-size:var(--st-font-size-caption)}.aw-inspector th{font-weight:400;color:var(--st-color-text-muted);position:sticky;top:0;background:var(--st-dialog-surface);z-index:1}.aw-inspector th,.aw-inspector td{padding:7px 8px;border-bottom:1px solid var(--st-dialog-divider);text-align:start}.aw-inspector .aw-table-link{border:0;background:transparent;text-align:start;color:var(--st-color-danger-text);padding:0;min-height:24px;white-space:normal}.aw-inspector .aw-tools{justify-content:flex-end}.aw-inspector .aw-variable-name{color:var(--st-color-steam-blue);background:transparent;border:0;padding:0;min-height:24px}.aw-inspector .aw-error{margin:6px 8px}.aw-line .aw-content{grid-column:3}.aw-context-menu{position:fixed;inset:auto;margin:0;padding:5px;min-width:238px;max-width:calc(100vw - 24px);max-height:calc(100vh - 24px);overflow:auto;border:1px solid var(--st-dialog-border);border-radius:var(--st-radius-md);background:var(--st-dialog-surface);box-shadow:var(--st-shadow-lg)}.aw .aw-context-item{display:flex;align-items:center;gap:10px;width:100%;height:34px;padding:6px 10px;border:0;border-radius:var(--st-radius-sm);background:transparent;text-align:start}.aw-context-item .aw-command-icon{width:17px;height:17px}.aw-instruction-disabled .aw-line-copy,.aw-instruction-disabled .aw-node-icon{opacity:.45}.aw-instruction-disabled .aw-line-copy strong{text-decoration:line-through}.aw-context-item kbd{margin-inline-start:auto;color:var(--st-color-text-muted);font:inherit;font-size:var(--st-font-size-caption)}.aw .aw-context-item:hover,.aw .aw-context-item:focus-visible{background:var(--st-color-surface-subtle-hover)}.aw .aw-context-item.aw-context-danger{color:var(--st-color-danger-text)}.aw-context-menu hr{border:0;border-top:1px solid var(--st-dialog-divider);margin:4px 6px}.aw-editor-status{min-width:0;margin-inline-end:auto;overflow-wrap:anywhere;font-size:var(--st-font-size-caption);color:var(--st-color-text-secondary)}
     .aw-param-dialog .aw-section:first-child{border-top:0;padding-top:0}.aw-param-dialog .aw input:not([type=checkbox]),.aw-param-dialog .aw select{height:var(--st-control-height-regular);font-size:var(--st-font-size-body-small)}.aw-param-dialog .aw textarea{font-size:var(--st-font-size-body-small)}.aw-param-dialog .aw-value{grid-template-columns:112px minmax(0,1fr);align-items:start}.aw-param-dialog .aw-value>span{padding-top:8px}.aw-param-dialog .aw-condition{grid-template-columns:minmax(0,1fr) 28px;gap:12px;padding:12px 0;border-bottom:1px solid var(--st-dialog-divider)}.aw-condition-fields{display:grid;gap:12px;min-width:0}.aw-param-dialog .aw-condition-fields>label{grid-template-columns:112px minmax(0,1fr);align-items:center;gap:16px}.aw-param-dialog .aw-condition-fields>label select{max-width:200px}.aw-param-dialog .aw-condition-group{padding-inline-start:0;border:0;gap:12px}.aw-param-dialog .aw-condition-group .aw-condition-group{padding-inline-start:16px;border-inline-start:1px solid var(--st-dialog-divider)}
@@ -86,8 +90,8 @@
     .aw-inspector th.aw-variable-actions{width:1%;padding:2px 0 2px 8px;white-space:nowrap}
     .aw-variable-tools{display:flex;align-items:center;justify-content:flex-end;gap:4px}
     .aw .aw-variable-tools .aw-variable-search{width:clamp(96px,18vw,176px);height:28px;min-width:0}
-    @media(max-width:760px){.aw-editor-main{grid-template-columns:160px minmax(0,1fr)}.aw-editor-top{flex-wrap:wrap}.aw-editor-top>.aw-workflow-name{max-width:none;flex-basis:60%}.aw-inspector-head>[data-count]{display:none}.aw-canvas{--aw-indent:20px}.aw-grid{grid-template-columns:1fr}.aw-param-dialog .aw-value,.aw-param-dialog .aw-condition-fields>label{grid-template-columns:1fr;gap:6px}.aw-param-dialog .aw-value>span{padding-top:0}}
-    .aw-palette details[data-group]{margin-inline-start:8px}.aw-palette details[data-group]>summary{font-weight:var(--st-font-weight-regular);font-size:var(--st-font-size-caption)}.aw-palette details[data-group] [data-instruction]{padding-inline-start:30px}
+    @media(max-width:760px){.aw-editor-main{grid-template-columns:160px minmax(0,1fr);--aw-indent:20px}.aw-editor-top{flex-wrap:wrap}.aw-editor-top>.aw-workflow-name{max-width:none;flex-basis:60%}.aw-inspector-head>[data-count]{display:none}.aw-grid{grid-template-columns:1fr}.aw-param-dialog .aw-value,.aw-param-dialog .aw-condition-fields>label{grid-template-columns:1fr;gap:6px}.aw-param-dialog .aw-value>span{padding-top:0}}
+    .aw-palette details[data-group]{margin-inline-start:8px}.aw-palette details[data-group]>summary{font-weight:var(--st-font-weight-regular);font-size:var(--st-font-size-caption)}
     .aw-param-dialog{width:min(680px,calc(100vw - 32px))!important}.aw-param-dialog .settings-dialog-header{min-height:88px;height:auto;padding-block:16px!important}.aw-param-dialog .settings-dialog-message{padding:0 20px 20px!important;max-height:calc(100dvh - 200px);overflow:auto;white-space:normal}.aw-param-dialog .aw-form{gap:0}.aw-param-dialog .aw-param-tabs{margin:0 0 20px;gap:16px;flex-shrink:0}.aw-param-dialog .aw-param-tabs [role=tab]{padding-inline:0}.aw-param-dialog .aw-param-tabs [aria-selected=true]::after{inset-inline:0}.aw-param-dialog [role=tabpanel]{display:grid;gap:24px}.aw-param-dialog .aw-section{gap:16px}.aw-param-dialog .aw-section+.aw-section{border-top:1px solid var(--st-dialog-divider);padding-top:20px}.aw-param-dialog .aw-grid{grid-template-columns:minmax(0,1fr);gap:16px}.aw-param-dialog .aw-section>label,.aw-param-dialog .aw-grid>label,.aw-param-dialog .aw-output-field{display:grid;grid-template-columns:112px minmax(0,1fr);gap:16px;align-items:center}.aw-param-dialog .aw-value{gap:16px}.aw-param-dialog .aw-section h4{font-size:var(--st-font-size-body-small);margin:0 0 4px}.aw-param-dialog [data-dialog-action=test]{margin-inline-end:auto}
     .aw-param-dialog .aw-single-condition{grid-template-columns:minmax(0,1fr);border:0;padding:0}.aw-param-dialog .aw-condition-fields>label select{max-width:none}.aw-code-section{display:grid;gap:8px}.aw-code-toolbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.aw-code-toolbar>span{margin-inline-end:auto}.aw-code-editor{height:280px;min-width:0;border:1px solid var(--st-dialog-border);border-radius:var(--st-control-radius);overflow:hidden;display:grid;grid-template-columns:minmax(0,1fr) auto}.aw-code-editor>[data-code]{min-width:0;min-height:0}.aw .aw-code-editor>[data-script-reference]{align-self:start;height:32px;border-radius:var(--st-control-radius)}.aw-code-editor:focus-within{border-color:var(--st-color-steam-blue);box-shadow:var(--st-control-focus-shadow)}.aw-code-expanded{width:calc(100vw - 32px)!important}.aw-code-expanded .aw-code-editor{height:48vh}.aw-test-result{margin-top:16px;padding-top:16px;border-top:1px solid var(--st-dialog-divider);white-space:pre-wrap;overflow-wrap:anywhere;font-family:monospace;max-height:200px;overflow:auto}.aw-param-dialog [hidden]{display:none!important}
     .aw-http-permission{display:flex;align-items:center;justify-content:space-between;gap:8px;color:var(--st-dialog-muted-color);font-size:var(--st-font-size-body-small)}.aw-http-permission:has([data-http-status]:empty){display:none}.aw-http-permission>span{overflow-wrap:anywhere}
@@ -125,16 +129,19 @@
     .aw-param-dialog .aw-trigger-form .aw-trigger-limit{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.aw-trigger-limit input{width:78px!important}
     .aw-trigger-child .aw-grid{margin-block:8px}
     .aw-line-copy small{white-space:pre-wrap}
-    .aw-line[aria-invalid=true]{border-inline-start:3px solid var(--st-color-danger-text);background-color:color-mix(in srgb,var(--st-color-danger-text) 7%,transparent)}
-    .aw-line[aria-invalid=true][aria-selected=true]{background-color:var(--st-color-primary-surface)}
     .aw-error-marker{display:inline-flex;vertical-align:middle;margin-inline-start:6px;color:var(--st-color-danger-text)}.aw-error-marker .aw-command-icon{width:16px;height:16px}
     .aw-import-issues .settings-dialog-message{white-space:pre-line;overflow-wrap:anywhere}
+    .aw-automation-dialog:not(.settings-form-dialog) .settings-dialog-message{white-space:pre-line;overflow-wrap:anywhere}
+    .aw-automation-dialog .settings-dialog-danger{color:var(--st-color-danger-text)}
     .aw-summary-reference{display:inline;border:1px solid var(--st-color-border-hover);border-radius:var(--st-radius-sm);background:var(--st-color-primary-surface);padding-inline:3px;box-decoration-break:clone;-webkit-box-decoration-break:clone}
     .aw-note-card{display:flex;align-items:center;gap:8px;min-width:0;padding:6px 8px;border-radius:var(--st-radius-sm);background:color-mix(in srgb,var(--st-color-success) 12%,transparent);color:var(--st-color-success-bright);font-size:var(--st-font-size-caption)}
     .aw-note-card .aw-command-icon{width:16px;height:16px}
     .aw-node-note{max-width:min(240px,20vw)}.aw-node-note .aw-note-text{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
     .aw-line.aw-comment-line{min-height:44px;padding-block:0;border:0;background:color-mix(in srgb,var(--st-color-success) 10%,transparent)}
     .aw-line.aw-comment-line:hover,.aw-line.aw-comment-line[aria-selected=true]{background:color-mix(in srgb,var(--st-color-success) 17%,transparent)}
+    .aw-line[aria-invalid=true]{background-color:var(--st-color-danger-surface)}
+    .aw-line[aria-invalid=true]:is(:hover,[aria-selected=true]){background-color:color-mix(in srgb,var(--st-color-danger-text) 17%,transparent)}
+    .aw-line[aria-invalid=true][aria-selected=true]{border-color:color-mix(in srgb,var(--st-color-danger-text) 32%,transparent)}
     .aw-comment-line:focus-visible,.aw-comment-line:has(.aw-handle:focus-visible){outline:none}
     .aw-comment-line:focus-visible .aw-number,.aw-comment-line .aw-handle:focus-visible{outline:2px solid var(--st-color-steam-blue);outline-offset:-2px;border-radius:var(--st-radius-sm)}
     .aw-standalone-note{grid-column:1/3;align-items:flex-start;padding:4px 0;background:transparent}.aw-standalone-note .aw-note-text{align-self:center;min-width:0;white-space:pre-wrap;overflow-wrap:anywhere}
@@ -153,18 +160,29 @@
       .aw-trigger-form .aw-trigger-options,.aw-trigger-form .aw-note{padding-inline-start:116px}
       .aw-trigger-form .aw-trigger-options legend{position:absolute;margin-bottom:0}
     }
-    .aw .aw-end-gap>button{min-height:36px;padding-inline:14px;border:1px solid var(--st-dialog-border);border-radius:var(--st-control-radius);background:var(--st-color-surface-subtle);color:var(--st-color-text-secondary)}
-    .aw .aw-end-gap>button:hover,.aw .aw-end-gap>button:focus-visible,.aw .aw-end-gap[data-drop]>button{border-color:var(--st-color-steam-blue);color:var(--st-color-steam-blue);background:var(--st-color-primary-surface)}
-    .aw :is(.aw-line,.aw-gap)[data-drop]::after{inset-inline-start:calc(var(--aw-gutter) + var(--aw-drop-depth,0)*var(--aw-indent))}
-    .aw-insert-row[data-drop]{border-block-start-color:var(--st-color-steam-blue)}
-    .aw .aw-composition-entry{display:flex;width:100%;height:auto;min-height:32px;justify-content:flex-start;padding:6px 10px;text-align:start;white-space:normal;color:var(--st-color-steam-blue)}
+    .aw .aw-end-gap>button{display:flex;align-items:center;justify-content:flex-start;gap:8px;width:100%;height:auto;min-height:52px;padding:8px;border:1px solid transparent;padding-inline-start:calc(var(--aw-gutter) + 12px);border-radius:var(--st-radius-sm);background:transparent;color:var(--st-color-text-muted);text-align:start;white-space:normal}
+    .aw .aw-end-gap>button:is(:hover,:focus-visible){border-color:transparent;background:var(--st-color-surface-subtle-hover);color:var(--st-color-text-primary)}
+    .aw .aw-end-gap>button:focus-visible{outline:2px solid var(--st-color-steam-blue);outline-offset:-2px;box-shadow:none}
+    .aw .aw-end-gap[data-drop]>button{color:var(--st-color-steam-blue);background:var(--st-color-primary-surface)}
+    .aw-end-gap::before{content:"";position:absolute;inset-block:0;inset-inline-start:var(--aw-gutter);border-inline-start:1px solid var(--st-dialog-divider);pointer-events:none}
+    .aw-end-plus{display:grid;place-items:center;width:28px;flex:none}.aw-end-plus .aw-command-icon{width:16px;height:16px}
+    .aw-canvas [data-drop]::after{inset-inline-start:calc(var(--aw-gutter) + var(--aw-drop-depth,0)*var(--aw-indent));z-index:calc(var(--st-z-index-dropdown) + 1)}
     .aw-composition-form>.aw-section:first-child{padding-top:0;border-top:0}
     .aw-composition-form .aw-composition-preview ol{margin:0;padding-inline-start:24px;display:grid;gap:4px;color:var(--st-color-text-secondary)}
     .aw-composition-form .aw-composition-preview ol ol{margin-block-start:4px}
     .aw-composition-form fieldset{min-width:0}.aw-composition-form .aw-http-mapping{display:grid;gap:8px;margin-block:8px}
     .aw-composition-form .aw-http-mappings>div{width:100%}.aw-composition-form .aw-tool-options .aw-http-mapping label{display:grid}
-    .aw-palette [data-instruction],.aw-line:not(.aw-marker) :is(.aw-number,.aw-line-copy strong){cursor:grab;touch-action:none;user-select:none}
-    .aw-drag-preview{position:fixed;inset:0 auto auto 0;z-index:var(--st-z-index-dropdown);max-width:min(320px,80vw);pointer-events:none;padding:7px 12px;border:1px solid var(--st-color-border-hover);border-radius:var(--st-radius-sm);color:var(--st-color-text-primary);background:var(--st-dialog-surface);box-shadow:var(--st-shadow-dialog)}
+    .aw-canvas .aw-line:not(.aw-marker){cursor:grab;user-select:none}
+    .aw-line:not(.aw-marker) :is(.aw-number,.aw-line-copy strong){touch-action:none}
+    .aw-selectable-text{cursor:text;user-select:text}
+    .aw button.aw-palette-entry.aw-dragging{cursor:grabbing}
+    .aw-canvas .aw-line.aw-dragging{border-color:transparent;background:var(--st-color-surface-subtle);outline:1px dashed var(--st-color-border-hover);outline-offset:-1px}
+    .aw-canvas .aw-line.aw-dragging>*,.aw-canvas.aw-grabbing .aw-insert-control{opacity:0;pointer-events:none}
+    .aw-canvas.aw-grabbing .aw-command-picker{visibility:hidden}
+    .aw .aw-drag-preview{position:fixed;inset:0 auto auto 0;z-index:var(--st-z-index-dropdown);box-sizing:border-box;pointer-events:none;box-shadow:var(--st-shadow-dialog);transition:none}
+    .aw-line.aw-drag-preview{border-color:var(--st-color-border-hover);background-color:var(--st-dialog-surface-raised)}
+    .aw-line.aw-comment-line.aw-drag-preview{background-color:color-mix(in srgb,var(--st-dialog-surface-raised),var(--st-color-success) 12%);outline:1px solid var(--st-color-border-hover);outline-offset:-1px}
+    .aw-line.aw-drag-preview[aria-invalid=true]{border-color:color-mix(in srgb,var(--st-color-danger-text) 32%,transparent);background-color:color-mix(in srgb,var(--st-dialog-surface-raised),var(--st-color-danger-text) 17%)}
     .aw-param-dialog .aw-permission-line{display:flex;flex-wrap:wrap;align-items:center;gap:var(--st-spacing-xs)}
     .aw-param-dialog .aw-permission-line .aw-donation-link{margin-inline-start:auto;border:1px solid var(--st-dialog-border)}
     @media(prefers-reduced-motion:reduce){.aw-line,.aw .aw-tabs [role=tab],.aw .st-search-combo__toggle::before{transition:none}}`,
@@ -205,8 +223,22 @@
     return `<div class="aw-condition${removable ? "" : " aw-single-condition"}"><div class="aw-condition-fields">${valueField(tr("workflow_ui_first_operand", "对象1"), value.left, path + ".left", workflow)}${parameterProp(tr("workflow_ui_operator", "关系"), path + ".op", value.op, instructions.schemaChoices(Object.entries(flow.operations)))}
       ${flow.unary.has(value.op) ? "" : valueField(tr("workflow_ui_second_operand", "对象2"), value.right || flow.literal(""), path + ".right", workflow, [], "any", false, instructions.choices(workflow, value.left))}</div>${removable ? iconButton("condition-delete", tr("workflow_ui_remove_condition", "删除条件"), "trash", `data-path="${path}"`) : ""}</div>`;
   }
-  async function confirm(state, title, message) {
-    return await state.ctx.dialog(state.shadow, { title, className: "aw-automation-dialog", form: true, message, actions: [{ id: "cancel", label: tr("common_cancel", "取消") }, { id: "confirm", label: tr("common_delete", "删除"), primary: true, danger: true }] }) === "confirm";
+  async function confirm(state, title, message, { references = [], kind, countdownSeconds } = {}) {
+    const messageParts = [{ text: message }];
+    if (references.length) {
+      const token = "$names$";
+      const warning = tr("workflow_delete_reference_warning", "$names$ 正在使用此$kind$。删除后可能导致相关功能无法使用，确定要删除吗？", { names: token, kind });
+      const [before, after] = warning.split(token);
+      messageParts.push({ text: "\n\n" + before }, { text: [...new Set(references)].join(tr("workflow_reference_name_separator", "、")), danger: true }, { text: after });
+    }
+    return await state.ctx.dialog(state.shadow, {
+      title, className: "aw-automation-dialog", native: true, messageParts,
+      actions: [{ id: "cancel", label: tr("common_cancel", "取消") },
+        { id: "confirm", label: tr("common_delete", "删除"), primary: true, danger: true, countdownSeconds }],
+    }) === "confirm";
+  }
+  function confirmDelete(state, title, message, kind, references) {
+    return confirm(state, title, message, { kind, references, countdownSeconds: 5 });
   }
   function reportFailure(error, element, editor = null) {
     if (editor) { locateError(editor, error); element = editor.root.querySelector("[data-editor-error]"); }
@@ -478,7 +510,7 @@
       if (row.marker === "insert") {
         if (inserting) return insertRow();
         if (row.key !== "root-gap") return "";
-        return `<div class="aw-gap aw-end-gap" data-row="${index}" style="--aw-depth:${row.depth}"><button type="button" data-aw="select-gap"><span class="aw-end-plus">${icon("plus")}</span>${esc(tr("workflow_ui_add_an_action", "点击添加指令"))}</button></div>`;
+        return `<div class="aw-gap aw-end-gap" data-row="${index}"><button type="button" data-aw="select-gap"><span class="aw-end-plus">${icon("plus")}</span>${esc(tr("workflow_ui_add_an_action", "点击添加指令"))}</button></div>`;
       }
       const key = instructions.key(row), title = row.marker === "fold-start" ? tr("workflow_ui_start_fold", "折叠开始") : row.marker === "fold-end" ? tr("workflow_ui_end_fold", "折叠结束") : instructions.name(key);
       const guides = Array.from({ length: row.depth + 1 }, (_, level) => `<span class="aw-indent" style="--aw-level:${level}"></span>`).join("");
@@ -490,10 +522,10 @@
       const errorMarker = error ? `<span class="aw-error-marker" role="img" aria-label="${esc(tr("common_error", "错误"))}" title="${esc(view().errorCaption(error))}">${icon("alert-triangle")}</span>` : "";
       const summary = isFold(row) ? esc(row.node.name || (row.marker === "fold-start" ? tr("workflow_ui_untitled_fold", "未命名折叠区域") : "")) : description(row, draft, editor);
       const content = key === "comment"
-        ? `<div class="aw-note-card aw-standalone-note">${nodeIcon}<span class="aw-note-text">${summary}${errorMarker}</span></div>`
-        : `${nodeIcon}<div class="aw-line-copy"><strong>${esc(title)}${nameBadge(key)}${errorMarker}</strong>${summary ? `<small>${summary}</small>` : ""}</div>`;
+        ? `<div class="aw-note-card aw-standalone-note">${nodeIcon}<span class="aw-note-text aw-selectable-text">${summary}${errorMarker}</span></div>`
+        : `${nodeIcon}<div class="aw-line-copy"><strong>${esc(title)}${nameBadge(key)}${errorMarker}</strong>${summary ? `<small><span class="aw-selectable-text">${summary}</span></small>` : ""}</div>`;
       const attachment = !row.marker && row.node.note
-        ? `<span class="aw-note-card aw-node-note" title="${esc(row.node.note)}">${icon("message")}<span class="aw-note-text">${esc(row.node.note)}</span></span>` : "";
+        ? `<span class="aw-note-card aw-node-note" title="${esc(row.node.note)}">${icon("message")}<span class="aw-note-text aw-selectable-text">${esc(row.node.note)}</span></span>` : "";
       return (inserting && editor.insertion.before ? insertRow() : "") + `<div class="aw-line ${row.marker ? "aw-marker" : ""}${disabled ? " aw-instruction-disabled" : ""}${key === "comment" ? " aw-comment-line" : ""}" data-row="${index}" data-key="${esc(row.key)}" role="option" tabindex="0" aria-selected="${editor.selected === row.key}" ${error ? 'aria-invalid="true"' : ""} style="--aw-depth:${row.depth}">
         ${guides}<span class="aw-number">${numbers.get(row.key)}</span><span class="aw-fold">${fold}</span>
         <div class="aw-content">${content}${attachment}</div>
@@ -619,7 +651,7 @@
   }
   function palette(inTool) {
     const catalog = editorCatalog(inTool);
-    const commands = rows => rows.map(item => `<button type="button" data-instruction="${item.id}" title="${esc(instructions.hint(item.id))}">${commandIcon(item.id)}<span>${esc(instructions.name(item.id))}${nameBadge(item.id)}</span></button>`).join("");
+    const commands = rows => rows.map(item => `<button type="button" class="aw-palette-entry" data-instruction="${item.id}" title="${esc(instructions.hint(item.id))}">${commandIcon(item.id)}<span>${esc(instructions.name(item.id))}${nameBadge(item.id)}</span></button>`).join("");
     const section = (name, symbol, content, type = "group") => `<details data-${type}="${esc(name)}"><summary>${icon("chevron-right", "aw-category-caret")}${icon(symbol, "aw-category-icon")}${esc(instructions.schemaLabel(name))}</summary>${content}</details>`;
     const categoryContent = category => {
       const items = catalog.filter(item => item.category === category);
@@ -629,7 +661,7 @@
         : commands(items);
     };
     const composition = `<details data-compositions><summary>${icon("chevron-right", "aw-category-caret")}${icon("layout-list", "aw-category-icon")}${esc(tr("workflow_composition_group", "组合指令"))}</summary>
-      <button type="button" class="aw-composition-entry" data-aw="composition" title="${esc(tr("workflow_composition_group", "组合指令"))}">${esc(compositionTitle(inTool))}</button></details>`;
+      <button type="button" class="aw-palette-entry" data-aw="composition" title="${esc(tr("workflow_composition_group", "组合指令"))}">${icon("layout-list", "aw-icon-instruction")}<span>${esc(compositionTitle(inTool))}</span></button></details>`;
     return composition + Object.entries(instructions.categories).map(([category, symbol]) => {
       const content = category === "其他"
         ? Object.entries(instructions.otherCategories).filter(([name]) => catalog.some(item => item.category === name))
@@ -655,7 +687,7 @@
   }
   function editorDiagnostics(editor) {
     return editor.diagnostics ??= [...tools.diagnostics(editor.draft), ...promptIssues(editor.draft, editor.plans, editor.registry),
-      ...tools.permissionWarnings(tools.lines(editor.draft), editor.membership)];
+      ...toolIssues(editor.draft, editor.toolLibrary), ...tools.permissionWarnings(tools.lines(editor.draft), editor.membership)];
   }
   function paintInspector(editor) {
     const { root: node, draft } = editor;
@@ -790,6 +822,10 @@
   async function editComposition(state, editor, insertionCursor) {
     const selected = editor.rows.find(row => row.key === editor.selected) || editor.rows.at(-1);
     const cursor = insertionCursor || cursorFor(selected, editor.draft);
+    if (editor.insertion) {
+      closeInsertion(editor, false);
+      paintEditor(editor);
+    }
     const generated = editor.inTool ? await httpComposition(state, editor.draft, cursor) : await aiComposition(state, editor, cursor);
     if (generated) {
       snapshot(editor);
@@ -1210,12 +1246,12 @@
         const query = event.target.value.trim().toLocaleLowerCase(), palette = event.target.closest(".aw-palette");
         const groups = [...palette.querySelectorAll("details")];
         if (query && !editor.paletteOpen) editor.paletteOpen = new Set(groups.filter(group => group.open));
-        for (const control of palette.querySelectorAll('[data-instruction],[data-aw="composition"]')) {
+        for (const control of palette.querySelectorAll(".aw-palette-entry")) {
           control.hidden = !!query && ![control.textContent, control.title, control.dataset.instruction].join(" ").toLocaleLowerCase().includes(query);
         }
         for (const group of groups) {
           if (query) {
-            group.open = !!group.querySelector('[data-instruction]:not([hidden]),[data-aw="composition"]:not([hidden])');
+            group.open = !!group.querySelector(".aw-palette-entry:not([hidden])");
             group.hidden = !group.open;
           } else {
             group.hidden = false;
@@ -1256,7 +1292,7 @@
       }
       if (control?.getAttribute("aria-disabled") === "true" || (!control && !event.target.closest("[data-instruction]"))) return;
       const insertionCursor = editor.cursor;
-      if (editor.insertion && control && !["insert", "select-gap", "insert-cancel"].includes(control.dataset.aw)) closeInsertion(editor);
+      if (editor.insertion && control && !["insert", "select-gap", "insert-cancel", "composition"].includes(control.dataset.aw)) closeInsertion(editor);
       event.stopPropagation();
       void (async () => {
         if (event.target.closest("[data-instruction]")) return addInstruction(state, editor, event.target.closest("[data-instruction]").dataset.instruction);
@@ -1359,9 +1395,9 @@
     if (element.hasAttribute("data-insert-row"))
       return { element, before: true, cursor: editor.cursor, depth: editor.insertion.depth };
     const index = Number(element.dataset.row), row = editor.rows[index], box = element.getBoundingClientRect();
+    if (row.marker === "insert") return { element, before: true, cursor: cursorFor(row, editor.draft), depth: row.depth };
     let before = y < box.top + box.height / 2, cursor, depth = row.depth;
-    if (row.marker === "insert") cursor = cursorFor(row, editor.draft);
-    else if (!before) {
+    if (!before) {
       if (row.marker === "fold-start" && editor.collapsed.has(row.key) && row.partner !== undefined)
         cursor = { path: row.listPath, index: row.partner + 1 };
       else if (!row.marker && canFold(row) && editor.collapsed.has(row.key))
@@ -1381,6 +1417,7 @@
   }
   function bindDrag(state, editor, signal) {
     const node = editor.root, canvas = node.querySelector(".aw-canvas");
+    const workArea = canvas.parentElement;
     let drag = null, suppressClick = false;
     function markDrop(target) {
       const previous = drag.target;
@@ -1394,6 +1431,26 @@
         target.element.style.setProperty("--aw-drop-depth", target.depth);
       }
       drag.target = target;
+    }
+    function beginDrag() {
+      drag.active = true; suppressClick = true;
+      drag.rows = [...canvas.querySelectorAll("[data-row],[data-insert-row]")];
+      const { element, startX, startY } = drag, bounds = element.getBoundingClientRect();
+      // 原行保留原尺寸供落点二分使用，只有非交互浮层跟随指针
+      const preview = element.cloneNode(true);
+      for (const attr of ["data-row", "data-key", "data-aw", "data-instruction"]) preview.removeAttribute(attr);
+      preview.classList.add("aw-drag-preview");
+      preview.setAttribute("aria-hidden", "true");
+      preview.inert = true;
+      preview.style.width = bounds.width + "px";
+      preview.style.height = bounds.height + "px";
+      drag.preview = preview;
+      drag.left = bounds.left;
+      drag.offsetX = startX - bounds.left;
+      drag.offsetY = startY - bounds.top;
+      workArea.append(preview);
+      element.classList.add("aw-dragging");
+      canvas.classList.add("aw-grabbing");
     }
     const clear = () => {
       if (!drag) return;
@@ -1418,34 +1475,31 @@
     };
     function paint() {
       drag.frame = 0;
-      drag.preview.style.transform = `translate(${drag.x + 14}px, ${drag.y + 14}px)`;
+      const left = drag.palette ? drag.x - drag.offsetX : drag.left;
+      drag.preview.style.transform = `translate(${left}px, ${drag.y - drag.offsetY}px)`;
       updateTarget(true);
     }
     node.addEventListener("pointerdown", event => {
       if (!event.isPrimary || event.button !== 0 || drag) return;
       suppressClick = false;
-      const palette = event.target.closest(".aw-palette [data-instruction]");
-      const handle = palette || event.target.closest(".aw-handle,.aw-number,.aw-line-copy strong");
-      if (!handle || (!palette && event.target.closest("a,input,textarea,select,[contenteditable]"))) return;
-      const element = palette || handle.closest(".aw-line"), row = palette ? null : editor.rows[Number(element?.dataset.row)];
-      if (!palette && (!row || row.marker)) return;
+      const palette = event.target.closest(".aw-palette-entry");
+      const element = palette || event.target.closest(".aw-canvas .aw-line");
+      if (!element) return;
+      const row = palette ? null : editor.rows[Number(element.dataset.row)];
+      if (!palette && (!row || row.marker ||
+          event.target.closest("button:not(.aw-handle),a,input,textarea,select,[contenteditable],.aw-selectable-text"))) return;
+      // 触屏仍从原有把手起拖，行内空白可用于原生滚动
+      const hotspot = palette || event.target.closest(".aw-handle,.aw-number,.aw-line-copy strong");
+      const handle = hotspot || (event.pointerType === "mouse" ? element : null);
+      if (!handle) return;
       handle.setPointerCapture(event.pointerId);
-      drag = { handle, element, row, key: palette?.dataset.instruction, pointer: event.pointerId,
+      drag = { handle, element, row, palette, pointer: event.pointerId,
         startX: event.clientX, startY: event.clientY, x: event.clientX, y: event.clientY, active: false, target: null, frame: 0 };
     }, { signal });
     node.addEventListener("pointermove", event => {
       if (!drag || drag.pointer !== event.pointerId) return;
       drag.x = event.clientX; drag.y = event.clientY;
-      if (!drag.active && Math.hypot(drag.x - drag.startX, drag.y - drag.startY) >= 4) {
-        drag.active = true; suppressClick = true;
-        drag.rows = [...canvas.querySelectorAll("[data-row],[data-insert-row]")];
-        drag.preview = node.ownerDocument.createElement("span");
-        drag.preview.className = "aw-drag-preview";
-        drag.preview.setAttribute("aria-hidden", "true");
-        drag.preview.textContent = drag.key ? instructions.name(drag.key) : nodeName(drag.row.node);
-        node.append(drag.preview);
-        drag.element.classList.add("aw-dragging"); canvas.classList.add("aw-grabbing");
-      }
+      if (!drag.active && Math.hypot(drag.x - drag.startX, drag.y - drag.startY) >= 4) beginDrag();
       if (drag.active && !drag.frame) drag.frame = root.requestAnimationFrame(paint);
     }, { signal });
     node.addEventListener("pointerup", event => {
@@ -1454,7 +1508,12 @@
       const current = drag, cursor = drag.target?.cursor;
       clear();
       if (!cursor) return;
-      if (current.key) { void addInstruction(state, editor, current.key, cursor).catch(error => reportFailure(error, null, editor)); return; }
+      if (current.palette) {
+        const key = current.palette.dataset.instruction;
+        const result = key ? addInstruction(state, editor, key, cursor) : editComposition(state, editor, cursor);
+        void result.catch(error => reportFailure(error, null, editor));
+        return;
+      }
       try { moveNode(editor, current.row, cursor); editor.root.querySelector(`[data-key="${CSS.escape(current.row.node.id)}"] .aw-handle`)?.focus({ preventScroll: true }); }
       catch (error) { reportFailure(error, null, editor); }
     }, { signal });
@@ -2737,14 +2796,14 @@
       throw new Error(tr("workflow_tool_invalid_file", "工具文件类型或版本无效"));
     const tool = model.validateTool(data.tool);
     const existing = (state.bundle.tools || []).find(item => item.id === tool.id);
-    const refs = existing ? toolReferences(state.bundle, tool.id) : [];
+    const refs = toolReferences(state.bundle, tool.id);
     const providers = toolProviders(tool);
     const details = [tool.name, tool.description, ...toolSites(tool),
       ...(providers.length ? [tr("workflow_tool_provider", "数据来源") + " · " + providers.join("、")] : []),
       ...tool.parameters.map(item => item.name + " · " + toolTypeLabel(item.type) + (item.required ? " · " + tr("workflow_tool_required", "必填") : "")),
       ...[...flow.walk(tool.steps)].filter(node => node.action === "tool-return")
         .map(node => instructions.name("tool-return") + " · " + root.STWorkflowValues.text(node.value, tool))];
-    if (existing && refs.length) details.push("", tr("workflow_tool_affected", "以下指令引用了此工具，请检查与新定义的兼容性。"), ...referencesText(refs));
+    if (refs.length) details.push("", tr("workflow_tool_affected", "以下指令引用了此工具，请检查与新定义的兼容性。"), ...referencesText(refs));
     const answer = await state.ctx.dialog(state.shadow, {
       title: tr("workflow_tool_import", "导入工具"), message: details.join("\n"),
       actions: [{ id: "cancel", label: tr("common_cancel", "取消") },
@@ -2756,25 +2815,6 @@
     if (answer === "copy") { tool.id = model.newTool(tool.name).id; tool.name = tools.copyName(tool.name); }
     tool.enabled = false;
     await saveToolDefinition(state, tool, true);
-  }
-  async function showToolReferences(state, id) {
-    const refs = toolReferences(state.bundle, id);
-    if (!refs.length) return;
-    let control;
-    const result = await state.ctx.dialog(state.shadow, {
-      title: tr("workflow_tool_references", "工具引用"), className: "aw-param-dialog", form: true,
-      render(node) {
-        const label = node.ownerDocument.createElement("label"), select = node.ownerDocument.createElement("select");
-        label.append(tr("workflow_ui_workflow_actions", "工作流指令"), select);
-        referencesText(refs).forEach((item, index) => select.add(new Option(item, String(index))));
-        node.append(label); control = select;
-      },
-      actions: [{ id: "close", label: tr("common_close", "关闭") }, { id: "open", label: tr("workflow_tool_open_reference", "定位指令"), primary: true }],
-    });
-    if (result === "open") {
-      const { workflow, node } = refs[Number(control.value)];
-      await editWorkflow(state, workflow, { nodeId: node.id, importing: false, field: node.action === "ai-call" ? "toolIds" : "toolId" });
-    }
   }
   async function editToolCredential(state, tool) {
     const nodes = [...flow.walk(tool.steps, true)].filter(node => node.action === "http-request" && node.keyHeader);
@@ -2809,22 +2849,11 @@
   }
   function toolList(bundle) {
     const library = bundle.tools || [];
-    const uses = new Map(), direct = new Set();
-    for (const workflow of bundle.workflows) for (const node of flow.walk(workflow.steps)) {
-      for (const id of flow.toolIds(node)) {
-        uses.set(id, (uses.get(id) || 0) + 1);
-        if (node.action !== "ai-call") direct.add(id);
-      }
-    }
-    const refs = id => uses.get(id) || 0;
-    const reference = tool => button("tool-references", !flow.isProviderToolId(tool.id) || direct.has(tool.id) ?
-      tr("workflow_tool_reference_count", "$count$ 条指令引用", { count: refs(tool.id) }) :
-      tr("ai_chat_tool_references", "$count$ 条调用 AI 指令引用", { count: refs(tool.id) }), refs(tool.id) ? "" : "disabled");
     return `<div class="aw-toolbar"><span>${esc(tr("workflow_tool_count", "$count$ 个工具", { count: library.length }))}</span>
       <div class="aw-tools">${button("tool-import", tr("workflow_tool_import", "导入工具"))}${button("tool-new", tr("workflow_tool_new", "新建工具"), 'class="aw-primary"', "plus")}</div></div><div class="aw-list">
       ${library.map(tool => `<div class="aw-card" data-id="${esc(tool.id)}"><div><strong>${esc(tool.name)}</strong>
         <small>${flow.isProviderToolId(tool.id) ? esc(tr("workflow_tool_builtin", "内置")) + " · " : ""}${esc(tool.enabled ? tr("common_enable", "启用") : tr("common_disable", "停用"))} · ${esc(tool.description)}</small></div>
-        <div class="aw-tools">${reference(tool)}
+        <div class="aw-tools">
           ${iconButton("tool-edit", tr("workflow_tool_edit", "编辑工具") + " " + tool.name, "pencil")}
           ${iconButton("tool-test", toolTestLabel() + " " + tool.name, "player-play")}
           ${[...flow.walk(tool.steps, true)].some(node => node.keyHeader) ? iconButton("tool-key", tr("workflow_tool_credentials", "本机密钥") + " " + tool.name, "key") : ""}
@@ -2837,7 +2866,6 @@
   async function toolPageAction(state, action, id) {
     if (action === "tool-new") return editWorkflow(state, null, null, true);
     if (action === "tool-import") return state.node.querySelector("[data-import-tool]").click();
-    if (action === "tool-references") return showToolReferences(state, id);
     const next = flow.clone(state.bundle), index = next.tools?.findIndex(tool => tool.id === id) ?? -1;
     if (index < 0) return;
     const tool = next.tools[index];
@@ -2852,13 +2880,11 @@
     }
     if (action === "tool-toggle") tool.enabled = !tool.enabled;
     else if (action === "tool-delete") {
-      if (toolReferences(next, id).length) {
-        await state.ctx.dialog(state.shadow, { title: tr("workflow_tool_references", "工具引用"),
-          message: tr("workflow_tool_referenced_delete", "请先解除工作流中的工具引用。"), actions: [{ id: "close", label: tr("common_close", "关闭") }] });
-        return;
-      }
-      if (!await confirm(state, tr("common_delete", "删除") + " " + toolTitle(),
-        tr("workflow_tool_delete_confirm", "将删除「$name$」及其本机密钥。", { name: tool.name }))) return;
+      const references = toolReferences(next, id).map(({ workflow }) => workflow.name);
+      let message = tr("workflow_tool_delete_confirm", "将删除「$name$」。", { name: tool.name });
+      if ([...flow.walk(tool.steps)].some(node => node.action === "http-request" && node.keyHeader))
+        message += "\n" + tr("workflow_tool_delete_credentials", "此工具的 HTTP 指令若有单独保存在本机的密钥，也会一并删除。");
+      if (!await confirmDelete(state, tr("workflow_tool_delete", "删除工具"), message, toolTitle(), references)) return;
       next.tools.splice(index, 1);
     } else return;
     await save(state, next);
@@ -2896,7 +2922,7 @@
     if (action === "tab") { if (state.tab === control.dataset.tab) return; state.tab = control.dataset.tab; if (state.tab === "history") await history(state); else renderPage(state); return; }
     if (action.startsWith("tool-")) return toolPageAction(state, action, id);
     if (action === "reset") {
-      const answer = await state.ctx.dialog(state.shadow, { title: tr("workflow_ui_restore_default_prompts_and_automation", "恢复提示词与自动化初始化"), className: "aw-automation-dialog", form: true,
+      const answer = await state.ctx.dialog(state.shadow, { title: tr("workflow_ui_restore_default_prompts_and_automation", "恢复提示词与自动化初始化"), className: "aw-automation-dialog", native: true,
         message: tr("workflow_ui_this_replaces_all_prompts_triggers_and_workflows_and_ends_un", "将替换全部提示词、触发器和工作流，并结束未完成运行。AI 连接、历史消息及已写入的结果会保留。"),
         actions: [{ id: "cancel", label: tr("common_cancel", "取消") }, { id: "reset", label: tr("workflow_ui_restore_defaults", "恢复初始化"), primary: true, danger: true }] });
       if (answer === "reset") {
@@ -2935,8 +2961,12 @@
       item.enabled = !item.enabled;
     }
     else if (action.endsWith("-delete")) {
-      const refs = section === "workflows" ? next.triggers.filter(trigger => trigger.workflowId === id) : [];
-      if (!await confirm(state, tr("common_delete", "删除") + (section === "workflows" ? tr("workflow_ui_workflows", "工作流") : tr("workflow_ui_triggers", "触发器")), tr("workflow_format_delete_record", "将删除“$name$”并结束相关未完成运行。该操作无法撤销。", { name: item.name }) + (refs.length ? "\n" + tr("workflow_ui_these_triggers_will_lose_their_workflow_reference", "以下触发器会失去工作流引用：") + refs.map(item => item.name).join("、") : ""))) return;
+      const workflow = section === "workflows";
+      const title = workflow ? tr("workflow_ui_delete_workflow", "删除工作流") : tr("workflow_ui_delete_trigger", "删除触发器");
+      const references = workflow ? next.triggers.filter(trigger => trigger.workflowId === id).map(trigger => trigger.name) : [];
+      if (!await confirmDelete(state, title,
+        tr("workflow_format_delete_record", "将删除“$name$”并结束相关未完成运行。该操作无法撤销。", { name: item.name }),
+        tr("workflow_reference_kind_workflow", "工作流"), references)) return;
       next[section].splice(index, 1);
     } else return;
     await save(state, next);
@@ -2977,5 +3007,5 @@
       } else void importFlow(state, file).catch(error => reportFailure(error, node.querySelector(".aw-error")));
     });
   }
-  root.STAutomationEditor = Object.freeze({ mount, style });
+  root.STAutomationEditor = Object.freeze({ mount, style, confirmDelete });
 })(globalThis);

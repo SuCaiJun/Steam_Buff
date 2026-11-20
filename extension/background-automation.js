@@ -1000,12 +1000,12 @@
     const controller = new AbortController();
     requests.set(job.id, controller);
     try {
-      const frame = current.toolRun;
-      if (query) {
+      const frame = current.toolRun, state = execution(current).flow;
+      if (query || frame) {
         const bundle = await guard(current);
         if (frame) guardTool(bundle, frame);
       }
-      const value = await (query ? runQuery(node, execution(current).flow, controller.signal, frame?.workflow) : runScriptOrReading(node, current.flow, job.id, controller.signal));
+      const value = await (query ? runQuery(node, state, controller.signal, frame?.workflow) : runScriptOrReading(node, state, job.id, controller.signal));
       controller.signal.throwIfAborted();
       const bundle = await guard(current);
       if (frame) {
@@ -1033,7 +1033,8 @@
   }
   function toolFailure(frame, node, error) {
     const known = error.actionResult || ["WORKFLOW_DATA_ERROR", "WORKFLOW_VALUE_UNSET", "WORKFLOW_VALUE_TYPE", "WORKFLOW_HTTP_FAILED",
-      "WORKFLOW_HTTP_TIMEOUT", "WORKFLOW_HTTP_PERMISSION_REQUIRED", "WORKFLOW_SUPPORTER_REQUIRED", "WORKFLOW_TOOL_KEY_REQUIRED"].includes(error.code);
+      "WORKFLOW_HTTP_TIMEOUT", "WORKFLOW_HTTP_PERMISSION_REQUIRED", "WORKFLOW_SUPPORTER_REQUIRED", "WORKFLOW_TOOL_KEY_REQUIRED",
+      "WORKFLOW_SCRIPT_ERROR", "WORKFLOW_SCRIPT_TIMEOUT"].includes(error.code);
     const result = error.actionResult || !known ? error : actionError(error.message, error.code, error);
     result.toolId = frame.workflow.id;
     result.toolNodeId = error.nodeId ?? frame.flow.nodeId;
@@ -1041,7 +1042,7 @@
     if (known) result.toolResult = { ...frame.binding, ...resultError(result, result.code || "WORKFLOW_AI_TOOL_FAILED") };
     return result;
   }
-  /** 草稿试运行使用相同的指令解释、权限和 HTTP 执行，预览会话由设置窗口持有 */
+  /** 草稿试运行共用指令解释、权益和宿主执行，预览会话由设置窗口持有 */
   async function testTool(request, previewKey) {
     if (previews.has(previewKey)) throw new Error("工具正在试运行");
     const workflow = model.validateTool(request.tool);
@@ -1062,10 +1063,17 @@
             node = next.node;
             const failures = state.failures?.length || 0;
             if (next.kind === "action" && !flow.local(workflow, state, node)) {
-              if (node.action === "http-request") await requireWorkflowPermission(node);
-              else if (!isToolQuery(node)) throw new TypeError("工具指令无法执行");
-              await flow.evaluateValues(flow.inputs(node), state, evaluate);
-              const result = await runQuery(node, state, signal, workflow);
+              let result;
+              if (node.action === "script") {
+                await requireWorkflowPermission(node);
+                check();
+                result = await runScriptOrReading(node, state, "tool-preview-" + previewKey, signal);
+              } else {
+                if (node.action === "http-request") await requireWorkflowPermission(node);
+                else if (!isToolQuery(node)) throw new TypeError("工具指令无法执行");
+                await flow.evaluateValues(flow.inputs(node), state, evaluate);
+                result = await runQuery(node, state, signal, workflow);
+              }
               check();
               flow.complete(workflow, state, node, result);
             }
@@ -1387,21 +1395,22 @@
 
   function featureLinks(workflow, translate) {
     const links = Object.entries(root.STAI.MANUAL_TASKS).map(([scene, label]) => ({
-      ...workflow.bindings[scene], label,
+      ...workflow.bindings[scene], id: `scene:${scene}`, label,
     }));
     for (const [surface, fields] of Object.entries(root.STAI.TRANSLATION)) {
       const serviceId = translate[fields.service], label = translateNames[surface];
-      links.push({ serviceId, promptId: translate[fields.prompt], label });
-      if (fields.webPrompt) links.push({ serviceId, promptId: translate[fields.webPrompt], label });
+      links.push({ id: `translation:${fields.prompt}`, serviceId, promptId: translate[fields.prompt], label });
+      if (fields.webPrompt) links.push({ id: `translation:${fields.webPrompt}`, serviceId, promptId: translate[fields.webPrompt], label });
     }
     return links;
   }
 
   function promptReferences(id, workflow, translate) {
-    const names = featureLinks(workflow, translate).filter((link) => link.promptId === id).map((link) => link.label);
+    const references = featureLinks(workflow, translate).filter(link => link.promptId === id).map(({ id, label }) => ({ id, label }));
     for (const rule of workflow.workflows)
-      if ([...model.walkSteps(rule.steps)].some((step) => step.promptId === id)) names.push(rule.name);
-    return [...new Set(names)];
+      if ([...model.walkSteps(rule.steps)].some(step => step.promptId === id))
+        references.push({ id: `workflow:${rule.id}`, label: rule.name });
+    return references;
   }
 
 
@@ -1430,10 +1439,21 @@
       throw Object.assign(new Error("配置已在另一窗口修改，请重新读取后保存"), { code: "WORKFLOW_REVISION_CONFLICT" });
     if (replace) next.epoch = crypto.randomUUID();
     next.revision = current.revision + 1;
-    const ids = new Set(next.tools.map(tool => tool.id));
-    for (const workflow of next.workflows) for (const node of flow.walk(workflow.steps)) {
-      if (flow.toolIds(node).some(id => flow.isToolId(id) && !ids.has(id)))
-        throw Object.assign(new Error("工作流引用了不存在的工具：" + workflow.name), { code: "WORKFLOW_TOOL_MISSING", nodeId: node.id });
+    if (!replace) {
+      const ids = new Set(next.tools.map(tool => tool.id)), prior = new Map(current.workflows.map(workflow => [workflow.id, workflow]));
+      for (const workflow of next.workflows) {
+        let oldNodes;
+        for (const node of flow.walk(workflow.steps)) {
+          const missing = flow.toolIds(node).filter(id => flow.isToolId(id) && !ids.has(id));
+          if (!missing.length) continue;
+          // 删除工具后保留原节点引用，新的指令和新增引用仍须选择存在的工具
+          const oldWorkflow = prior.get(workflow.id);
+          oldNodes ??= new Map(oldWorkflow ? Array.from(flow.walk(oldWorkflow.steps), step => [step.id, step]) : []);
+          const old = oldNodes.get(node.id);
+          if (!old || old.action !== node.action || missing.some(id => !flow.toolIds(old).includes(id)))
+            throw Object.assign(new Error("工作流引用了不存在的工具：" + workflow.name), { code: "WORKFLOW_TOOL_MISSING", nodeId: node.id });
+        }
+      }
     }
     for (const section of ["prompts", "workflows", "triggers", "tools"]) for (const item of next[section]) {
       const old = current[section]?.find(row => row.id === item.id);
@@ -1506,6 +1526,16 @@
     }
     let translate = patch.translate ? { ...oldTranslate, ...patch.translate } : oldTranslate;
     const next = workflow ? reviseWorkflow(workflow, current, diagnostics.replace && !patch.familySettings) : current;
+    if (diagnostics.promptDeletion !== undefined) {
+      const { id, referenceIds } = diagnostics.promptDeletion;
+      if (!root.STAI.isPromptId(id) || !Array.isArray(referenceIds) || referenceIds.some(reference => typeof reference !== "string") ||
+        !current.prompts.some(prompt => prompt.id === id) || next.prompts.some(prompt => prompt.id === id))
+        throw new TypeError("提示词删除确认无效");
+      // 翻译绑定可独立保存，删除前须在配置锁内核对用户确认的影响范围
+      const actual = promptReferences(id, current, oldTranslate);
+      if (actual.length !== referenceIds.length || actual.some(reference => !referenceIds.includes(reference.id)))
+        throw Object.assign(new Error("提示词的使用方已变更，请重新打开删除确认。"), { code: "WORKFLOW_PROMPT_REFERENCES_CHANGED" });
+    }
     if (diagnostics.reset) {
       translate = { ...translate };
       const initial = root.STAI.translationDefaults();
@@ -1808,7 +1838,8 @@
       await initialization;
       const storage = root.STSettings.storage;
       const [workflow, translate] = await Promise.all([storage.getWorkflow(), storage.getTranslate()]);
-      return promptReferences(request.id, workflow, translate);
+      const references = promptReferences(request.id, workflow, translate);
+      return request.includeIds === true ? references : [...new Set(references.map(reference => reference.label))];
     }
     if (request.action === "replace-config")
       return commitConfig(request.value, { operationId: request.operationId, replace: true });
@@ -1828,7 +1859,7 @@
       return result.body;
     }
     if (request.action === "save-config")
-      return commitConfig(request.value, { operationId: request.operationId });
+      return commitConfig(request.value, { operationId: request.operationId, promptDeletion: request.promptDeletion });
     if (request.action === "reset") {
       await requireSetup();
       const current = await root.STSettings.storage.getWorkflow(),

@@ -93,6 +93,7 @@
   }
   function errorCaption(error) {
     if (error.code === "WORKFLOW_REVISION_CONFLICT") return tr("workflow_ui_settings_changed_elsewhere", error.message);
+    if (error.code === "WORKFLOW_PROMPT_REFERENCES_CHANGED") return tr("workflow_prompt_delete_references_changed", error.message);
     return error.messageKey ? tr(error.messageKey, error.message, error.messageParams) : error.message;
   }
   function reportFailure(error, node) {
@@ -353,9 +354,9 @@
     if (result === "save" && !state.steamPending)
       void root.STSettingsDialogs.notice(state.shadow, { title: tr("settings_savePrompt_title", "保存成功"), message: tr("workflow_ui_prompt_plan_saved", "提示词方案已保存。") });
   }
-  async function save(state, value) {
+  async function save(state, value, diagnostics) {
     let steamPending = false;
-    state.bundle = await state.ctx.storage.setWorkflow(value, { onSteamPending: () => { steamPending = true; } });
+    state.bundle = await state.ctx.storage.setWorkflow(value, { ...diagnostics, onSteamPending: () => { steamPending = true; } });
     state.steamPending = steamPending;
     state.render();
   }
@@ -453,11 +454,14 @@
     if (index < 0) return;
     if (name === "prompt-toggle") { next.prompts[index].enabled = !next.prompts[index].enabled; await save(state, next); }
     if (name === "prompt-delete") {
-      const refs = await rpc("prompt-references", { id });
-      const answer = await state.ctx.dialog(state.shadow, { title: tr("workflow_ui_delete_prompt", "删除提示词"), className: "aw-automation-dialog", form: true,
-        message: tr("workflow_format_delete_prompt", "将删除“$name$”，该操作无法撤销。", { name: next.prompts[index].name }) + (refs.length ? "\n" + tr("workflow_ui_check_prompt_bindings_in", "以下位置需要检查提示词绑定：") + refs.join("、") : ""),
-        actions: [{ id: "cancel", label: tr("common_cancel", "取消") }, { id: "delete", label: tr("common_delete", "删除"), primary: true, danger: true }] });
-      if (answer === "delete") { next.prompts.splice(index, 1); await save(state, next); }
+      const refs = await rpc("prompt-references", { id, includeIds: true });
+      const confirmed = await root.STAutomationEditor.confirmDelete(state, tr("workflow_ui_delete_prompt", "删除提示词"),
+        tr("workflow_format_delete_prompt", "将删除“$name$”，该操作无法撤销。", { name: next.prompts[index].name }),
+        tr("workflow_reference_kind_prompt", "提示词"), refs.map(reference => reference.label));
+      if (confirmed) {
+        next.prompts.splice(index, 1);
+        await save(state, next, { promptDeletion: { id, referenceIds: refs.map(reference => reference.id) } });
+      }
     }
   }
   async function mount(shadow, ctx) {

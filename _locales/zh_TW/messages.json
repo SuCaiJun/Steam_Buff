@@ -10895,12 +10895,6 @@
   "workflow_tool_import_copy": {
     "message": "另存副本"
   },
-  "workflow_tool_references": {
-    "message": "工具參照"
-  },
-  "workflow_tool_open_reference": {
-    "message": "定位指令"
-  },
   "workflow_tool_credentials": {
     "message": "本機金鑰"
   },
@@ -10934,21 +10928,10 @@
   "workflow_tool_builtin": {
     "message": "內建"
   },
-  "workflow_tool_referenced_delete": {
-    "message": "請先解除工作流程中的工具參照。"
-  },
   "workflow_tool_missing": {
     "message": "找不到工具 $id$，請匯入或重新選擇。",
     "placeholders": {
       "id": {
-        "content": "$1"
-      }
-    }
-  },
-  "workflow_tool_reference_count": {
-    "message": "$count$ 條指令參照",
-    "placeholders": {
-      "count": {
         "content": "$1"
       }
     }
@@ -10961,13 +10944,48 @@
       }
     }
   },
+  "workflow_prompt_delete_references_changed": {
+    "message": "提示詞的使用方已變更，請重新開啟刪除確認。"
+  },
+  "workflow_delete_reference_warning": {
+    "message": "$names$ 正在使用此$kind$。刪除後可能導致相關功能無法使用，確定要刪除嗎？",
+    "placeholders": {
+      "names": {
+        "content": "$1"
+      },
+      "kind": {
+        "content": "$2"
+      }
+    }
+  },
+  "workflow_reference_name_separator": {
+    "message": "、"
+  },
+  "workflow_reference_kind_workflow": {
+    "message": "工作流程"
+  },
+  "workflow_reference_kind_prompt": {
+    "message": "提示詞"
+  },
+  "workflow_tool_delete": {
+    "message": "刪除工具"
+  },
+  "workflow_ui_delete_workflow": {
+    "message": "刪除工作流程"
+  },
+  "workflow_ui_delete_trigger": {
+    "message": "刪除觸發器"
+  },
   "workflow_tool_delete_confirm": {
-    "message": "將刪除「$name$」及其本機金鑰。",
+    "message": "將刪除「$name$」。",
     "placeholders": {
       "name": {
         "content": "$1"
       }
     }
+  },
+  "workflow_tool_delete_credentials": {
+    "message": "此工具的 HTTP 指令若有單獨儲存在本機的金鑰，也會一併刪除。"
   },
   "workflow_error_tool_instruction": {
     "message": "此處無法使用該指令"
@@ -10983,14 +11001,6 @@
   },
   "workflow_command_tool_return_hint": {
     "message": "傳回資料並結束工具執行"
-  },
-  "ai_chat_tool_references": {
-    "message": "$count$ 條呼叫 AI 指令參照",
-    "placeholders": {
-      "count": {
-        "content": "$1"
-      }
-    }
   },
   "ai_chat_new": {
     "message": "新增對話"
@@ -12905,12 +12915,6 @@
   },
   "workflow_ui_run_log": {
     "message": "執行日誌"
-  },
-  "workflow_ui_these_triggers_will_lose_their_workflow_reference": {
-    "message": "以下觸發器會失去工作流引用："
-  },
-  "workflow_ui_check_prompt_bindings_in": {
-    "message": "以下位置需要檢查提示詞繫結："
   },
   "workflow_ui_full_snippet": {
     "message": "完整片段："

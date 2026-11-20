@@ -2544,7 +2544,7 @@
     .game-links-list.is-settling .game-links-row{transition:none}
     .game-links-row.dragging{border-style:dashed;border-color:var(--st-color-steam-blue);background:var(--st-color-primary-surface);cursor:grabbing}
     .game-links-list.is-sorting .game-links-row.dragging>*{opacity:0;pointer-events:none}
-    .game-links-row.game-links-drag-preview{position:fixed;z-index:10;margin:0;pointer-events:none;opacity:1;background:var(--st-color-bg-card);border-color:var(--st-color-steam-blue);box-shadow:var(--st-shadow-dialog);cursor:grabbing;transition:none}
+    .game-links-row.game-links-drag-preview{position:fixed;z-index:10;margin:0;pointer-events:none;opacity:1;background:var(--st-dialog-surface-raised);border-color:var(--st-color-steam-blue);box-shadow:var(--st-shadow-dialog);cursor:grabbing;transition:none}
     @media(prefers-reduced-motion:reduce){.game-links-list.is-sorting .game-links-row{transition:none}}
     .game-links-copy{min-width:0;overflow-wrap:anywhere}
     .game-links-copy strong{font-weight:var(--st-font-weight-medium)}

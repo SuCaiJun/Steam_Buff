@@ -10895,12 +10895,6 @@
   "workflow_tool_import_copy": {
     "message": "Save a copy"
   },
-  "workflow_tool_references": {
-    "message": "Tool references"
-  },
-  "workflow_tool_open_reference": {
-    "message": "Go to action"
-  },
   "workflow_tool_credentials": {
     "message": "Local credentials"
   },
@@ -10934,21 +10928,10 @@
   "workflow_tool_builtin": {
     "message": "Built-in"
   },
-  "workflow_tool_referenced_delete": {
-    "message": "Remove this tool’s workflow references first."
-  },
   "workflow_tool_missing": {
     "message": "Tool $id$ is missing. Import it or select another.",
     "placeholders": {
       "id": {
-        "content": "$1"
-      }
-    }
-  },
-  "workflow_tool_reference_count": {
-    "message": "$count$ action references",
-    "placeholders": {
-      "count": {
         "content": "$1"
       }
     }
@@ -10961,13 +10944,48 @@
       }
     }
   },
+  "workflow_prompt_delete_references_changed": {
+    "message": "This prompt's usage has changed. Reopen the delete confirmation."
+  },
+  "workflow_delete_reference_warning": {
+    "message": "Used by $names$. Deleting this $kind$ may stop related features from working. Delete it?",
+    "placeholders": {
+      "names": {
+        "content": "$1"
+      },
+      "kind": {
+        "content": "$2"
+      }
+    }
+  },
+  "workflow_reference_name_separator": {
+    "message": ", "
+  },
+  "workflow_reference_kind_workflow": {
+    "message": "workflow"
+  },
+  "workflow_reference_kind_prompt": {
+    "message": "prompt"
+  },
+  "workflow_tool_delete": {
+    "message": "Delete tool"
+  },
+  "workflow_ui_delete_workflow": {
+    "message": "Delete workflow"
+  },
+  "workflow_ui_delete_trigger": {
+    "message": "Delete trigger"
+  },
   "workflow_tool_delete_confirm": {
-    "message": "Delete “$name$” and its local credentials?",
+    "message": "“$name$” will be deleted.",
     "placeholders": {
       "name": {
         "content": "$1"
       }
     }
+  },
+  "workflow_tool_delete_credentials": {
+    "message": "Any credentials saved locally for this tool’s HTTP instructions will also be deleted."
   },
   "workflow_error_tool_instruction": {
     "message": "This action is unavailable here."
@@ -10983,14 +11001,6 @@
   },
   "workflow_command_tool_return_hint": {
     "message": "Return data and finish the tool run"
-  },
-  "ai_chat_tool_references": {
-    "message": "Used by $count$ Call AI actions",
-    "placeholders": {
-      "count": {
-        "content": "$1"
-      }
-    }
   },
   "ai_chat_new": {
     "message": "New chat"
@@ -12905,12 +12915,6 @@
   },
   "workflow_ui_run_log": {
     "message": "Run log"
-  },
-  "workflow_ui_these_triggers_will_lose_their_workflow_reference": {
-    "message": "These triggers will lose their workflow reference: "
-  },
-  "workflow_ui_check_prompt_bindings_in": {
-    "message": "Check prompt bindings in: "
   },
   "workflow_ui_full_snippet": {
     "message": "Full snippet: "

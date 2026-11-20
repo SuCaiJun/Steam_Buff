@@ -10895,12 +10895,6 @@
   "workflow_tool_import_copy": {
     "message": "사본 저장"
   },
-  "workflow_tool_references": {
-    "message": "도구 참조"
-  },
-  "workflow_tool_open_reference": {
-    "message": "작업으로 이동"
-  },
   "workflow_tool_credentials": {
     "message": "로컬 인증 정보"
   },
@@ -10934,21 +10928,10 @@
   "workflow_tool_builtin": {
     "message": "기본 제공"
   },
-  "workflow_tool_referenced_delete": {
-    "message": "먼저 워크플로에서 이 도구의 참조를 제거하세요."
-  },
   "workflow_tool_missing": {
     "message": "도구 $id$을(를) 찾을 수 없습니다. 가져오거나 다른 도구를 선택하세요.",
     "placeholders": {
       "id": {
-        "content": "$1"
-      }
-    }
-  },
-  "workflow_tool_reference_count": {
-    "message": "작업 $count$개에서 참조",
-    "placeholders": {
-      "count": {
         "content": "$1"
       }
     }
@@ -10961,13 +10944,48 @@
       }
     }
   },
+  "workflow_prompt_delete_references_changed": {
+    "message": "프롬프트 사용 위치가 변경되었습니다. 삭제 확인을 다시 열어 주세요."
+  },
+  "workflow_delete_reference_warning": {
+    "message": "$names$에서 이 $kind$ 항목을 사용 중입니다. 삭제하면 관련 기능을 사용하지 못할 수 있습니다. 삭제할까요?",
+    "placeholders": {
+      "names": {
+        "content": "$1"
+      },
+      "kind": {
+        "content": "$2"
+      }
+    }
+  },
+  "workflow_reference_name_separator": {
+    "message": ", "
+  },
+  "workflow_reference_kind_workflow": {
+    "message": "워크플로"
+  },
+  "workflow_reference_kind_prompt": {
+    "message": "프롬프트"
+  },
+  "workflow_tool_delete": {
+    "message": "도구 삭제"
+  },
+  "workflow_ui_delete_workflow": {
+    "message": "워크플로 삭제"
+  },
+  "workflow_ui_delete_trigger": {
+    "message": "트리거 삭제"
+  },
   "workflow_tool_delete_confirm": {
-    "message": "‘$name$’ 및 로컬 인증 정보를 삭제합니다.",
+    "message": "‘$name$’을(를) 삭제합니다.",
     "placeholders": {
       "name": {
         "content": "$1"
       }
     }
+  },
+  "workflow_tool_delete_credentials": {
+    "message": "이 도구의 HTTP 명령에 대해 로컬에 저장한 인증 정보가 있다면 함께 삭제됩니다."
   },
   "workflow_error_tool_instruction": {
     "message": "여기에서는 이 작업을 사용할 수 없습니다."
@@ -10983,14 +11001,6 @@
   },
   "workflow_command_tool_return_hint": {
     "message": "데이터를 반환하고 도구 실행을 종료합니다"
-  },
-  "ai_chat_tool_references": {
-    "message": "AI 호출 작업 $count$개에서 사용",
-    "placeholders": {
-      "count": {
-        "content": "$1"
-      }
-    }
   },
   "ai_chat_new": {
     "message": "새 대화"
@@ -12905,12 +12915,6 @@
   },
   "workflow_ui_run_log": {
     "message": "실행 로그"
-  },
-  "workflow_ui_these_triggers_will_lose_their_workflow_reference": {
-    "message": "다음 트리거의 워크플로 참조가 사라집니다: "
-  },
-  "workflow_ui_check_prompt_bindings_in": {
-    "message": "다음 위치의 프롬프트 연결을 확인하세요: "
   },
   "workflow_ui_full_snippet": {
     "message": "전체 조각: "

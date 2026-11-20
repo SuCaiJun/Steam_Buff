@@ -1197,10 +1197,12 @@
 
   async function setWorkflow(values, diagnostics = {}) {
     const next = globalThis.STAutomation.normalize(values);
+    const confirmation = diagnostics.promptDeletion === undefined ? {} : { promptDeletion: diagnostics.promptDeletion };
     if (globalThis.STBackgroundAutomation)
       return globalThis.STBackgroundAutomation.saveConfig(next, {
         operationId: diagnostics.operationId,
         replace: diagnostics.replaceWorkflow === true,
+        ...confirmation,
       });
     const response = await globalThis.STMessageBus.request(
       {
@@ -1208,6 +1210,7 @@
         action: diagnostics.replaceWorkflow === true ? "replace-config" : "save-config",
         value: next,
         operationId: diagnostics.operationId,
+        ...confirmation,
       },
       { timeoutMs: 120000, logFailures: false },
     );

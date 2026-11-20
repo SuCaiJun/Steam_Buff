@@ -94,7 +94,7 @@
   const opened = [];
   let nextId = 0;
 
-  /** form 使用原生模态。renderFooter 可在操作区放置表单控件。isDirty 只在请求取消时检查。 */
+  /** form 使用原生模态及表单布局，native 使用原生模态及标准宽度。isDirty 只在请求取消时检查。 */
   function dialog(shadow, options = {}) {
     const startedAt = Date.now();
     const panel = shadow?.querySelector?.(".panel");
@@ -108,7 +108,7 @@
 
     const restoreTarget = shadow.activeElement;
     const parent = opened.at(-1);
-    const native = options.form === true || parent?.native === true;
+    const native = options.form === true || options.native === true || parent?.native === true;
     if (parent && !parent.native) {
       parent.cancel();
       parent.layer.remove();

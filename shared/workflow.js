@@ -616,7 +616,7 @@
   const toolIds = node => node.action === "ai-call" ? node.toolIds || []
     : node.action === "tool-call" && node.toolMode === "registered" ? [node.toolId] : [];
   const toolAction = key => toolOnlyAction(key) || Object.hasOwn(data.byId, key) && !data.readingActions.includes(key) ||
-    loops.has(key) && key !== "forever" || ["http-request", "if", "if-many", "else-if", "else-if-many", "else", "end-if",
+    loops.has(key) && key !== "forever" || ["http-request", "script", "if", "if-many", "else-if", "else-if-many", "else", "end-if",
       "continue", "break", "end-loop", "try", "catch", "finally", "end-try", "raise", "comment", "fold-start", "fold-end"].includes(key);
   /** 指令契约中的输入值；运行、编辑器引用与表达式求值共用此边界。 */
   function inputs(node) {

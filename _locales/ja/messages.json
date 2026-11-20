@@ -10895,12 +10895,6 @@
   "workflow_tool_import_copy": {
     "message": "コピーとして保存"
   },
-  "workflow_tool_references": {
-    "message": "ツールの参照"
-  },
-  "workflow_tool_open_reference": {
-    "message": "指示へ移動"
-  },
   "workflow_tool_credentials": {
     "message": "ローカル認証情報"
   },
@@ -10934,21 +10928,10 @@
   "workflow_tool_builtin": {
     "message": "組み込み"
   },
-  "workflow_tool_referenced_delete": {
-    "message": "先にワークフローでのツール参照を解除してください。"
-  },
   "workflow_tool_missing": {
     "message": "ツール $id$ が見つかりません。インポートするか別のツールを選択してください。",
     "placeholders": {
       "id": {
-        "content": "$1"
-      }
-    }
-  },
-  "workflow_tool_reference_count": {
-    "message": "$count$ 件の指示で参照",
-    "placeholders": {
-      "count": {
         "content": "$1"
       }
     }
@@ -10961,13 +10944,48 @@
       }
     }
   },
+  "workflow_prompt_delete_references_changed": {
+    "message": "プロンプトの使用先が変わりました。削除の確認を開き直してください。"
+  },
+  "workflow_delete_reference_warning": {
+    "message": "$names$ がこの$kind$を使用しています。削除すると関連機能が使えなくなる可能性があります。削除しますか？",
+    "placeholders": {
+      "names": {
+        "content": "$1"
+      },
+      "kind": {
+        "content": "$2"
+      }
+    }
+  },
+  "workflow_reference_name_separator": {
+    "message": "、"
+  },
+  "workflow_reference_kind_workflow": {
+    "message": "ワークフロー"
+  },
+  "workflow_reference_kind_prompt": {
+    "message": "プロンプト"
+  },
+  "workflow_tool_delete": {
+    "message": "ツールを削除"
+  },
+  "workflow_ui_delete_workflow": {
+    "message": "ワークフローを削除"
+  },
+  "workflow_ui_delete_trigger": {
+    "message": "トリガーを削除"
+  },
   "workflow_tool_delete_confirm": {
-    "message": "「$name$」とローカル認証情報を削除します。",
+    "message": "「$name$」を削除します。",
     "placeholders": {
       "name": {
         "content": "$1"
       }
     }
+  },
+  "workflow_tool_delete_credentials": {
+    "message": "このツールの HTTP 命令用にローカルに保存した認証情報がある場合は、それも削除されます。"
   },
   "workflow_error_tool_instruction": {
     "message": "この指示はここでは使用できません。"
@@ -10983,14 +11001,6 @@
   },
   "workflow_command_tool_return_hint": {
     "message": "データを返してツールの実行を終了します"
-  },
-  "ai_chat_tool_references": {
-    "message": "$count$ 件の AI 呼び出し指示で使用",
-    "placeholders": {
-      "count": {
-        "content": "$1"
-      }
-    }
   },
   "ai_chat_new": {
     "message": "新しいチャット"
@@ -12905,12 +12915,6 @@
   },
   "workflow_ui_run_log": {
     "message": "実行ログ"
-  },
-  "workflow_ui_these_triggers_will_lose_their_workflow_reference": {
-    "message": "次のトリガーはワークフロー参照を失います："
-  },
-  "workflow_ui_check_prompt_bindings_in": {
-    "message": "次のプロンプト割り当てを確認してください："
   },
   "workflow_ui_full_snippet": {
     "message": "スニペット全体："
