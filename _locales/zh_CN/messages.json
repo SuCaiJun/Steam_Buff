@@ -4910,6 +4910,64 @@
   "store_cartSelect_bulkFailed": {
     "message": "购物车批量选择失败"
   },
+  "store_cartSelect_accountBusy": {
+    "message": "此 Steam 账号的购物车正在处理，请稍后重试。"
+  },
+  "store_cartSelect_cannotHold": {
+    "message": "部分未选商品无法恢复，请调整勾选后再结算。"
+  },
+  "store_cartSelect_checkoutChanged": {
+    "message": "购物车已更新，请核对后再次结算。"
+  },
+  "store_cartSelect_checkoutOpen": {
+    "message": "请先退出另一个标签页的 Steam 结算。"
+  },
+  "store_cartSelect_chooseAgain": {
+    "message": "重新勾选"
+  },
+  "store_cartSelect_discard": {
+    "message": "放弃恢复"
+  },
+  "store_cartSelect_discardMessage": {
+    "message": "放弃后，暂存商品的恢复记录会被删除。"
+  },
+  "store_cartSelect_migrationPending": {
+    "message": "发现旧版的取消勾选记录"
+  },
+  "store_cartSelect_pendingCheckout": {
+    "message": "请先处理上次暂存的购物车商品。"
+  },
+  "store_cartSelect_recoveryPending": {
+    "message": "有一笔购物车暂存待核对"
+  },
+  "store_cartSelect_reviewItems": {
+    "message": "查看待核对商品"
+  },
+  "store_cartSelect_reviewBundle": {
+    "message": "组合包 $id$",
+    "placeholders": {
+      "id": {
+        "content": "$1"
+      }
+    }
+  },
+  "store_cartSelect_reviewPackage": {
+    "message": "订阅包 $id$",
+    "placeholders": {
+      "id": {
+        "content": "$1"
+      }
+    }
+  },
+  "store_cartSelect_restoreUncertain": {
+    "message": "部分暂存商品的操作结果待核对，记录已保留。"
+  },
+  "store_cartSelect_useLegacy": {
+    "message": "沿用旧勾选"
+  },
+  "store_cartCheckout_restoreButton": {
+    "message": "返回购物车恢复"
+  },
   "store_cartSelect_checkoutFailed": {
     "message": "购物车选择处理失败"
   },
@@ -4918,14 +4976,6 @@
   },
   "store_cartSelect_holdFailed": {
     "message": "临时调整购物车失败，已保留暂存数据，请手动恢复"
-  },
-  "store_cartSelect_holdingItems": {
-    "message": "正在暂时保留$count$件未支付项目...",
-    "placeholders": {
-      "count": {
-        "content": "$1"
-      }
-    }
   },
   "store_cartSelect_invertSelection": {
     "message": "反选"
@@ -4942,17 +4992,11 @@
   "store_cartSelect_removeAll": {
     "message": "确认移除"
   },
-  "store_cartSelect_removeAllConfirm": {
-    "message": "确认移除购物车中的所有项目？"
-  },
   "store_cartSelect_removeAllMessage": {
     "message": "此操作会让 Steam 移除购物车中的所有项目。确认后将继续执行 Steam 原本的移除所有项目操作，取消则不会执行。"
   },
   "store_cartSelect_removeAllTitle": {
     "message": "确认移除所有项目"
-  },
-  "store_cartSelect_restoreWriteUnconfirmed": {
-    "message": "未收到购物车暂存写入确认，请刷新购物车页面后重试。"
   },
   "store_cartSelect_restoreButton": {
     "message": "恢复暂存购物车数据"
@@ -4960,30 +5004,8 @@
   "store_cartSelect_restored": {
     "message": "已恢复上次未支付项目"
   },
-  "store_cartSelect_restoreFailed": {
-    "message": "恢复失败，请重试"
-  },
   "store_cartSelect_restoreMissing": {
     "message": "有$count$件暂存购物车数据未恢复",
-    "placeholders": {
-      "count": {
-        "content": "$1"
-      }
-    }
-  },
-  "store_cartSelect_restorePartialFailed": {
-    "message": "部分暂存购物车数据未恢复，请稍后重试"
-  },
-  "store_cartSelect_restoreStillMissing": {
-    "message": "还有$count$件暂存购物车数据未恢复",
-    "placeholders": {
-      "count": {
-        "content": "$1"
-      }
-    }
-  },
-  "store_cartSelect_restoring": {
-    "message": "正在恢复$count$件暂存购物车数据...",
     "placeholders": {
       "count": {
         "content": "$1"
@@ -5482,24 +5504,6 @@
   },
   "store_priceHistory_unknownDate": {
     "message": "未知日期"
-  },
-  "store_cartCheckout_restoreButton": {
-    "message": "恢复暂存购物车数据"
-  },
-  "store_cartCheckout_restoreFailed": {
-    "message": "恢复失败，重试"
-  },
-  "store_cartCheckout_restored": {
-    "message": "已恢复暂存购物车"
-  },
-  "store_cartCheckout_restoring": {
-    "message": "正在恢复暂存购物车数据..."
-  },
-  "store_cartCheckout_restoreComplete": {
-    "message": "已恢复暂存购物车数据"
-  },
-  "store_cartCheckout_empty": {
-    "message": "暂无暂存购物车"
   },
   "store_steampy_loading": {
     "message": "正在读取价格..."
@@ -13982,18 +13986,6 @@
         "content": "$1"
       }
     }
-  },
-  "store_cartSelect_accountUnavailable": {
-    "message": "无法确认当前 Steam 账号，请确认登录后在购物车重试。"
-  },
-  "store_cartCheckout_sessionUnavailable": {
-    "message": "无法确认当前 Steam 账号或商店国家。暂存已保留，请回到购物车恢复。"
-  },
-  "store_cartCheckout_ownerUnconfirmed": {
-    "message": "无法确认暂存商品属于当前 Steam 账号。请使用暂存时的账号，回到购物车核对。"
-  },
-  "store_cartCheckout_restoreUnconfirmed": {
-    "message": "无法确认已恢复全部商品，请打开购物车核对。暂存记录已保留。"
   },
   "store_gameNotes_invalidResponse": {
     "message": "游戏备注响应格式错误。"

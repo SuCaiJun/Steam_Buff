@@ -4910,6 +4910,64 @@
   "store_cartSelect_bulkFailed": {
     "message": "購物車批次選取失敗"
   },
+  "store_cartSelect_accountBusy": {
+    "message": "此 Steam 帳號的購物車正在處理，請稍後重試。"
+  },
+  "store_cartSelect_cannotHold": {
+    "message": "部分未選商品無法復原，請調整勾選後再結帳。"
+  },
+  "store_cartSelect_checkoutChanged": {
+    "message": "購物車已更新，請核對後再次結帳。"
+  },
+  "store_cartSelect_checkoutOpen": {
+    "message": "請先離開另一個分頁中的 Steam 結帳。"
+  },
+  "store_cartSelect_chooseAgain": {
+    "message": "重新勾選"
+  },
+  "store_cartSelect_discard": {
+    "message": "放棄復原"
+  },
+  "store_cartSelect_discardMessage": {
+    "message": "放棄後，暫存商品的復原記錄將被刪除。"
+  },
+  "store_cartSelect_migrationPending": {
+    "message": "發現舊版的取消勾選記錄"
+  },
+  "store_cartSelect_pendingCheckout": {
+    "message": "請先處理上次暫存的購物車商品。"
+  },
+  "store_cartSelect_recoveryPending": {
+    "message": "有一筆購物車暫存待核對"
+  },
+  "store_cartSelect_reviewItems": {
+    "message": "查看待核對商品"
+  },
+  "store_cartSelect_reviewBundle": {
+    "message": "組合包 $id$",
+    "placeholders": {
+      "id": {
+        "content": "$1"
+      }
+    }
+  },
+  "store_cartSelect_reviewPackage": {
+    "message": "訂閱包 $id$",
+    "placeholders": {
+      "id": {
+        "content": "$1"
+      }
+    }
+  },
+  "store_cartSelect_restoreUncertain": {
+    "message": "部分暫存商品的操作結果待核對，記錄已保留。"
+  },
+  "store_cartSelect_useLegacy": {
+    "message": "沿用舊勾選"
+  },
+  "store_cartCheckout_restoreButton": {
+    "message": "返回購物車復原"
+  },
   "store_cartSelect_checkoutFailed": {
     "message": "購物車選取處理失敗"
   },
@@ -4918,14 +4976,6 @@
   },
   "store_cartSelect_holdFailed": {
     "message": "暫時調整購物車失敗，已保留暫存資料，請手動還原"
-  },
-  "store_cartSelect_holdingItems": {
-    "message": "正在暫時保留$count$個未付款項目...",
-    "placeholders": {
-      "count": {
-        "content": "$1"
-      }
-    }
   },
   "store_cartSelect_invertSelection": {
     "message": "反向選取"
@@ -4942,17 +4992,11 @@
   "store_cartSelect_removeAll": {
     "message": "確認移除"
   },
-  "store_cartSelect_removeAllConfirm": {
-    "message": "確認移除購物車中的所有項目？"
-  },
   "store_cartSelect_removeAllMessage": {
     "message": "此操作會讓 Steam 移除購物車中的所有項目。確認後將繼續執行 Steam 原本的移除所有項目操作，取消則不會執行。"
   },
   "store_cartSelect_removeAllTitle": {
     "message": "確認移除所有項目"
-  },
-  "store_cartSelect_restoreWriteUnconfirmed": {
-    "message": "未收到購物車暫存資料的寫入確認，請重新整理購物車頁面後再試一次。"
   },
   "store_cartSelect_restoreButton": {
     "message": "還原暫存購物車資料"
@@ -4960,30 +5004,8 @@
   "store_cartSelect_restored": {
     "message": "已還原上次未付款項目"
   },
-  "store_cartSelect_restoreFailed": {
-    "message": "還原失敗，請重試"
-  },
   "store_cartSelect_restoreMissing": {
     "message": "有$count$個暫存購物車項目尚未還原",
-    "placeholders": {
-      "count": {
-        "content": "$1"
-      }
-    }
-  },
-  "store_cartSelect_restorePartialFailed": {
-    "message": "部分暫存購物車項目尚未還原，請稍後重試"
-  },
-  "store_cartSelect_restoreStillMissing": {
-    "message": "還有$count$個暫存購物車項目尚未還原",
-    "placeholders": {
-      "count": {
-        "content": "$1"
-      }
-    }
-  },
-  "store_cartSelect_restoring": {
-    "message": "正在還原$count$個暫存購物車項目...",
     "placeholders": {
       "count": {
         "content": "$1"
@@ -5482,24 +5504,6 @@
   },
   "store_priceHistory_unknownDate": {
     "message": "未知日期"
-  },
-  "store_cartCheckout_restoreButton": {
-    "message": "還原暫存購物車資料"
-  },
-  "store_cartCheckout_restoreFailed": {
-    "message": "還原失敗，請重試"
-  },
-  "store_cartCheckout_restored": {
-    "message": "已還原暫存購物車"
-  },
-  "store_cartCheckout_restoring": {
-    "message": "正在還原暫存購物車資料..."
-  },
-  "store_cartCheckout_restoreComplete": {
-    "message": "已還原暫存購物車資料"
-  },
-  "store_cartCheckout_empty": {
-    "message": "沒有暫存購物車項目"
   },
   "store_steampy_loading": {
     "message": "正在讀取價格..."
@@ -13982,18 +13986,6 @@
         "content": "$1"
       }
     }
-  },
-  "store_cartSelect_accountUnavailable": {
-    "message": "無法確認目前的 Steam 帳號，請確認登入後回到購物車重試。"
-  },
-  "store_cartCheckout_sessionUnavailable": {
-    "message": "無法確認目前的 Steam 帳號或商店國家。商品已保留，請回到購物車還原。"
-  },
-  "store_cartCheckout_ownerUnconfirmed": {
-    "message": "無法確認暫存商品屬於目前的 Steam 帳號。請使用暫存時的帳號，回到購物車確認。"
-  },
-  "store_cartCheckout_restoreUnconfirmed": {
-    "message": "無法確認是否已還原所有商品，請開啟購物車核對。已保留暫存紀錄。"
   },
   "store_gameNotes_invalidResponse": {
     "message": "遊戲備註的回應格式有誤。"

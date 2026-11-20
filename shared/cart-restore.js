@@ -12,9 +12,9 @@
   "use strict";
 
   const KEY = "st.store.cartSelect.restore";
-  const TYPE = "CART_RESTORE_MUTATE";
+  const SELECTION_KEY = "st.store.cartSelect.selectionByAccount";
+  const LEGACY_SELECTION_KEY = "st.store.cartSelect.selection";
   const ITEMS_TYPE = "CART_RESTORE_ITEMS";
-  const TTL = 30 * 60 * 1000;
 
   function valid(batch) {
     return typeof batch?.id === "string" && batch.id.length > 0 && Array.isArray(batch.items)
@@ -27,67 +27,35 @@
     return value;
   }
 
-  function active(batch) {
-    return Date.now() - batch.createdAt <= TTL;
-  }
-
   function validAccount(id) {
     return typeof id === "string" && /^\d{17}$/.test(id);
   }
 
-  function pageSession(doc) {
-    const node = doc.getElementById("application_config");
-    if (!node) return null;
-    let user, storeUser;
+  function validLineId(id) {
+    return typeof id === "string" && /^[1-9]\d{0,19}$/.test(id) && BigInt(id) <= 0xffffffffffffffffn;
+  }
+
+  function pageAccount(doc) {
+    const config = doc.getElementById("application_config");
+    if (!config) return null;
+    let user;
     try {
-      user = JSON.parse(node.getAttribute("data-userinfo"));
-      storeUser = JSON.parse(node.getAttribute("data-store_user_config"));
-    } catch (cause) {
-      throw new Error(globalThis.STI18n.text("store_cartCheckout_sessionUnavailable", "无法确认当前 Steam 账号或商店国家。暂存已保留，请回到购物车恢复。"),
-        { cause: globalThis.STLoggerSchema.markJsonError(cause) });
+      user = JSON.parse(config.getAttribute("data-userinfo"));
+    } catch (error) {
+      throw globalThis.STLoggerSchema.markJsonError(error);
     }
-    if (user?.logged_in !== true || !validAccount(user.steamid)) return null;
-    return { accountSteamId: user.steamid, country: user.country_code, token: storeUser?.webapi_token };
-  }
-
-  function owned(batches, accountSteamId, token) {
-    if (!validAccount(accountSteamId)) return [];
-    return batches.filter(batch => Object.hasOwn(batch, "accountSteamId")
-      ? batch.accountSteamId === accountSteamId
-      : typeof token === "string" && token.length > 0 && batch.token === token);
-  }
-
-  async function mutate(action, fields = {}) {
-    const reply = await globalThis.STMessageBus.request({ type: TYPE, action, ...fields }, { expectSuccess: true });
-    if (reply?.success !== true || !Number.isInteger(reply.remaining)) {
-      throw new Error(globalThis.STI18n.text("store_cartSelect_restoreWriteUnconfirmed", "未收到购物车暂存写入确认，请刷新购物车页面后重试。"));
-    }
-    return reply.remaining;
-  }
-
-  async function read(value) {
-    const all = records(value);
-    const current = all.filter(active);
-    if (current.length !== all.length) await mutate("prune");
-    return current;
-  }
-
-  function containsItems(data, items) {
-    const lines = data?.response?.cart?.line_items;
-    return Array.isArray(lines) && items.every(item => lines.some(line => {
-      if (!line || line.flags?.is_gift || line.flags?.is_private || (line.gidcoupon_applied && line.gidcoupon_applied !== "0")) return false;
-      return item.bundleid ? line.bundleid === item.bundleid : line.packageid === item.packageid;
-    }));
+    return user?.logged_in === true && validAccount(user.steamid) ? user.steamid : null;
   }
 
   async function requestItems(action, fields, signal) {
-    const reply = await globalThis.STMessageBus.request({ type: ITEMS_TYPE, action, ...fields }, { expectSuccess: true, signal });
+    const timeoutMs = action === "checkout" ? 90_000 : 25_000;
+    const reply = await globalThis.STMessageBus.request({ type: ITEMS_TYPE, action, ...fields }, { expectSuccess: true, signal, timeoutMs });
     if (reply?.success !== true) {
-      throw new Error(globalThis.STI18n.text("store_cartCheckout_restoreUnconfirmed", "无法确认已恢复全部商品，请打开购物车核对。暂存记录已保留。"));
+      throw new Error(globalThis.STI18n.text("store_cartSelect_checkoutFailed", "购物车选择处理失败"));
     }
     return reply;
   }
 
-  globalThis.STCartRestore = Object.freeze({ KEY, TYPE, ITEMS_TYPE, valid, active, validAccount, pageSession, owned,
-    records, read, mutate, containsItems, requestItems });
+  globalThis.STCartRestore = Object.freeze({ KEY, SELECTION_KEY, LEGACY_SELECTION_KEY, ITEMS_TYPE, validAccount, validLineId, pageAccount,
+    records, requestItems });
 })();

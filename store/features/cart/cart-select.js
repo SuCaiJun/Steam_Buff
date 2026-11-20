@@ -16,14 +16,12 @@
 
   const t = (key, fallback, params) => globalThis.STI18n?.text?.(key, fallback, params) ?? fallback;
 
-  const REQ_EVT = "STStoreCartSelectRequest";
-  const RES_EVT = "STStoreCartSelectResponse";
-  const SEL_KEY = "st.store.cartSelect.selection";
+  const REQ_EVT = "STStoreAccountCartRowsRequest";
+  const RES_EVT = "STStoreAccountCartRowsResponse";
   const cart = globalThis.STCartRestore;
   const SCAN_MS = 700;
   const OBSERVER_DEBOUNCE_MS = 1000;
   const EMPTY_SCAN_RETRY_MAX = 12;
-  const SIDE_TOTAL_ROW_SELECTOR = "._2bIzQo07mxubFvscA8RIA8 > ._2DjadWLFH3keW9rGWZKxSk.qV80oahDZsbXiS6lIDLND";
   const SSR_CART_SELECTOR = "#StoreTemplate section.jGMVnjZbmZM-";
   const SSR_TOTAL_VALUE_SELECTOR = ".i1XZFikuzME- > .ZxG3hS-2Jjo- > .n9HLAjXXhvI-";
   const SSR_CHECKOUT_SELECTOR = ".bJV2ai-gAcA- > a[href]";
@@ -42,18 +40,16 @@
   let summaryResize = null;
   let summaryTargets = [];
   let removeAllConfirmation = null;
-  let restorePromptTimer = null;
-  let emptyScanRetries = 0;
-  let state = {};
-  let pendingSelectionState = null;
-  let selectionSaveTask = null;
+  let model = null;
   let items = [];
-  let itemsComplete = true;
   let accountSteamId = null;
-  let legacyOwnership = null;
+  let nativeVersion = null;
+  let scanTask = null;
+  let scanQueued = false;
+  let forceScanQueued = false;
+  let emptyScanRetries = 0;
+  let selectionSaveTask = null;
   let restoring = false;
-  let lastBridgeFailureKey = "";
-  let lastBridgeFailureAt = 0;
   let lastRenderKey = "";
   let lastBulkAnchorMissing = false;
   let lastSideAnchorMissing = false;
@@ -63,68 +59,67 @@
     return MATCH?.isSteamStoreHost?.(location.hostname) === true && /^\/cart\/?$/.test(location.pathname);
   }
 
-  async function loadState() {
-    const signal = lifecycle.signal;
-    const rt = await chrome.storage.local.get([SEL_KEY, cart.KEY]);
-    signal.throwIfAborted();
-    const restore = await cart.read(rt[cart.KEY]);
-    signal.throwIfAborted();
-    const selection = rt[SEL_KEY] && typeof rt[SEL_KEY] === "object" ? rt[SEL_KEY] : {};
-    return { selection, restore };
-  }
-
-  async function saveState(nextState) {
-    await chrome.storage.local.set({ [SEL_KEY]: nextState });
-    return true;
-  }
-
   function checked(item) {
-    const current = pendingSelectionState || state;
-    return current[item.key] !== false;
+    return !model?.excluded.includes(item.lineId);
   }
 
-  function setSelectionControlsDisabled(disabled) {
-    const locked = disabled || busy || restoring;
-    document.querySelectorAll(".st_cart_select_check input[data-st-cart-key], [data-st-cart-bulk]")
-      .forEach(control => {
-        control.disabled = locked || (!itemsComplete && control.hasAttribute("data-st-cart-bulk"));
-      });
-    const restore = document.querySelector("#st_cart_restore_panel .st_cart_restore_btn");
-    if (restore) restore.disabled = busy || restoring || !itemsComplete;
+  function setSelectionControlsDisabled() {
+    const locked = busy || restoring || !!selectionSaveTask || !model || model.migration > 0;
+    const root = ssrCart();
+    root?.querySelectorAll(".st_cart_select_check input[data-st-cart-key], [data-st-cart-bulk]")
+      .forEach(control => { control.disabled = locked; });
   }
 
-  function commitSelection(nextState, item) {
-    if (selectionSaveTask) {
-      const error = new Error("购物车选择状态正在保存");
-      error.code = "CART_SELECTION_SAVE_PENDING";
-      return Promise.reject(error);
-    }
-
-    const snapshot = { ...nextState };
-    pendingSelectionState = snapshot;
-    const task = (async () => {
-      if (item && ssrCart()) {
-        const reply = await request("check-line", { lineId: item.lineId, key: item.key });
-        if (!reply.ok || reply.result?.valid !== true) {
-          scheduleScan();
-          throw new Error("无法确认要保存勾选状态的购物车商品");
-        }
-      }
-      await saveState(snapshot);
-      state = snapshot;
-      return true;
-    })().finally(() => {
-      pendingSelectionState = null;
-      selectionSaveTask = null;
-      if (started && onCartPage()) {
-        renderRows();
-        setSelectionControlsDisabled(false);
-      }
-    });
-    selectionSaveTask = task;
+  function acceptView(view) {
+    if (!view || view.account !== accountSteamId) throw new Error("购物车回执账号不一致");
+    model = view;
     renderRows();
-    setSelectionControlsDisabled(true);
-    return task;
+    renderRecovery();
+    setSelectionControlsDisabled();
+  }
+
+  function accountRequest(action, fields = {}) {
+    if (!accountSteamId) throw new Error("无法确认 Steam 购物车账号");
+    return cart.requestItems(action, {
+      accountSteamId,
+      revision: model?.revision,
+      excluded: model?.excluded,
+      ...fields,
+    }, lifecycle.signal);
+  }
+
+  async function commitSelection(action, fields, row) {
+    if (selectionSaveTask || busy || restoring || !model) return;
+    const signal = lifecycle.signal;
+    const task = (async () => {
+      if (scanTask) await scanTask;
+      signal.throwIfAborted();
+      if (row && !await requestRows(signal, row)) {
+        scheduleScan();
+        throw new Error("Steam 已更换这张购物车卡片");
+      }
+      return accountRequest(action, fields);
+    })();
+    selectionSaveTask = task;
+    setSelectionControlsDisabled();
+    try {
+      const reply = await task;
+      signal.throwIfAborted();
+      if (reply.view) acceptView(reply.view);
+      if (reply.status !== "saved") throw cartFeedbackError(reply.status);
+      if (reply.excluded) {
+        const current = new Set(model.lines.map(line => line.lineId));
+        acceptView({ ...model, excluded: reply.excluded.filter(id => current.has(id)) });
+      }
+      return true;
+    } finally {
+      if (selectionSaveTask === task) selectionSaveTask = null;
+      if (!signal.aborted) {
+        renderRows();
+        setSelectionControlsDisabled();
+        flushScan();
+      }
+    }
   }
 
   function ssrCart() {
@@ -136,38 +131,12 @@
       && link.pathname === "/checkout/" && new URLSearchParams(link.search).get("accountcart") === "1";
   }
 
-  function isLegacyCheckoutButton(btn) {
-    return btn.tagName === "BUTTON" && /跳转至支付|Continue to payment|Purchase|Checkout/i.test((btn.textContent || "").trim());
-  }
-
   function checkoutButtons() {
-    const root = ssrCart();
-    if (root) {
-      return Array.from(root.querySelectorAll(SSR_CHECKOUT_SELECTOR)).filter(isCheckoutLink);
-    }
-    return Array.from(document.querySelectorAll("button")).filter(isLegacyCheckoutButton);
+    return Array.from(ssrCart()?.querySelectorAll(SSR_CHECKOUT_SELECTOR) || []).filter(isCheckoutLink);
   }
 
   function removeAllConfirmEnabled() {
     return api.settings?.on?.("cart-remove-all-confirm") !== false;
-  }
-
-  function logBridgeFailure(action, requestId, value, count, startedAt, force = false) {
-    const key = `${action}:${value?.message || "unknown"}`;
-    const now = Date.now();
-    if (!force && key === lastBridgeFailureKey && now - lastBridgeFailureAt < 30000) {
-      return;
-    }
-    lastBridgeFailureKey = key;
-    lastBridgeFailureAt = now;
-    log.warn("cart-select-bridge-failed", "购物车页面桥接请求失败", {
-      action,
-      requestId,
-      itemCount: count,
-      message: value?.message || "",
-      durationMs: now - startedAt,
-      path: location.pathname,
-    });
   }
 
   function ensurePage() {
@@ -205,98 +174,35 @@
     return pageReady;
   }
 
-  function request(action, payload = {}) {
+  async function requestRows(signal, row) {
+    if (!await ensurePage()) throw new Error("购物车页面脚本加载失败");
+    signal.throwIfAborted();
+    // The MAIN-world listener reads only the currently committed row props.
+    const id = crypto.randomUUID();
     return new Promise((resolve, reject) => {
-      const signal = lifecycle.signal;
-      signal.throwIfAborted();
-      const id = `cart_${Date.now()}_${Math.random().toString(36).slice(2)}`;
-      const count = Math.max(
-        1,
-        Array.isArray(payload.lineIds) ? payload.lineIds.length : 0,
-        Array.isArray(payload.items) ? payload.items.length : 0
-      );
-      const timeoutMs = 5000 + count * 14000;
-      const shouldLogBridge = action === "remove" || action === "restore";
-      const startedAt = Date.now();
-      let done = false;
-      let sent = false;
-
       const close = () => {
-        if (done) return false;
-        done = true;
         clearTimeout(timer);
-        window.removeEventListener(RES_EVT, onRes);
         signal.removeEventListener("abort", onAbort);
-        return true;
+        window.removeEventListener(RES_EVT, onResponse);
       };
-
-      const cancel = error => {
-        if (!close()) return;
-        if (sent && (action === "remove" || action === "restore")) {
-          window.dispatchEvent(new CustomEvent(REQ_EVT, { detail: { id, action: "cancel" } }));
-        }
-        reject(error);
-      };
-
-      const onAbort = () => cancel(signal.reason);
-
-      const finish = value => {
-        if (!close()) return;
-        if (value?.ok === false && (value.error || value.code === "CART_ACCOUNT_CHANGED")) {
-          const error = new Error(value.message);
-          if (value.error?.name) error.name = value.error.name;
-          if (value.error?.stack) error.stack = value.error.stack;
-          if (value.code) error.code = value.code;
-          reject(value.code === "CART_ACCOUNT_CHANGED" ? cartAccountError(error) : error);
-          return;
-        }
-        if (value?.ok === false) {
-          logBridgeFailure(action, id, value, count, startedAt, shouldLogBridge);
-        } else if (shouldLogBridge) {
-          log.info("cart-select-bridge-success", "购物车页面桥接请求完成", {
-            action,
-            requestId: id,
-            itemCount: count,
-            durationMs: Date.now() - startedAt,
-            path: location.pathname,
-          });
-        }
-        resolve(value);
-      };
-
-      const onRes = event => {
+      const onAbort = () => { close(); reject(signal.reason); };
+      const onResponse = event => {
         if (event.detail?.id !== id) return;
-        finish(event.detail);
+        close();
+        resolve(event.detail.result);
       };
-
-      if (shouldLogBridge) {
-        log.info("cart-select-bridge-send", "发送购物车页面桥接请求", {
-          action,
-          requestId: id,
-          itemCount: count,
-          timeoutMs,
-          path: location.pathname,
-        });
-      }
-      const timer = setTimeout(() => cancel(new Error("等待购物车页面响应超时")), timeoutMs);
-      window.addEventListener(RES_EVT, onRes);
+      const timer = setTimeout(() => {
+        close();
+        reject(new Error("等待购物车页面响应超时"));
+      }, 5000);
+      window.addEventListener(RES_EVT, onResponse);
       signal.addEventListener("abort", onAbort, { once: true });
-      ensurePage().then(ok => {
-        if (done) return;
-        if (!ok) {
-          finish({ ok: false, message: "脚本加载失败", result: null });
-          return;
-        }
-        sent = true;
-        window.dispatchEvent(new CustomEvent(REQ_EVT, {
-          detail: { id, action, ...payload }
-        }));
-      }).catch(cancel);
+      window.dispatchEvent(new CustomEvent(REQ_EVT, { detail: { id, ...row } }));
     });
   }
 
   function byLine(lineId) {
-    return document.querySelector(`[data-st-cart-line-id="${CSS.escape(String(lineId))}"]`);
+    return ssrCart()?.querySelector(`[data-st-cart-line-id="${CSS.escape(String(lineId))}"]`);
   }
 
   function visible(el) {
@@ -304,32 +210,17 @@
   }
 
   function actionLink(row) {
-    if (row.classList.contains("i-xXuvHLioU-")) {
-      const add = row.querySelector(".QQ50n6yPgT4- ._8IaR06zcRE4-[role='button']");
-      return visible(add) ? add : row.querySelector(".QQ50n6yPgT4- .BFDdk5e7x8k-[role='button']");
-    }
-    const links = Array.from(row.querySelectorAll('a, button, [role="button"]'))
-      .filter(visible);
-    const add = links.find(el => /^(添加|Add)$/i.test((el.textContent || "").trim()));
-    if (add) return add;
-    return links.find(el => /^(移除|Remove)$/i.test((el.textContent || "").trim())) || null;
+    const add = row.querySelector(".QQ50n6yPgT4- ._8IaR06zcRE4-[role='button']");
+    return visible(add) ? add : row.querySelector(".QQ50n6yPgT4- .BFDdk5e7x8k-[role='button']");
   }
 
   function isRemoveAllButton(el) {
-    const root = ssrCart();
-    if (root) return !!el && root.contains(el) && el.matches(SSR_REMOVE_ALL_SELECTOR);
-    return !!el && !el.closest(".st-feedback-dialog") && /^(移除所有项目|Remove all items|Remove all)$/i.test(compactText(el));
+    return !!el && ssrCart()?.contains(el) && el.matches(SSR_REMOVE_ALL_SELECTOR);
   }
 
   function removeAllButton() {
-    const root = ssrCart();
-    if (root) {
-      const el = root.querySelector(SSR_REMOVE_ALL_SELECTOR);
-      return visible(el) ? el : null;
-    }
-    return Array.from(document.querySelectorAll('a, button, [role="button"]'))
-      .filter(visible)
-      .find(isRemoveAllButton) || null;
+    const el = ssrCart()?.querySelector(SSR_REMOVE_ALL_SELECTOR);
+    return visible(el) ? el : null;
   }
 
   function bulkActionAnchor() {
@@ -386,7 +277,7 @@
     const input = document.createElement("input");
     input.type = "checkbox";
     input.checked = checked(item);
-    input.disabled = !!selectionSaveTask || busy || restoring;
+    input.disabled = !!selectionSaveTask || busy || restoring || !model || !!model.migration;
     input.dataset.stCartKey = item.key;
     input.dataset.stCartCheckLineId = item.lineId;
     input.setAttribute("aria-label", `${label.title} ${item.name}`.trim());
@@ -408,38 +299,16 @@
         syncCheckbox(row, item, input);
         return;
       }
-      const operationId = window.STLoggerFactory?.createOperationId?.() || "";
       const signal = lifecycle.signal;
-      const next = { ...state };
-      const nextChecked = input.checked;
-      if (nextChecked) {
-        delete next[item.key];
-      } else {
-        next[item.key] = false;
-      }
-      const attemptedSelectedCount = items.filter(candidate => next[candidate.key] !== false).length;
-      commitSelection(next, item)
-        .then(() => {
-          log.info("cart-select-row-toggle", "用户切换购物车项目支付状态", {
-            operationId,
-            checked: nextChecked,
-            totalCount: items.length,
-            selectedCount: selectedItems().length,
-            skippedCount: skippedItems().length,
-          });
-        })
-        .catch((error) => {
-          if (signal.aborted) return;
-          log.warn("cart-select-state-save-failed", "购物车项目支付状态保存失败", {
-            operationId,
-            checked: nextChecked,
-            totalCount: items.length,
-            attemptedSelectedCount,
-            restoredSelectedCount: selectedItems().length,
-            error,
-          });
-          toast(t("store_cartSelect_saveFailed", "购物车选择状态保存失败，已恢复原状态"), true);
-        });
+      const selected = input.checked;
+      commitSelection("toggle", { lineId: item.lineId, checked: selected }, { lineId: item.lineId, key: item.key }).then(saved => {
+        if (saved) log.info("cart-select-row-toggle", "用户切换购物车项目支付状态", { checked: selected });
+      }).catch(error => {
+        if (signal.aborted) return;
+        syncCheckbox(row, item, input);
+        log.warn("cart-select-state-save-failed", "购物车项目支付状态保存失败", { error });
+        toast(t("store_cartSelect_saveFailed", "购物车选择状态保存失败，已恢复原状态"), true);
+      });
     });
   }
 
@@ -450,30 +319,10 @@
     if (input.getAttribute("aria-label") !== name) input.setAttribute("aria-label", name);
   }
 
-  async function setAllSelected(value) {
-    const next = {};
-    if (!value) {
-      for (const item of items) {
-        next[item.key] = false;
-      }
-    }
-    return commitSelection(next);
-  }
-
-  async function invertSelection() {
-    const next = {};
-    for (const item of items) {
-      if (state[item.key] !== false) {
-        next[item.key] = false;
-      }
-    }
-    return commitSelection(next);
-  }
-
   function ensureBulkActions() {
     const anchor = bulkActionAnchor();
     let wrap = document.getElementById("st_cart_select_bulk_actions");
-    if (!anchor || !items.length) {
+    if (!anchor || !model?.lines.length) {
       if (items.length && !lastBulkAnchorMissing) {
         lastBulkAnchorMissing = true;
         log.warn("cart-select-bulk-actions-target-missing", "购物车批量按钮挂载目标未找到", {
@@ -502,13 +351,13 @@
         btn.className = "st_cart_select_bulk_btn";
         btn.dataset.stCartBulk = id;
         btn.textContent = label;
-        btn.disabled = !!selectionSaveTask || busy || restoring || !itemsComplete;
+        btn.disabled = !!selectionSaveTask || busy || restoring || !model || !!model.migration;
         wrap.appendChild(btn);
       }
 
       wrap.addEventListener("click", event => {
         const btn = event.target.closest("[data-st-cart-bulk]");
-        if (!btn || btn.disabled || selectionSaveTask || !itemsComplete) return;
+        if (!btn || btn.disabled || selectionSaveTask || !model) return;
         const action = btn.dataset.stCartBulk;
         const startedAt = Date.now();
         const operationId = window.STLoggerFactory?.createOperationId?.() || "";
@@ -518,11 +367,7 @@
           totalCount: items.length,
           selectedCount: selectedItems().length,
         });
-        const run = action === "all"
-          ? setAllSelected(true)
-          : action === "none"
-            ? setAllSelected(false)
-            : invertSelection();
+        const run = commitSelection(action);
         run.then(() => {
           log.info("cart-select-bulk-action-success", "购物车批量选择完成", {
             operationId,
@@ -584,7 +429,7 @@
   function clearStaleSsrCheckboxes() {
     const root = ssrCart();
     if (!root) return;
-    const keys = new Map(items.map(item => [item.lineId, item.key]));
+    const keys = new Map(model?.lines.map(item => [item.lineId, item.key]));
     for (const row of root.querySelectorAll("[data-st-cart-select-ready]")) {
       const input = row.querySelector(".st_cart_select_check input");
       const key = keys.get(row.dataset.stCartLineId);
@@ -597,8 +442,12 @@
   }
 
   function renderRows() {
+    clearStaleSsrCheckboxes();
+    const known = new Map(model?.lines.map(item => [item.lineId, item.key]));
+    const rows = new Map(Array.from(ssrCart()?.querySelectorAll("[data-st-cart-line-id]") || [], row => [row.dataset.stCartLineId, row]));
     for (const item of items) {
-      const row = byLine(item.lineId);
+      if (known.get(item.lineId) !== item.key) continue;
+      const row = rows.get(item.lineId);
       if (!row) continue;
       const input = row.querySelector(`.st_cart_select_check input[data-st-cart-key="${CSS.escape(item.key)}"]`);
       if (input) {
@@ -623,11 +472,11 @@
   }
 
   function selectedItems() {
-    return items.filter(checked);
+    return (model?.lines || []).filter(checked);
   }
 
   function skippedItems() {
-    return items.filter(item => !checked(item));
+    return (model?.lines || []).filter(item => !checked(item));
   }
 
   function money(cents) {
@@ -635,15 +484,9 @@
     return `${symbol}${(cents / 100).toFixed(2)}`;
   }
 
-  function compactText(el) {
-    return (el?.textContent || "").replace(/\s+/g, " ").trim();
-  }
-
   function sideAnchor() {
-    // 原生购物车同时保留宽屏和窄屏总额行，只使用当前可见的一行。
-    const root = ssrCart();
-    if (root) return Array.from(root.querySelectorAll(SSR_TOTAL_VALUE_SELECTOR)).find(visible)?.parentElement || null;
-    return Array.from(document.querySelectorAll(SIDE_TOTAL_ROW_SELECTOR)).find(visible) || null;
+    // Steam renders separate desktop and compact summaries.
+    return Array.from(ssrCart()?.querySelectorAll(SSR_TOTAL_VALUE_SELECTOR) || []).find(visible)?.parentElement || null;
   }
 
   function ensureSideSummary() {
@@ -654,7 +497,7 @@
         lastSideAnchorMissing = true;
         log.warn("cart-select-side-summary-target-missing", "购物车侧边汇总挂载目标未找到", {
           totalCount: items.length,
-          selector: ssrCart() ? SSR_TOTAL_VALUE_SELECTOR : SIDE_TOTAL_ROW_SELECTOR,
+          selector: SSR_TOTAL_VALUE_SELECTOR,
           path: location.pathname,
         });
       }
@@ -703,21 +546,20 @@
   function updateSideSummary() {
     const box = ensureSideSummary();
     if (!box) return;
-
-    box.hidden = itemsComplete && !items.length;
-    box.classList.toggle("st_cart_select_side_loading", !itemsComplete);
-    box.setAttribute("aria-busy", String(!itemsComplete));
+    const selected = selectedItems();
+    const prices = new Map(items.map(item => [item.lineId, item.cents]));
+    const countReady = !!model;
+    const amountReady = countReady && selected.every(item => prices.get(item.lineId) != null);
+    box.hidden = countReady && !model.lines.length;
     const totalNode = box.querySelector("[data-st-cart-side-total]");
     const countNode = box.querySelector("[data-st-cart-side-count]");
-    if (!itemsComplete) {
-      setText(totalNode, "");
-      setText(countNode, "");
-      return;
+    for (const [node, ready] of [[totalNode, amountReady], [countNode, countReady]]) {
+      node.parentElement.classList.toggle("st_cart_select_side_loading", !ready);
+      node.parentElement.setAttribute("aria-busy", String(!ready));
     }
-    const sel = selectedItems();
-    const total = sel.reduce((sum, item) => sum + (Number(item.cents) || 0), 0);
-    setText(totalNode, money(total));
-    setText(countNode, `${sel.length}/${items.length}`);
+    const total = amountReady ? selected.reduce((sum, item) => sum + prices.get(item.lineId), 0) : 0;
+    setText(totalNode, amountReady ? money(total) : "");
+    setText(countNode, countReady ? `${selected.length}/${model.lines.length}` : "");
   }
 
   function observeSummarySize() {
@@ -729,7 +571,10 @@
     summaryTargets = targets;
     if (!targets.length) return;
     if (!summaryResize) summaryResize = new ResizeObserver(() => {
-      if (started) updateSideSummary();
+      if (started) {
+        updateSideSummary();
+        renderRecovery();
+      }
     });
     // Steam 的两套结算卡会仅通过 CSS 切换，宽度变化只重定位汇总
     targets.forEach(node => summaryResize.observe(node));
@@ -740,144 +585,130 @@
   }
 
   function cartTitle() {
-    const root = ssrCart();
-    if (root) return root.querySelector(".X7xBVzjXbzw-");
-    return Array.from(document.querySelectorAll("h1, h2, div"))
-      .filter(visible)
-      .find(el => {
-        if (el.children.length > 0) return false;
-        return /^(您的购物车|Your Cart)$/i.test(compactText(el));
-      }) || null;
-  }
-
-  function restorePanelTarget() {
-    const title = cartTitle();
-    if (title) {
-      return { el: title, pos: "afterend" };
-    }
-
-    return null;
-  }
-
-  function setCartTitleTight(show) {
-    document.querySelectorAll(".st_cart_select_cart_title")
-      .forEach(el => el.classList.remove("st_cart_select_cart_title"));
-    if (show) cartTitle()?.classList.add("st_cart_select_cart_title");
+    return ssrCart()?.querySelector(".X7xBVzjXbzw-");
   }
 
   function emptyCartBox() {
-    const root = ssrCart();
-    if (root) return root.querySelector(SSR_EMPTY_TEXT_SELECTOR)?.closest(".i-xXuvHLioU-") || null;
-    const text = Array.from(document.querySelectorAll("div"))
-      .filter(visible)
-      .find(el => {
-        if (el.children.length > 0) return false;
-        return /^(您的购物车是空的。?|Your cart is empty\.?)$/i.test(compactText(el));
-      });
-    if (!text) return null;
+    return ssrCart()?.querySelector(SSR_EMPTY_TEXT_SELECTOR)?.closest(".i-xXuvHLioU-") || null;
+  }
 
-    const box = text.closest("[class*='XjPmFc2t_i1DAuEXEbIX']");
-    if (box) return box;
-
-    let node = text;
-    for (let i = 0; i < 3 && node.parentElement; i += 1) {
-      node = node.parentElement;
-      const rt = node.getBoundingClientRect();
-      if (rt.width > 250 && rt.height > 40) return node;
+  function renderReviewItems(panel, items) {
+    let details = panel.querySelector("details");
+    if (!items?.length) {
+      details?.remove();
+      return;
     }
-    return null;
-  }
-
-  function shouldRetryEmptyScan() {
-    // Chrome 购物车会先渲染文字 DOM，再挂 React/Fiber 数据；未明确空购物车时继续补扫。
-    return onCartPage()
-      && !restoring
-      && emptyScanRetries < EMPTY_SCAN_RETRY_MAX
-      && !emptyCartBox();
-  }
-
-  function restoreSizeRef() {
-    return (items[0] ? byLine(items[0].lineId) : null) || emptyCartBox();
-  }
-
-  function syncRestorePanelSize(panel) {
-    const ref = restoreSizeRef();
-    if (!ref) {
-      panel.dataset.stCartRestoreSized = "0";
-      panel.style.width = "";
-      panel.style.marginLeft = "";
-      return false;
+    const identity = JSON.stringify(items);
+    if (details?.dataset.items === identity) return;
+    if (!details) {
+      details = document.createElement("details");
+      details.className = "st_cart_restore_review";
+      panel.append(details);
     }
-
-    const parentRect = panel.parentElement?.getBoundingClientRect();
-    const refRect = ref.getBoundingClientRect();
-    if (!parentRect || refRect.width <= 0) {
-      panel.dataset.stCartRestoreSized = "0";
-      return false;
+    const summary = document.createElement("summary");
+    summary.textContent = t("store_cartSelect_reviewItems", "查看待核对商品");
+    const list = document.createElement("ul");
+    for (const { kind, itemId } of items) {
+      if (typeof itemId !== "string" || !/^[1-9]\d{0,9}$/.test(itemId) || !["package", "bundle"].includes(kind)) continue;
+      const entry = document.createElement("li");
+      const link = document.createElement("a");
+      link.href = new URL(`/${kind === "bundle" ? "bundle" : "sub"}/${itemId}/`, globalThis.STConfig.vendors.steamStore.origin).href;
+      link.target = "_blank";
+      link.rel = "noopener";
+      link.textContent = kind === "bundle"
+        ? t("store_cartSelect_reviewBundle", "组合包 $id$", { id: itemId })
+        : t("store_cartSelect_reviewPackage", "订阅包 $id$", { id: itemId });
+      entry.append(link);
+      list.append(entry);
     }
-
-    panel.dataset.stCartRestoreSized = "1";
-    panel.style.width = `${Math.round(refRect.width)}px`;
-    panel.style.marginLeft = "0px";
-    return true;
+    details.dataset.items = identity;
+    details.replaceChildren(summary, list);
   }
 
-  function restorePanel() {
+  function renderRecovery() {
     let panel = document.getElementById("st_cart_restore_panel");
+    const title = cartTitle();
+    const held = model?.hasBatch;
+    if (!title || (!held && !model?.migration)) {
+      panel?.remove();
+      title?.classList.remove("st_cart_select_cart_title");
+      return;
+    }
     if (!panel) {
       panel = document.createElement("div");
       panel.id = "st_cart_restore_panel";
       const text = document.createElement("span");
       text.className = "st_cart_restore_text";
-      const btn = document.createElement("button");
-      btn.type = "button";
-      btn.className = "st_cart_restore_btn";
-      btn.textContent = t("store_cartSelect_restoreButton", "恢复暂存购物车数据");
-      btn.addEventListener("click", () => {
-        manualRestoreMissing().catch(error => {
-          globalThis.STLoggerFactory.reportError(error, { domain: "store", feature: "cart-select", event: "cart-restore-failed", message: "恢复暂存购物车失败" });
-          toast(error.message || t("store_cartSelect_restoreFailed", "恢复失败，请重试"), true);
-        });
-      });
-      panel.append(text, btn);
+      const primary = document.createElement("button");
+      primary.type = "button";
+      primary.className = "st_cart_restore_btn";
+      const secondary = document.createElement("button");
+      secondary.type = "button";
+      secondary.className = "st_cart_restore_btn";
+      primary.addEventListener("click", () => recoveryAction(model.hasBatch ? "restore" : "migrate"));
+      secondary.addEventListener("click", () => recoveryAction(model.hasBatch ? "discard" : "reset-legacy"));
+      panel.append(text, primary, secondary);
     }
-
-    const target = restorePanelTarget();
-    if (!target) {
-      panel.style.display = "none";
-      return null;
-    }
-
-    const { el, pos } = target;
-    if ((pos === "afterend" && panel.previousElementSibling !== el)
-      || (pos === "beforebegin" && panel.nextElementSibling !== el)) {
-      el.insertAdjacentElement(pos, panel);
-    }
-    syncRestorePanelSize(panel);
-    return panel;
+    if (title.nextElementSibling !== panel) title.after(panel);
+    const [text, primary, secondary] = panel.children;
+    const ref = items[0] ? byLine(items[0].lineId) : emptyCartBox();
+    const width = ref?.getBoundingClientRect().width;
+    const targetWidth = width > 0 ? `${Math.round(width)}px` : "";
+    if (panel.style.width !== targetWidth) panel.style.width = targetWidth;
+    title.classList.add("st_cart_select_cart_title");
+    setText(text, held
+      ? model.held
+        ? t("store_cartSelect_restoreMissing", "有$count$件暂存购物车数据未恢复", { count: model.held })
+        : t("store_cartSelect_recoveryPending", "有一笔购物车暂存待核对")
+      : t("store_cartSelect_migrationPending", "发现旧版的取消勾选记录"));
+    setText(primary, held ? t("store_cartSelect_restoreButton", "恢复暂存购物车数据") : t("store_cartSelect_useLegacy", "沿用旧勾选"));
+    setText(secondary, held ? t("store_cartSelect_discard", "放弃恢复") : t("store_cartSelect_chooseAgain", "重新勾选"));
+    primary.disabled = secondary.disabled = busy || restoring || !!selectionSaveTask;
+    panel.classList.toggle("st_cart_restore_busy", restoring);
+    panel.setAttribute("aria-busy", String(restoring));
+    renderReviewItems(panel, model.reviewItems);
   }
 
-  function setRestorePanel(text, state = "") {
-    const panel = restorePanel();
-    if (!panel) {
-      setCartTitleTight(false);
-      if (text && state !== "bad") {
-        scheduleRestorePrompt();
+  async function recoveryAction(action) {
+    if (busy || restoring || selectionSaveTask) return;
+    const signal = lifecycle.signal;
+    const account = accountSteamId;
+    const batchIds = model.batchIds;
+    try {
+      if (action === "migrate" || action === "reset-legacy") {
+        await commitSelection(action);
+        return;
       }
-      return;
-    }
-    setText(panel.querySelector(".st_cart_restore_text"), text);
-    panel.classList.toggle("st_cart_restore_busy", state === "busy");
-    panel.querySelector(".st_cart_restore_btn").disabled = state === "busy" || busy || !itemsComplete;
-    panel.classList.toggle("st_cart_restore_bad", state === "bad");
-    const show = !!text && panel.dataset.stCartRestoreSized !== "0";
-    setCartTitleTight(show);
-    panel.style.display = show ? "" : "none";
-    if (!show && text && state !== "bad") {
-      scheduleRestorePrompt();
-    } else if (restorePromptTimer) {
-      clearTimeout(restorePromptTimer);
-      restorePromptTimer = null;
+      // Lock locally before awaiting confirmation to prevent double submission.
+      restoring = true;
+      renderRecovery();
+      setSelectionControlsDisabled();
+      if (action === "discard" && !await window.STFeedback.confirm(document.body, {
+        title: t("store_cartSelect_discard", "放弃恢复"),
+        message: t("store_cartSelect_discardMessage", "放弃后，暂存商品的恢复记录会被删除。"),
+        confirmLabel: t("store_cartSelect_discard", "放弃恢复"),
+        danger: true,
+        signal,
+      })) return;
+      if (account !== accountSteamId) throw cartFeedbackError("changed");
+      const reply = await accountRequest(action, { batchIds });
+      signal.throwIfAborted();
+      if (reply.view) acceptView(reply.view);
+      if (reply.status === "restored") {
+        await toast(t("store_cartSelect_restored", "已恢复上次未支付项目"));
+        if (!signal.aborted) location.reload();
+      } else if (reply.status !== "discarded") throw cartFeedbackError(reply.status);
+    } catch (error) {
+      if (signal.aborted) return;
+      log.error("cart-restore-failed", "购物车暂存处理失败", { error });
+      toast(error.message, true);
+    } finally {
+      if (!signal.aborted) {
+        restoring = false;
+        renderRecovery();
+        setSelectionControlsDisabled();
+        flushScan();
+      }
     }
   }
 
@@ -885,383 +716,134 @@
     return window.STFeedback.show(document.body, { title: t(bad ? "common.failed" : "common.notice", bad ? "操作失败" : "提示"), message: text });
   }
 
-  async function scan() {
+  async function scan(force = false) {
+    if (scanTask || busy || restoring || selectionSaveTask) return scanTask;
     const signal = lifecycle.signal;
-    const res = await request("scan");
-    signal.throwIfAborted();
-    if (!res.ok || !Array.isArray(res.result?.items)) {
-      throw new Error(res.message || t("store_cartSelect_checkoutFailed", "购物车选择处理失败"));
-    }
-    itemsComplete = res.result.complete !== false;
-    items = res.result.items;
-    if (itemsComplete && (items.length > 0 || res.result.complete === true)) {
-      emptyScanRetries = 0;
-    } else if (shouldRetryEmptyScan()) {
-      emptyScanRetries += 1;
-      scheduleScan();
-    }
-    accountSteamId = cart.validAccount(res.result.accountSteamId) ? res.result.accountSteamId : null;
-    clearStaleSsrCheckboxes();
-    renderRows();
-    setSelectionControlsDisabled(!!selectionSaveTask);
-    observeSummarySize();
-    if (!observer?.__stTarget?.isConnected) {
-      observe();
-    }
-    if (itemsComplete) {
-      showRestorePrompt().catch((error) => {
-        if (!signal.aborted) globalThis.STLoggerFactory.reportError(error, { domain: "store", feature: "cart", event: "scan-failed", message: "商店功能处理失败", level: "error", phase: "scan" });
-      });
-    }
-    return items;
-  }
-
-  function requireCompleteCart() {
-    if (!itemsComplete) {
-      throw Object.assign(new Error(t("store_cartSelect_checkoutFailed", "购物车选择处理失败")), { code: "CART_ITEMS_UNAVAILABLE" });
-    }
-  }
-
-  function scheduleScan() {
-    clearTimeout(scanTimer);
-    scanTimer = setTimeout(() => {
-      scan().catch((error) => {
-        globalThis.STLoggerFactory.reportError(error, { domain: "store", feature: "cart", event: "schedule-scan-failed", message: "商店功能处理失败", level: "error", phase: "scheduleScan" });});
-    }, SCAN_MS);
-  }
-
-  function scheduleRestorePrompt() {
-    clearTimeout(restorePromptTimer);
-    restorePromptTimer = setTimeout(() => {
-      restorePromptTimer = null;
-      showRestorePrompt().catch((error) => {
-        globalThis.STLoggerFactory.reportError(error, { domain: "store", feature: "cart", event: "schedule-restore-prompt-failed", message: "商店功能处理失败", level: "error", phase: "scheduleRestorePrompt" });});
-    }, SCAN_MS);
-  }
-
-  async function saveRestoreBatch(unchecked) {
-    if (!accountSteamId) throw cartAccountError();
-    const now = Date.now();
-    const batch = {
-      id: `restore_${now}_${Math.random().toString(36).slice(2)}`,
-      createdAt: now,
-      accountSteamId,
-      items: unchecked.map(item => ({
-        key: item.key,
-        kind: item.kind,
-        itemId: item.itemId,
-        lineId: item.lineId,
-        name: item.name,
-        price: item.price,
-      })),
-    };
-
-    await cart.mutate("append", { batch });
-    return batch;
-  }
-
-  async function clearSelection(keys) {
-    if (selectionSaveTask) {
-      try {
-        await selectionSaveTask;
-      } catch (error) {
-        globalThis.STLoggerFactory.reportError(error, { domain: "store", feature: "cart", event: "clear-selection-failed", message: "清理购物车选择失败", level: "warn", phase: "clearSelection" });
-        // 发起选择事务的用户操作已经记录失败；这里仅等待回滚完成后重新计算清理状态。
-        void error;
-      }
-    }
-    const next = { ...state };
-    let changed = false;
-    for (const key of keys) {
-      if (Object.prototype.hasOwnProperty.call(next, key)) {
-        delete next[key];
-        changed = true;
-      }
-    }
-    if (changed) {
-      await commitSelection(next);
-    }
-  }
-
-  async function currentBatches(batches, recheck = false) {
-    const account = accountSteamId;
-    const legacy = batches.filter(batch => !Object.hasOwn(batch, "accountSteamId") && typeof batch.token === "string" && batch.token);
-    if (!account || !legacy.length) return cart.owned(batches, account);
-    if (!ssrCart()) {
-      const session = cart.pageSession(document);
-      return cart.owned(batches, account, session?.accountSteamId === account ? session.token : null);
-    }
-
-    const signal = lifecycle.signal;
-    const batchIds = legacy.map(batch => batch.id).sort();
-    const key = JSON.stringify([account, batchIds]);
-    if (recheck || legacyOwnership?.key !== key) {
-      legacyOwnership = { key, check: cart.requestItems("owned", { accountSteamId: account, batchIds }, signal) };
-    }
-    const lookup = legacyOwnership;
-    const reply = await lookup.check.catch(error => {
-      if (legacyOwnership === lookup) legacyOwnership = null;
-      throw error;
-    });
-    signal.throwIfAborted();
-    if (account !== accountSteamId) throw cartAccountError();
-    if (!Array.isArray(reply.ids)) throw new Error("未收到 Steam 购物车旧批次归属确认。");
-    const verified = new Set(reply.ids);
-    return batches.filter(batch => Object.hasOwn(batch, "accountSteamId") ? batch.accountSteamId === account : verified.has(batch.id));
-  }
-
-  function cartAccountError(cause) {
-    return new Error(t("store_cartSelect_accountUnavailable", "无法确认当前 Steam 账号，请确认登录后在购物车重试。"), { cause });
-  }
-
-  function restoreNeed(batches) {
-    const all = batches.flatMap(batch => batch.items || [])
-      .filter(item => item?.key);
-    if (items.length === 0) {
-      return {
-        need: all.filter((item, index) => all.findIndex(old => old.key === item.key) === index),
-        allKeys: all.map(item => item.key),
-      };
-    }
-
-    const present = presentItemKeys();
-    const need = [];
-    const allKeys = all.map(item => item.key);
-    for (const batch of batches) {
-      for (const item of batch.items) {
-        if (item?.key && !present.has(item.key) && !need.some(old => old.key === item.key)) {
-          need.push(item);
+    const task = (async () => {
+      const page = await requestRows(signal);
+      signal.throwIfAborted();
+      const accountCart = page?.accountCart !== false && (page?.accountCart || checkoutButtons().length);
+      if (!page?.account || !accountCart) {
+        model = null;
+        accountSteamId = null;
+        items = [];
+        nativeVersion = null;
+      } else {
+        const version = JSON.stringify(page.lines);
+        const changed = force || !model || accountSteamId !== page.account || (page.lines && version !== nativeVersion);
+        if (accountSteamId !== page.account) model = null;
+        accountSteamId = page.account;
+        items = page.items;
+        if (changed) {
+          const reply = await accountRequest("read");
+          signal.throwIfAborted();
+          if (!reply.view) throw cartFeedbackError(reply.status);
+          nativeVersion = version;
+          acceptView(reply.view);
         }
       }
-    }
-    return { need, allKeys };
-  }
-
-  function presentItemKeys() {
-    return new Set(items.filter(item => item.canRestore !== false).map(item => item.key));
-  }
-
-  async function showRestorePrompt() {
-    if (restoring || !itemsComplete) return;
-    const rt = await loadState();
-    if (restoring || !itemsComplete) return;
-    const batches = await currentBatches(rt.restore);
-    if (restoring || !itemsComplete) return;
-
-    if (batches.length === 0) {
-      setRestorePanel("");
-      return;
-    }
-
-    const { need } = restoreNeed(batches);
-    if (need.length === 0) {
-      setRestorePanel("");
-      return;
-    }
-
-    setRestorePanel(t("store_cartSelect_restoreMissing", "有$count$件暂存购物车数据未恢复", { count: need.length }));
-  }
-
-  // 恢复期间另一购物车页可能新增批次，只清理本次已确认的批次。
-  async function finishRestore(batches, keys) {
-    const signal = lifecycle.signal;
-    await clearSelection(keys);
-    signal.throwIfAborted();
-    const remaining = await cart.mutate("confirm", { ids: batches.map(batch => batch.id) });
-    signal.throwIfAborted();
-    setRestorePanel("");
-    if (remaining) scheduleRestorePrompt();
-  }
-
-  async function manualRestoreMissing() {
-    if (restoring || busy) return;
-    const signal = lifecycle.signal;
-    restoring = true;
-    setSelectionControlsDisabled(true);
-    const startedAt = Date.now();
-    log.info("cart-select-restore-start", "开始恢复暂存购物车数据");
-
+      renderRows();
+      renderRecovery();
+      setSelectionControlsDisabled();
+      observeSummarySize();
+      observe();
+      if ((!page || (!page.lines && !emptyCartBox())) && emptyScanRetries < EMPTY_SCAN_RETRY_MAX) {
+        emptyScanRetries += 1;
+        scheduleScan();
+      }
+    })();
+    scanTask = task;
     try {
-      const rt = await loadState();
-      if (rt.restore.length) {
-        await scan();
-        requireCompleteCart();
-      }
-      const batches = await currentBatches(rt.restore, true);
-      if (batches.length === 0) {
-        setRestorePanel("");
-        if (rt.restore.length) throw new Error(t("store_cartCheckout_ownerUnconfirmed", "无法确认暂存商品属于当前 Steam 账号。请使用暂存时的账号，回到购物车核对。"));
-        log.info("cart-select-restore-success", "没有需要恢复的暂存购物车数据", {
-          count: 0,
-          durationMs: Date.now() - startedAt,
-        });
-        return;
-      }
-
-      const { need, allKeys } = restoreNeed(batches);
-      if (need.length === 0) {
-        await finishRestore(batches, allKeys);
-        log.info("cart-select-restore-success", "暂存购物车数据已无需恢复", {
-          batchCount: batches.length,
-          count: 0,
-          durationMs: Date.now() - startedAt,
-        });
-        return;
-      }
-
-      setRestorePanel(t("store_cartSelect_restoring", "正在恢复$count$件暂存购物车数据...", { count: need.length }), "busy");
-      const confirmedBySteam = !!ssrCart();
-      if (confirmedBySteam) {
-        await cart.requestItems("restore", { accountSteamId, batchIds: batches.map(batch => batch.id), keys: need.map(item => item.key) }, signal);
-      } else {
-        const res = await request("restore", { items: need, accountSteamId });
-        if (!res.ok && !res.result) throw new Error(res.message || t("store_cartSelect_restoreFailed", "恢复失败，请重试"));
-      }
-      signal.throwIfAborted();
-      await scan();
-      requireCompleteCart();
-      if ((await currentBatches(batches, true)).length !== batches.length) {
-        throw new Error(t("store_cartCheckout_ownerUnconfirmed", "无法确认暂存商品属于当前 Steam 账号。请使用暂存时的账号，回到购物车核对。"));
-      }
-      const nowPresent = presentItemKeys();
-      // 两次扫描之间，先前已有的商品也可能被另一页面移出购物车
-      const stillMissing = confirmedBySteam ? [] : [...new Set(allKeys)].filter(key => !nowPresent.has(key));
-      if (stillMissing.length === 0) {
-        await finishRestore(batches, allKeys);
-        await toast(t("store_cartSelect_restored", "已恢复上次未支付项目"));
-        signal.throwIfAborted();
-        log.info("cart-select-restore-success", "暂存购物车数据恢复完成", {
-          batchCount: batches.length,
-          count: need.length,
-          durationMs: Date.now() - startedAt,
-        });
-        location.reload();
-      } else {
-        setRestorePanel(t("store_cartSelect_restoreStillMissing", "还有$count$件暂存购物车数据未恢复", { count: stillMissing.length }), "bad");
-        toast(t("store_cartSelect_restorePartialFailed", "部分暂存购物车数据未恢复，请稍后重试"), true);
-        log.warn("cart-select-restore-failed", "暂存购物车数据部分恢复失败", {
-          batchCount: batches.length,
-          count: need.length,
-          missingCount: stillMissing.length,
-          durationMs: Date.now() - startedAt,
-        });
-      }
+      await task;
     } catch (error) {
-      if (signal.aborted) return;
-      setRestorePanel(t("store_cartSelect_restoreFailed", "恢复失败，请重试"), "bad");
-      log.error("cart-select-restore-failed", "购物车批次恢复失败", {
-        durationMs: Date.now() - startedAt,
-        error,
-      });
+      if (!signal.aborted) {
+        model = null;
+        renderRows();
+        renderRecovery();
+        setSelectionControlsDisabled();
+      }
       throw error;
     } finally {
-      if (!signal.aborted) {
-        restoring = false;
-        setSelectionControlsDisabled(!!selectionSaveTask);
-      }
+      if (scanTask === task) scanTask = null;
+      if (!signal.aborted) flushScan();
     }
+  }
+
+  function scheduleScan(force = false) {
+    scanQueued = true;
+    forceScanQueued ||= force;
+    flushScan();
+  }
+
+  function flushScan() {
+    if (!started || !scanQueued || scanTask || busy || restoring || selectionSaveTask) return;
+    clearTimeout(scanTimer);
+    scanTimer = setTimeout(() => {
+      scanTimer = null;
+      if (scanTask || busy || restoring || selectionSaveTask) return;
+      const force = forceScanQueued;
+      scanQueued = forceScanQueued = false;
+      scan(force).catch(error => {
+        if (!lifecycle?.signal.aborted && started) log.warn("cart-select-scan-failed", "购物车读取失败", { error });
+      });
+    }, SCAN_MS);
+  }
+
+  function cartFeedbackError(status) {
+    const messages = {
+      changed: t("store_cartSelect_checkoutChanged", "购物车已更新，请核对后再次结算。"),
+      migration: t("store_cartSelect_migrationPending", "发现旧版的取消勾选记录"),
+      empty: t("store_cartSelect_selectAtLeastOne", "请至少选择 1 件本次支付项目"),
+      held: t("store_cartSelect_pendingCheckout", "请先处理上次暂存的购物车商品。"),
+      unsupported: t("store_cartSelect_cannotHold", "部分未选商品无法恢复，请调整勾选后再结算。"),
+      busy: t("store_cartSelect_accountBusy", "此 Steam 账号的购物车正在处理，请稍后重试。"),
+      "checkout-open": t("store_cartSelect_checkoutOpen", "请先退出另一个标签页的 Steam 结算。"),
+      uncertain: t("store_cartSelect_restoreUncertain", "部分暂存商品的操作结果待核对，记录已保留。"),
+      interrupted: t("store_cartSelect_holdFailed", "临时调整购物车失败，已保留暂存数据，请手动恢复"),
+    };
+    return new Error(messages[status] || t("store_cartSelect_checkoutFailed", "购物车选择处理失败"));
   }
 
   async function goCheckout(btn) {
     if (busy || restoring) return;
     const signal = lifecycle.signal;
+    if (scanTask) await scanTask;
+    if (busy || restoring || signal.aborted) return;
+    if (!model || !accountSteamId) {
+      await scan();
+      throw cartFeedbackError(model ? "changed" : undefined);
+    }
     busy = true;
-    setSelectionControlsDisabled(true);
-    const startedAt = Date.now();
     let continued = false;
-
+    setSelectionControlsDisabled();
+    renderRecovery();
+    btn.setAttribute("aria-busy", "true");
+    const startedAt = Date.now();
     try {
       await selectionSaveTask;
       signal.throwIfAborted();
-      await scan();
-      requireCompleteCart();
-      const sel = selectedItems();
-      const skip = skippedItems();
       log.info("cart-select-checkout-start", "开始处理购物车选择支付", {
-        totalCount: items.length,
-        selectedCount: sel.length,
-        skippedCount: skip.length,
+        totalCount: model.lines.length, selectedCount: selectedItems().length,
       });
-
-      if (items.length === 0 || sel.length === 0) {
-        toast(t("store_cartSelect_selectAtLeastOne", "请至少选择 1 件本次支付项目"), true);
-        log.warn("cart-select-checkout-failed", "购物车选择支付缺少选中项目", {
-          totalCount: items.length,
-          selectedCount: sel.length,
-          skippedCount: skip.length,
-          reason: "empty-selection",
-          durationMs: Date.now() - startedAt,
-        });
-        return;
-      }
-
-      if (skip.length === 0) {
-        continueCheckout(btn);
-        continued = true;
-        log.info("cart-select-checkout-success", "购物车选择支付直接进入支付页", {
-          totalCount: items.length,
-          selectedCount: sel.length,
-          skippedCount: 0,
-          durationMs: Date.now() - startedAt,
-        });
-        return;
-      }
-
-      if (ssrCart()) {
-        if (!accountSteamId) throw cartAccountError();
-        if (skip.some(item => item.canRestore !== true) || new Set(items.map(item => item.key)).size !== items.length) {
-          throw new Error(t("store_cartSelect_checkoutFailed", "购物车选择处理失败"));
-        }
-        await cart.requestItems("check", { accountSteamId }, signal);
-        signal.throwIfAborted();
-      }
-      btn.setAttribute("aria-busy", "true");
-      const batch = await saveRestoreBatch(skip);
+      const reply = await accountRequest("checkout");
       signal.throwIfAborted();
-      const res = await request("remove", { lineIds: skip.map(item => item.lineId), accountSteamId: batch.accountSteamId });
-
-      if (!res.ok) {
-        await scan();
-        await showRestorePrompt();
-        toast(t("store_cartSelect_holdFailed", "临时调整购物车失败，已保留暂存数据，请手动恢复"), true);
-        log.warn("cart-select-checkout-failed", "购物车选择支付临时移除失败", {
-          totalCount: items.length,
-          selectedCount: sel.length,
-          skippedCount: skip.length,
-          durationMs: Date.now() - startedAt,
-        });
-        return;
-      }
-
-      await scan();
-      requireCompleteCart();
-      if (accountSteamId !== batch.accountSteamId) throw cartAccountError();
-      const remaining = new Set(items.map(item => item.lineId));
-      if (remaining.size !== sel.length || sel.some(item => !remaining.has(item.lineId))) {
-        throw new Error(t("store_cartSelect_holdFailed", "临时调整购物车失败，已保留暂存数据，请手动恢复"));
-      }
+      if (reply.view) acceptView(reply.view);
+      if (reply.status !== "ready") throw cartFeedbackError(reply.status);
+      const currentAccount = await requestRows(signal, { accountOnly: true });
+      if (currentAccount !== accountSteamId) throw cartFeedbackError("changed");
       continueCheckout(btn);
       continued = true;
-      log.info("cart-select-checkout-success", "购物车选择支付处理完成", {
-        totalCount: items.length,
-        selectedCount: sel.length,
-        skippedCount: skip.length,
-        restoreCount: batch.items.length,
-        durationMs: Date.now() - startedAt,
+      log.info("cart-select-checkout-success", "购物车已核对，继续 Steam 原生结算", {
+        totalCount: model.lines.length, durationMs: Date.now() - startedAt,
       });
-    } catch (error) {
-      if (signal.aborted) return;
-      log.error("cart-select-checkout-failed", "购物车结算失败", {
-        durationMs: Date.now() - startedAt,
-        error,
-      });
-      throw error;
     } finally {
       btn.removeAttribute("aria-busy");
       const unlock = () => {
-        checkoutTimer = null;
+        if (signal.aborted) return;
         busy = false;
-        setSelectionControlsDisabled(!!selectionSaveTask);
+        setSelectionControlsDisabled();
+        renderRecovery();
+        flushScan();
       };
       if (!signal.aborted) {
         if (continued) checkoutTimer = setTimeout(unlock, 800);
@@ -1295,7 +877,7 @@
     const btn = event.target?.closest?.("a[href], button");
     if (!btn) return;
     const root = ssrCart();
-    const matches = root ? btn.matches(SSR_CHECKOUT_SELECTOR) && root.contains(btn) && isCheckoutLink(btn) : isLegacyCheckoutButton(btn);
+    const matches = root && btn.matches(SSR_CHECKOUT_SELECTOR) && root.contains(btn) && isCheckoutLink(btn);
     if (!matches || !checkoutAvailable(btn)) return;
     if (event.type === "auxclick" && (event.button !== 1 || btn.tagName !== "A")) return;
     if (btn.dataset.stCartSelectPass === "1") return;
@@ -1303,8 +885,10 @@
     event.preventDefault();
     event.stopImmediatePropagation();
     goCheckout(btn).catch((error) => {
-      globalThis.STLoggerFactory.reportError(error, { domain: "store", feature: "cart", event: "on-checkout-click-failed", message: "提交购物车选择失败", level: "error", phase: "onCheckoutClick" });
+      if (!started) return;
+      log.error("cart-select-checkout-failed", "购物车结算已停止", { error });
       toast(error.message || t("store_cartSelect_checkoutFailed", "购物车选择处理失败"), true);
+      if (error.name === "TimeoutError") scheduleScan(true);
     });
   }
 
@@ -1321,7 +905,7 @@
 
     event.preventDefault();
     event.stopImmediatePropagation();
-    if (removeAllConfirmation) return;
+    if (removeAllConfirmation || busy || restoring) return;
     const controller = new AbortController();
     removeAllConfirmation = controller;
     const startedAt = Date.now();
@@ -1362,54 +946,8 @@
     });
   }
 
-  function commonElement(nodes) {
-    const items = nodes.filter(Boolean);
-    if (items.length < 2) return null;
-    let current = items[0];
-    while (current && current !== document.body) {
-      if (items.every(item => current.contains(item))) {
-        return current;
-      }
-      current = current.parentElement;
-    }
-    return null;
-  }
-
-  function broadObserverTarget(el) {
-    return !el
-      || el === document.body
-      || el === document.documentElement
-      || el.id === "responsive_page_template_content"
-      || el.id === "StoreTemplate";
-  }
-
-  function preciseObserverTarget(el) {
-    return broadObserverTarget(el) ? null : el;
-  }
-
   function observeTarget() {
-    const root = ssrCart();
-    if (root) return root.querySelector(".escxTMUGmsQ-");
-    const rows = Array.from(document.querySelectorAll("[data-st-cart-line-id]"));
-    const rowShared = rows.length > 1 ? commonElement(rows) : rows[0]?.parentElement;
-    if (preciseObserverTarget(rowShared)) {
-      return rowShared;
-    }
-
-    const emptyBox = emptyCartBox();
-    if (preciseObserverTarget(emptyBox)) {
-      return emptyBox;
-    }
-
-    const anchors = [
-      cartTitle(),
-      removeAllButton(),
-      checkoutButtons()[0],
-      document.getElementById("st_cart_restore_panel"),
-    ];
-    const shared = commonElement(anchors);
-    // 只监听购物车主体内容；顶部导航购物车按钮和全局弹窗变化不应触发购物车扫描。
-    return preciseObserverTarget(shared);
+    return ssrCart()?.querySelector(".escxTMUGmsQ-") || null;
   }
 
   function observe() {
@@ -1421,7 +959,7 @@
       if (!observerTargetMissingLogged) {
         observerTargetMissingLogged = true;
         log.warn("cart-select-observer-target-missing", "购物车选择监听目标未找到", {
-          selector: "cart row parent | empty cart box | cart shared container",
+          selector: ".escxTMUGmsQ-",
           path: location.pathname,
           viewport: {
             width: window.innerWidth,
@@ -1442,7 +980,7 @@
       }
       return;
     }
-    const rawObserver = utils.createDebouncedObserver(scheduleScan, OBSERVER_DEBOUNCE_MS, { records: false });
+    const rawObserver = utils.createDebouncedObserver(() => scheduleScan(), OBSERVER_DEBOUNCE_MS, { records: false });
     observer = utils.createVisibilityGatedObserver(rawObserver, target, { childList: true, subtree: true });
     observer.__stTarget = target;
     observerTargetMissingLogged = false;
@@ -1476,11 +1014,12 @@
 
     try {
       addStyles();
-      state = (await loadState()).selection;
       bindCheckout();
       bindRemoveAllConfirm();
       observe();
-      await scan();
+      await scan().catch(error => {
+        if (!controller.signal.aborted) log.warn("cart-select-initial-read-failed", "初次读取购物车失败", { error });
+      });
     } catch (error) {
       if (lifecycle === controller) stop();
       throw error;
@@ -1512,28 +1051,29 @@
     document.querySelectorAll(".st_cart_select_actions").forEach(node => node.classList.remove("st_cart_select_actions"));
     document.querySelectorAll(".st_cart_select_remove_all_anchor").forEach(node => node.classList.remove("st_cart_select_remove_all_anchor"));
     document.querySelectorAll(".st_cart_select_cart_title").forEach(node => node.classList.remove("st_cart_select_cart_title"));
-    lastBridgeFailureKey = "";
-    lastBridgeFailureAt = 0;
     lastRenderKey = "";
     lastBulkAnchorMissing = false;
     lastSideAnchorMissing = false;
   }
 
   function stop() {
-    const wasActive = started || !!observer || !!scanTimer || !!restorePromptTimer;
+    const wasActive = started || !!observer || !!scanTimer;
     started = false;
     lifecycle?.abort();
     lifecycle = null;
     busy = false;
     restoring = false;
-    itemsComplete = true;
-    legacyOwnership = null;
+    model = null;
+    items = [];
+    nativeVersion = null;
+    accountSteamId = null;
+    scanTask = null;
+    scanQueued = forceScanQueued = false;
+    selectionSaveTask = null;
     emptyScanRetries = 0;
     clearTimeout(scanTimer);
-    clearTimeout(restorePromptTimer);
     clearTimeout(checkoutTimer);
     scanTimer = null;
-    restorePromptTimer = null;
     checkoutTimer = null;
     observer?.disconnect?.();
     observer = null;

@@ -4910,6 +4910,64 @@
   "store_cartSelect_bulkFailed": {
     "message": "장바구니 선택 항목을 업데이트할 수 없습니다."
   },
+  "store_cartSelect_accountBusy": {
+    "message": "이 Steam 계정의 장바구니를 처리 중입니다. 잠시 후 다시 시도하세요."
+  },
+  "store_cartSelect_cannotHold": {
+    "message": "선택하지 않은 일부 상품은 복원할 수 없습니다. 선택을 조정한 후 결제하세요."
+  },
+  "store_cartSelect_checkoutChanged": {
+    "message": "장바구니가 변경되었습니다. 내용을 확인한 후 다시 결제를 진행하세요."
+  },
+  "store_cartSelect_checkoutOpen": {
+    "message": "먼저 다른 탭의 Steam 결제 화면을 닫으세요."
+  },
+  "store_cartSelect_chooseAgain": {
+    "message": "다시 선택"
+  },
+  "store_cartSelect_discard": {
+    "message": "복원 포기"
+  },
+  "store_cartSelect_discardMessage": {
+    "message": "포기하면 보관된 상품을 복원하기 위한 기록이 삭제됩니다."
+  },
+  "store_cartSelect_migrationPending": {
+    "message": "이전 장바구니 선택 기록을 찾았습니다"
+  },
+  "store_cartSelect_pendingCheckout": {
+    "message": "이전 결제에서 보관한 상품을 먼저 처리하세요."
+  },
+  "store_cartSelect_recoveryPending": {
+    "message": "확인이 필요한 장바구니 복원이 있습니다"
+  },
+  "store_cartSelect_reviewItems": {
+    "message": "확인이 필요한 상품 보기"
+  },
+  "store_cartSelect_reviewBundle": {
+    "message": "번들 $id$",
+    "placeholders": {
+      "id": {
+        "content": "$1"
+      }
+    }
+  },
+  "store_cartSelect_reviewPackage": {
+    "message": "패키지 $id$",
+    "placeholders": {
+      "id": {
+        "content": "$1"
+      }
+    }
+  },
+  "store_cartSelect_restoreUncertain": {
+    "message": "일부 상품의 처리 결과를 확인해야 합니다. 복원 기록을 보관했습니다."
+  },
+  "store_cartSelect_useLegacy": {
+    "message": "이전 선택 사용"
+  },
+  "store_cartCheckout_restoreButton": {
+    "message": "장바구니로 돌아가 복원"
+  },
   "store_cartSelect_checkoutFailed": {
     "message": "장바구니 선택 항목을 처리할 수 없습니다."
   },
@@ -4918,14 +4976,6 @@
   },
   "store_cartSelect_holdFailed": {
     "message": "장바구니를 일시적으로 업데이트할 수 없습니다. 저장된 아이템은 수동으로 복원할 수 있습니다."
-  },
-  "store_cartSelect_holdingItems": {
-    "message": "미결제 아이템 $count$개를 임시로 보관하는 중...",
-    "placeholders": {
-      "count": {
-        "content": "$1"
-      }
-    }
   },
   "store_cartSelect_invertSelection": {
     "message": "선택 반전"
@@ -4942,17 +4992,11 @@
   "store_cartSelect_removeAll": {
     "message": "모두 삭제"
   },
-  "store_cartSelect_removeAllConfirm": {
-    "message": "장바구니의 모든 아이템을 삭제할까요?"
-  },
   "store_cartSelect_removeAllMessage": {
     "message": "Steam에서 장바구니의 모든 아이템을 삭제합니다. Steam의 기존 '모두 삭제' 작업을 계속하려면 확인을 누르고, 아이템을 유지하려면 취소를 누르세요."
   },
   "store_cartSelect_removeAllTitle": {
     "message": "장바구니 아이템 모두 삭제"
-  },
-  "store_cartSelect_restoreWriteUnconfirmed": {
-    "message": "장바구니 임시 저장 데이터의 변경을 확인하지 못했습니다. 장바구니 페이지를 새로고침한 후 다시 시도하세요."
   },
   "store_cartSelect_restoreButton": {
     "message": "저장된 장바구니 아이템 복원"
@@ -4960,30 +5004,8 @@
   "store_cartSelect_restored": {
     "message": "이전 장바구니에서 미결제 아이템을 복원했습니다."
   },
-  "store_cartSelect_restoreFailed": {
-    "message": "저장된 장바구니 아이템을 복원하지 못했습니다. 다시 시도하세요."
-  },
   "store_cartSelect_restoreMissing": {
     "message": "저장된 장바구니 아이템 $count$개를 복원하지 못했습니다.",
-    "placeholders": {
-      "count": {
-        "content": "$1"
-      }
-    }
-  },
-  "store_cartSelect_restorePartialFailed": {
-    "message": "일부 저장된 장바구니 아이템을 복원하지 못했습니다. 나중에 다시 시도하세요."
-  },
-  "store_cartSelect_restoreStillMissing": {
-    "message": "저장된 장바구니 아이템 $count$개가 아직 누락되어 있습니다.",
-    "placeholders": {
-      "count": {
-        "content": "$1"
-      }
-    }
-  },
-  "store_cartSelect_restoring": {
-    "message": "저장된 장바구니 아이템 $count$개를 복원하는 중...",
     "placeholders": {
       "count": {
         "content": "$1"
@@ -5482,24 +5504,6 @@
   },
   "store_priceHistory_unknownDate": {
     "message": "날짜를 알 수 없음"
-  },
-  "store_cartCheckout_restoreButton": {
-    "message": "저장된 장바구니 항목 복원"
-  },
-  "store_cartCheckout_restoreFailed": {
-    "message": "복원하지 못했습니다. 다시 시도해 주세요."
-  },
-  "store_cartCheckout_restored": {
-    "message": "저장된 장바구니를 복원했습니다"
-  },
-  "store_cartCheckout_restoring": {
-    "message": "저장된 장바구니 항목을 복원하는 중..."
-  },
-  "store_cartCheckout_restoreComplete": {
-    "message": "저장된 장바구니 항목을 복원했습니다"
-  },
-  "store_cartCheckout_empty": {
-    "message": "저장된 장바구니 항목이 없습니다"
   },
   "store_steampy_loading": {
     "message": "가격을 불러오는 중..."
@@ -13982,18 +13986,6 @@
         "content": "$1"
       }
     }
-  },
-  "store_cartSelect_accountUnavailable": {
-    "message": "현재 Steam 계정을 확인할 수 없습니다. 로그인 상태를 확인한 후 장바구니에서 다시 시도하세요."
-  },
-  "store_cartCheckout_sessionUnavailable": {
-    "message": "현재 Steam 계정 또는 상점 국가를 확인할 수 없습니다. 상품은 임시 저장되어 있습니다. 장바구니로 돌아가 복원하세요."
-  },
-  "store_cartCheckout_ownerUnconfirmed": {
-    "message": "임시 저장된 상품이 현재 Steam 계정의 것인지 확인할 수 없습니다. 상품을 저장한 계정으로 장바구니를 확인하세요."
-  },
-  "store_cartCheckout_restoreUnconfirmed": {
-    "message": "모든 상품이 복원되었는지 확인할 수 없습니다. 장바구니를 확인해 주세요. 임시 저장 목록은 보관되어 있습니다."
   },
   "store_gameNotes_invalidResponse": {
     "message": "게임 메모 응답 형식이 올바르지 않습니다."

@@ -4910,6 +4910,64 @@
   "store_cartSelect_bulkFailed": {
     "message": "カートの選択を更新できませんでした。"
   },
+  "store_cartSelect_accountBusy": {
+    "message": "この Steam アカウントのカートを処理中です。しばらくしてから再試行してください。"
+  },
+  "store_cartSelect_cannotHold": {
+    "message": "選択していない商品の一部は復元できません。選択を変更してから決済してください。"
+  },
+  "store_cartSelect_checkoutChanged": {
+    "message": "カートが更新されました。内容を確認してから、もう一度決済に進んでください。"
+  },
+  "store_cartSelect_checkoutOpen": {
+    "message": "先に別のタブの Steam 決済画面を閉じてください。"
+  },
+  "store_cartSelect_chooseAgain": {
+    "message": "選び直す"
+  },
+  "store_cartSelect_discard": {
+    "message": "復元を破棄"
+  },
+  "store_cartSelect_discardMessage": {
+    "message": "破棄すると、保留中の商品の復元記録が削除されます。"
+  },
+  "store_cartSelect_migrationPending": {
+    "message": "以前のカート選択が見つかりました"
+  },
+  "store_cartSelect_pendingCheckout": {
+    "message": "前回保留したカート内の商品を先に処理してください。"
+  },
+  "store_cartSelect_recoveryPending": {
+    "message": "確認が必要なカート復元があります"
+  },
+  "store_cartSelect_reviewItems": {
+    "message": "確認が必要な商品を見る"
+  },
+  "store_cartSelect_reviewBundle": {
+    "message": "バンドル $id$",
+    "placeholders": {
+      "id": {
+        "content": "$1"
+      }
+    }
+  },
+  "store_cartSelect_reviewPackage": {
+    "message": "パッケージ $id$",
+    "placeholders": {
+      "id": {
+        "content": "$1"
+      }
+    }
+  },
+  "store_cartSelect_restoreUncertain": {
+    "message": "一部の商品の処理結果を確認できませんでした。復元記録は保持されています。"
+  },
+  "store_cartSelect_useLegacy": {
+    "message": "以前の選択を使う"
+  },
+  "store_cartCheckout_restoreButton": {
+    "message": "カートに戻って復元"
+  },
   "store_cartSelect_checkoutFailed": {
     "message": "カートの選択を処理できませんでした。"
   },
@@ -4918,14 +4976,6 @@
   },
   "store_cartSelect_holdFailed": {
     "message": "カートを一時的に更新できませんでした。保存したアイテムは手動で復元できます。"
-  },
-  "store_cartSelect_holdingItems": {
-    "message": "未払いのアイテムを$count$件、一時的に保持しています...",
-    "placeholders": {
-      "count": {
-        "content": "$1"
-      }
-    }
   },
   "store_cartSelect_invertSelection": {
     "message": "選択を反転"
@@ -4942,17 +4992,11 @@
   "store_cartSelect_removeAll": {
     "message": "すべて削除"
   },
-  "store_cartSelect_removeAllConfirm": {
-    "message": "カートからすべてのアイテムを削除しますか？"
-  },
   "store_cartSelect_removeAllMessage": {
     "message": "Steamによりカートからすべてのアイテムが削除されます。Steam本来の「すべて削除」操作を続行するには確認し、アイテムを残すにはキャンセルしてください。"
   },
   "store_cartSelect_removeAllTitle": {
     "message": "カートのアイテムをすべて削除"
-  },
-  "store_cartSelect_restoreWriteUnconfirmed": {
-    "message": "カートの一時保存データの更新を確認できませんでした。カートページを再読み込みして、もう一度お試しください。"
   },
   "store_cartSelect_restoreButton": {
     "message": "保存したカートアイテムを復元"
@@ -4960,30 +5004,8 @@
   "store_cartSelect_restored": {
     "message": "前回のカートから未払いのアイテムを復元しました。"
   },
-  "store_cartSelect_restoreFailed": {
-    "message": "保存したカートアイテムを復元できませんでした。もう一度お試しください。"
-  },
   "store_cartSelect_restoreMissing": {
     "message": "保存したカートアイテム$count$件を復元できませんでした。",
-    "placeholders": {
-      "count": {
-        "content": "$1"
-      }
-    }
-  },
-  "store_cartSelect_restorePartialFailed": {
-    "message": "一部の保存したカートアイテムを復元できませんでした。後でもう一度お試しください。"
-  },
-  "store_cartSelect_restoreStillMissing": {
-    "message": "保存したカートアイテム$count$件がまだ見つかりません。",
-    "placeholders": {
-      "count": {
-        "content": "$1"
-      }
-    }
-  },
-  "store_cartSelect_restoring": {
-    "message": "保存したカートアイテム$count$件を復元しています...",
     "placeholders": {
       "count": {
         "content": "$1"
@@ -5482,24 +5504,6 @@
   },
   "store_priceHistory_unknownDate": {
     "message": "日付不明"
-  },
-  "store_cartCheckout_restoreButton": {
-    "message": "保存したカートの商品を復元"
-  },
-  "store_cartCheckout_restoreFailed": {
-    "message": "復元に失敗しました。もう一度お試しください。"
-  },
-  "store_cartCheckout_restored": {
-    "message": "保存したカートを復元しました"
-  },
-  "store_cartCheckout_restoring": {
-    "message": "保存したカートの商品を復元中..."
-  },
-  "store_cartCheckout_restoreComplete": {
-    "message": "保存したカートの商品を復元しました"
-  },
-  "store_cartCheckout_empty": {
-    "message": "保存したカートの商品はありません"
   },
   "store_steampy_loading": {
     "message": "価格を読み込み中..."
@@ -13982,18 +13986,6 @@
         "content": "$1"
       }
     }
-  },
-  "store_cartSelect_accountUnavailable": {
-    "message": "現在のSteamアカウントを確認できません。ログインを確認して、カートでもう一度お試しください。"
-  },
-  "store_cartCheckout_sessionUnavailable": {
-    "message": "現在のSteamアカウントまたはストアの国を確認できません。商品は一時保存されています。カートに戻って復元してください。"
-  },
-  "store_cartCheckout_ownerUnconfirmed": {
-    "message": "一時保存した商品が現在のSteamアカウントのものか確認できません。保存時のアカウントでカートを確認してください。"
-  },
-  "store_cartCheckout_restoreUnconfirmed": {
-    "message": "すべての商品が復元されたか確認できませんでした。カートを確認してください。一時保存した記録は保持されています。"
   },
   "store_gameNotes_invalidResponse": {
     "message": "ゲームメモの応答形式が正しくありません。"

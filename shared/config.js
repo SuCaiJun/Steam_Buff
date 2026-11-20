@@ -429,6 +429,11 @@
     steamStore: Object.freeze({
       host: HOSTS.steamStore,
       origin: ORIGINS.steamStore,
+      cartMethods: Object.freeze({
+        get: "/um/AccountCart/GetCart/",
+        remove: "/um/AccountCart/RemoveItemFromCart/",
+        add: "/um/AccountCart/AddItemsToCart/",
+      }),
       app: (appId) => join(ORIGINS.steamStore, `/app/${encoded(appId)}/`),
       appDetails: (appId, filters = "basic", lang = "english") => `${join(ORIGINS.steamStore, "/api/appdetails")}?appids=${encoded(appId)}&filters=${encoded(filters)}&l=${encoded(lang)}`,
       appDetailsForCountry: (appId, cc, filters = "price_overview", lang = "schinese") => `${join(ORIGINS.steamStore, "/api/appdetails")}?appids=${encoded(appId)}&filters=${encoded(filters)}&l=${encoded(lang)}&cc=${encoded(String(cc || "CN").toUpperCase())}`,
@@ -446,8 +451,6 @@
       host: HOSTS.steamApi,
       origin: ORIGINS.steamApi,
       currentPlayers: (appId) => join(ORIGINS.steamApi, `/ISteamUserStats/GetNumberOfCurrentPlayers/v1/?appid=${encoded(appId)}`),
-      cartAddItems: () => join(ORIGINS.steamApi, "/IAccountCartService/AddItemsToCart/v1/"),
-      cartAddItemsBody: (token, inputJson, storeOrigin = ORIGINS.steamStore) => `access_token=${encoded(token)}&origin=${encoded(storeOrigin)}&input_json=${encoded(inputJson)}`,
       familyGroupForUser: () => join(ORIGINS.steamApi, "/IFamilyGroupsService/GetFamilyGroupForUser/v1/"),
       sharedLibraryApps: () => join(ORIGINS.steamApi, "/IFamilyGroupsService/GetSharedLibraryApps/v1/"),
       playerLinkDetails: () => join(ORIGINS.steamApi, "/IPlayerService/GetPlayerLinkDetails/v1/"),

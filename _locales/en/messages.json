@@ -4910,6 +4910,64 @@
   "store_cartSelect_bulkFailed": {
     "message": "Could not update the cart selection."
   },
+  "store_cartSelect_accountBusy": {
+    "message": "This Steam account's cart is busy. Please try again."
+  },
+  "store_cartSelect_cannotHold": {
+    "message": "Some unselected items cannot be restored. Adjust your selection before checking out."
+  },
+  "store_cartSelect_checkoutChanged": {
+    "message": "Your cart has changed. Review it and continue to checkout again."
+  },
+  "store_cartSelect_checkoutOpen": {
+    "message": "Leave Steam checkout in the other tab first."
+  },
+  "store_cartSelect_chooseAgain": {
+    "message": "Choose again"
+  },
+  "store_cartSelect_discard": {
+    "message": "Discard recovery"
+  },
+  "store_cartSelect_discardMessage": {
+    "message": "Discarding deletes the record used to restore these items."
+  },
+  "store_cartSelect_migrationPending": {
+    "message": "Previous cart selections found"
+  },
+  "store_cartSelect_pendingCheckout": {
+    "message": "Resolve the items set aside from your previous checkout first."
+  },
+  "store_cartSelect_recoveryPending": {
+    "message": "One cart recovery needs review"
+  },
+  "store_cartSelect_reviewItems": {
+    "message": "Review items to verify"
+  },
+  "store_cartSelect_reviewBundle": {
+    "message": "Bundle $id$",
+    "placeholders": {
+      "id": {
+        "content": "$1"
+      }
+    }
+  },
+  "store_cartSelect_reviewPackage": {
+    "message": "Package $id$",
+    "placeholders": {
+      "id": {
+        "content": "$1"
+      }
+    }
+  },
+  "store_cartSelect_restoreUncertain": {
+    "message": "Some cart changes still need verification. Your recovery record was kept."
+  },
+  "store_cartSelect_useLegacy": {
+    "message": "Use previous selections"
+  },
+  "store_cartCheckout_restoreButton": {
+    "message": "Return to cart to restore"
+  },
   "store_cartSelect_checkoutFailed": {
     "message": "Could not process the cart selection."
   },
@@ -4918,14 +4976,6 @@
   },
   "store_cartSelect_holdFailed": {
     "message": "Could not temporarily update the cart. Saved items are available to restore manually."
-  },
-  "store_cartSelect_holdingItems": {
-    "message": "Temporarily keeping $count$ unpaid item(s)...",
-    "placeholders": {
-      "count": {
-        "content": "$1"
-      }
-    }
   },
   "store_cartSelect_invertSelection": {
     "message": "Invert selection"
@@ -4942,17 +4992,11 @@
   "store_cartSelect_removeAll": {
     "message": "Remove all"
   },
-  "store_cartSelect_removeAllConfirm": {
-    "message": "Remove every item from the cart?"
-  },
   "store_cartSelect_removeAllMessage": {
     "message": "Steam will remove every item from the cart. Confirm to continue with Steam's original Remove All action, or cancel to keep the items."
   },
   "store_cartSelect_removeAllTitle": {
     "message": "Remove all cart items"
-  },
-  "store_cartSelect_restoreWriteUnconfirmed": {
-    "message": "The extension did not confirm the saved cart change. Refresh the cart page and try again."
   },
   "store_cartSelect_restoreButton": {
     "message": "Restore saved cart items"
@@ -4960,30 +5004,8 @@
   "store_cartSelect_restored": {
     "message": "Restored unpaid items from the previous cart."
   },
-  "store_cartSelect_restoreFailed": {
-    "message": "Could not restore saved cart items. Try again."
-  },
   "store_cartSelect_restoreMissing": {
     "message": "$count$ saved cart item(s) have not been restored.",
-    "placeholders": {
-      "count": {
-        "content": "$1"
-      }
-    }
-  },
-  "store_cartSelect_restorePartialFailed": {
-    "message": "Some saved cart items were not restored. Try again later."
-  },
-  "store_cartSelect_restoreStillMissing": {
-    "message": "$count$ saved cart item(s) are still missing.",
-    "placeholders": {
-      "count": {
-        "content": "$1"
-      }
-    }
-  },
-  "store_cartSelect_restoring": {
-    "message": "Restoring $count$ saved cart item(s)...",
     "placeholders": {
       "count": {
         "content": "$1"
@@ -5482,24 +5504,6 @@
   },
   "store_priceHistory_unknownDate": {
     "message": "Unknown date"
-  },
-  "store_cartCheckout_restoreButton": {
-    "message": "Restore saved cart items"
-  },
-  "store_cartCheckout_restoreFailed": {
-    "message": "Restore failed. Try again."
-  },
-  "store_cartCheckout_restored": {
-    "message": "Saved cart restored"
-  },
-  "store_cartCheckout_restoring": {
-    "message": "Restoring saved cart items..."
-  },
-  "store_cartCheckout_restoreComplete": {
-    "message": "Saved cart items restored"
-  },
-  "store_cartCheckout_empty": {
-    "message": "No saved cart items"
   },
   "store_steampy_loading": {
     "message": "Loading prices..."
@@ -13982,18 +13986,6 @@
         "content": "$1"
       }
     }
-  },
-  "store_cartSelect_accountUnavailable": {
-    "message": "Could not verify the current Steam account. Check that you are signed in and try again in your cart."
-  },
-  "store_cartCheckout_sessionUnavailable": {
-    "message": "Could not verify your Steam account or store country. Your items are still saved. Return to your cart to restore them."
-  },
-  "store_cartCheckout_ownerUnconfirmed": {
-    "message": "Could not verify that the saved items belong to this Steam account. Check your cart using the account that saved them."
-  },
-  "store_cartCheckout_restoreUnconfirmed": {
-    "message": "Could not confirm that every item was restored. Check your cart. The saved items have been kept."
   },
   "store_gameNotes_invalidResponse": {
     "message": "The game notes service returned an invalid response."

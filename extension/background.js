@@ -34,6 +34,7 @@
   importScripts(chrome.runtime.getURL("shared/error-boundary.js"));
   importScripts(chrome.runtime.getURL("shared/i18n.js"));
   importScripts(chrome.runtime.getURL("shared/utils/network-request.js"));
+  importScripts(chrome.runtime.getURL("extension/background-cart.js"));
   importScripts(chrome.runtime.getURL("shared/lifecycle-prompt-contract.js"));
   importScripts(chrome.runtime.getURL("extension/background-lifecycle.js"));
   importScripts(chrome.runtime.getURL("vendor/fflate/fflate.js"));
@@ -3991,158 +3992,9 @@
     }
   }
 
-  let cartRestoreQueue = Promise.resolve();
-
-  async function cartRestoreMutation(request, sender, respond) {
-    const cart = globalThis.STCartRestore;
-    const url = senderUrlObject({ url: sender?.url });
-    const storeCart = url?.origin === CFG.vendors.steamStore.origin && /^\/cart\/?$/.test(url.pathname);
-    const checkout = url?.protocol === "https:" && !url.port && MATCH.isSteamCheckoutHost(url.hostname);
-    if (sender?.id !== chrome.runtime.id || sender.frameId !== 0 || !Number.isInteger(sender.tab?.id)
-      || sender.tab.id < 0 || !(storeCart || (checkout && request.action === "prune"))) {
-      throw new Error("购物车暂存写入来源无效");
-    }
-    const { action, batch, ids } = request;
-    if (action === "append") {
-      if (!cart.valid(batch) || !cart.validAccount(batch.accountSteamId) || !batch.items.length || !cart.active(batch)) throw new TypeError("购物车追加批次无效");
-    } else if (action === "confirm") {
-      if (!Array.isArray(ids) || !ids.length || !ids.every(id => typeof id === "string" && id.length)) throw new TypeError("购物车确认批次无效");
-    } else if (action !== "prune") {
-      throw new TypeError("购物车暂存操作无效");
-    }
-
-    // 每个写入只在轮到自己后才读取最新记录；前次失败仍由其调用者收到。
-    const commit = async () => {
-      const raw = await chrome.storage.local.get(cart.KEY);
-      const before = cart.records(raw[cart.KEY]);
-      const confirmed = new Set(action === "confirm" ? ids : []);
-      const next = before.filter(row => cart.active(row) && !confirmed.has(row.id));
-      const add = action === "append" && !next.some(row => row.id === batch.id);
-      if (add || next.length !== before.length) {
-        if (add) next.push(batch);
-        if (next.length) await chrome.storage.local.set({ [cart.KEY]: next });
-        else await chrome.storage.local.remove(cart.KEY);
-      }
-      return next.length;
-    };
-    cartRestoreQueue = cartRestoreQueue.then(commit, commit);
-    respond({ success: true, remaining: await cartRestoreQueue });
-  }
-
-  const cartRestoreRequests = new Set();
-
-  async function readCartSession(sender, account) {
-    const [page] = await execScript({
-      target: { tabId: sender.tab.id, documentIds: [sender.documentId] },
-      world: "MAIN",
-      args: [CFG.vendors.steamStore.origin, account],
-      func: (origin, steamid) => {
-        const user = window.UserConfig;
-        if (location.origin !== origin || !/^\/cart\/?$/.test(location.pathname)
-          || user?.logged_in !== true || user.steamid !== steamid) return null;
-        const root = window.SSR?.loaderData?.[0];
-        if (typeof root !== "string") return null;
-        let store;
-        try {
-          store = JSON.parse(root);
-        } catch {
-          throw new Error("Steam 商店会话格式错误");
-        }
-        if (store?.steamid !== steamid) return null;
-        return { token: store.strWebAPIToken, country: user.country_code };
-      },
-    });
-    const session = page?.result;
-    if (typeof session?.token !== "string" || !session.token
-      || typeof session.country !== "string" || !/^[a-z]{2}$/i.test(session.country)) {
-      throw new Error("无法确认当前 Steam 恢复会话，请刷新购物车后重试。");
-    }
-    return session;
-  }
-
-  async function ownedCartBatches(sender, account, ids, signal) {
-    const cart = globalThis.STCartRestore;
-    const raw = await chrome.storage.local.get(cart.KEY);
-    const session = await readCartSession(sender, account);
-    signal?.throwIfAborted();
-    const batches = cart.owned(cart.records(raw[cart.KEY]).filter(cart.active), account, session.token)
-      .filter(batch => ids.has(batch.id));
-    return { session, batches };
-  }
-
   async function cartRestoreItems(request, sender, respond) {
-    const cart = globalThis.STCartRestore;
-    const url = senderUrlObject(sender);
-    if (sender?.id !== chrome.runtime.id || sender.frameId !== 0 || !Number.isInteger(sender.tab?.id)
-      || sender.tab.id < 0 || typeof sender.documentId !== "string" || !sender.documentId
-      || url?.origin !== CFG.vendors.steamStore.origin || !/^\/cart\/?$/.test(url.pathname)) {
-      throw new Error("购物车恢复请求来源无效");
-    }
-    const { action, accountSteamId, batchIds, keys, signal } = request;
-    if (!cart.validAccount(accountSteamId)) throw new TypeError("购物车恢复账号无效");
-    if (action === "check") {
-      await readCartSession(sender, accountSteamId);
-      signal?.throwIfAborted();
-      respond({ success: true });
-      return;
-    }
-    if (!Array.isArray(batchIds) || !batchIds.length || !batchIds.every(id => typeof id === "string" && id)) {
-      throw new TypeError("购物车恢复批次无效");
-    }
-    const ids = new Set(batchIds);
-    if (action === "owned") {
-      const { batches } = await ownedCartBatches(sender, accountSteamId, ids, signal);
-      respond({ success: true, ids: batches.map(batch => batch.id) });
-      return;
-    }
-    if (action !== "restore" || !Array.isArray(keys) || !keys.length
-      || !keys.every(key => typeof key === "string" && /^(?:package|bundle):[1-9]\d*$/.test(key))) {
-      throw new TypeError("购物车恢复商品无效");
-    }
-    if (cartRestoreRequests.has(accountSteamId)) throw new Error("此 Steam 账号的购物车正在恢复，请稍后重试。");
-    cartRestoreRequests.add(accountSteamId);
-    try {
-      const { session, batches } = await ownedCartBatches(sender, accountSteamId, ids, signal);
-      if (batches.length !== ids.size) throw new Error("未能确认暂存商品的账号归属。");
-
-      const expected = new Map();
-      for (const record of batches.flatMap(batch => batch.items)) {
-        const id = Number(record?.itemId);
-        const kind = record?.kind;
-        if ((kind !== "package" && kind !== "bundle") || !Number.isInteger(id) || id <= 0 || id > 0xffffffff
-          || record.key !== `${kind}:${id}`) throw new TypeError("购物车暂存商品格式错误");
-        expected.set(record.key, kind === "bundle" ? { bundleid: id } : { packageid: id });
-      }
-      const items = [...new Set(keys)].map(key => expected.get(key));
-      if (items.some(item => !item)) throw new Error("恢复商品与暂存批次不一致。");
-
-      const api = CFG.vendors.steamApi;
-      const input = JSON.stringify({ user_country: session.country.toUpperCase(), items });
-      // 复用结算页的 Steam 接口。凭据只进后台请求体，回复只给确认状态
-      const parsed = await globalThis.STNetworkRequest.run(10_000, async signal => {
-        const response = await fetch(api.cartAddItems(), {
-          method: "POST",
-          headers: { "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8" },
-          body: api.cartAddItemsBody(session.token, input),
-          credentials: "omit",
-          redirect: "error",
-          signal,
-        });
-        const result = response.headers.get("x-eresult");
-        if (!response.ok || (result !== null && result !== "1")) throw new Error("Steam 拒绝恢复暂存商品。");
-        try {
-          return await response.json();
-        } catch (error) {
-          throw new Error("Steam 购物车恢复响应无法解析。", { cause: globalThis.STLoggerSchema.markJsonError(error) });
-        }
-      }, signal);
-      if (!cart.containsItems(parsed, [...expected.values()])) throw new Error("Steam 未确认已恢复全部暂存商品。");
-      await readCartSession(sender, accountSteamId);
-      signal?.throwIfAborted();
-      respond({ success: true });
-    } finally {
-      cartRestoreRequests.delete(accountSteamId);
-    }
+    const result = await globalThis.STBackgroundCart.handle(request, sender, execScript);
+    respond({ success: true, ...result });
   }
 
   const ROUTES = Object.freeze({
@@ -4181,7 +4033,6 @@
     UPDATE_CHECK: globalThis.STBackgroundUpdate.updateCheck,
     NETWORK_REQUEST_CANCEL: cancelNetworkRequest,
     STORE_FETCH: networkRoute(storeFetch),
-    [globalThis.STCartRestore.TYPE]: cartRestoreMutation,
     [globalThis.STCartRestore.ITEMS_TYPE]: networkRoute(cartRestoreItems),
     [PLAYER_STATS_FETCH]: playerStatsFetch,
     TRANSLATE_INJECT: translateInject,
