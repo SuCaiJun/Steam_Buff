@@ -304,11 +304,20 @@
         await ensureContext(current);
         const nextLanguage = response.data.language, languageChanged = nextLanguage !== current.language, d = dialog?.current === current ? dialog : null;
         if (rebaseDrafts && d && languageChanged) {
-          if (d.dirty.size && !window.confirm(uiText("achievementManager.switchLanguage", "成就翻译目标语言已从 $old$ 切换到 $next$。继续刷新将丢弃 $count$ 项未保存修改，是否继续？", { old: targetName(current.language), next: targetName(nextLanguage), count: d.dirty.size }))) {
-            current.ready = true;
-            renderManager(true);
-            status(() => uiText("achievementManager.cancelLanguage", "已取消语言切换，当前语言和未保存修改均已保留。"));
-            return;
+          if (d.dirty.size) {
+            const accepted = await window.STFeedback.confirm(d.root, {
+              message: uiText("achievementManager.switchLanguage", "成就翻译目标语言已从 $old$ 切换到 $next$。继续刷新将丢弃 $count$ 项未保存修改，是否继续？", { old: targetName(current.language), next: targetName(nextLanguage), count: d.dirty.size }),
+              confirmLabel: uiText("common_continue", "继续"),
+              danger: true,
+            });
+            if (dialog !== d || mounted !== current || stopped) return;
+            assertCurrent(current);
+            if (!accepted) {
+              current.ready = true;
+              renderManager(true);
+              status(() => uiText("achievementManager.cancelLanguage", "已取消语言切换，当前语言和未保存修改均已保留。"));
+              return;
+            }
           }
           discardDrafts(d);
         }
@@ -478,6 +487,7 @@
         dialog.discard.hidden = false; status(() => uiText("achievementManager.unsaved", "有译文修改尚未保存。请先保存，或选择“放弃修改并关闭”。"), true); return;
       }
       const d = dialog; dialog = null; d.job?.queue.cancel();
+      window.STFeedback.dismiss(d.root);
       if (d.scrollFrame) cancelAnimationFrame(d.scrollFrame);
       if (d.filterFrame) cancelAnimationFrame(d.filterFrame);
       d.resize.disconnect(); d.viewportResize.disconnect(); d.lifecycle.close(); d.root.remove();

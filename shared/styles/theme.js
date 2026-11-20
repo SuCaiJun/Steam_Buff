@@ -11,7 +11,7 @@
 ((root) => {
   'use strict';
 
-  const THEME_VERSION = 'steam-buff-theme-v12';
+  const THEME_VERSION = 'steam-buff-theme-v13';
 
   if (root.STTheme?.version === THEME_VERSION) {
     return;
@@ -745,17 +745,27 @@
     ...Object.fromEntries(colors.chartSeries.map((color, index) => [`--st-chart-series-${index + 1}`, color])),
   };
 
+  const flatDialogVariables = {
+    '--st-dialog-surface': 'var(--st-color-steam-property-window)',
+    '--st-dialog-surface-raised': 'var(--st-color-steam-property-button)',
+    '--st-dialog-header-bg': 'var(--st-color-steam-property-window)',
+    '--st-dialog-border': 'var(--st-color-border-normal)',
+    '--st-dialog-primary-bg': 'var(--st-color-steam-blue-alpha-38)',
+    '--st-dialog-primary-shadow': 'none',
+  };
+
   /**
    * 将语义化主题 token 写入目标节点的 CSS 变量。
    * @param {HTMLElement} target - 写入 CSS 变量的目标节点。
+   * @param {Record<string, string>} variables - 需要应用的主题 token，默认使用基础主题。
    * @returns {boolean} 是否成功写入。
    */
-  function applyCssVariables(target = root.document?.documentElement) {
+  function applyCssVariables(target = root.document?.documentElement, variables = cssVariables) {
     if (!target?.style) {
       return false;
     }
 
-    Object.entries(cssVariables).forEach(([name, value]) => {
+    Object.entries(variables).forEach(([name, value]) => {
       target.style.setProperty(name, value);
     });
     return true;
@@ -781,6 +791,7 @@
     gradients,
     filters,
     cssVariables,
+    flatDialogVariables,
     applyCssVariables,
   });
 

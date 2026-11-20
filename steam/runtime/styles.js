@@ -834,6 +834,7 @@
   }
 
   const libraryCustomNameSharedCss = components.css.compose(
+    components.css.variables(`#${LIBRARY_CUSTOM_NAME_ONE}`, root.STTheme.flatDialogVariables),
     components.css.dialog({
       variant: "standard",
       layerSelectors: `#${LIBRARY_CUSTOM_NAME_ONE}`,

@@ -537,14 +537,6 @@
   }
 
 
-  function createDialogButton(label, primary) {
-    const button = document.createElement("button");
-    button.type = "button";
-    button.className = `st_family_library_dialog__button${primary ? " primary" : ""}`;
-    button.textContent = label;
-    return button;
-  }
-
   function showBlockingWait() {
     if (typeof window.ShowBlockingWaitDialog === "function") {
       try {
@@ -567,40 +559,16 @@
     return { close };
   }
 
-  function showAlert(title, message, confirmLabel) {
-    if (!confirmLabel && typeof window.ShowAlertDialog === "function") {
-      try {
-        return Promise.resolve(window.ShowAlertDialog(title, message));
-      } catch {
-      }
+  async function showAlert(title, message, confirmLabel) {
+    const controller = new AbortController();
+    const dispose = trackDisposer(dialogDisposers, () => controller.abort());
+    const options = { title, message, confirmLabel, signal: controller.signal };
+    try {
+      if (confirmLabel) return await window.STFeedback.confirm(document.body, options);
+      await window.STFeedback.show(document.body, options);
+    } finally {
+      dispose();
     }
-    const modal = createModal({ title, message });
-    const actions = document.createElement("div");
-    actions.className = "st_family_library_dialog__actions";
-    const primary = createDialogButton(confirmLabel || i18n("common.confirm", "确定"), true);
-    const cancel = confirmLabel ? createDialogButton(i18n("common.cancel", "取消"), false) : null;
-    if (cancel) actions.appendChild(cancel);
-    actions.appendChild(primary);
-    modal.dialog.appendChild(actions);
-    return new Promise((resolve) => {
-      let disposeDialog = null;
-      const done = (accepted = false) => {
-        if (disposeDialog) {
-          dialogDisposers.delete(disposeDialog);
-          disposeDialog = null;
-        }
-        modal.layer.remove();
-        resolve(accepted);
-      };
-      disposeDialog = trackDisposer(dialogDisposers, done);
-      primary.addEventListener("click", () => done(true));
-      cancel?.addEventListener("click", () => done());
-      modal.close.addEventListener("click", () => done());
-      modal.layer.addEventListener("keydown", (event) => {
-        if (event.key === "Escape") done();
-      });
-      primary.focus();
-    });
   }
 
   function refreshFamilyLibrary() {

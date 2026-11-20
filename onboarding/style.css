@@ -1515,15 +1515,6 @@ button:focus-visible {
   flex: 0 0 auto;
 }
 
-#name-mode-dialog {
-  --st-dialog-surface-raised: var(--ob-surface);
-  --st-dialog-header-bg: var(--ob-surface);
-  --st-dialog-title-color: var(--ob-text);
-  --st-dialog-text-color: var(--ob-text-soft);
-  --st-dialog-border: var(--ob-rail-line);
-  --st-dialog-divider: var(--ob-line);
-}
-
 #name-mode-dialog:modal {
   overflow: auto;
   overscroll-behavior: contain;
@@ -1542,59 +1533,6 @@ button:focus-visible {
 
 #name-mode-donate {
   text-decoration: none;
-}
-
-.ob-modal {
-  position: fixed;
-  inset: 0;
-  z-index: 40;
-  display: grid;
-  place-items: center;
-  padding: 24px;
-}
-
-.ob-modal[hidden] {
-  display: none !important;
-}
-
-.ob-modal-backdrop {
-  position: absolute;
-  inset: 0;
-  background: rgba(15, 23, 32, 0.42);
-}
-
-.ob-modal-card {
-  position: relative;
-  z-index: 1;
-  width: min(420px, 100%);
-  display: grid;
-  gap: 16px;
-  padding: 28px 26px 24px;
-  border: 1px solid var(--ob-line);
-  border-radius: 18px;
-  background: #fff;
-  box-shadow: 0 18px 48px rgba(15, 23, 32, 0.18);
-}
-
-.ob-modal-card h3 {
-  margin: 0;
-  color: var(--ob-text);
-  font-size: 22px;
-  line-height: 1.25;
-  font-weight: 740;
-  letter-spacing: -0.03em;
-}
-
-.ob-modal-copy {
-  margin: 0;
-  color: var(--ob-text-soft);
-  font-size: 14px;
-  line-height: 1.7;
-}
-
-.ob-modal-card .btn {
-  width: 100%;
-  margin-top: 4px;
 }
 
 @keyframes stepEnter {

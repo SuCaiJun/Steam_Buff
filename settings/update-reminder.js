@@ -225,7 +225,7 @@
   function build(info) {
     const host = document.createElement("div");
     // 独立弹窗不依赖 Steam 页面根节点提供主题变量。
-    theme.applyCssVariables(host);
+    theme.applyCssVariables(host, { ...theme.cssVariables, ...theme.flatDialogVariables });
     const shadow = host.attachShadow({ mode: "open" });
     const latest = info.latest || {};
     const remote = api.verLabel(latest.version || info.remote);

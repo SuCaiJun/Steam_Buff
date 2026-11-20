@@ -251,6 +251,7 @@
     }
 
     const style = api.styles.ensureStyle("__RickyMessageCenterStyle", window.STComponents.css.compose(
+      window.STComponents.css.variables(".st-mc-operation, .st-mc-delete-confirm", window.STTheme.flatDialogVariables),
       window.STComponents.css.button(".st-mc-button", { variant: "secondary", minHeight: "28px", padding: "4px 8px", fontSize: "12px" }),
       window.STComponents.css.button(".st-mc-operation-primary", { variant: "primary", minHeight: "32px" }),
       window.STComponents.css.dialog({ surfaceSelectors: ".st-mc-operation", openSurfaceSelectors: ".st-mc-operation[open]", headerSelectors: ".st-mc-operation-head", titleSelectors: ".st-mc-operation-title", closeSelectors: ".st-mc-operation-close", bodySelectors: ".st-mc-operation-body", footerSelectors: ".st-mc-operation-foot" }),
@@ -360,7 +361,7 @@
       .st-mc-help-paragraph { display: block; margin-bottom: 8px; }
       .st-mc-help-note { display: block; flex: 0 0 auto; padding-top: 8px; border-top: 1px solid var(--st-color-border-normal); color: var(--st-color-text-muted); }
       .st-mc-help-storage { display: block; flex: 0 0 auto; }
-      .st-mc-delete-confirm { color: var(--st-color-white); background: var(--st-color-steam-message-surface); border: 1px solid var(--st-color-black); box-shadow: var(--st-shadow-panel-menu); overscroll-behavior: contain; }
+      .st-mc-delete-confirm { color: var(--st-dialog-text-color); background: var(--st-dialog-surface-raised); border: 1px solid var(--st-dialog-border); border-radius: var(--st-dialog-radius); box-shadow: var(--st-dialog-shadow); overscroll-behavior: contain; }
       .st-mc-delete-confirm::backdrop { background: var(--st-color-overlay); overflow: hidden; overscroll-behavior: contain; }
       .st-mc-detail-head { display: flex; flex: 0 0 auto; align-items: center; justify-content: space-between; gap: 16px; min-height: 48px; padding: 0 16px; border-bottom: 1px solid var(--st-color-surface-subtle); }
       .st-mc-detail-head h2 { margin: 0; font-size: 16px; }
@@ -388,7 +389,7 @@
       .st-mc-operation-copy { min-width: 0; white-space: pre-wrap; line-height: 1.5; }
       .st-mc-operation-mark { flex: 0 0 22px; display: grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; font-size: 16px; font-weight: 700; }
       .st-mc-operation[data-state="error"] .st-mc-operation-mark, .st-mc-operation[data-state="timeout"] .st-mc-operation-mark { color: var(--st-color-danger-text); }
-      .st-mc-operation-foot { flex: 0 0 auto; }
+      .st-mc-operation-foot { flex: 0 0 auto; border-top: 1px solid var(--st-dialog-divider); }
       #${ROOT} button:focus-visible, #${PANEL} button:focus-visible, #${DIALOG} button:focus-visible { outline: 2px solid var(--st-color-steam-blue); outline-offset: -2px; }
       #${PANEL} .st-mc-open:focus-visible, #${DIALOG} .st-mc-open:focus-visible { outline: 1px dashed var(--st-color-text-muted); outline-offset: -4px; }
       #${PANEL} [hidden], #${DIALOG} [hidden] { display: none; }

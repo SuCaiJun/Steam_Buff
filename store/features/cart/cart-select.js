@@ -32,6 +32,7 @@
   let pageReady = null;
   let scanTimer = null;
   let observer = null;
+  let removeAllConfirmation = null;
   let restorePromptTimer = null;
   let emptyScanRetries = 0;
   let state = {};
@@ -249,7 +250,7 @@
   }
 
   function isRemoveAllButton(el) {
-    return !!el && /^(移除所有项目|Remove all items|Remove all)$/i.test(compactText(el));
+    return !!el && !el.closest(".st-feedback-dialog") && /^(移除所有项目|Remove all items|Remove all)$/i.test(compactText(el));
   }
 
   function removeAllButton() {
@@ -475,80 +476,25 @@
     return wrap;
   }
 
-  function confirmHost() {
-    const host = document.createElement("div");
-    host.id = "st_cart_remove_all_confirm_host";
-    const shadow = host.attachShadow({ mode: "open" });
-    const sheet = document.createElement("style");
-    const extra = `
-      .overlay.dialog-only {
-        background: var(--st-color-overlay);
-      }
-
-      .overlay.dialog-only .panel {
-        width: min(460px, calc(100vw - 32px));
-        height: auto;
-        min-width: 0;
-        display: block;
-        overflow: visible;
-        background: transparent;
-        border: 0;
-        box-shadow: none;
-        opacity: 1;
-        transform: none;
-      }
-
-      .overlay.dialog-only .settings-dialog-layer {
-        position: static;
-        padding: 0;
-        background: transparent;
-      }
-    `;
-    sheet.textContent = globalThis.STSettingsStyles?.css?.(extra) || extra;
-    shadow.appendChild(sheet);
-
-    const overlay = document.createElement("section");
-    overlay.className = "overlay open dialog-only";
-    const panel = document.createElement("div");
-    panel.className = "panel";
-    overlay.appendChild(panel);
-    shadow.appendChild(overlay);
-    document.body.appendChild(host);
-    return { host, shadow };
-  }
-
-  async function showRemoveAllConfirm() {
-    const dialog = globalThis.STSettingsDialogs?.dialog;
-    if (typeof dialog !== "function") {
-      log.warn("cart-remove-all-confirm-fallback", "移除全部确认组件不可用，降级为浏览器确认框", {
-        path: location.pathname,
-      });
-      return window.confirm(t("store_cartSelect_removeAllConfirm", "确认移除购物车中的所有项目？"));
-    }
-
-    const { host, shadow } = confirmHost();
+  async function showRemoveAllConfirm(signal) {
     const startedAt = Date.now();
     log.info("cart-remove-all-confirm-open", "移除全部确认弹窗已打开", {
       path: location.pathname,
     });
-    try {
-      const action = await dialog(shadow, {
-        title: t("store_cartSelect_removeAllTitle", "确认移除所有项目"),
-        message: t("store_cartSelect_removeAllMessage", "此操作会让 Steam 移除购物车中的所有项目。确认后将继续执行 Steam 原本的移除所有项目操作，取消则不会执行。"),
-        actions: [
-          { id: "cancel", label: t("store_cartSelect_keepItems", "继续保留") },
-          { id: "remove", label: t("store_cartSelect_removeAll", "确认移除"), primary: true },
-        ],
-      });
-      log.info("cart-remove-all-confirm-close", "移除全部确认弹窗已关闭", {
-        action,
-        confirmed: action === "remove",
-        durationMs: Date.now() - startedAt,
-      });
-      return action === "remove";
-    } finally {
-      window.setTimeout(() => host.remove(), 160);
-    }
+    const confirmed = await window.STFeedback.confirm(document.body, {
+      title: t("store_cartSelect_removeAllTitle", "确认移除所有项目"),
+      message: t("store_cartSelect_removeAllMessage", "此操作会让 Steam 移除购物车中的所有项目。确认后将继续执行 Steam 原本的移除所有项目操作，取消则不会执行。"),
+      cancelLabel: t("store_cartSelect_keepItems", "继续保留"),
+      confirmLabel: t("store_cartSelect_removeAll", "确认移除"),
+      danger: true,
+      signal,
+    });
+    log.info("cart-remove-all-confirm-close", "移除全部确认弹窗已关闭", {
+      action: confirmed ? "remove" : "cancel",
+      confirmed,
+      durationMs: Date.now() - startedAt,
+    });
+    return confirmed;
   }
 
   function renderRows() {
@@ -1128,6 +1074,9 @@
 
     event.preventDefault();
     event.stopImmediatePropagation();
+    if (removeAllConfirmation) return;
+    const controller = new AbortController();
+    removeAllConfirmation = controller;
     const startedAt = Date.now();
     const operationId = window.STLoggerFactory?.createOperationId?.() || "";
     log.info("cart-remove-all-action-start", "用户点击移除购物车全部项目", {
@@ -1135,8 +1084,8 @@
       totalCount: items.length,
       path: location.pathname,
     });
-    showRemoveAllConfirm().then(ok => {
-      if (!ok) {
+    showRemoveAllConfirm(controller.signal).then(ok => {
+      if (!ok || controller.signal.aborted || !btn.isConnected) {
         log.info("cart-remove-all-action-cancel", "用户取消移除购物车全部项目", {
           operationId,
           totalCount: items.length,
@@ -1161,6 +1110,8 @@
         durationMs: Date.now() - startedAt,
         error,
       });
+    }).finally(() => {
+      if (removeAllConfirmation === controller) removeAllConfirmation = null;
     });
   }
 
@@ -1296,7 +1247,6 @@
       "#st_cart_select_bulk_actions",
       "#st_cart_select_side_summary",
       "#st_cart_restore_panel",
-      "#st_cart_remove_all_confirm_host",
       ".st_cart_select_check",
       ".st_cart_select_sep",
       ".st_cart_select_hold",
@@ -1331,6 +1281,8 @@
     observer = null;
     document.removeEventListener("click", onCheckoutClick, true);
     document.removeEventListener("click", onRemoveAllConfirmClick, true);
+    removeAllConfirmation?.abort();
+    removeAllConfirmation = null;
     cleanupUi();
     api.styles?.removeFeatureStyle?.("cart-select");
     if (wasActive) {

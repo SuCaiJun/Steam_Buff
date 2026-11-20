@@ -140,6 +140,7 @@
   let celebration = null;
   let celebrationTimer = 0;
   let aiModelDetection = null;
+  let restartNotice = null;
   let renderedAiModelOptions = null;
   let aiTemperatureBeforePreset = null;
 
@@ -1011,7 +1012,13 @@
       if (response?.granted !== true) throw aiPermissionError(response);
       return true;
     }
-    const ok = window.confirm(t("settings_ai_permissionBrowserMessage", "该操作需要授权，需打开 Chromium 浏览器进行授权操作。是否继续？"));
+    const ok = await window.STFeedback.confirm(document.body, {
+      title: t("settings_ai_permissionBrowserTitle", "需要浏览器授权"),
+      message: t("settings_ai_permissionBrowserMessage", "该操作需要授权，需打开 Chromium 浏览器进行授权操作。是否继续？"),
+      confirmLabel: t("common_continue", "继续"),
+      signal,
+    });
+    signal?.throwIfAborted();
     if (!ok) {
       const error = new Error(t("onboarding_gatewayAuthCanceled", "已取消 AI 网关授权。"));
       error.code = "AI_HOST_PERMISSION_CANCELLED";
@@ -1735,15 +1742,37 @@
     renderRestartModal();
   }
 
-  function closeRestartModal() {
-    state.restartModalOpen = false;
-    renderRestartModal();
-  }
-
   function renderRestartModal() {
-    const modal = $("#restart-modal");
-    if (!modal) return;
-    modal.hidden = state.restartModalOpen !== true;
+    if (!state.restartModalOpen || state.phase !== "ready" || activeStep().id !== "complete") {
+      restartNotice?.abort();
+      restartNotice = null;
+      return;
+    }
+    if (restartNotice) return;
+    const controller = new AbortController();
+    restartNotice = controller;
+    void window.STFeedback.confirm(document.body, {
+      title: t("onboarding_restartSteam", "需要重启 Steam"),
+      message: t("onboarding_restartNoticePrefix", "客户端增强需要你") +
+        t("onboarding_restartNoticeAction", "完全退出并重新打开 Steam") +
+        t("onboarding_restartNoticeSuffix", "后才会生效。我们不会替你重启，请确认后自行操作。"),
+      confirmLabel: t("onboarding_gotIt", "知道了"),
+      requireAcknowledgement: true,
+      signal: controller.signal,
+    }).then(confirmed => {
+      if (restartNotice !== controller) return;
+      restartNotice = null;
+      state.restartModalOpen = false;
+      if (!confirmed) return;
+      state.restartAcked = true;
+      setNote(t("onboarding_restartInstruction", "请完全退出并重新打开 Steam，客户端增强才会生效。"), false);
+    }).catch(error => {
+      if (restartNotice !== controller) return;
+      restartNotice = null;
+      state.restartModalOpen = false;
+      log.error("onboarding-restart-notice-failed", "安装引导显示重启提示失败", { error });
+      setNote(error.message, true);
+    });
   }
 
   async function finish() {
@@ -2307,16 +2336,21 @@
 
   function showNameModeDialog(action) {
     const { css, ensureStyle } = globalThis.STComponents;
-    ensureStyle("name-mode-dialog-style", css.dialog({
-      variant: "standard",
-      surfaceSelectors: "#name-mode-dialog",
-      surfacePadding: "0",
-      surfaceTransform: "none",
-      headerSelectors: ".name-mode-dialog-head",
-      titleSelectors: "#name-mode-dialog-title",
-      bodySelectors: "#name-mode-dialog-copy",
-      footerSelectors: ".name-mode-dialog-actions",
-    }));
+    ensureStyle("name-mode-dialog-style", css.compose(
+      css.variables("#name-mode-dialog", globalThis.STTheme.flatDialogVariables),
+      css.dialog({
+        variant: "standard",
+        surfaceSelectors: "#name-mode-dialog",
+        surfacePadding: "0",
+        surfaceTransform: "none",
+        headerSelectors: ".name-mode-dialog-head",
+        titleSelectors: "#name-mode-dialog-title",
+        bodySelectors: "#name-mode-dialog-copy",
+        footerSelectors: ".name-mode-dialog-actions",
+      }),
+      css.button("#name-mode-dialog .btn-secondary", { variant: "secondary" }),
+      css.button("#name-mode-dialog .btn-primary", { variant: "primary" }),
+    ));
     const donate = action === "donate";
     const loginLink = $("#name-mode-login");
     const donateLink = $("#name-mode-donate");
@@ -2878,6 +2912,7 @@
 
   function render() {
     if (state.phase !== "ready") {
+      renderRestartModal();
       renderStatus();
       state.completeCelebrated = false;
       stopCelebration();
@@ -2916,14 +2951,8 @@
     if (!action || state.busy || control.disabled) return;
     if (action === "flow-retry") loadFlow();
     if (action === "flow-home") window.location.replace(window.STConfig.urls.onboardingPage(1));
-    if (action === "restart-modal-ack") {
-      state.restartAcked = true;
-      closeRestartModal();
-      setNote(t("onboarding_restartInstruction", "请完全退出并重新打开 Steam，客户端增强才会生效。"), false);
-      return;
-    }
     if (state.phase !== "ready" || state.initializing) return;
-    if (state.serviceBusy && !["login-cancel", "open-step-tutorial", "open-tutorial", "restart-modal-ack"].includes(action)) return;
+    if (state.serviceBusy && !["login-cancel", "open-step-tutorial", "open-tutorial"].includes(action)) return;
     if (state.loginBusy && action !== "login-cancel") return;
     if (action === "name-mode-dismiss" || action === "name-mode-donate") {
       $("#name-mode-dialog").close();

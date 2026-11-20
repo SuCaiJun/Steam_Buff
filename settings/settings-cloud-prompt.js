@@ -55,7 +55,7 @@
     if (!variables || typeof variables !== "object") {
       return "";
     }
-    const body = Object.entries(variables)
+    const body = Object.entries({ ...variables, ...root.STTheme.flatDialogVariables })
       .map(([name, value]) => `${name}: ${String(value)};`)
       .join("");
     return `:host{${body}}`;

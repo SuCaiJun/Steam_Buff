@@ -699,7 +699,10 @@
 
   function ensureMonitorModal() {
     let modal = document.getElementById(MONITOR_MODAL_ID);
-    if (modal) modal.remove();
+    if (modal) {
+      window.STFeedback.dismiss(modal);
+      modal.remove();
+    }
 
     modal = modalElement("section", "st-price-monitor-modal");
     modal.id = MONITOR_MODAL_ID;
@@ -800,40 +803,7 @@
     actions.append(remove, dashboard, spacer, cancel, save);
 
     panel.append(header, body, actions);
-    const errorLayer = modalElement("div", "st-price-monitor-error-layer");
-    errorLayer.hidden = true;
-    errorLayer.dataset.monitorErrorDialog = "true";
-    const errorDialog = modalElement("section", "st-price-monitor-error-dialog");
-    errorDialog.setAttribute("role", "alertdialog");
-    errorDialog.setAttribute("aria-modal", "true");
-    errorDialog.setAttribute("aria-labelledby", "st-price-monitor-error-title");
-    errorDialog.setAttribute("aria-describedby", "st-price-monitor-error-message");
-    const errorTitle = modalElement("h4", "st-price-monitor-error-title");
-    errorTitle.id = "st-price-monitor-error-title";
-    const errorMessage = modalElement("p", "st-price-monitor-error-message");
-    errorMessage.id = "st-price-monitor-error-message";
-    const errorActions = modalElement("div", "st-price-monitor-error-actions");
-    const errorConfirm = modalElement("button", "st-price-monitor-error-confirm", t("store_priceHistory_confirm", "确定"));
-    errorConfirm.type = "button";
-    errorConfirm.dataset.monitorErrorAction = "confirm";
-    errorConfirm.addEventListener("click", () => closeMonitorErrorDialog(modal));
-    errorActions.appendChild(errorConfirm);
-    errorDialog.append(errorTitle, errorMessage, errorActions);
-    errorLayer.appendChild(errorDialog);
-    errorLayer.addEventListener("keydown", (event) => {
-      if (event.key === "Escape") {
-        event.preventDefault();
-        event.stopPropagation();
-        closeMonitorErrorDialog(modal);
-        return;
-      }
-      if (event.key === "Tab") {
-        event.preventDefault();
-        errorConfirm.focus();
-      }
-    });
-
-    modal.append(panel, errorLayer);
+    modal.append(panel);
     modal.addEventListener("click", (event) => {
       if (!event.target?.closest?.(".st-price-monitor-time-wrap")) closeMonitorTimePanel(modal);
       if (event.target === modal && modal.dataset.busy !== "true") closeMonitorModal();
@@ -853,30 +823,11 @@
     return modal;
   }
 
-  function closeMonitorErrorDialog(modal, restoreFocus = true) {
-    const layer = modal?.querySelector?.("[data-monitor-error-dialog]");
-    if (!layer || layer.hidden) return;
-    const returnFocus = layer._stReturnFocus;
-    layer._stReturnFocus = null;
-    layer.hidden = true;
-    modal.querySelector(".st-price-monitor-dialog")?.removeAttribute("aria-hidden");
-    if (!restoreFocus) return;
-    if (returnFocus?.isConnected) returnFocus.focus?.();
-    else modal.querySelector("[data-monitor-action='save']")?.focus?.();
-  }
-
   function showMonitorErrorDialog(modal, title, message) {
-    const layer = modal?.querySelector?.("[data-monitor-error-dialog]");
-    const titleNode = layer?.querySelector?.(".st-price-monitor-error-title");
-    const messageNode = layer?.querySelector?.(".st-price-monitor-error-message");
-    const confirm = layer?.querySelector?.("[data-monitor-error-action='confirm']");
-    if (!layer || !titleNode || !messageNode || !confirm) return;
-    if (layer.hidden) layer._stReturnFocus = document.activeElement;
-    titleNode.textContent = String(title || "");
-    messageNode.textContent = String(message || "");
-    modal.querySelector(".st-price-monitor-dialog")?.setAttribute("aria-hidden", "true");
-    layer.hidden = false;
-    confirm.focus();
+    if (!modal.isConnected || modal.hidden) return;
+    const active = document.activeElement;
+    const focus = modal.contains(active) ? active : modal.querySelector("[data-monitor-action='save']");
+    void window.STFeedback.show(modal, { title, message, focus });
   }
 
   function setMonitorExplanationStatus(modal, message = "") {
@@ -1144,7 +1095,7 @@
   function closeMonitorModal() {
     const modal = document.getElementById?.(MONITOR_MODAL_ID);
     if (!modal) return;
-    closeMonitorErrorDialog(modal, false);
+    window.STFeedback.dismiss(modal);
     closeMonitorTimePanel(modal);
     modal.hidden = true;
     modal.dataset.busy = "false";

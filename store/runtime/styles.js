@@ -3118,68 +3118,6 @@
         border-left-color: var(--st-color-danger);
         background: var(--st-color-danger-surface);
       }
-      .st-price-monitor-error-layer {
-        position: fixed;
-        inset: 0;
-        z-index: 1;
-        display: grid;
-        place-items: center;
-        box-sizing: border-box;
-        padding: 24px;
-        background: var(--st-color-black-alpha-72);
-      }
-      .st-price-monitor-error-layer[hidden] {
-        display: none;
-      }
-      .st-price-monitor-error-dialog {
-        width: min(320px, calc(100vw - 48px));
-        overflow: hidden;
-        border: 1px solid var(--st-color-border-normal);
-        border-radius: var(--st-radius-md);
-        color: var(--st-color-text-primary);
-        background: var(--st-color-surface-panel);
-        box-shadow: 0 18px 50px var(--st-color-black-alpha-72);
-      }
-      .st-price-monitor-error-title {
-        margin: 0;
-        padding: 14px 16px 10px;
-        color: var(--st-color-danger);
-        font-size: 15px;
-        line-height: 21px;
-        font-weight: 600;
-        letter-spacing: 0;
-      }
-      .st-price-monitor-error-message {
-        margin: 0;
-        padding: 0 16px 14px;
-        color: var(--st-color-text-secondary);
-        font-size: 13px;
-        line-height: 20px;
-        overflow-wrap: anywhere;
-      }
-      .st-price-monitor-error-actions {
-        display: flex;
-        justify-content: flex-end;
-        padding: 10px 16px;
-        border-top: 1px solid var(--st-color-border-normal);
-      }
-      .st-price-monitor-error-confirm {
-        min-width: 72px;
-        min-height: 31px;
-        border: 1px solid var(--st-color-steam-blue);
-        border-radius: var(--st-radius-sm);
-        padding: 0 16px;
-        color: var(--st-color-surface-inset);
-        background: var(--st-color-steam-blue);
-        font: inherit;
-        font-size: 13px;
-        font-weight: 600;
-        letter-spacing: 0;
-        cursor: pointer;
-      }
-      .st-price-monitor-error-confirm:hover {
-        background: var(--st-color-steam-blue-light, var(--st-color-steam-blue));
-      }
       .st-price-monitor-actions {
         display: flex;
         align-items: center;
@@ -3256,8 +3194,7 @@
       .st-price-monitor-time-trigger:focus-visible,
       .st-price-monitor-time-option:focus-visible,
       .st-price-monitor-time-now:focus-visible,
-      .st-price-monitor-time-confirm:focus-visible,
-      .st-price-monitor-error-confirm:focus-visible {
+      .st-price-monitor-time-confirm:focus-visible {
         outline: 2px solid var(--st-color-steam-blue);
         outline-offset: 1px;
       }
@@ -3582,8 +3519,7 @@
         gap: var(--st-spacing-sm);
         margin-top: var(--st-spacing-sm);
       }
-      .st_family_library_owned_marker__button,
-      .st_family_library_dialog__button {
+      .st_family_library_owned_marker__button {
         min-height: calc(var(--st-spacing-xl) + var(--st-spacing-xs));
         border: 1px solid var(--st-color-gold-alpha-36);
         border-radius: var(--st-radius-md);
@@ -3595,13 +3531,11 @@
         font-weight: var(--st-font-weight-medium);
         cursor: pointer;
       }
-      .st_family_library_owned_marker__button:hover:not(:disabled),
-      .st_family_library_dialog__button:hover:not(:disabled) {
+      .st_family_library_owned_marker__button:hover:not(:disabled) {
         border-color: var(--st-color-gold-alpha-40);
         background: var(--st-color-gold-alpha-18);
       }
       .st_family_library_owned_marker__button:focus-visible,
-      .st_family_library_dialog__button:focus-visible,
       .st_family_library_dialog__close:focus-visible {
         outline: 2px solid var(--st-color-steam-blue);
         outline-offset: 2px;
@@ -3676,18 +3610,6 @@
       .st_family_library_dialog__message.is-danger {
         color: var(--st-color-danger-text);
         font-weight: var(--st-font-weight-medium);
-      }
-      .st_family_library_dialog__actions {
-        display: flex;
-        justify-content: flex-end;
-        flex-wrap: wrap;
-        gap: var(--st-spacing-sm);
-        margin-top: var(--st-spacing-lg);
-      }
-      .st_family_library_dialog__button.primary {
-        border-color: var(--st-color-steam-blue-alpha-45);
-        color: var(--st-color-white);
-        background: var(--st-color-primary-alpha-70);
       }
       @media (max-width: 640px) {
         .st_family_library_owned_marker__content {

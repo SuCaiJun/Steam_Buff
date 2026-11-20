@@ -511,7 +511,7 @@
   function dialogHost(type, template, onAction) {
     const host = document.createElement("div");
     // 升级与赞助提示共用宿主主题，不依赖页面根节点的样式。
-    theme.applyCssVariables(host);
+    theme.applyCssVariables(host, { ...theme.cssVariables, ...theme.flatDialogVariables });
     const shadow = host.attachShadow({ mode: "open" });
     host.id = ROOT_ID;
     host.dataset.promptType = type;

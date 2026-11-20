@@ -17,7 +17,7 @@
       return "";
     }
 
-    const body = Object.entries(variables)
+    const body = Object.entries({ ...variables, ...globalThis.STTheme.flatDialogVariables })
       .map(([name, value]) => `          ${name}: ${String(value)};`)
       .join("\n");
     // 设置中心与批量名称窗口共用主题颜色，平面外观只作用于当前 ShadowRoot
@@ -41,12 +41,6 @@
           --st-color-about-panel-alpha-70: var(--st-color-surface-subtle-hover);
           --st-color-about-panel-dark-alpha-92: var(--st-color-steam-property-window);
           --st-color-border-light: var(--st-color-border-normal);
-          --st-dialog-surface: var(--st-color-steam-property-window);
-          --st-dialog-surface-raised: var(--st-color-steam-property-button);
-          --st-dialog-header-bg: var(--st-color-steam-property-window);
-          --st-dialog-border: var(--st-color-border-normal);
-          --st-dialog-primary-bg: var(--st-color-steam-blue-alpha-38);
-          --st-dialog-primary-shadow: none;
           --st-gradient-primary-vertical: var(--st-color-steam-blue-alpha-38);
           --st-gradient-settings-header: var(--st-color-steam-property-window);
           --st-shadow-button-primary: none;
