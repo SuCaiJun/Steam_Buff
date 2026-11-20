@@ -2289,10 +2289,18 @@
       : { url: STEAM_ROOT_MENU_BROWSER_FALLBACK, source: "fallback" };
   }
 
+  function isSteamRootMenuLabelsSender(sender) {
+    if (sender?.id !== chrome.runtime.id) return false;
+    if (isSteamLoopbackUrl(sender.url)) return true;
+    // Steam CEF 的顶层菜单以 about:blank 发送消息，浏览器在 origin 中提供继承的 Steam 来源
+    if (sender.frameId !== 0 || sender.origin !== `https://${CFG.hosts.steamLoopback}`) return false;
+    const url = senderUrlObject({ url: sender.url });
+    return url?.protocol === "about:" && url.pathname === "blank";
+  }
+
   async function openSteamRootMenuChromiumRequest(request, sender, sendResponse) {
     const action = String(request?.action || "");
-    // These public labels need only the extension's own Steam loopback sender. Window-opening actions still verify the native menu.
-    if (action === "labels" && sender?.id === chrome.runtime.id && isSteamLoopbackUrl(sender.url)) {
+    if (action === "labels" && isSteamRootMenuLabelsSender(sender)) {
       try {
         const locale = await globalThis.STSettings.storage.getUiLocale({ strict: true });
         await globalThis.STI18n.load(locale);
