@@ -4939,6 +4939,9 @@
   "store_cartSelect_purchaseCount": {
     "message": "선택한 아이템"
   },
+  "store_cartSelect_waitingForLoad": {
+    "message": "장바구니를 불러오는 중…"
+  },
   "store_cartSelect_removeAll": {
     "message": "모두 삭제"
   },

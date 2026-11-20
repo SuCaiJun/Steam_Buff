@@ -4939,6 +4939,9 @@
   "store_cartSelect_purchaseCount": {
     "message": "選択中のアイテム"
   },
+  "store_cartSelect_waitingForLoad": {
+    "message": "カートの読み込みを待っています…"
+  },
   "store_cartSelect_removeAll": {
     "message": "すべて削除"
   },

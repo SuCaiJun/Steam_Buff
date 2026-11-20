@@ -17,7 +17,7 @@
 
   const DEFAULT_TIMEOUT_MS = 12 * 1000;
   const MAX_IN_FLIGHT = 80;
-  const NETWORK_REQUEST_TYPES = new Set(["STORE_FETCH", "AI_CHAT_COMPLETIONS"]);
+  const NETWORK_REQUEST_TYPES = new Set(["STORE_FETCH", "AI_CHAT_COMPLETIONS", "CART_RESTORE_ITEMS"]);
   const log = root.STLoggerFactory?.createLogger?.("shared", "message-bus") || {
     warn() {},
   };
@@ -27,6 +27,7 @@
     STEAM_BUFF_OPEN_SETTINGS: { timeoutMs: 5 * 1000, owner: "settings" },
     STORE_FETCH: { timeoutMs: 12 * 1000, owner: "network" },
     CART_RESTORE_MUTATE: { timeoutMs: 12 * 1000, owner: "cart" },
+    CART_RESTORE_ITEMS: { timeoutMs: 15 * 1000, owner: "cart" },
     PLAYER_STATS_FETCH: { timeoutMs: 12 * 1000, owner: "store" },
     TRANSLATE_INJECT: { timeoutMs: 12 * 1000, owner: "translate" },
     UPDATE_CHECK: { timeoutMs: 10 * 1000, owner: "settings" },

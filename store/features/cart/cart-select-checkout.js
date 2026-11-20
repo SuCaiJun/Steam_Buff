@@ -210,10 +210,7 @@
     } catch (cause) {
       throw new Error(uncertain, { cause });
     }
-    const lines = data?.response?.cart?.line_items;
-    if (!Array.isArray(lines) || !items.every(item => lines.some(line => item.bundleid
-      ? line?.bundleid === item.bundleid
-      : line?.packageid === item.packageid))) {
+    if (!cart.containsItems(data, items)) {
       throw new Error(uncertain);
     }
     return true;

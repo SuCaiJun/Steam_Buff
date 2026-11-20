@@ -13,6 +13,7 @@
 
   const KEY = "st.store.cartSelect.restore";
   const TYPE = "CART_RESTORE_MUTATE";
+  const ITEMS_TYPE = "CART_RESTORE_ITEMS";
   const TTL = 30 * 60 * 1000;
 
   function valid(batch) {
@@ -71,5 +72,22 @@
     return current;
   }
 
-  globalThis.STCartRestore = Object.freeze({ KEY, TYPE, valid, active, validAccount, pageSession, owned, records, read, mutate });
+  function containsItems(data, items) {
+    const lines = data?.response?.cart?.line_items;
+    return Array.isArray(lines) && items.every(item => lines.some(line => {
+      if (!line || line.flags?.is_gift || line.flags?.is_private || (line.gidcoupon_applied && line.gidcoupon_applied !== "0")) return false;
+      return item.bundleid ? line.bundleid === item.bundleid : line.packageid === item.packageid;
+    }));
+  }
+
+  async function requestItems(action, fields, signal) {
+    const reply = await globalThis.STMessageBus.request({ type: ITEMS_TYPE, action, ...fields }, { expectSuccess: true, signal });
+    if (reply?.success !== true) {
+      throw new Error(globalThis.STI18n.text("store_cartCheckout_restoreUnconfirmed", "无法确认已恢复全部商品，请打开购物车核对。暂存记录已保留。"));
+    }
+    return reply;
+  }
+
+  globalThis.STCartRestore = Object.freeze({ KEY, TYPE, ITEMS_TYPE, valid, active, validAccount, pageSession, owned,
+    records, read, mutate, containsItems, requestItems });
 })();

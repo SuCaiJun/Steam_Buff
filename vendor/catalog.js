@@ -92,12 +92,12 @@
       directory: "markdown-it",
     }),
     entry({
-      id: "dompurify",
-      name: "DOMPurify",
-      url: "https://github.com/cure53/DOMPurify",
-      license: "MPL-2.0 OR Apache-2.0",
+      id: "tabler-icons",
+      name: "Tabler Icons (Outline)",
+      url: "https://github.com/tabler/tabler-icons",
+      license: "MIT",
       kind: "bundled",
-      directory: "dompurify",
+      assetDirectory: "images/tabler",
     }),
   ]);
 

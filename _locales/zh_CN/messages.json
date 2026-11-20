@@ -4939,6 +4939,9 @@
   "store_cartSelect_purchaseCount": {
     "message": "购买数量"
   },
+  "store_cartSelect_waitingForLoad": {
+    "message": "正在等待加载…"
+  },
   "store_cartSelect_removeAll": {
     "message": "确认移除"
   },

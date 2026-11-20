@@ -2327,8 +2327,8 @@
       }
 
       .st_cart_select_check {
-        width: 14px;
-        height: 14px;
+        width: 18px;
+        height: 18px;
         cursor: pointer;
       }
 
@@ -2373,7 +2373,7 @@
       }
 
       #st_cart_select_bulk_actions::after {
-        content: "|";
+        content: "|" / "";
         color: var(--st-color-text-disabled);
         font-size: 12px;
         line-height: 16px;
@@ -2401,9 +2401,30 @@
       }
 
       .st_cart_select_bulk_btn + .st_cart_select_bulk_btn::before {
-        content: "|";
+        content: "|" / "";
+        display: inline-block;
         margin-right: 8px;
         color: var(--st-color-text-disabled);
+      }
+
+      /* 新版购物车底部的 Steam 原生操作使用字号 2 和暗色 10 */
+      .HLT-2RoiFj8- > #st_cart_select_bulk_actions {
+        align-items: baseline;
+        vertical-align: baseline;
+      }
+
+      .HLT-2RoiFj8- > #st_cart_select_bulk_actions .st_cart_select_bulk_btn {
+        font-family: var(--font-family);
+        font-size: var(--text-size-2);
+        font-weight: inherit;
+        line-height: var(--line-height-2);
+        letter-spacing: var(--letter-spacing-2);
+        color: var(--color-dull-10);
+        text-decoration: underline;
+      }
+
+      .HLT-2RoiFj8- > #st_cart_select_bulk_actions .st_cart_select_bulk_btn:hover:not(:disabled) {
+        color: var(--st-color-white);
       }
 
       .st_cart_select_fallback {
@@ -2422,31 +2443,40 @@
       .st_cart_select_check input {
         position: absolute;
         inset: 0;
+        width: 100%;
+        height: 100%;
+        margin: 0;
         opacity: 0;
         cursor: pointer;
+      }
+
+      .st_cart_select_check input:disabled {
+        cursor: default;
       }
 
       .st_cart_select_mark {
         position: absolute;
         inset: 0;
         border-radius: 2px;
-        border: 1px solid var(--st-color-border-primary);
-        background: var(--st-color-bg-body);
-        box-shadow: inset 0 0 0 1px var(--st-color-surface-subtle);
+        color: var(--st-color-text-bright);
+        pointer-events: none;
       }
 
-      .st_cart_select_check input:checked + .st_cart_select_mark {
-        border: 0;
-        background: transparent;
-        box-shadow: none;
-      }
-
-      .st_cart_select_check input:checked + .st_cart_select_mark::after {
+      .st_cart_select_mark::before {
         content: "";
         position: absolute;
         inset: 0;
-        background: var(--st-color-white);
-        mask: url("data:image/svg+xml,%3Csvg%20xmlns%3D'http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg'%20viewBox%3D'0%200%2024%2024'%20fill%3D'none'%20stroke%3D'currentColor'%20stroke-linecap%3D'round'%20stroke-linejoin%3D'round'%3E%3Cpath%20d%3D'M18%2013v6a2%202%200%200%201-2%202H5a2%202%200%200%201-2-2V8a2%202%200%200%201%202-2h10'%20stroke-width%3D'2.7'%2F%3E%3Cpath%20d%3D'm7%2012%204%204L22%204'%20stroke-width%3D'3.7'%2F%3E%3C%2Fsvg%3E") no-repeat center / contain;
+        background: currentColor;
+        mask: var(--st-cart-check-off) no-repeat center / contain;
+      }
+
+      .st_cart_select_check input:checked + .st_cart_select_mark,
+      .st_cart_select_check:hover input:not(:disabled) + .st_cart_select_mark {
+        color: var(--st-color-white);
+      }
+
+      .st_cart_select_check input:checked + .st_cart_select_mark::before {
+        mask-image: var(--st-cart-check-on);
       }
 
       .st_cart_select_check input:focus-visible + .st_cart_select_mark {
@@ -2454,8 +2484,9 @@
         outline-offset: 2px;
       }
 
-      .st_cart_select_check:hover input:not(:checked) + .st_cart_select_mark {
-        border-color: var(--st-color-steam-blue);
+      @media (forced-colors: active) {
+        .st_cart_select_check input { opacity: 1; }
+        .st_cart_select_mark { display: none; }
       }
 
       .st_cart_select_off {
@@ -2483,10 +2514,24 @@
       }
 
       #st_cart_select_side_summary {
+        display: grid;
+        row-gap: var(--st-spacing-xs);
         margin: 2px 0 5px;
         color: var(--st-color-white);
         font-size: 13px;
         line-height: 18px;
+      }
+
+      #st_cart_select_side_summary[hidden] {
+        display: none;
+      }
+
+      .i1XZFikuzME- > .ZxG3hS-2Jjo-:has(+ #st_cart_select_side_summary:not([hidden])) {
+        margin-bottom: var(--st-spacing-xs);
+      }
+
+      .i1XZFikuzME- > #st_cart_select_side_summary {
+        margin-top: 0;
       }
 
       .st_cart_select_cart_title {
@@ -2497,11 +2542,30 @@
         display: flex;
         align-items: center;
         justify-content: space-between;
-        gap: 12px;
+        gap: var(--st-spacing-md);
+        min-height: 22px;
       }
 
-      .st_cart_select_side_row + .st_cart_select_side_row {
-        margin-top: 2px;
+      .st_cart_select_side_row > .st-store-skeleton {
+        display: none;
+      }
+
+      .st_cart_select_side_loading .st_cart_select_side_row > .st-store-skeleton {
+        display: inline-flex;
+        flex: 0 0 auto;
+        width: 4.5rem;
+      }
+
+      .st_cart_select_side_loading .st_cart_select_side_row:last-child > .st-store-skeleton {
+        width: 2.5rem;
+      }
+
+      .st_cart_select_side_row > .st-store-skeleton::after {
+        animation-iteration-count: 2;
+      }
+
+      .st_cart_select_side_loading .st_cart_select_side_row > strong {
+        display: none;
       }
 
       .st_cart_select_side_row span {

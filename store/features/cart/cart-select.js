@@ -24,14 +24,23 @@
   const OBSERVER_DEBOUNCE_MS = 1000;
   const EMPTY_SCAN_RETRY_MAX = 12;
   const SIDE_TOTAL_ROW_SELECTOR = "._2bIzQo07mxubFvscA8RIA8 > ._2DjadWLFH3keW9rGWZKxSk.qV80oahDZsbXiS6lIDLND";
+  const SSR_CART_SELECTOR = "#StoreTemplate section.jGMVnjZbmZM-";
+  const SSR_TOTAL_VALUE_SELECTOR = ".i1XZFikuzME- > .ZxG3hS-2Jjo- > .n9HLAjXXhvI-";
+  const SSR_CHECKOUT_SELECTOR = ".bJV2ai-gAcA- > a[href]";
+  const SSR_REMOVE_ALL_SELECTOR = ".HLT-2RoiFj8- > span[role='button']";
+  const SSR_EMPTY_TEXT_SELECTOR = ".i-xXuvHLioU-.zLoWY6fxr7Y- > .oQEHUcBaGvk- > .fDgifICDL4M-";
   const MATCH = globalThis.STConfig?.matchers;
   const log = window.STLoggerFactory.createLogger("store", "cart-select");
 
   let started = false;
+  let lifecycle = null;
   let busy = false;
   let pageReady = null;
+  let checkoutTimer = null;
   let scanTimer = null;
   let observer = null;
+  let summaryResize = null;
+  let summaryTargets = [];
   let removeAllConfirmation = null;
   let restorePromptTimer = null;
   let emptyScanRetries = 0;
@@ -39,7 +48,9 @@
   let pendingSelectionState = null;
   let selectionSaveTask = null;
   let items = [];
+  let itemsComplete = true;
   let accountSteamId = null;
+  let legacyOwnership = null;
   let restoring = false;
   let lastBridgeFailureKey = "";
   let lastBridgeFailureAt = 0;
@@ -53,9 +64,13 @@
   }
 
   async function loadState() {
+    const signal = lifecycle.signal;
     const rt = await chrome.storage.local.get([SEL_KEY, cart.KEY]);
-    state = rt[SEL_KEY] && typeof rt[SEL_KEY] === "object" ? rt[SEL_KEY] : {};
-    return { selection: state, restore: await cart.read(rt[cart.KEY]) };
+    signal.throwIfAborted();
+    const restore = await cart.read(rt[cart.KEY]);
+    signal.throwIfAborted();
+    const selection = rt[SEL_KEY] && typeof rt[SEL_KEY] === "object" ? rt[SEL_KEY] : {};
+    return { selection, restore };
   }
 
   async function saveState(nextState) {
@@ -69,13 +84,16 @@
   }
 
   function setSelectionControlsDisabled(disabled) {
+    const locked = disabled || busy || restoring;
     document.querySelectorAll(".st_cart_select_check input[data-st-cart-key], [data-st-cart-bulk]")
       .forEach(control => {
-        control.disabled = disabled;
+        control.disabled = locked || (!itemsComplete && control.hasAttribute("data-st-cart-bulk"));
       });
+    const restore = document.querySelector("#st_cart_restore_panel .st_cart_restore_btn");
+    if (restore) restore.disabled = busy || restoring || !itemsComplete;
   }
 
-  function commitSelection(nextState) {
+  function commitSelection(nextState, item) {
     if (selectionSaveTask) {
       const error = new Error("购物车选择状态正在保存");
       error.code = "CART_SELECTION_SAVE_PENDING";
@@ -84,28 +102,50 @@
 
     const snapshot = { ...nextState };
     pendingSelectionState = snapshot;
-    const task = saveState(snapshot)
-      .then(() => {
-        state = snapshot;
-        return true;
-      })
-      .finally(() => {
-        pendingSelectionState = null;
-        selectionSaveTask = null;
-        if (started && onCartPage()) {
-          renderRows();
-          setSelectionControlsDisabled(false);
+    const task = (async () => {
+      if (item && ssrCart()) {
+        const reply = await request("check-line", { lineId: item.lineId, key: item.key });
+        if (!reply.ok || reply.result?.valid !== true) {
+          scheduleScan();
+          throw new Error(waitingForCart());
         }
-      });
+      }
+      await saveState(snapshot);
+      state = snapshot;
+      return true;
+    })().finally(() => {
+      pendingSelectionState = null;
+      selectionSaveTask = null;
+      if (started && onCartPage()) {
+        renderRows();
+        setSelectionControlsDisabled(false);
+      }
+    });
     selectionSaveTask = task;
     renderRows();
     setSelectionControlsDisabled(true);
     return task;
   }
 
+  function ssrCart() {
+    return document.querySelector(SSR_CART_SELECTOR);
+  }
+
+  function isCheckoutLink(link) {
+    return link.protocol === "https:" && MATCH.isSteamCheckoutHost(link.hostname)
+      && link.pathname === "/checkout/" && new URLSearchParams(link.search).get("accountcart") === "1";
+  }
+
+  function isLegacyCheckoutButton(btn) {
+    return btn.tagName === "BUTTON" && /跳转至支付|Continue to payment|Purchase|Checkout/i.test((btn.textContent || "").trim());
+  }
+
   function checkoutButtons() {
-    return Array.from(document.querySelectorAll("button"))
-      .filter(btn => /跳转至支付|Continue to payment|Purchase|Checkout/i.test((btn.textContent || "").trim()));
+    const root = ssrCart();
+    if (root) {
+      return Array.from(root.querySelectorAll(SSR_CHECKOUT_SELECTOR)).filter(isCheckoutLink);
+    }
+    return Array.from(document.querySelectorAll("button")).filter(isLegacyCheckoutButton);
   }
 
   function removeAllConfirmEnabled() {
@@ -167,6 +207,8 @@
 
   function request(action, payload = {}) {
     return new Promise((resolve, reject) => {
+      const signal = lifecycle.signal;
+      signal.throwIfAborted();
       const id = `cart_${Date.now()}_${Math.random().toString(36).slice(2)}`;
       const count = Math.max(
         1,
@@ -174,15 +216,32 @@
         Array.isArray(payload.items) ? payload.items.length : 0
       );
       const timeoutMs = 5000 + count * 14000;
-      const shouldLogBridge = action !== "scan";
+      const shouldLogBridge = action === "remove" || action === "restore";
       const startedAt = Date.now();
       let done = false;
+      let sent = false;
 
-      const finish = value => {
-        if (done) return;
+      const close = () => {
+        if (done) return false;
         done = true;
         clearTimeout(timer);
         window.removeEventListener(RES_EVT, onRes);
+        signal.removeEventListener("abort", onAbort);
+        return true;
+      };
+
+      const cancel = error => {
+        if (!close()) return;
+        if (sent && (action === "remove" || action === "restore")) {
+          window.dispatchEvent(new CustomEvent(REQ_EVT, { detail: { id, action: "cancel" } }));
+        }
+        reject(error);
+      };
+
+      const onAbort = () => cancel(signal.reason);
+
+      const finish = value => {
+        if (!close()) return;
         if (value?.ok === false && (value.error || value.code === "CART_ACCOUNT_CHANGED")) {
           const error = new Error(value.message);
           if (value.error?.name) error.name = value.error.name;
@@ -219,17 +278,20 @@
           path: location.pathname,
         });
       }
-      const timer = setTimeout(() => finish({ ok: false, message: "等待页面响应超时", result: null }), timeoutMs);
+      const timer = setTimeout(() => cancel(new Error("等待购物车页面响应超时")), timeoutMs);
       window.addEventListener(RES_EVT, onRes);
+      signal.addEventListener("abort", onAbort, { once: true });
       ensurePage().then(ok => {
+        if (done) return;
         if (!ok) {
           finish({ ok: false, message: "脚本加载失败", result: null });
           return;
         }
+        sent = true;
         window.dispatchEvent(new CustomEvent(REQ_EVT, {
           detail: { id, action, ...payload }
         }));
-      });
+      }).catch(cancel);
     });
   }
 
@@ -242,6 +304,10 @@
   }
 
   function actionLink(row) {
+    if (row.classList.contains("i-xXuvHLioU-")) {
+      const add = row.querySelector(".QQ50n6yPgT4- ._8IaR06zcRE4-[role='button']");
+      return visible(add) ? add : row.querySelector(".QQ50n6yPgT4- .BFDdk5e7x8k-[role='button']");
+    }
     const links = Array.from(row.querySelectorAll('a, button, [role="button"]'))
       .filter(visible);
     const add = links.find(el => /^(添加|Add)$/i.test((el.textContent || "").trim()));
@@ -250,10 +316,17 @@
   }
 
   function isRemoveAllButton(el) {
+    const root = ssrCart();
+    if (root) return !!el && root.contains(el) && el.matches(SSR_REMOVE_ALL_SELECTOR);
     return !!el && !el.closest(".st-feedback-dialog") && /^(移除所有项目|Remove all items|Remove all)$/i.test(compactText(el));
   }
 
   function removeAllButton() {
+    const root = ssrCart();
+    if (root) {
+      const el = root.querySelector(SSR_REMOVE_ALL_SELECTOR);
+      return visible(el) ? el : null;
+    }
     return Array.from(document.querySelectorAll('a, button, [role="button"]'))
       .filter(visible)
       .find(isRemoveAllButton) || null;
@@ -282,11 +355,12 @@
 
     if (target) {
       target.parentElement?.classList.add("st_cart_select_actions");
-      target.insertAdjacentElement("beforebegin", label);
-      label.insertAdjacentElement("afterend", sep);
+      if (target.previousElementSibling !== sep || sep.previousElementSibling !== label) {
+        target.before(label, sep);
+      }
     } else {
       sep.remove();
-      row.prepend(label);
+      if (row.firstChild !== label) row.prepend(label);
     }
   }
 
@@ -312,11 +386,17 @@
     const input = document.createElement("input");
     input.type = "checkbox";
     input.checked = checked(item);
-    input.disabled = !!selectionSaveTask;
+    input.disabled = !!selectionSaveTask || busy || restoring;
     input.dataset.stCartKey = item.key;
+    input.dataset.stCartCheckLineId = item.lineId;
+    input.setAttribute("aria-label", `${label.title} ${item.name}`.trim());
 
     const mark = document.createElement("span");
     mark.className = "st_cart_select_mark";
+    mark.setAttribute("aria-hidden", "true");
+    const icons = chrome.runtime.getURL("images/tabler/");
+    mark.style.setProperty("--st-cart-check-off", `url("${icons}square.svg")`);
+    mark.style.setProperty("--st-cart-check-on", `url("${icons}square-check.svg")`);
 
     label.append(input, mark);
     ensureHold(row);
@@ -324,11 +404,12 @@
     row.classList.toggle("st_cart_select_off", !input.checked);
 
     input.addEventListener("change", () => {
-      if (selectionSaveTask) {
+      if (input.disabled || row.dataset.stCartKey !== item.key || row.dataset.stCartLineId !== item.lineId) {
         syncCheckbox(row, item, input);
         return;
       }
       const operationId = window.STLoggerFactory?.createOperationId?.() || "";
+      const signal = lifecycle.signal;
       const next = { ...state };
       const nextChecked = input.checked;
       if (nextChecked) {
@@ -337,7 +418,7 @@
         next[item.key] = false;
       }
       const attemptedSelectedCount = items.filter(candidate => next[candidate.key] !== false).length;
-      commitSelection(next)
+      commitSelection(next, item)
         .then(() => {
           log.info("cart-select-row-toggle", "用户切换购物车项目支付状态", {
             operationId,
@@ -348,6 +429,7 @@
           });
         })
         .catch((error) => {
+          if (signal.aborted) return;
           log.warn("cart-select-state-save-failed", "购物车项目支付状态保存失败", {
             operationId,
             checked: nextChecked,
@@ -364,6 +446,8 @@
   function syncCheckbox(row, item, input) {
     input.checked = checked(item);
     row.classList.toggle("st_cart_select_off", !input.checked);
+    const name = `${input.parentElement.title} ${item.name}`.trim();
+    if (input.getAttribute("aria-label") !== name) input.setAttribute("aria-label", name);
   }
 
   async function setAllSelected(value) {
@@ -418,13 +502,13 @@
         btn.className = "st_cart_select_bulk_btn";
         btn.dataset.stCartBulk = id;
         btn.textContent = label;
-        btn.disabled = !!selectionSaveTask;
+        btn.disabled = !!selectionSaveTask || busy || restoring || !itemsComplete;
         wrap.appendChild(btn);
       }
 
       wrap.addEventListener("click", event => {
         const btn = event.target.closest("[data-st-cart-bulk]");
-        if (!btn || btn.disabled || selectionSaveTask) return;
+        if (!btn || btn.disabled || selectionSaveTask || !itemsComplete) return;
         const action = btn.dataset.stCartBulk;
         const startedAt = Date.now();
         const operationId = window.STLoggerFactory?.createOperationId?.() || "";
@@ -497,6 +581,21 @@
     return confirmed;
   }
 
+  function clearStaleSsrCheckboxes() {
+    const root = ssrCart();
+    if (!root) return;
+    const keys = new Map(items.map(item => [item.lineId, item.key]));
+    for (const row of root.querySelectorAll("[data-st-cart-select-ready]")) {
+      const input = row.querySelector(".st_cart_select_check input");
+      const key = keys.get(row.dataset.stCartLineId);
+      if (key && input?.dataset.stCartKey === key && input.dataset.stCartCheckLineId === row.dataset.stCartLineId) continue;
+      row.querySelectorAll(".st_cart_select_check, .st_cart_select_sep, .st_cart_select_hold").forEach(node => node.remove());
+      row.querySelector(".st_cart_select_actions")?.classList.remove("st_cart_select_actions");
+      delete row.dataset.stCartSelectReady;
+      row.classList.remove("st_cart_select_row", "st_cart_select_off", "st_cart_select_row_fallback");
+    }
+  }
+
   function renderRows() {
     for (const item of items) {
       const row = byLine(item.lineId);
@@ -542,6 +641,8 @@
 
   function sideAnchor() {
     // 原生购物车同时保留宽屏和窄屏总额行，只使用当前可见的一行。
+    const root = ssrCart();
+    if (root) return Array.from(root.querySelectorAll(SSR_TOTAL_VALUE_SELECTOR)).find(visible)?.parentElement || null;
     return Array.from(document.querySelectorAll(SIDE_TOTAL_ROW_SELECTOR)).find(visible) || null;
   }
 
@@ -553,7 +654,7 @@
         lastSideAnchorMissing = true;
         log.warn("cart-select-side-summary-target-missing", "购物车侧边汇总挂载目标未找到", {
           totalCount: items.length,
-          selector: SIDE_TOTAL_ROW_SELECTOR,
+          selector: ssrCart() ? SSR_TOTAL_VALUE_SELECTOR : SIDE_TOTAL_ROW_SELECTOR,
           path: location.pathname,
         });
       }
@@ -581,6 +682,15 @@
       countValue.dataset.stCartSideCount = "";
       countRow.append(countLabel, countValue);
 
+      for (const row of [totalRow, countRow]) {
+        const skeleton = document.createElement("div");
+        skeleton.className = "st-store-skeleton";
+        skeleton.setAttribute("aria-hidden", "true");
+        const piece = document.createElement("div");
+        piece.className = "st-store-skeleton__piece";
+        skeleton.append(piece);
+        row.append(skeleton);
+      }
       box.append(totalRow, countRow);
     }
 
@@ -594,14 +704,44 @@
     const box = ensureSideSummary();
     if (!box) return;
 
+    box.hidden = itemsComplete && !items.length;
+    box.classList.toggle("st_cart_select_side_loading", !itemsComplete);
+    box.setAttribute("aria-busy", String(!itemsComplete));
+    const totalNode = box.querySelector("[data-st-cart-side-total]");
+    const countNode = box.querySelector("[data-st-cart-side-count]");
+    if (!itemsComplete) {
+      setText(totalNode, "");
+      setText(countNode, "");
+      return;
+    }
     const sel = selectedItems();
     const total = sel.reduce((sum, item) => sum + (Number(item.cents) || 0), 0);
-    box.querySelector("[data-st-cart-side-total]").textContent = money(total);
-    box.querySelector("[data-st-cart-side-count]").textContent = `${sel.length}/${items.length}`;
-    box.style.display = items.length ? "" : "none";
+    setText(totalNode, money(total));
+    setText(countNode, `${sel.length}/${items.length}`);
+  }
+
+  function observeSummarySize() {
+    const root = ssrCart();
+    if (typeof ResizeObserver !== "function") return;
+    const targets = root ? Array.from(root.querySelectorAll(SSR_TOTAL_VALUE_SELECTOR)) : [];
+    if (targets.length === summaryTargets.length && targets.every((node, index) => node === summaryTargets[index])) return;
+    summaryResize?.disconnect();
+    summaryTargets = targets;
+    if (!targets.length) return;
+    if (!summaryResize) summaryResize = new ResizeObserver(() => {
+      if (started) updateSideSummary();
+    });
+    // Steam 的两套结算卡会仅通过 CSS 切换，宽度变化只重定位汇总
+    targets.forEach(node => summaryResize.observe(node));
+  }
+
+  function setText(node, text) {
+    if (node.textContent !== text) node.textContent = text;
   }
 
   function cartTitle() {
+    const root = ssrCart();
+    if (root) return root.querySelector(".X7xBVzjXbzw-");
     return Array.from(document.querySelectorAll("h1, h2, div"))
       .filter(visible)
       .find(el => {
@@ -626,6 +766,8 @@
   }
 
   function emptyCartBox() {
+    const root = ssrCart();
+    if (root) return root.querySelector(SSR_EMPTY_TEXT_SELECTOR)?.closest(".i-xXuvHLioU-") || null;
     const text = Array.from(document.querySelectorAll("div"))
       .filter(visible)
       .find(el => {
@@ -724,9 +866,9 @@
       }
       return;
     }
-    panel.querySelector(".st_cart_restore_text").textContent = text;
+    setText(panel.querySelector(".st_cart_restore_text"), text);
     panel.classList.toggle("st_cart_restore_busy", state === "busy");
-    panel.querySelector(".st_cart_restore_btn").disabled = state === "busy";
+    panel.querySelector(".st_cart_restore_btn").disabled = state === "busy" || busy || !itemsComplete;
     panel.classList.toggle("st_cart_restore_bad", state === "bad");
     const show = !!text && panel.dataset.stCartRestoreSized !== "0";
     setCartTitleTight(show);
@@ -744,25 +886,44 @@
   }
 
   async function scan() {
+    const signal = lifecycle.signal;
     const res = await request("scan");
+    signal.throwIfAborted();
     if (!res.ok || !Array.isArray(res.result?.items)) {
       throw new Error(res.message || t("store_cartSelect_checkoutFailed", "购物车选择处理失败"));
     }
+    itemsComplete = res.result.complete !== false;
     items = res.result.items;
-    if (items.length > 0) {
+    if (itemsComplete && (items.length > 0 || res.result.complete === true)) {
       emptyScanRetries = 0;
-    } else if (items.length === 0 && shouldRetryEmptyScan()) {
+    } else if (shouldRetryEmptyScan()) {
       emptyScanRetries += 1;
       scheduleScan();
     }
     accountSteamId = cart.validAccount(res.result.accountSteamId) ? res.result.accountSteamId : null;
+    clearStaleSsrCheckboxes();
     renderRows();
-    if (!observer) {
+    setSelectionControlsDisabled(!!selectionSaveTask);
+    observeSummarySize();
+    if (!observer?.__stTarget?.isConnected) {
       observe();
     }
-    showRestorePrompt().catch((error) => {
-      globalThis.STLoggerFactory.reportError(error, { domain: "store", feature: "cart", event: "scan-failed", message: "商店功能处理失败", level: "error", phase: "scan" });});
+    if (itemsComplete) {
+      showRestorePrompt().catch((error) => {
+        if (!signal.aborted) globalThis.STLoggerFactory.reportError(error, { domain: "store", feature: "cart", event: "scan-failed", message: "商店功能处理失败", level: "error", phase: "scan" });
+      });
+    }
     return items;
+  }
+
+  function waitingForCart() {
+    return t("store_cartSelect_waitingForLoad", "正在等待加载…");
+  }
+
+  function requireCompleteCart() {
+    if (!itemsComplete) {
+      throw Object.assign(new Error(waitingForCart()), { code: "CART_ITEMS_UNAVAILABLE" });
+    }
   }
 
   function scheduleScan() {
@@ -826,12 +987,31 @@
     }
   }
 
-  function currentBatches(batches) {
-    let session;
-    if (accountSteamId && batches.some(batch => !Object.hasOwn(batch, "accountSteamId") && batch.token)) {
-      session = cart.pageSession(document);
+  async function currentBatches(batches, recheck = false) {
+    const account = accountSteamId;
+    const legacy = batches.filter(batch => !Object.hasOwn(batch, "accountSteamId") && typeof batch.token === "string" && batch.token);
+    if (!account || !legacy.length) return cart.owned(batches, account);
+    if (!ssrCart()) {
+      const session = cart.pageSession(document);
+      return cart.owned(batches, account, session?.accountSteamId === account ? session.token : null);
     }
-    return cart.owned(batches, accountSteamId, session?.accountSteamId === accountSteamId ? session?.token : null);
+
+    const signal = lifecycle.signal;
+    const batchIds = legacy.map(batch => batch.id).sort();
+    const key = JSON.stringify([account, batchIds]);
+    if (recheck || legacyOwnership?.key !== key) {
+      legacyOwnership = { key, check: cart.requestItems("owned", { accountSteamId: account, batchIds }, signal) };
+    }
+    const lookup = legacyOwnership;
+    const reply = await lookup.check.catch(error => {
+      if (legacyOwnership === lookup) legacyOwnership = null;
+      throw error;
+    });
+    signal.throwIfAborted();
+    if (account !== accountSteamId) throw cartAccountError();
+    if (!Array.isArray(reply.ids)) throw new Error("未收到 Steam 购物车旧批次归属确认。");
+    const verified = new Set(reply.ids);
+    return batches.filter(batch => Object.hasOwn(batch, "accountSteamId") ? batch.accountSteamId === account : verified.has(batch.id));
   }
 
   function cartAccountError(cause) {
@@ -848,7 +1028,7 @@
       };
     }
 
-    const present = new Set(items.map(item => item.key));
+    const present = presentItemKeys();
     const need = [];
     const allKeys = all.map(item => item.key);
     for (const batch of batches) {
@@ -861,11 +1041,16 @@
     return { need, allKeys };
   }
 
+  function presentItemKeys() {
+    return new Set(items.filter(item => item.canRestore !== false).map(item => item.key));
+  }
+
   async function showRestorePrompt() {
-    if (restoring) return;
+    if (restoring || !itemsComplete) return;
     const rt = await loadState();
-    if (restoring) return;
-    const batches = currentBatches(rt.restore);
+    if (restoring || !itemsComplete) return;
+    const batches = await currentBatches(rt.restore);
+    if (restoring || !itemsComplete) return;
 
     if (batches.length === 0) {
       setRestorePanel("");
@@ -883,22 +1068,30 @@
 
   // 恢复期间另一购物车页可能新增批次，只清理本次已确认的批次。
   async function finishRestore(batches, keys) {
+    const signal = lifecycle.signal;
     await clearSelection(keys);
+    signal.throwIfAborted();
     const remaining = await cart.mutate("confirm", { ids: batches.map(batch => batch.id) });
+    signal.throwIfAborted();
     setRestorePanel("");
     if (remaining) scheduleRestorePrompt();
   }
 
   async function manualRestoreMissing() {
-    if (restoring) return;
+    if (restoring || busy) return;
+    const signal = lifecycle.signal;
     restoring = true;
+    setSelectionControlsDisabled(true);
     const startedAt = Date.now();
     log.info("cart-select-restore-start", "开始恢复暂存购物车数据");
 
     try {
       const rt = await loadState();
-      if (rt.restore.length) await scan();
-      const batches = currentBatches(rt.restore);
+      if (rt.restore.length) {
+        await scan();
+        requireCompleteCart();
+      }
+      const batches = await currentBatches(rt.restore, true);
       if (batches.length === 0) {
         setRestorePanel("");
         if (rt.restore.length) throw new Error(t("store_cartCheckout_ownerUnconfirmed", "无法确认暂存商品属于当前 Steam 账号。请使用暂存时的账号，回到购物车核对。"));
@@ -921,18 +1114,26 @@
       }
 
       setRestorePanel(t("store_cartSelect_restoring", "正在恢复$count$件暂存购物车数据...", { count: need.length }), "busy");
-      const res = await request("restore", { items: need, accountSteamId });
-      if (!res.ok && !res.result) throw new Error(res.message || t("store_cartSelect_restoreFailed", "恢复失败，请重试"));
+      const confirmedBySteam = !!ssrCart();
+      if (confirmedBySteam) {
+        await cart.requestItems("restore", { accountSteamId, batchIds: batches.map(batch => batch.id), keys: need.map(item => item.key) }, signal);
+      } else {
+        const res = await request("restore", { items: need, accountSteamId });
+        if (!res.ok && !res.result) throw new Error(res.message || t("store_cartSelect_restoreFailed", "恢复失败，请重试"));
+      }
+      signal.throwIfAborted();
       await scan();
-      if (currentBatches(batches).length !== batches.length) {
+      requireCompleteCart();
+      if ((await currentBatches(batches, true)).length !== batches.length) {
         throw new Error(t("store_cartCheckout_ownerUnconfirmed", "无法确认暂存商品属于当前 Steam 账号。请使用暂存时的账号，回到购物车核对。"));
       }
-      const nowPresent = new Set(items.map(item => item.key));
+      const nowPresent = presentItemKeys();
       // 两次扫描之间，先前已有的商品也可能被另一页面移出购物车
-      const stillMissing = [...new Set(allKeys)].filter(key => !nowPresent.has(key));
+      const stillMissing = confirmedBySteam ? [] : [...new Set(allKeys)].filter(key => !nowPresent.has(key));
       if (stillMissing.length === 0) {
         await finishRestore(batches, allKeys);
         await toast(t("store_cartSelect_restored", "已恢复上次未支付项目"));
+        signal.throwIfAborted();
         log.info("cart-select-restore-success", "暂存购物车数据恢复完成", {
           batchCount: batches.length,
           count: need.length,
@@ -950,6 +1151,7 @@
         });
       }
     } catch (error) {
+      if (signal.aborted) return;
       setRestorePanel(t("store_cartSelect_restoreFailed", "恢复失败，请重试"), "bad");
       log.error("cart-select-restore-failed", "购物车批次恢复失败", {
         durationMs: Date.now() - startedAt,
@@ -957,17 +1159,26 @@
       });
       throw error;
     } finally {
-      restoring = false;
+      if (!signal.aborted) {
+        restoring = false;
+        setSelectionControlsDisabled(!!selectionSaveTask);
+      }
     }
   }
 
   async function goCheckout(btn) {
-    if (busy) return;
+    if (busy || restoring) return;
+    const signal = lifecycle.signal;
     busy = true;
+    setSelectionControlsDisabled(true);
     const startedAt = Date.now();
+    let continued = false;
 
     try {
+      await selectionSaveTask;
+      signal.throwIfAborted();
       await scan();
+      requireCompleteCart();
       const sel = selectedItems();
       const skip = skippedItems();
       log.info("cart-select-checkout-start", "开始处理购物车选择支付", {
@@ -989,19 +1200,28 @@
       }
 
       if (skip.length === 0) {
-        btn.dataset.stCartSelectPass = "1";
+        continueCheckout(btn);
+        continued = true;
         log.info("cart-select-checkout-success", "购物车选择支付直接进入支付页", {
           totalCount: items.length,
           selectedCount: sel.length,
           skippedCount: 0,
           durationMs: Date.now() - startedAt,
         });
-        btn.click();
         return;
       }
 
+      if (ssrCart()) {
+        if (!accountSteamId) throw cartAccountError();
+        if (skip.some(item => item.canRestore !== true) || new Set(items.map(item => item.key)).size !== items.length) {
+          throw new Error(t("store_cartSelect_checkoutFailed", "购物车选择处理失败"));
+        }
+        await cart.requestItems("check", { accountSteamId }, signal);
+        signal.throwIfAborted();
+      }
       btn.setAttribute("aria-busy", "true");
       const batch = await saveRestoreBatch(skip);
+      signal.throwIfAborted();
       const res = await request("remove", { lineIds: skip.map(item => item.lineId), accountSteamId: batch.accountSteamId });
 
       if (!res.ok) {
@@ -1017,9 +1237,15 @@
         return;
       }
 
-      btn.dataset.stCartSelectPass = "1";
-      const next = checkoutButtons()[0] || btn;
-      next.dataset.stCartSelectPass = "1";
+      await scan();
+      requireCompleteCart();
+      if (accountSteamId !== batch.accountSteamId) throw cartAccountError();
+      const remaining = new Set(items.map(item => item.lineId));
+      if (remaining.size !== sel.length || sel.some(item => !remaining.has(item.lineId))) {
+        throw new Error(t("store_cartSelect_holdFailed", "临时调整购物车失败，已保留暂存数据，请手动恢复"));
+      }
+      continueCheckout(btn);
+      continued = true;
       log.info("cart-select-checkout-success", "购物车选择支付处理完成", {
         totalCount: items.length,
         selectedCount: sel.length,
@@ -1027,36 +1253,61 @@
         restoreCount: batch.items.length,
         durationMs: Date.now() - startedAt,
       });
-      next.click();
     } catch (error) {
+      if (signal.aborted) return;
       log.error("cart-select-checkout-failed", "购物车结算失败", {
         durationMs: Date.now() - startedAt,
         error,
       });
       throw error;
     } finally {
-      setTimeout(() => {
-        delete btn.dataset.stCartSelectPass;
-        btn.removeAttribute("aria-busy");
+      btn.removeAttribute("aria-busy");
+      const unlock = () => {
+        checkoutTimer = null;
         busy = false;
-      }, 800);
+        setSelectionControlsDisabled(!!selectionSaveTask);
+      };
+      if (!signal.aborted) {
+        if (continued) checkoutTimer = setTimeout(unlock, 800);
+        else unlock();
+      }
+    }
+  }
+
+  function checkoutAvailable(btn) {
+    return visible(btn) && !btn.disabled && btn.getAttribute("aria-disabled") !== "true";
+  }
+
+  function continueCheckout(original) {
+    const buttons = checkoutButtons().filter(checkoutAvailable);
+    const next = buttons.includes(original) ? original : buttons[0];
+    if (!next) throw new Error(t("store_cartSelect_checkoutFailed", "购物车选择处理失败"));
+    next.dataset.stCartSelectPass = "1";
+    try {
+      next.click();
+    } finally {
+      delete next.dataset.stCartSelectPass;
     }
   }
 
   function bindCheckout() {
     document.addEventListener("click", onCheckoutClick, true);
+    document.addEventListener("auxclick", onCheckoutClick, true);
   }
 
   function onCheckoutClick(event) {
-    const btn = event.target?.closest?.("button");
-    if (!btn || !checkoutButtons().includes(btn)) return;
+    const btn = event.target?.closest?.("a[href], button");
+    if (!btn) return;
+    const root = ssrCart();
+    const matches = root ? btn.matches(SSR_CHECKOUT_SELECTOR) && root.contains(btn) && isCheckoutLink(btn) : isLegacyCheckoutButton(btn);
+    if (!matches || !checkoutAvailable(btn)) return;
+    if (event.type === "auxclick" && (event.button !== 1 || btn.tagName !== "A")) return;
     if (btn.dataset.stCartSelectPass === "1") return;
 
     event.preventDefault();
     event.stopImmediatePropagation();
     goCheckout(btn).catch((error) => {
       globalThis.STLoggerFactory.reportError(error, { domain: "store", feature: "cart", event: "on-checkout-click-failed", message: "提交购物车选择失败", level: "error", phase: "onCheckoutClick" });
-      busy = false;
       toast(error.message || t("store_cartSelect_checkoutFailed", "购物车选择处理失败"), true);
     });
   }
@@ -1141,6 +1392,8 @@
   }
 
   function observeTarget() {
+    const root = ssrCart();
+    if (root) return root.querySelector(".escxTMUGmsQ-");
     const rows = Array.from(document.querySelectorAll("[data-st-cart-line-id]"));
     const rowShared = rows.length > 1 ? commonElement(rows) : rows[0]?.parentElement;
     if (preciseObserverTarget(rowShared)) {
@@ -1206,6 +1459,7 @@
   }
 
   function addStyles() {
+    api.styles?.ensureFeatureStyle?.("store-common-feature");
     api.styles?.ensureFeatureStyle?.("cart-select");
   }
 
@@ -1221,16 +1475,18 @@
       return;
     }
     started = true;
+    const controller = new AbortController();
+    lifecycle = controller;
 
     try {
       addStyles();
-      await loadState();
+      state = (await loadState()).selection;
       bindCheckout();
       bindRemoveAllConfirm();
       observe();
       await scan();
     } catch (error) {
-      stop();
+      if (lifecycle === controller) stop();
       throw error;
     }
     log.info("cart-select-start-success", "购物车选择功能已启动", {
@@ -1270,16 +1526,26 @@
   function stop() {
     const wasActive = started || !!observer || !!scanTimer || !!restorePromptTimer;
     started = false;
+    lifecycle?.abort();
+    lifecycle = null;
     busy = false;
     restoring = false;
+    itemsComplete = true;
+    legacyOwnership = null;
     emptyScanRetries = 0;
     clearTimeout(scanTimer);
     clearTimeout(restorePromptTimer);
+    clearTimeout(checkoutTimer);
     scanTimer = null;
     restorePromptTimer = null;
+    checkoutTimer = null;
     observer?.disconnect?.();
     observer = null;
+    summaryResize?.disconnect();
+    summaryResize = null;
+    summaryTargets = [];
     document.removeEventListener("click", onCheckoutClick, true);
+    document.removeEventListener("auxclick", onCheckoutClick, true);
     document.removeEventListener("click", onRemoveAllConfirmClick, true);
     removeAllConfirmation?.abort();
     removeAllConfirmation = null;
