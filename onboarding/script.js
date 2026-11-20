@@ -37,6 +37,7 @@
     throw new Error("安装引导缺少配置依赖，请先加载 shared/config.js");
   }
   const LOCAL_STEPS = CONTRACT.localizedSteps(t);
+  const NAME_MODE_STEP = LOCAL_STEPS.findIndex(step => step.id === "name-mode");
   const OPEN_SETTINGS_MESSAGE = CONTRACT.MESSAGES.openSettings;
   const SETTINGS_PREFIX = "st.settings.";
   const SETTINGS_SUFFIX = ".enabled";
@@ -83,9 +84,11 @@
     clientEnabled: false,
     clientFeatures: {},
     clientFeatureList: [],
-    clientNameMode: NAME_MODE_STEAM,
+    clientNameMode: null,
     clientNameModeOptions: [],
     clientDefaultReady: false,
+    nameModeVerifiedSession: null,
+    returnToNameModeAfterLogin: false,
     restartModalOpen: false,
     restartAcked: false,
     setupFinished: false,
@@ -103,6 +106,7 @@
     },
     ai: {
       enabled: true,
+      provider: "custom",
       host: "",
       model: "",
       keyMode: "bearer",
@@ -110,6 +114,7 @@
       keyName: "",
       temperature: "0.2",
       aiConcurrency: 10,
+      detectedModels: null,
       verified: false,
       message: "",
       messageError: false,
@@ -134,6 +139,9 @@
   let loginAttempt = 0;
   let celebration = null;
   let celebrationTimer = 0;
+  let aiModelDetection = null;
+  let renderedAiModelOptions = null;
+  let aiTemperatureBeforePreset = null;
 
   const icons = Object.freeze({
     login: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"></path><path d="M10 17l5-5-5-5"></path><path d="M15 12H3"></path></svg>',
@@ -207,7 +215,7 @@
   }
 
   function normalizeAiDraft(values = {}) {
-    return globalThis.STAI.normalize({ ...aiDefaults(), ...values });
+    return { ...globalThis.STAI.normalize({ ...aiDefaults(), ...values }), provider: values.provider || "custom" };
   }
 
   function loggedIn() {
@@ -236,7 +244,7 @@
 
   function stepCanNext(stepId = activeStep().id) {
     if (state.initializing || state.initError) return false;
-    if (stepId === "name-mode") return nameFeatureEnabled() && nameModeAllowed(state.clientNameMode);
+    if (stepId === "name-mode") return nameModeCanSave();
     if (stepId === "account") return accountCanNext();
     if (stepId === "third-party") return thirdPartyCanNext();
     if (stepId === "ai") return aiCanNext();
@@ -244,6 +252,7 @@
   }
 
   function gateBlockNote(stepId = activeStep().id) {
+    if (stepId === "name-mode") return t("onboarding_selectNameModeFirst", "请选择一种可用的名称方案。");
     if (stepId === "account") return t("onboarding_signInOrSkipHint", "请先登录，或点击“暂不登录”。");
     if (stepId === "third-party") return t("onboarding_testOrDeferHint", "请测试连接，或点击“稍后配置”。");
     if (stepId === "ai") return t("onboarding_testOrDeferHint", "请测试连接，或点击“稍后配置”。");
@@ -297,17 +306,6 @@
     return window.STConfig.customNamesAllowed(state.accountData);
   }
 
-  function nameModeAllowed(value) {
-    return clampNameMode(value) === value;
-  }
-
-  function clampNameMode(value) {
-    return window.STConfig.effectiveLibraryNameMode({
-      [NAME_MODE_ID]: value,
-      customNamesAllowed: customNamesAllowed(),
-    });
-  }
-
   function nameModeCopy(value) {
     return value === NAME_MODE_INDEPENDENT
       ? t("onboarding_independentNameScope", "覆盖商店、库列表和愿望单。")
@@ -321,8 +319,12 @@
     return option.label;
   }
 
-  function nameFeatureEnabled() {
-    return state.clientEnabled && state.clientFeatures["library-sort-title"] === true;
+  function nameModeCanSave() {
+    if (state.clientNameMode === NAME_MODE_STEAM) return true;
+    return state.clientNameMode === NAME_MODE_INDEPENDENT
+      && state.nameModeVerifiedSession !== null
+      && state.nameModeVerifiedSession === authSession.authKey(state.loginAuth)
+      && customNamesAllowed();
   }
 
   function clientFeatureLockText(item, catalog) {
@@ -500,38 +502,41 @@
     }
   }
 
-  function runtimeSend(payload, timeoutMs = 12_000) {
+  function runtimeSend(payload, timeoutMs = 12_000, signal) {
     const api = chromeApi();
     if (!api?.runtime?.sendMessage) {
       return Promise.reject(new Error(t("onboarding_previewConnection", "当前是本地预览模式，安装为扩展后可测试连接。")));
     }
     return new Promise((resolve, reject) => {
+      if (signal?.aborted) {
+        reject(signal.reason);
+        return;
+      }
       let done = false;
-      const timer = timeoutMs > 0 ? window.setTimeout(() => {
-        if (done) return;
-        done = true;
-        const error = new Error(t("common_requestTimedOut", "请求超时，请稍后重试。"));
-        error.name = "TimeoutError";
-        error.code = "REQUEST_TIMEOUT";
-        reject(error);
-      }, timeoutMs) : 0;
-      try {
-        api.runtime.sendMessage(payload, (res) => {
-          if (done) return;
-          done = true;
-          window.clearTimeout(timer);
-          const error = api.runtime.lastError;
-          if (error) {
-            reject(new Error(error.message || String(error)));
-            return;
-          }
-          resolve(res || null);
-        });
-      } catch (error) {
+      const finish = (callback, value) => {
         if (done) return;
         done = true;
         window.clearTimeout(timer);
-        reject(error);
+        signal?.removeEventListener("abort", abort);
+        callback(value);
+      };
+      const abort = () => finish(reject, signal.reason);
+      const timer = timeoutMs > 0 ? window.setTimeout(() => {
+        const error = new Error(t("common_requestTimedOut", "请求超时，请稍后重试。"));
+        error.name = "TimeoutError";
+        error.code = "REQUEST_TIMEOUT";
+        finish(reject, error);
+      }, timeoutMs) : 0;
+      signal?.addEventListener("abort", abort, { once: true });
+      try {
+        api.runtime.sendMessage(payload, (res) => {
+          const error = api.runtime.lastError;
+          if (done) return;
+          if (error) finish(reject, new Error(error.message || String(error)));
+          else finish(resolve, res || null);
+        });
+      } catch (error) {
+        finish(reject, error);
       }
     });
   }
@@ -547,6 +552,7 @@
     return normalizeAiDraft({
       enabled: state.ai.enabled === true,
       protocol: state.ai.protocol,
+      provider: $("#ai-provider").value,
       host: $("#ai-host")?.value,
       model: $("#ai-model")?.value,
       keyMode: $("#ai-key-mode")?.value,
@@ -559,6 +565,10 @@
 
   function firstLocalPage() {
     return state.cloudCount + 1;
+  }
+
+  function nameModePage() {
+    return firstLocalPage() + NAME_MODE_STEP;
   }
 
   function readCommittedPage(cloudCount) {
@@ -619,6 +629,7 @@
     if (!Number.isSafeInteger(page) || page < 1 || page > state.total) return false;
     if (page === state.page) return true;
     if (page < state.page) return true;
+    if (state.step === NAME_MODE_STEP && !stepCanNext()) return false;
     if (page <= state.lastCommittedPage) return true;
     return page === state.page + 1;
   }
@@ -637,11 +648,20 @@
   function syncAiStateFromForm() {
     const next = readAiForm();
     const prev = state.ai;
-    const changed = next.host !== prev.host
-      || next.model !== prev.model
+    if (next.host !== prev.host) {
+      const previousOrigin = aiGatewayOrigin(prev.host);
+      if (previousOrigin && previousOrigin !== aiGatewayOrigin(next.host)) {
+        next.key = "";
+        $("#ai-key").value = "";
+      }
+    }
+    const connectionChanged = next.provider !== prev.provider
+      || next.host !== prev.host
       || next.keyMode !== prev.keyMode
       || next.key !== prev.key
-      || next.keyName !== prev.keyName
+      || next.keyName !== prev.keyName;
+    if (connectionChanged) state.ai.detectedModels = null;
+    const changed = connectionChanged || next.model !== prev.model
       || next.temperature !== prev.temperature
       || Number(next.aiConcurrency) !== Number(prev.aiConcurrency);
     if (changed) {
@@ -664,10 +684,27 @@
     return globalThis.STAI;
   }
 
+  function aiProvider(id) {
+    return globalThis.STConfig.aiProviders.find(preset => preset.id === id);
+  }
+
+  function aiGatewayOrigin(host) {
+    return URL.canParse(host) ? new URL(host).origin : "";
+  }
+
+  function storedAiProvider(connection) {
+    if (connection.provider) return aiProvider(connection.provider)?.id || "custom";
+    if (!URL.canParse(connection.host)) return "custom";
+    const url = new URL(connection.host);
+    if (!["http:", "https:"].includes(url.protocol) || url.username || url.password) return "custom";
+    const ai = globalThis.STAI;
+    const endpoint = ai.endpoint(connection);
+    return globalThis.STConfig.aiProviders.find(preset => preset.base && ai.endpoint({ host: preset.base }) === endpoint)?.id || "custom";
+  }
+
   async function hydrateServiceSettings() {
     if (state.servicesHydrated) return;
     await ensureAiModule();
-    const defs = aiDefaults();
     const thirdPartyPaths = [
       "enabled",
       "isthereanydeal.key",
@@ -686,8 +723,13 @@
 
     state.aiRegistry = aiConfig.servicesFromStorage(stored);
     const service = aiConfig.findService(state.aiRegistry, aiConfig.DEFAULT_SERVICE_ID);
+    const hasConnection = service.provider || service.host || service.model || service.key ||
+      service.keyName || service.temperature || service.keyMode !== aiDefaults().keyMode;
+    const connection = hasConnection
+      ? { ...service, provider: storedAiProvider(service) }
+      : { ...aiConfig.presetConnection(aiProvider("deepseek")), provider: "deepseek" };
     const ai = normalizeAiDraft({
-      ...defs, temperature: "0.2", ...(service.host || service.model ? service : {}),
+      temperature: "0.2", ...connection,
       aiConcurrency: state.aiRegistry.aiConcurrency,
       enabled: Object.hasOwn(stored, aiStorageKey("enabled")) ? state.aiRegistry.enabled : true,
     });
@@ -754,7 +796,7 @@
     if (form.enabled) {
       const defaultId = globalThis.STAI.DEFAULT_SERVICE_ID;
       next.services = previous.services.map((service) => service.id === defaultId
-        ? { ...service, ...form, enabled: true, provider: form.host === service.host ? service.provider : undefined } : service);
+        ? { ...service, ...form, enabled: true } : service);
     }
     log.info("onboarding-ai-save-start", "安装引导开始保存 AI 配置", {
       operationId,
@@ -907,7 +949,7 @@
     return error;
   }
 
-  function waitAiPermissionResult(requestId) {
+  function waitAiPermissionResult(requestId, signal) {
     const api = chromeApi();
     if (!api?.runtime?.onMessage) {
       throw Object.assign(new Error(t("settings_ai_permissionFailed", "AI 网关访问权限申请失败，请稍后重试。")), {
@@ -922,9 +964,11 @@
         settled = true;
         window.clearTimeout(timer);
         api.runtime.onMessage.removeListener(onMessage);
+        signal?.removeEventListener("abort", abort);
         if (error) reject(error);
         else resolve(true);
       };
+      const abort = () => finish(signal.reason);
       const onMessage = (message, _sender, sendResponse) => {
         if (String(message?.type || "") !== AI_GATEWAY_PERMISSION_RESULT) return false;
         if (String(message?.requestId || "") !== requestId) return false;
@@ -942,17 +986,20 @@
       }, AI_PERMISSION_WAIT_MS);
       cancel = () => finish(null);
       api.runtime.onMessage.addListener(onMessage);
+      if (signal?.aborted) abort();
+      else signal?.addEventListener("abort", abort, { once: true });
     });
     return { promise, cancel };
   }
 
-  async function ensureAiGatewayPermission(ai, operationId = "") {
+  async function ensureAiGatewayPermission(ai, operationId = "", signal) {
     if (ai?.enabled !== true || !ai?.host) return true;
     const check = await runtimeSend({
       type: AI_GATEWAY_PERMISSION_CHECK,
       operationId,
       host: ai.host,
-    }, 5_000);
+    }, 5_000, signal);
+    signal?.throwIfAborted();
     if (check?.success !== true) throw aiPermissionError(check);
     if (check.granted === true) return true;
     if (window.STClientEnvironment.isSteamClientPage() !== true) {
@@ -960,7 +1007,7 @@
         type: AI_GATEWAY_PERMISSION_REQUEST,
         operationId,
         host: ai.host,
-      }, 0);
+      }, 0, signal);
       if (response?.granted !== true) throw aiPermissionError(response);
       return true;
     }
@@ -972,27 +1019,35 @@
     }
     const requestId = globalThis.STLoggerFactory?.createRequestId?.()
       || `ai-perm-${Date.now().toString(36)}`;
-    const waiter = waitAiPermissionResult(requestId);
+    const waiter = waitAiPermissionResult(requestId, signal);
+    const opening = runtimeSend({
+      type: AI_GATEWAY_PERMISSION_OPEN,
+      requestId,
+      operationId,
+      host: ai.host,
+    }, 10_000).then(response => {
+      if (response?.opened !== true) throw aiPermissionError(response);
+    });
+    const cancel = async () => {
+      const cancelled = await runtimeSend({ type: AI_GATEWAY_PERMISSION_CANCEL, requestId, operationId }, 5_000);
+      if (cancelled?.success !== true) throw aiPermissionError(cancelled);
+    };
     try {
-      const opening = runtimeSend({
-        type: AI_GATEWAY_PERMISSION_OPEN,
-        requestId,
-        operationId,
-        host: ai.host,
-      }, 10_000).then(response => {
-        if (response?.opened !== true) throw aiPermissionError(response);
-      });
       // 结果可能早于打开窗口的回执，两者都从本次操作开始时接管。
       await Promise.all([opening, waiter.promise]);
       return true;
     } catch (error) {
-      if (error?.code === "AI_HOST_PERMISSION_TIMEOUT" || error?.code === "REQUEST_TIMEOUT") {
-        const cancelled = await runtimeSend({
-          type: AI_GATEWAY_PERMISSION_CANCEL,
-          requestId,
-          operationId,
-        }, 5_000);
-        if (cancelled?.success !== true) throw new AggregateError([error, aiPermissionError(cancelled)], error.message);
+      if (signal?.aborted) {
+        // 等授权窗口确认已创建，再按请求号清理，以免取消早于后台登记
+        void opening.then(cancel).catch(cancelError => {
+          log.warn("onboarding-ai-permission-cancel-failed", "离开安装引导后清理 AI 授权失败", { operationId, requestId, error: cancelError });
+        });
+      } else if (error?.code === "AI_HOST_PERMISSION_TIMEOUT" || error?.code === "REQUEST_TIMEOUT") {
+        try {
+          await cancel();
+        } catch (cause) {
+          throw new AggregateError([error, cause], error.message);
+        }
       }
       throw error;
     } finally {
@@ -1080,6 +1135,50 @@
     }
   }
 
+  async function detectAiModels() {
+    if (controlsBusy() || !state.ai.enabled) return;
+    syncAiStateFromForm();
+    const controller = new AbortController();
+    const operationId = createOperationId();
+    const ai = ensureAiModule();
+    aiModelDetection = controller;
+    state.serviceBusy = true;
+    state.ai.message = "";
+    state.ai.messageError = false;
+    render();
+    let focus = "";
+    try {
+      const models = await ai.detectModels(state.ai, connection => ensureAiGatewayPermission(connection, operationId, controller.signal), {
+        operationId, signal: controller.signal,
+      });
+      controller.signal.throwIfAborted();
+      state.ai.detectedModels = models.length ? models : null;
+      state.ai.message = models.length
+        ? t("settings.ai.modelsDetected", "找到 $count$ 个模型", { count: models.length })
+        : t("settings.ai.modelsEmpty", "接口未返回模型，可手动输入。");
+      log.info("onboarding-ai-models-detected", "安装引导完成 AI 模型检测", { operationId, count: models.length });
+      focus = "#ai-model";
+    } catch (error) {
+      if (controller.signal.aborted) return;
+      if (error.code === "AI_HOST_PERMISSION_CANCELLED") {
+        state.ai.message = error.message;
+      } else {
+        const issue = ai.modelListIssue(error.code);
+        const failure = t("settings.ai.modelsFailed", "模型检测失败");
+        state.ai.message = issue ? t(issue[1], issue[2]) : error.message || failure;
+        state.ai.messageError = true;
+        if (!issue) log.error("onboarding-ai-models-failed", failure, { operationId, error });
+        focus = issue ? (issue[0] === "keyMode" ? "#ai-key-mode" : "#ai-" + issue[0]) : "#ai-models";
+      }
+    } finally {
+      aiModelDetection = null;
+      state.serviceBusy = false;
+      render();
+    }
+    if (focus === "#ai-key-mode") $("#ai-advanced").open = true;
+    if (focus) $(focus).focus({ preventScroll: true });
+  }
+
   function accountProfile() {
     const api = window.STSettingsAccountCenter || window.STAccountProfile;
     if (!api?.normalizeData || !api?.membershipSnapshot) {
@@ -1100,8 +1199,9 @@
 
   async function assertLoginSession(sent) {
     const session = window.STAuthSession.authKey(sent);
-    const current = await storageGet(AUTH_KEY);
+    const current = cleanAuth(await storageGet(AUTH_KEY));
     if (!session || session !== window.STAuthSession.authKey(current)) throw new Error(t("onboarding_accountChanged", "登录账号已变化，请重新获取用户信息"));
+    return current;
   }
 
   async function storeMembership(data, auth, operationId = "") {
@@ -1214,36 +1314,64 @@
     return centerCode(res) === 401;
   }
 
-  async function refreshStoredAuth(auth, cfg, operationId = "") {
-    await assertLoginSession(auth);
-    if (!auth?.refresh_token) throw new Error(t("store_priceHistory_monitorLoginExpired", "登录已过期，请重新登录"));
-    const res = await storeFetch("/auth/refresh", { refresh_token: auth.refresh_token }, "", "POST", cfg.urls.loginAuthBase);
-    if (!okCode(res) || !res.body?.access_token) throw new Error(res.body?.message || t("onboarding_refreshSignInFailed", "登录刷新失败，请重新登录"));
-    const next = nextAuth(res.body, auth);
-    await assertLoginSession(auth);
-    if (!await storageSet(AUTH_KEY, next, { operationId })) {
-      throw new Error(t("onboarding_tokenSaveFailed", "登录令牌保存失败"));
-    }
-    state.loginAuth = next;
-    return next;
+  function expiredSignIn() {
+    return Object.assign(new Error(t("store_priceHistory_monitorLoginExpired", "登录已过期，请重新登录")), {
+      code: "ONBOARDING_SIGN_IN_EXPIRED",
+    });
   }
 
-  async function fetchUserCenter(auth, cfg) {
-    return storeFetch("/user/center", null, auth.access_token, "GET", cfg.urls.steamBuffBase);
+  async function refreshStoredAuth(auth, cfg, operationId = "") {
+    const stored = await assertLoginSession(auth);
+    if (!auth?.refresh_token) throw expiredSignIn();
+    const newer = authSession.commitAuth({ kind: "reject", sent: auth, stored });
+    if (newer.action === "keep") return newer.auth;
+    const res = await storeFetch("/auth/refresh", { refresh_token: auth.refresh_token }, "", "POST", cfg.urls.loginAuthBase, { operationId });
+    if (centerExpired(res)) {
+      const latest = await assertLoginSession(auth);
+      const decision = authSession.commitAuth({ kind: "reject", sent: auth, stored: latest });
+      if (decision.action === "keep") return decision.auth;
+      throw expiredSignIn();
+    }
+    if (!okCode(res) || !res.body?.access_token) throw new Error(res.body?.message || t("onboarding_refreshSignInFailed", "登录刷新失败，请重新登录"));
+    const decision = await globalThis.STAuthClient.commitStored(null, {
+      kind: "refresh", sent: auth, incoming: nextAuth(res.body, auth), operationId, requestId: res.requestId,
+    });
+    if (!["write", "keep"].includes(decision.action)) {
+      await assertLoginSession(auth);
+      throw new Error(t("onboarding_tokenSaveFailed", "登录令牌保存失败"));
+    }
+    return assertLoginSession(auth);
+  }
+
+  async function fetchUserCenter(auth, cfg, operationId) {
+    return storeFetch("/user/center", null, auth.access_token, "GET", cfg.urls.steamBuffBase, { operationId });
+  }
+
+  async function refreshAccountData(auth, operationId, { verifyNameMode = false } = {}) {
+    const cfg = await sharedConfig();
+    let current = auth;
+    let res = await fetchUserCenter(current, cfg, operationId);
+    if (centerExpired(res)) {
+      current = await refreshStoredAuth(current, cfg, operationId);
+      res = await fetchUserCenter(current, cfg, operationId);
+    }
+    if (centerExpired(res)) throw expiredSignIn();
+    if (!okCode(res)) throw new Error(res.body?.message || t("onboarding_profileFetchFailed", "获取用户信息失败"));
+    const profile = normalizeAccount(res.body || {}, current);
+    const namesVerified = typeof res.body?.permissions?.customNames === "boolean"
+      || profile.usage.customNames.quota !== null;
+    if (verifyNameMode && !namesVerified) {
+      throw new Error(t("onboarding_namePermissionCheckFailed", "暂时无法核验捐赠版权益，请重试。"));
+    }
+    await storeMembership(profile, current, operationId);
+    state.loginAuth = current;
+    state.accountData = profile;
+    state.nameModeVerifiedSession = namesVerified && customNamesAllowed() ? authSession.authKey(current) : null;
+    return profile;
   }
 
   async function syncAccountData(auth, operationId = "") {
-    const cfg = await sharedConfig();
-    let current = auth;
-    let res = await fetchUserCenter(current, cfg);
-    if (centerExpired(res)) {
-      current = await refreshStoredAuth(current, cfg, operationId);
-      res = await fetchUserCenter(current, cfg);
-    }
-    if (!okCode(res)) throw new Error(res.body?.message || t("onboarding_profileFetchFailed", "获取用户信息失败"));
-    const profile = normalizeAccount(res.body || {}, current);
-    await storeMembership(profile, current, operationId);
-    state.accountData = profile;
+    const profile = await refreshAccountData(auth, operationId);
     try {
       chrome.runtime.sendMessage({
         type: "SETTINGS_CLOUD_SYNC",
@@ -1370,8 +1498,6 @@
       render();
       await writeLocalSettings({ [AUTH_KEY]: auth });
       state.loginAuth = auth;
-      state.loginMode = "success";
-      state.loginBusy = false;
       state.loginDevice = null;
       state.loginMessage = "";
       let accountSyncSucceeded = true;
@@ -1385,7 +1511,12 @@
           error,
         });
       }
+      state.loginMode = "success";
+      state.loginBusy = false;
       stopLoginPoll();
+      if (state.returnToNameModeAfterLogin && activeStep().id === "account") {
+        applyLocalPage(nameModePage());
+      }
       resultNotice(accountSyncSucceeded ? t("onboarding_signedInSuccessfully", "登录成功。") : t("onboarding_accountSyncFailedAfterSignIn", "登录成功，但账号资料同步失败。"), "login");
       log.info("onboarding-device-login-success", "安装引导设备登录成功", {
         operationId: state.loginOperationId || "",
@@ -1483,12 +1614,14 @@
   }
 
   async function saveNameMode(operationId = "") {
-    if (!nameFeatureEnabled() || !nameModeAllowed(state.clientNameMode)) return false;
-    log.info("onboarding-name-mode-save-start", "安装引导开始保存名称方案", { operationId, mode: state.clientNameMode });
-    const ok = await storageSetMany({ [settingValueKey(NAME_MODE_ID)]: state.clientNameMode }, { operationId });
+    if (!nameModeCanSave()) return false;
+    const mode = state.clientNameMode;
+    if (mode === NAME_MODE_INDEPENDENT) await assertDonationSelectionSession();
+    log.info("onboarding-name-mode-save-start", "安装引导开始保存名称方案", { operationId, mode });
+    const ok = await storageSetMany({ [settingValueKey(NAME_MODE_ID)]: mode }, { operationId });
     if (ok) {
-      state.savedSummary["name-mode"] = nameModeLabel(state.clientNameMode);
-      log.info("onboarding-name-mode-save-success", "安装引导名称方案已保存", { operationId, mode: state.clientNameMode });
+      state.savedSummary["name-mode"] = nameModeLabel(mode);
+      log.info("onboarding-name-mode-save-success", "安装引导名称方案已保存", { operationId, mode });
     }
     return ok;
   }
@@ -1583,11 +1716,13 @@
       : [];
     const storedMode = stored[settingValueKey(NAME_MODE_ID)];
     if (storedMode !== undefined && !state.clientNameModeOptions.some(option => option.value === storedMode)) throw new Error(t("onboarding_invalidNamingMethod", "已保存的名称方案无效"));
-    state.clientNameMode = storedMode ?? NAME_MODE_STEAM;
+    if (storedMode === NAME_MODE_STEAM && state.results["name-mode"] === "saved" && state.lastCommittedPage > nameModePage()) {
+      state.clientNameMode = storedMode;
+    }
     state.clientFeatures = Object.fromEntries(items.map(item => [item.id, Object.hasOwn(stored, settingKey(item.id)) ? stored[settingKey(item.id)] === true : on]));
     state.clientEnabled = Object.values(state.clientFeatures).some(Boolean);
     state.savedSummary.client = items.some(item => stored[settingKey(item.id)] === true) ? t("onboarding_on", "已开启") : t("onboarding_disabled", "未启用");
-    state.savedSummary["name-mode"] = nameModeLabel(state.clientNameMode);
+    state.savedSummary["name-mode"] = nameModeLabel(storedMode ?? NAME_MODE_STEAM);
     state.clientDefaultReady = true;
   }
 
@@ -1703,6 +1838,9 @@
       render();
       return;
     }
+    const nameDialog = $("#name-mode-dialog");
+    if (nameDialog.open) nameDialog.close();
+    if (LOCAL_STEPS[index].id !== "account") state.returnToNameModeAfterLogin = false;
     if (historyMode === "push") window.history.pushState(null, "", localUrl(page));
     else if (historyMode === "replace") window.history.replaceState(null, "", localUrl(page));
     state.page = page;
@@ -1710,6 +1848,7 @@
     state.note = "";
     state.noteError = false;
     const stepId = LOCAL_STEPS[index]?.id;
+    if (stepId === "name-mode") clampCommittedPage();
     if (stepId === "complete" && inSteamClient() && state.setupFinished) {
       state.restartAcked = false;
       state.restartModalOpen = true;
@@ -1757,7 +1896,7 @@
       }
     }
     state.results[stepId] = "saved";
-    const nextPage = state.page + 1;
+    const nextPage = stepId === "account" && state.returnToNameModeAfterLogin ? nameModePage() : state.page + 1;
     commitPage(nextPage);
     applyLocalPage(nextPage);
   }
@@ -1765,22 +1904,24 @@
   function skipCurrentStep() {
     if (controlsBusy() || state.initError) return;
     const id = activeStep().id;
-    if (!["account", "name-mode", "third-party", "ai"].includes(id)) return;
+    if (!["account", "third-party", "ai"].includes(id)) return;
     if (id === "account") cancelLogin();
     state.results[id] = "skipped";
-    commitPage(state.page + 1);
-    applyLocalPage(state.page + 1);
+    const nextPage = id === "account" && state.returnToNameModeAfterLogin ? nameModePage() : state.page + 1;
+    commitPage(nextPage);
+    applyLocalPage(nextPage);
   }
 
-  function goToPage(page) {
+  async function goToPage(page) {
     if (!Number.isSafeInteger(page) || page < 1 || page > state.total) return;
+    if (state.step === NAME_MODE_STEP && !canNavigateToPage(page)) return;
     if (page === state.page) return;
     if (page < state.page) {
       applyLocalPage(page);
       return;
     }
     if (page <= state.lastCommittedPage) {
-      applyLocalPage(page);
+      await navigateCommittedPage(page, "push");
       return;
     }
     if (page === state.page + 1) {
@@ -1788,6 +1929,29 @@
       return;
     }
     setNote(t("onboarding_completeEarlierSteps", "请按顺序完成前面的配置步骤。"), true);
+  }
+
+  async function navigateCommittedPage(page, historyMode) {
+    if (state.step === NAME_MODE_STEP && page > state.page && page <= state.lastCommittedPage
+      && state.clientNameMode === NAME_MODE_INDEPENDENT) {
+      state.serviceBusy = true;
+      renderGlobal();
+      let failed = false;
+      try {
+        await assertDonationSelectionSession();
+      } catch (error) {
+        log.error("onboarding-name-mode-navigation-failed", "捐赠版会话检查失败，已停留在名称方案页", { error });
+        failed = true;
+      } finally {
+        state.serviceBusy = false;
+      }
+      if (failed) {
+        if (historyMode === "history") window.history.replaceState(null, "", localUrl(state.page));
+        setNote(t("onboarding_namePermissionCheckFailed", "暂时无法核验捐赠版权益，请重试。"), true);
+        return;
+      }
+    }
+    applyLocalPage(page, historyMode);
   }
 
   function progressButton(page) {
@@ -1934,7 +2098,8 @@
         state.noteError = true;
         log.error("onboarding-service-hydrate-failed", "安装引导设置读取失败，已阻止保存", { error: failed.reason });
       }
-      render();
+      if (!state.initError && state.step === NAME_MODE_STEP) applyLocalPage(state.page, "replace");
+      else render();
     } catch (error) {
       if (phase === "parse" && error?.name === "SyntaxError") globalThis.STLoggerSchema.markJsonError(error);
       log.error("onboarding-flow-load-failed", "安装引导配置加载失败", {
@@ -2114,9 +2279,109 @@
     renderAccountPrompt(root);
   }
 
+  function selectNameMode(value) {
+    if (state.clientNameMode !== value) invalidateProgress();
+    state.clientNameMode = value;
+    setNote(t("onboarding_saveNamingOnNext", "名称方案将在进入下一步时保存。"), false);
+  }
+
+  function canSelectNameMode() {
+    return state.phase === "ready" && state.step === NAME_MODE_STEP
+      && !state.initError && !controlsBusy();
+  }
+
+  function clearDonationSelection() {
+    state.nameModeVerifiedSession = null;
+    if (state.clientNameMode === NAME_MODE_INDEPENDENT) state.clientNameMode = null;
+    clampCommittedPage();
+  }
+
+  async function assertDonationSelectionSession() {
+    try {
+      await assertLoginSession(state.loginAuth);
+    } catch (error) {
+      clearDonationSelection();
+      throw error;
+    }
+  }
+
+  function showNameModeDialog(action) {
+    const { css, ensureStyle } = globalThis.STComponents;
+    ensureStyle("name-mode-dialog-style", css.dialog({
+      variant: "standard",
+      surfaceSelectors: "#name-mode-dialog",
+      surfacePadding: "0",
+      surfaceTransform: "none",
+      headerSelectors: ".name-mode-dialog-head",
+      titleSelectors: "#name-mode-dialog-title",
+      bodySelectors: "#name-mode-dialog-copy",
+      footerSelectors: ".name-mode-dialog-actions",
+    }));
+    const donate = action === "donate";
+    const loginLink = $("#name-mode-login");
+    const donateLink = $("#name-mode-donate");
+    $("#name-mode-dialog-title").textContent = donate
+      ? t("onboarding_nameModeDonationTitle", "开通捐赠版")
+      : t("onboarding_nameModeSignInTitle", "登录后选择捐赠版");
+    $("#name-mode-dialog-copy").textContent = donate
+      ? t("onboarding_nameModeDonationCopy", "当前账号尚未开通捐赠版。捐赠后回到这里，再选择一次捐赠版。")
+      : t("onboarding_nameModeSignInCopy", "请先登录 Steam Buff 账号，以核验捐赠版权益。");
+    loginLink.hidden = donate;
+    donateLink.hidden = !donate;
+    donateLink.href = $("#name-mode-sponsor").href;
+    $("#name-mode-dialog").showModal();
+  }
+
+  async function selectDonationMode() {
+    const operationId = createOperationId();
+    state.serviceBusy = true;
+    state.nameModeVerifiedSession = null;
+    setNote(t("onboarding_namePermissionChecking", "正在核验捐赠版权益…"), false);
+    let prompt = "";
+    let verified = false;
+    let failed = false;
+    try {
+      const auth = cleanAuth(await storageGet(AUTH_KEY));
+      if (!auth) {
+        prompt = "login";
+      } else {
+        await refreshAccountData(auth, operationId, { verifyNameMode: true });
+        state.loginMode = "success";
+        state.loginMessage = "";
+        verified = customNamesAllowed();
+        if (!verified) prompt = "donate";
+        log.info("onboarding-name-mode-permission-checked", "安装引导已核验捐赠版权限", { operationId, allowed: verified });
+      }
+    } catch (error) {
+      if (error?.code === "ONBOARDING_SIGN_IN_EXPIRED") {
+        prompt = "login";
+      } else {
+        log.error("onboarding-name-mode-permission-failed", "安装引导核验捐赠版权限失败", { operationId, error });
+        failed = true;
+      }
+    } finally {
+      state.serviceBusy = false;
+    }
+    if (prompt === "login") {
+      state.loginAuth = null;
+      state.accountData = null;
+      state.loginMode = "idle";
+      state.loginMessage = "";
+    }
+    if (verified) {
+      selectNameMode(NAME_MODE_INDEPENDENT);
+    } else {
+      clearDonationSelection();
+      setNote();
+    }
+    document.getElementById(`name-mode-${NAME_MODE_INDEPENDENT}`).focus({ preventScroll: true });
+    if (prompt) showNameModeDialog(prompt);
+    if (failed) resultNotice(t("onboarding_namePermissionCheckFailed", "暂时无法核验捐赠版权益，请重试。"));
+  }
+
   function renderNameMode() {
     const root = $("#client-name-mode-options");
-    const selected = state.clientNameMode;
+    const selected = nameModeCanSave() ? state.clientNameMode : null;
     const focused = root.contains(document.activeElement) ? document.activeElement.value : null;
     const groups = [
       { title: t("onboarding_store", "商店"), features: [
@@ -2167,7 +2432,6 @@
     const inputs = [];
     modes.forEach(value => {
       const independent = value === NAME_MODE_INDEPENDENT;
-      const allowed = nameModeAllowed(value);
       const title = nameModeLabel(value);
       const columnClass = independent ? "mode-independent" : "mode-steam";
       const cell = el("th", columnClass);
@@ -2191,10 +2455,10 @@
       input.name = NAME_MODE_ID;
       input.value = value;
       input.checked = selected === value;
-      input.disabled = controlsBusy() || !allowed || !nameFeatureEnabled();
+      input.disabled = controlsBusy() || state.initError;
       input.dataset.actionChange = "client-name-mode";
       input.setAttribute("aria-label", title);
-      label.append(input, el("span", "mode-choice", !allowed ? t("onboarding_donorStatusRequired", "需要捐赠用户身份") : selected === value ? t("onboarding_selected", "已选择") : t("onboarding_chooseMethod", "选择$title$", { title })));
+      label.append(input, el("span", "mode-choice", selected === value ? t("onboarding_selected", "已选择") : t("onboarding_chooseMethod", "选择$title$", { title })));
       choiceCell.append(label);
       choices.append(choiceCell);
       inputs.push(input);
@@ -2306,11 +2570,64 @@
     status.classList.toggle("is-success", state.thirdParty.verified === true && !state.thirdParty.messageError);
   }
 
+  function selectAiProvider(id) {
+    const preset = aiProvider(id);
+    if (!preset) throw new TypeError("AI 供应商无效");
+    const connection = id === "custom" ? {} : ensureAiModule().presetConnection(preset);
+    let temperature = state.ai.temperature;
+    if (preset.temperature !== undefined) {
+      aiTemperatureBeforePreset ??= temperature;
+      temperature = preset.temperature;
+    } else if (aiTemperatureBeforePreset !== null) {
+      temperature = aiTemperatureBeforePreset;
+      aiTemperatureBeforePreset = null;
+    }
+    Object.assign(state.ai, normalizeAiDraft({
+      ...state.ai, ...connection, provider: id, key: "", temperature,
+    }), { verified: false, saved: false, detectedModels: null, message: "", messageError: false });
+    invalidateProgress();
+    render();
+  }
+
+  function updateAiDraft() {
+    syncAiStateFromForm();
+    state.ai.message = "";
+    state.ai.messageError = false;
+    renderGlobal();
+    renderAi();
+  }
+
+  function renderAiModelControl() {
+    const slot = $("#ai-model-control");
+    const fields = globalThis.STSettingsFields;
+    const options = state.ai.detectedModels ?? aiProvider(state.ai.provider).models;
+    if (options !== renderedAiModelOptions) {
+      fields.closeSearchCombo(slot);
+      const label = t("settings_field_ai_model_label", "模型");
+      const html = fields.searchComboHtml(options.map(id => ({ value: id, label: id })), {
+        id: "ai-model", label, text: state.ai.model, value: state.ai.model,
+        placeholder: t("settings.ai.modelPlaceholder", "选择或输入模型"),
+        expandLabel: t("settings.controls.expand", "展开$label$", { label }),
+        emptyLabel: t("settings.controls.empty", "暂无可选项"),
+        modal: true,
+      });
+      globalThis.STDomUtils.setTrustedHTML(slot, globalThis.STDomUtils.trustedHTML(html, "onboarding-ai-model-control"));
+      const input = $("#ai-model");
+      input.classList.add("setup-control");
+      input.spellcheck = false;
+      renderedAiModelOptions = options;
+    }
+    return $("#ai-model");
+  }
+
   function renderAi() {
     const enabledToggle = $("#ai-enabled");
     const fields = $("#ai-fields");
+    const provider = $("#ai-provider");
     const host = $("#ai-host");
-    const model = $("#ai-model");
+    const model = renderAiModelControl();
+    const modelToggle = $("#ai-model-control [data-st-combo-toggle]");
+    const modelsButton = $("#ai-models");
     const keyMode = $("#ai-key-mode");
     const key = $("#ai-key");
     const keyField = $("#ai-key-field");
@@ -2328,6 +2645,14 @@
       if (!node || document.activeElement === node) return;
       node.value = value == null ? "" : String(value);
     };
+    if (!provider.options.length) {
+      provider.replaceChildren(...globalThis.STConfig.aiProviders.map(preset => {
+        const option = el("option", "", t("settings.ai.provider." + preset.id, preset.label));
+        option.value = preset.id;
+        return option;
+      }));
+    }
+    fill(provider, state.ai.provider);
     fill(host, state.ai.host);
     fill(model, state.ai.model);
     fill(keyMode, state.ai.keyMode || "bearer");
@@ -2341,11 +2666,15 @@
     $("#ai-advanced-mode").textContent = keyMode.options[keyMode.selectedIndex]?.textContent || "";
     const aiBusy = controlsBusy();
     const aiLocked = aiBusy || state.ai.enabled !== true;
-    [host, model, keyMode, key, keyName, temperature, concurrency].forEach((node) => {
+    [provider, host, model, modelToggle, keyMode, key, keyName, temperature, concurrency, modelsButton, testButton].forEach((node) => {
       setControlDisabled(node, aiLocked, aiBusy);
     });
-    setControlDisabled(testButton, aiLocked, aiBusy);
-    testButton.textContent = state.serviceBusy && activeStep().id === "ai" ? t("settings_thirdParty_testing", "测试中") : t("settings_thirdParty_testConnection", "测试连接");
+    if (aiLocked || activeStep().id !== "ai") globalThis.STSettingsFields.closeSearchCombo(fields);
+    if (aiModelDetection) modelsButton.setAttribute("aria-busy", "true");
+    else modelsButton.removeAttribute("aria-busy");
+    modelsButton.textContent = aiModelDetection ? t("settings.ai.detectingModels", "正在检测模型…") : t("settings.ai.detectModels", "检测模型");
+    testButton.textContent = !aiModelDetection && state.serviceBusy && activeStep().id === "ai"
+      ? t("settings_thirdParty_testing", "测试中") : t("settings_thirdParty_testConnection", "测试连接");
     status.textContent = state.ai.message || "";
     status.classList.toggle("is-error", state.ai.messageError === true);
     status.classList.toggle("is-success", state.ai.verified === true && !state.ai.messageError);
@@ -2367,8 +2696,8 @@
     setControlDisabled(back, controlsBusy(), controlsBusy());
 
     const skip = $("#footer-skip");
-    skip.hidden = !["account", "name-mode", "third-party", "ai"].includes(step.id) || (step.id === "account" && loggedIn());
-    skip.textContent = step.id === "account" ? t("onboarding_skipSignIn", "暂不登录") : step.id === "name-mode" ? t("onboarding_keepCurrentMethod", "保留原方案") : t("onboarding_setUpLater", "稍后配置");
+    skip.hidden = !["account", "third-party", "ai"].includes(step.id) || (step.id === "account" && loggedIn());
+    skip.textContent = step.id === "account" ? t("onboarding_skipSignIn", "暂不登录") : t("onboarding_setUpLater", "稍后配置");
     setControlDisabled(skip, controlsBusy() || state.initError, controlsBusy());
     $("#footer-retry").hidden = !state.initError;
     next.hidden = final;
@@ -2575,6 +2904,13 @@
   }
 
   document.addEventListener("click", async (event) => {
+    const target = event.target;
+    // 单选项已勾选时再次激活不会触发 change，仍允许主动重新核验
+    if (target.dataset?.actionChange === "client-name-mode" && target.value === NAME_MODE_INDEPENDENT
+      && state.clientNameMode === NAME_MODE_INDEPENDENT && canSelectNameMode() && nameModeCanSave()) {
+      await selectDonationMode();
+      return;
+    }
     const control = event.target.closest("[data-action]");
     const action = control?.dataset?.action;
     if (!action || state.busy || control.disabled) return;
@@ -2589,9 +2925,18 @@
     if (state.phase !== "ready" || state.initializing) return;
     if (state.serviceBusy && !["login-cancel", "open-step-tutorial", "open-tutorial", "restart-modal-ack"].includes(action)) return;
     if (state.loginBusy && action !== "login-cancel") return;
+    if (action === "name-mode-dismiss" || action === "name-mode-donate") {
+      $("#name-mode-dialog").close();
+      return;
+    }
+    if (action === "name-mode-login") {
+      state.returnToNameModeAfterLogin = true;
+      applyLocalPage(firstLocalPage());
+      return;
+    }
     if (action === "back") applyLocalPage(state.page - 1);
     if (action === "next") await advanceFromCurrent();
-    if (action === "go-page") goToPage(Number(control.dataset.page));
+    if (action === "go-page") await goToPage(Number(control.dataset.page));
     if (action === "skip-step") skipCurrentStep();
     if (action === "third-party-enabled") {
       invalidateProgress();
@@ -2618,6 +2963,7 @@
       clampCommittedPage();
       setNote(state.ai.message, false);
     }
+    if (action === "ai-list-models") await detectAiModels();
     if (action === "ai-test") await testAiConnection();
     if (action === "client-toggle") {
       invalidateProgress();
@@ -2665,34 +3011,28 @@
       return;
     }
     if (["ai-host", "ai-model", "ai-key", "ai-key-name", "ai-temperature", "ai-concurrency"].includes(target.id)) {
-      syncAiStateFromForm();
-      state.ai.message = "";
-      state.ai.messageError = false;
-      renderGlobal();
-      renderAi();
+      if (controlsBusy()) return;
+      if (target.id === "ai-temperature") aiTemperatureBeforePreset = null;
+      if (target.id === "ai-model") globalThis.STSettingsFields.handleSearchCombo(event, $("#ai-surface"));
+      updateAiDraft();
     }
   });
 
-  document.addEventListener("change", (event) => {
+  document.addEventListener("change", async (event) => {
     if (state.phase !== "ready") return;
     const target = event.target;
     if (!(target instanceof HTMLElement)) return;
-    if (target.id === "ai-key-mode") {
-      syncAiStateFromForm();
-      state.ai.message = "";
-      state.ai.messageError = false;
-      render();
-    }
+    if (target.id === "ai-provider" && !controlsBusy()) selectAiProvider(target.value);
+    if (target.id === "ai-key-mode" && !controlsBusy()) updateAiDraft();
     if (target.dataset.actionChange === "client-name-mode") {
-      const value = String(target.value || "");
-      if (!nameModeAllowed(value)) return;
-      invalidateProgress();
-      state.clientNameMode = value;
-      setNote(t("onboarding_saveNamingOnNext", "名称方案将在进入下一步时保存。"), false);
+      if (!canSelectNameMode()) return;
+      if (target.value === NAME_MODE_STEAM) selectNameMode(NAME_MODE_STEAM);
+      if (target.value === NAME_MODE_INDEPENDENT) await selectDonationMode();
     }
   });
 
   window.addEventListener("pagehide", event => {
+    aiModelDetection?.abort();
     if (state.loginMode === "loading" || state.loginMode === "device") cancelLogin(event.persisted);
     else {
       stopLoginPoll();
@@ -2701,7 +3041,7 @@
     stopCelebration();
   });
 
-  window.addEventListener("popstate", () => {
+  window.addEventListener("popstate", async () => {
     if (state.phase !== "ready") return;
     if (controlsBusy()) {
       window.history.replaceState(null, "", localUrl(state.page));
@@ -2713,8 +3053,9 @@
       render();
       return;
     }
-    applyLocalPage(result.page, "history");
+    await navigateCommittedPage(result.page, "history");
   });
 
+  globalThis.STSettingsFields.bindSearchCombos($("#onboarding-main"), undefined, updateAiDraft, document);
   loadFlow();
 })();

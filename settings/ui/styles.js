@@ -872,6 +872,36 @@
           background: var(--st-color-bg-body);
         }
 
+        .side[hidden] + .body {
+          grid-column: 1 / -1;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          gap: var(--st-spacing-md);
+          padding-block: var(--st-spacing-lg);
+          text-align: center;
+        }
+
+        /* 剩余空间由组两端的外边距平分，空间不足时从顶部滚动 */
+        .side[hidden] + .body > .page-title {
+          flex: none;
+          margin-block: auto 0;
+          justify-content: center;
+        }
+
+        .side[hidden] + .body > .btn {
+          box-sizing: border-box;
+          flex: none;
+          max-inline-size: 100%;
+          min-block-size: var(--st-control-height-regular);
+          block-size: auto;
+          margin-block: 0 auto;
+          padding-block: var(--st-spacing-xs);
+          line-height: var(--st-line-height-body);
+          text-decoration: none;
+          overflow-wrap: anywhere;
+        }
+
         .side,
         .body {
           scrollbar-width: thin;

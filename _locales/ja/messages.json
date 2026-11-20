@@ -7322,7 +7322,7 @@
     "message": "サービス提供元の Chat Completions 互換アドレスを入力します。"
   },
   "onboarding_modelHelp": {
-    "message": "提供元の資料にある、ご利用のアカウントで使えるモデル ID を入力します。"
+    "message": "プリセットを選ぶか、モデルを検出して一覧を取得するか、お使いのアカウントで利用できるモデル ID を入力します。"
   },
   "onboarding_accessKeyHelp": {
     "message": "同じ提供元の API キーを使います。他の認証方式は「詳細設定」で変更できます。"
@@ -7824,9 +7824,6 @@
   "onboarding_openToEveryone": {
     "message": "誰でも利用可能"
   },
-  "onboarding_donorStatusRequired": {
-    "message": "支援者資格が必要"
-  },
   "onboarding_selected": {
     "message": "選択中"
   },
@@ -7864,9 +7861,6 @@
   "onboarding_skipSignIn": {
     "message": "ログインをスキップ"
   },
-  "onboarding_keepCurrentMethod": {
-    "message": "現在の方式を維持"
-  },
   "onboarding_restartSteamNow": {
     "message": "Steam を再起動してください"
   },
@@ -7890,6 +7884,33 @@
   },
   "onboarding_authorizationLinkCopied": {
     "message": "認証リンクをコピーしました。"
+  },
+  "onboarding_selectNameModeFirst": {
+    "message": "利用可能な名前プランを選択してください。"
+  },
+  "onboarding_namePermissionChecking": {
+    "message": "寄付版の利用権限を確認しています…"
+  },
+  "onboarding_namePermissionCheckFailed": {
+    "message": "寄付版の利用権限を確認できませんでした。もう一度お試しください。"
+  },
+  "onboarding_nameModeSignInTitle": {
+    "message": "ログインして寄付版を選択"
+  },
+  "onboarding_nameModeSignInCopy": {
+    "message": "寄付版の利用権限を確認するには、Steam Buff アカウントにログインしてください。"
+  },
+  "onboarding_nameModeDonationTitle": {
+    "message": "寄付版を利用する"
+  },
+  "onboarding_nameModeDonationCopy": {
+    "message": "このアカウントではまだ寄付版を利用できません。寄付後にこの画面へ戻り、寄付版をもう一度選択してください。"
+  },
+  "onboarding_nameModeDonateAction": {
+    "message": "寄付ページへ"
+  },
+  "onboarding_nameModeBackToOptions": {
+    "message": "選択画面に戻る"
   },
   "onboarding_saveNamingOnNext": {
     "message": "次へ進むと名前の方式を保存します。"

@@ -249,8 +249,13 @@
     input.focus();
     return true;
   }
-  function bindSearchCombos(scope, signal) {
-    const handle = event => handleSearchCombo(event, scope);
+  function closeSearchCombo(scope) {
+    const opened = scope.querySelector(`${comboSelector}.is-open`);
+    if (opened) setComboOpen(opened, false);
+  }
+
+  function bindSearchCombos(scope, signal, onSelect, scrollRoot = scope) {
+    const handle = event => handleSearchCombo(event, scope, onSelect);
     function reposition(event) {
       const combo = scope.querySelector(`${comboSelector}.is-open`);
       if (!combo) return;
@@ -258,11 +263,12 @@
       if (event.target === list || !list.matches(":popover-open")) return;
       const input = combo.querySelector(comboInputSelector);
       const rect = input.getBoundingClientRect(), limits = scope.getBoundingClientRect();
-      if (rect.bottom <= limits.top || rect.top >= limits.bottom) setComboOpen(combo, false);
+      const viewportBottom = scope.ownerDocument.documentElement.clientHeight;
+      if (rect.bottom <= Math.max(0, limits.top) || rect.top >= Math.min(viewportBottom, limits.bottom)) setComboOpen(combo, false);
       else positionCombo(input, list, rect);
     }
     for (const name of ["click", "keydown", "focusout"]) scope.addEventListener(name, handle, { signal });
-    scope.addEventListener("scroll", reposition, { signal, capture: true, passive: true });
+    scrollRoot.addEventListener("scroll", reposition, { signal, capture: true, passive: true });
     scope.ownerDocument.defaultView.addEventListener("resize", reposition, { signal });
   }
 
@@ -282,7 +288,7 @@
     return Array.from(scope.querySelectorAll(editable)).some(control => editedControls.has(control));
   }
 
-  const api = Object.freeze({ fieldInput, label, localizedField, optionHtml, searchComboHtml, handleSearchCombo, fixedComboHtml, bindSearchCombos, controlValue, recordEdit, acceptEdit, hasEdits });
+  const api = Object.freeze({ fieldInput, label, localizedField, optionHtml, searchComboHtml, handleSearchCombo, fixedComboHtml, bindSearchCombos, closeSearchCombo, controlValue, recordEdit, acceptEdit, hasEdits });
   globalThis.STSettingsFields = api;
 
   if (typeof module === "object" && module.exports) {

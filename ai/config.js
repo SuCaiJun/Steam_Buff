@@ -149,7 +149,7 @@
     const raw = typeof value === "object" && value !== null ? value.host : value;
     try {
       const url = new URL(str(raw));
-      if ((url.protocol !== "http:" && url.protocol !== "https:") || !url.hostname) {
+      if ((url.protocol !== "http:" && url.protocol !== "https:") || !url.hostname || url.hostname.includes("*")) {
         return "";
       }
       return `${url.protocol}//${url.hostname}/*`;
@@ -395,6 +395,15 @@
     return out;
   }
 
+  function presetConnection(preset) {
+    return {
+      host: endpoint({ host: preset.base }),
+      model: preset.models[0],
+      keyMode: preset.keyMode || "bearer",
+      keyName: preset.keyName || "",
+    };
+  }
+
   /**
    * 从同一网关构造只读模型目录请求，鉴权密钥仅放在请求头。
    * 自定义服务采用 OpenAI Models API 路径，供应商预设只使用其声明的官方入口。
@@ -431,6 +440,36 @@
     if (["bearer", "header"].includes(conf.keyMode) && !conf.key)
       throw Object.assign(new Error("请填写访问密钥"), { code: "AI_MODEL_KEY_REQUIRED" });
     return { url: url.href, headers: { Accept: "application/json", ...appendHeaders(conf) }, paged: preset?.id === "qwen" };
+  }
+
+  const MODEL_LIST_ISSUES = Object.freeze({
+    AI_MODELS_UNAVAILABLE: ["model", "settings.ai.modelsUnavailable", "此网关无法检测模型，请选择预设或手动输入。"],
+    AI_MODEL_WORKSPACE_REQUIRED: ["host", "settings.ai.modelWorkspaceRequired", "请填写百炼业务空间的 API 地址后检测。"],
+    AI_MODEL_HOST_REQUIRED: ["host", "settings.ai.modelHostRequired", "请填写 AI 网关地址。"],
+    AI_MODEL_HOST_INVALID: ["host", "settings.ai.modelHostInvalid", "请输入有效的 HTTP 或 HTTPS 网关地址。"],
+    AI_MODEL_KEY_REQUIRED: ["key", "settings.ai.modelKeyRequired", "请填写访问密钥。"],
+    AI_MODEL_KEY_MODE_REQUIRED: ["keyMode", "settings.ai.modelKeyModeRequired", "千问模型检测需要使用 Authorization Bearer。"],
+  });
+
+  function modelListIssue(code) {
+    return Object.hasOwn(MODEL_LIST_ISSUES, code) ? MODEL_LIST_ISSUES[code] : undefined;
+  }
+
+  /** 编辑器与向导共用目录请求，授权外观和生命周期由调用方提供 */
+  async function detectModels({ host, key, keyMode, keyName, provider }, authorize, { operationId, signal } = {}) {
+    signal?.throwIfAborted();
+    const connection = { host, key, keyMode, keyName, provider };
+    modelListRequest(connection);
+    await authorize({ host, enabled: true });
+    signal?.throwIfAborted();
+    const response = await globalThis.STMessageBus.send({
+      type: "AI_CHAT_COMPLETIONS", action: "list-models", ai: connection, operationId, timeoutMs: 15_000,
+    }, { timeoutMs: 20_000, signal });
+    if (response?.success !== true) throw Object.assign(new Error(response?.error), { code: response?.code });
+    if (!Array.isArray(response.models) || response.models.some(model => typeof model !== "string" || !model.trim())) {
+      throw new TypeError("检测模型回复无效");
+    }
+    return response.models;
   }
 
   function modelIds(rows, field = "id") {
@@ -577,6 +616,9 @@
     normalize,
     concurrency,
     endpoint,
+    presetConnection,
+    detectModels,
+    modelListIssue,
     hostPermissionPattern,
     chatRequest,
     CHAT_TOOLS, TOOL_APP_ID_MAX, isToolAppId,

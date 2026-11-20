@@ -1136,6 +1136,96 @@ button:focus-visible {
   cursor: wait;
 }
 
+.ai-model-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--st-spacing-sm);
+}
+
+#ai-model-control .st-search-combo__control {
+  position: relative;
+}
+
+#ai-model {
+  padding-inline-end: 44px;
+}
+
+#ai-model-control .st-search-combo__toggle {
+  position: absolute;
+  inset: 4px 4px 4px auto;
+  display: grid;
+  place-items: center;
+  width: 34px;
+  border: 0;
+  border-radius: var(--st-radius-md);
+  color: var(--ob-text-soft);
+  background: transparent;
+  cursor: pointer;
+}
+
+#ai-model-control .st-search-combo__toggle::after {
+  content: "";
+  width: 16px;
+  height: 16px;
+  background: currentColor;
+  mask: url("../images/tabler/chevron-down.svg") center / contain no-repeat;
+}
+
+#ai-model-control .st-search-combo__toggle:hover:enabled {
+  color: var(--ob-primary);
+  background: var(--ob-primary-soft);
+}
+
+#ai-model-options {
+  position: fixed;
+  inset: auto;
+  margin: 0;
+  padding: var(--st-spacing-xs);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  border: 1px solid var(--ob-line);
+  border-radius: var(--st-radius-md);
+  color: var(--ob-text);
+  background: var(--ob-bg);
+  box-shadow: var(--st-shadow-tooltip);
+}
+
+#ai-model-options .st-search-combo__option,
+#ai-model-options .st-search-combo__empty {
+  width: 100%;
+  padding: var(--st-spacing-sm);
+  overflow-wrap: anywhere;
+  text-align: start;
+  font: inherit;
+  font-size: 14px;
+}
+
+#ai-model-options .st-search-combo__option {
+  border: 0;
+  border-radius: var(--st-radius-sm);
+  color: inherit;
+  background: transparent;
+  cursor: pointer;
+}
+
+#ai-model-options .st-search-combo__option:hover,
+#ai-model-options .st-search-combo__option[aria-selected="true"] {
+  color: var(--ob-primary);
+  background: var(--ob-primary-soft);
+}
+
+@media (max-width: 520px) {
+  .ai-model-row {
+    grid-template-columns: minmax(0, 1fr);
+    justify-items: start;
+  }
+
+  #ai-model-control {
+    width: 100%;
+  }
+}
+
 .setup-actions {
   display: flex;
   align-items: center;
@@ -1423,6 +1513,35 @@ button:focus-visible {
 
 .footer-actions {
   flex: 0 0 auto;
+}
+
+#name-mode-dialog {
+  --st-dialog-surface-raised: var(--ob-surface);
+  --st-dialog-header-bg: var(--ob-surface);
+  --st-dialog-title-color: var(--ob-text);
+  --st-dialog-text-color: var(--ob-text-soft);
+  --st-dialog-border: var(--ob-rail-line);
+  --st-dialog-divider: var(--ob-line);
+}
+
+#name-mode-dialog:modal {
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+
+#name-mode-dialog::backdrop {
+  background: var(--st-dialog-overlay-bg);
+  overflow: hidden;
+  overscroll-behavior: contain;
+}
+
+#name-mode-dialog-copy {
+  margin: 0;
+  line-height: var(--st-line-height-body);
+}
+
+#name-mode-donate {
+  text-decoration: none;
 }
 
 .ob-modal {

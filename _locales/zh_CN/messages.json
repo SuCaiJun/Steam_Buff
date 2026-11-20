@@ -7313,7 +7313,7 @@
     "message": "填入下方"
   },
   "onboarding_aiFieldsHelp": {
-    "message": "这三项怎么填？"
+    "message": "怎么填写？"
   },
   "onboarding_serviceEndpoint": {
     "message": "服务地址"
@@ -7322,7 +7322,7 @@
     "message": "使用服务商提供的兼容 Chat Completions 的接口地址。"
   },
   "onboarding_modelHelp": {
-    "message": "填写服务商文档中的模型 ID，需与你的账号权限对应。"
+    "message": "选择预设、点击“检测模型”获取候选，或手动输入账号可用的模型 ID。"
   },
   "onboarding_accessKeyHelp": {
     "message": "使用同一服务商的 API Key。特殊鉴权方式在“高级设置”中调整。"
@@ -7824,9 +7824,6 @@
   "onboarding_openToEveryone": {
     "message": "无需捐赠用户身份"
   },
-  "onboarding_donorStatusRequired": {
-    "message": "需要捐赠用户身份"
-  },
   "onboarding_selected": {
     "message": "已选择"
   },
@@ -7864,9 +7861,6 @@
   "onboarding_skipSignIn": {
     "message": "暂不登录"
   },
-  "onboarding_keepCurrentMethod": {
-    "message": "保留原方案"
-  },
   "onboarding_restartSteamNow": {
     "message": "请重启 Steam"
   },
@@ -7890,6 +7884,33 @@
   },
   "onboarding_authorizationLinkCopied": {
     "message": "授权链接已复制。"
+  },
+  "onboarding_selectNameModeFirst": {
+    "message": "请选择一种可用的名称方案。"
+  },
+  "onboarding_namePermissionChecking": {
+    "message": "正在核验捐赠版权益…"
+  },
+  "onboarding_namePermissionCheckFailed": {
+    "message": "暂时无法核验捐赠版权益，请重试。"
+  },
+  "onboarding_nameModeSignInTitle": {
+    "message": "登录后选择捐赠版"
+  },
+  "onboarding_nameModeSignInCopy": {
+    "message": "请先登录 Steam Buff 账号，以核验捐赠版权益。"
+  },
+  "onboarding_nameModeDonationTitle": {
+    "message": "开通捐赠版"
+  },
+  "onboarding_nameModeDonationCopy": {
+    "message": "当前账号尚未开通捐赠版。捐赠后回到这里，再选择一次捐赠版。"
+  },
+  "onboarding_nameModeDonateAction": {
+    "message": "去捐赠"
+  },
+  "onboarding_nameModeBackToOptions": {
+    "message": "返回选择"
   },
   "onboarding_saveNamingOnNext": {
     "message": "名称方案将在进入下一步时保存。"

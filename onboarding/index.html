@@ -102,7 +102,7 @@
               <p class="name-mode-kicker" data-msg="steam_independentName_colCustom">自定义名称</p>
               <div class="step-heading-row">
                 <h1 id="name-mode-title" tabindex="-1" data-msg="onboarding_chooseNamingMethod">选择自定义名称方案</h1>
-                <a class="step-sponsor" href="https://www.sucaijun.com/donate" target="_blank" rel="noopener noreferrer" aria-label="我要赞助开发者（在新标签页打开）" data-msg-aria-label="onboarding_supportLinkAlt"><span data-msg="onboarding_supportTheDeveloper">我要赞助开发者</span> <span class="jump-icon" aria-hidden="true"></span></a>
+                <a class="step-sponsor" id="name-mode-sponsor" href="https://www.sucaijun.com/donate" target="_blank" rel="noopener noreferrer" aria-label="我要赞助开发者（在新标签页打开）" data-msg-aria-label="onboarding_supportLinkAlt"><span data-msg="onboarding_supportTheDeveloper">我要赞助开发者</span> <span class="jump-icon" aria-hidden="true"></span></a>
               </div>
               <p class="step-description" id="client-name-mode-lead" data-msg="onboarding_namingMethodLead">按使用场景对比两种方案，选择适合自己的名称管理方式。</p>
             </header>
@@ -170,10 +170,9 @@
               </div>
               <p class="step-description" data-msg="onboarding_aiServiceLead">填入你的 AI 服务信息，供 AI 翻译等功能使用。</p>
             </header>
-            <ol class="config-guide"><li data-msg="onboarding_prepareAiCredentials">准备服务地址、模型和密钥</li><li data-msg="onboarding_fillAiFields">填入下方</li><li data-msg="onboarding_testAndSave">测试通过后保存</li></ol>
             <details class="config-help">
-              <summary data-msg="onboarding_aiFieldsHelp">这三项怎么填？</summary>
-              <dl><div><dt data-msg="onboarding_serviceEndpoint">服务地址</dt><dd data-msg="onboarding_endpointHelp">使用服务商提供的兼容 Chat Completions 的接口地址。</dd></div><div><dt data-msg="settings_field_ai_model_label">模型</dt><dd data-msg="onboarding_modelHelp">填写服务商文档中的模型 ID，需与你的账号权限对应。</dd></div><div><dt data-msg="settings_field_ai_key_label">访问密钥</dt><dd data-msg="onboarding_accessKeyHelp">使用同一服务商的 API Key。特殊鉴权方式在“高级设置”中调整。</dd></div></dl>
+              <summary data-msg="onboarding_aiFieldsHelp">怎么填写？</summary>
+              <dl><div><dt data-msg="onboarding_serviceEndpoint">服务地址</dt><dd data-msg="onboarding_endpointHelp">使用服务商提供的兼容 Chat Completions 的接口地址。</dd></div><div><dt data-msg="settings_field_ai_model_label">模型</dt><dd data-msg="onboarding_modelHelp">选择预设、点击“检测模型”获取候选，或手动输入账号可用的模型 ID。</dd></div><div><dt data-msg="settings_field_ai_key_label">访问密钥</dt><dd data-msg="onboarding_accessKeyHelp">使用同一服务商的 API Key。特殊鉴权方式在“高级设置”中调整。</dd></div></dl>
               <p data-msg="onboarding_testCostNotice">点击“测试连接”会向所填服务发起一次请求，费用以服务商规则为准。</p>
             </details>
             <div class="setup-card" id="ai-surface">
@@ -187,21 +186,27 @@
                 </button>
               </div>
               <div class="setup-card-body setup-fields" id="ai-fields">
-                <div class="setup-group" aria-label="网关与模型" data-msg-aria-label="onboarding_gatewayAndModel">
-                  <p class="setup-group-title" data-msg="onboarding_gatewayAndModel">网关与模型</p>
+                <div class="setup-group">
+                  <label class="setup-field">
+                    <span class="setup-field-label" data-msg="settings_ai_provider">供应商</span>
+                    <select class="setup-control" id="ai-provider"></select>
+                  </label>
                   <label class="setup-field">
                     <span class="setup-field-label" data-msg="settings_field_ai_host_label">AI 网关地址</span>
-                    <input class="setup-control" id="ai-host" type="url" autocomplete="off" spellcheck="false" placeholder="https://open.bigmodel.cn/api/paas/v4/chat/completions/">
+                    <input class="setup-control" id="ai-host" type="url" autocomplete="off" spellcheck="false">
                   </label>
-                  <label class="setup-field">
-                    <span class="setup-field-label" data-msg="settings_field_ai_model_label">模型</span>
-                    <input class="setup-control" id="ai-model" type="text" autocomplete="off" spellcheck="false" placeholder="GLM-4-Flash">
-                  </label>
-                </div>
                   <label class="setup-field" id="ai-key-field">
                     <span class="setup-field-label" data-msg="settings_field_ai_key_label">访问密钥</span>
                     <input class="setup-control" id="ai-key" type="password" autocomplete="off" spellcheck="false" placeholder="sk-...">
                   </label>
+                  <div class="setup-field">
+                    <label class="setup-field-label" for="ai-model" data-msg="settings_field_ai_model_label">模型</label>
+                    <div class="ai-model-row">
+                      <div id="ai-model-control"></div>
+                      <button class="btn btn-secondary btn-compact" id="ai-models" type="button" data-action="ai-list-models" data-msg="settings_ai_detectModels">检测模型</button>
+                    </div>
+                  </div>
+                </div>
                 <details class="setup-advanced" id="ai-advanced">
                   <summary><span data-msg="onboarding_advancedSettings">高级设置</span> <span id="ai-advanced-mode">Authorization Bearer</span></summary>
                 <div class="setup-group" aria-label="鉴权" data-msg-aria-label="onboarding_authentication">
@@ -297,6 +302,18 @@
     </section>
   </main>
 
+  <dialog id="name-mode-dialog" aria-labelledby="name-mode-dialog-title" aria-describedby="name-mode-dialog-copy">
+    <header class="name-mode-dialog-head">
+      <h2 id="name-mode-dialog-title"></h2>
+    </header>
+    <p id="name-mode-dialog-copy"></p>
+    <div class="name-mode-dialog-actions">
+      <button class="btn btn-secondary" type="button" data-action="name-mode-dismiss" data-msg="onboarding_nameModeBackToOptions" autofocus>返回选择</button>
+      <button class="btn btn-primary" id="name-mode-login" type="button" data-action="name-mode-login" data-msg="settings_cloud_login" hidden>去登录</button>
+      <a class="btn btn-primary" id="name-mode-donate" target="_blank" rel="noopener noreferrer" data-action="name-mode-donate" data-msg="onboarding_nameModeDonateAction" hidden>去捐赠</a>
+    </div>
+  </dialog>
+
   <div class="ob-modal" id="restart-modal" hidden>
     <div class="ob-modal-backdrop" aria-hidden="true"></div>
     <div class="ob-modal-card" role="dialog" aria-modal="true" aria-labelledby="restart-modal-title">
@@ -312,12 +329,16 @@
   <script src="../extension/runtime/logger.js"></script>
   <script src="../shared/logger-factory.js"></script>
   <script src="../shared/i18n.js"></script>
+  <script src="../shared/runtime/message-bus.js"></script>
   <script src="../settings/api/request.js"></script>
   <script src="../shared/auth-session.js"></script>
+  <script src="../shared/auth-client.js"></script>
   <script src="../shared/account-profile.js"></script>
   <script src="../ai/config.js"></script>
   <script src="./contract.js"></script>
   <script src="../shared/utils/dom.js"></script>
+  <script src="../settings/ui/html.js"></script>
+  <script src="../settings/ui/fields.js"></script>
   <script src="../shared/styles/components.js"></script>
   <script src="../shared/ui-feedback.js"></script>
   <script src="./script.js"></script>

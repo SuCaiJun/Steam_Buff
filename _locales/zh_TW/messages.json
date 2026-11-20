@@ -7313,7 +7313,7 @@
     "message": "填入下方"
   },
   "onboarding_aiFieldsHelp": {
-    "message": "這三項怎麼填？"
+    "message": "怎麼填寫？"
   },
   "onboarding_serviceEndpoint": {
     "message": "服務地址"
@@ -7322,7 +7322,7 @@
     "message": "使用服務商提供的相容 Chat Completions 的介面地址。"
   },
   "onboarding_modelHelp": {
-    "message": "填寫服務商文件中的模型 ID，需與你的帳號許可權對應。"
+    "message": "選擇預設、點選「偵測模型」取得清單，或手動輸入帳號可用的模型 ID。"
   },
   "onboarding_accessKeyHelp": {
     "message": "使用同一服務商的 API Key。特殊鑑權方式在“高階設定”中調整。"
@@ -7824,9 +7824,6 @@
   "onboarding_openToEveryone": {
     "message": "無需捐贈使用者身份"
   },
-  "onboarding_donorStatusRequired": {
-    "message": "需要捐贈使用者身份"
-  },
   "onboarding_selected": {
     "message": "已選擇"
   },
@@ -7864,9 +7861,6 @@
   "onboarding_skipSignIn": {
     "message": "暫不登入"
   },
-  "onboarding_keepCurrentMethod": {
-    "message": "保留原方案"
-  },
   "onboarding_restartSteamNow": {
     "message": "請重啟 Steam"
   },
@@ -7890,6 +7884,33 @@
   },
   "onboarding_authorizationLinkCopied": {
     "message": "授權連結已複製。"
+  },
+  "onboarding_selectNameModeFirst": {
+    "message": "請選擇一種可用的名稱方案。"
+  },
+  "onboarding_namePermissionChecking": {
+    "message": "正在驗證捐贈版權益…"
+  },
+  "onboarding_namePermissionCheckFailed": {
+    "message": "暫時無法驗證捐贈版權益，請重試。"
+  },
+  "onboarding_nameModeSignInTitle": {
+    "message": "登入後選擇捐贈版"
+  },
+  "onboarding_nameModeSignInCopy": {
+    "message": "請先登入 Steam Buff 帳號，以驗證捐贈版權益。"
+  },
+  "onboarding_nameModeDonationTitle": {
+    "message": "開通捐贈版"
+  },
+  "onboarding_nameModeDonationCopy": {
+    "message": "目前帳號尚未開通捐贈版。捐贈後回到這裡，再選一次捐贈版。"
+  },
+  "onboarding_nameModeDonateAction": {
+    "message": "前往捐贈"
+  },
+  "onboarding_nameModeBackToOptions": {
+    "message": "返回選擇"
   },
   "onboarding_saveNamingOnNext": {
     "message": "名稱方案將在進入下一步時儲存。"

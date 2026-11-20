@@ -1727,8 +1727,12 @@
     });
   }
 
+  function isAiGatewayPermissionSender(request, sender) {
+    return isSettingsSender(sender) || (request.purpose === undefined && isTopOnboardingSender(sender));
+  }
+
   function checkAiGatewayPermission(request, sender, sendResponse) {
-    if (!isSettingsSender(sender)) {
+    if (!isAiGatewayPermissionSender(request, sender)) {
       sendResponse({ success: false, code: "AI_HOST_PERMISSION_SENDER_REJECTED", error: "AI 网关权限检查来源无效" });
       return;
     }
@@ -1754,7 +1758,7 @@
   }
 
   function requestAiGatewayPermission(request, sender, sendResponse) {
-    if (!isSettingsSender(sender)) {
+    if (!isAiGatewayPermissionSender(request, sender)) {
       sendResponse({ success: false, code: "AI_HOST_PERMISSION_SENDER_REJECTED", error: "AI 网关权限申请来源无效" });
       return;
     }
@@ -1961,7 +1965,7 @@
   }
 
   async function openAiGatewayPermission(request, sender, sendResponse) {
-    if (!isSettingsSender(sender)) {
+    if (!isAiGatewayPermissionSender(request, sender)) {
       sendResponse({ success: false, code: "AI_HOST_PERMISSION_SENDER_REJECTED", error: "AI 网关授权页打开来源无效" });
       return;
     }
@@ -2124,7 +2128,7 @@
   }
 
   async function cancelAiGatewayPermission(request, sender, sendResponse) {
-    if (!isSettingsSender(sender)) {
+    if (!isAiGatewayPermissionSender(request, sender)) {
       sendResponse({ success: false, code: "AI_HOST_PERMISSION_SENDER_REJECTED", error: "AI 网关授权取消来源无效" });
       return;
     }
@@ -2768,8 +2772,9 @@
         sendResponse({ success: true, value: info });
         return;
       }
-      if (listModels && (sender?.id !== chrome.runtime.id || !isSettingsSender(sender) || (sender.frameId ?? 0) !== 0))
-        throw new Error("模型检测只接受设置中心");
+      if (listModels && (sender?.id !== chrome.runtime.id ||
+        !(isSettingsSender(sender) || isTopOnboardingSender(sender)) || (sender.frameId ?? 0) !== 0))
+        throw new Error("模型检测只接受设置中心或安装引导");
       const { aiConcurrency } = await globalThis.STSettings.storage.getAiFlags();
       const result = await runAiLimited(aiConcurrency, async () => {
         next = listModels ? globalThis.STAI.modelListRequest(request.ai) : await prepareAiRequest(request, sender);
@@ -3136,6 +3141,10 @@
       && url.protocol === "chrome-extension:"
       && url.hostname === chrome.runtime.id
       && url.pathname.replace(/^\/+/, "") === ONBOARDING_PAGE;
+  }
+
+  function isTopOnboardingSender(sender) {
+    return sender?.id === chrome.runtime.id && sender.frameId === 0 && isOnboardingSender(sender);
   }
 
   function isStoreSender(sender) {

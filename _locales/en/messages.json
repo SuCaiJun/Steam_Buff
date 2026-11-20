@@ -7322,7 +7322,7 @@
     "message": "Use the Chat Completions-compatible endpoint supplied by your provider."
   },
   "onboarding_modelHelp": {
-    "message": "Enter a model ID listed by your provider that your account can access."
+    "message": "Choose a preset, use Detect models to fetch a list, or enter a model ID your account can access."
   },
   "onboarding_accessKeyHelp": {
     "message": "Use an API key from the same provider. For other authentication methods, open Advanced settings."
@@ -7824,9 +7824,6 @@
   "onboarding_openToEveryone": {
     "message": "Open to everyone"
   },
-  "onboarding_donorStatusRequired": {
-    "message": "Donor status required"
-  },
   "onboarding_selected": {
     "message": "Selected"
   },
@@ -7864,9 +7861,6 @@
   "onboarding_skipSignIn": {
     "message": "Skip sign-in"
   },
-  "onboarding_keepCurrentMethod": {
-    "message": "Keep current method"
-  },
   "onboarding_restartSteamNow": {
     "message": "Restart Steam now"
   },
@@ -7890,6 +7884,33 @@
   },
   "onboarding_authorizationLinkCopied": {
     "message": "Authorization link copied."
+  },
+  "onboarding_selectNameModeFirst": {
+    "message": "Choose an available naming method."
+  },
+  "onboarding_namePermissionChecking": {
+    "message": "Checking access to the donation edition…"
+  },
+  "onboarding_namePermissionCheckFailed": {
+    "message": "We couldn’t verify access to the donation edition. Try again."
+  },
+  "onboarding_nameModeSignInTitle": {
+    "message": "Sign in to choose the donation edition"
+  },
+  "onboarding_nameModeSignInCopy": {
+    "message": "Sign in to your Steam Buff account so we can check your access."
+  },
+  "onboarding_nameModeDonationTitle": {
+    "message": "Unlock the donation edition"
+  },
+  "onboarding_nameModeDonationCopy": {
+    "message": "This account does not have access yet. After donating, come back and select the donation edition again."
+  },
+  "onboarding_nameModeDonateAction": {
+    "message": "Go to donations"
+  },
+  "onboarding_nameModeBackToOptions": {
+    "message": "Back to options"
   },
   "onboarding_saveNamingOnNext": {
     "message": "Continue to save your naming method."

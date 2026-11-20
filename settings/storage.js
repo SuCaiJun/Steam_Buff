@@ -887,7 +887,10 @@
         // 首次向导可分次保存连接；服务名称等到首次完成时随其他出厂内容生成。
         const service = model.findService(ai, model.DEFAULT_SERVICE_ID);
         const connection = { protocol: service.protocol, ...Object.fromEntries(model.SERVICE_FIELDS.map(({ key }) => [key, service[key]])) };
-        data[model.ONBOARDING_CONNECTION_KEY] = { revision: registry.revision, connection: { ...connection, revision: service.revision } };
+        data[model.ONBOARDING_CONNECTION_KEY] = {
+          revision: registry.revision,
+          connection: { ...connection, revision: service.revision, ...(service.provider ? { provider: service.provider } : {}) },
+        };
       } else {
         data[model.SERVICES_KEY] = registry;
       }
