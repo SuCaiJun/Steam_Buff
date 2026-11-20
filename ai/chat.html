@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Steam Buff AI</title>
+  <link rel="stylesheet" href="chat.css">
+  <script defer src="../shared/config.js"></script>
+  <script defer src="../shared/logger-schema.js"></script>
+  <script defer src="../shared/logger-factory.js"></script>
+  <script defer src="../shared/i18n.js"></script>
+  <script defer src="../shared/styles/theme.js"></script>
+  <script defer src="../shared/styles/components.js"></script>
+  <script defer src="../shared/ui-feedback.js"></script>
+  <script defer src="config.js"></script>
+  <script defer src="chat.js"></script>
+</head>
+<body>
+  <main>
+    <header>
+      <h1>Steam Buff AI</h1>
+      <button type="button" id="new" data-text="ai_chat_new">新建对话</button>
+    </header>
+    <div class="selectors">
+      <label><span data-text="ai_chat_history">历史对话</span><select id="history"></select></label>
+      <label><span data-text="ai_chat_service">AI 服务</span><select id="service"></select></label>
+    </div>
+    <div id="transcript" aria-live="off"></div>
+    <p id="status" role="status"></p>
+    <form id="composer">
+      <label for="message" data-text="ai_chat_message">消息</label>
+      <textarea id="message" rows="3" maxlength="16000" required></textarea>
+      <footer>
+        <details id="tools">
+          <summary data-text="ai_chat_tools">工具</summary>
+          <fieldset><legend data-text="ai_chat_tools">工具</legend><div id="tool-options"></div>
+          </fieldset>
+        </details>
+        <a id="settings" href="../settings/center.html" target="_blank" rel="noopener" data-text="ai_chat_settings" hidden>配置 AI 服务</a>
+        <button type="button" id="stop" data-text="ai_chat_stop" hidden>停止</button>
+        <button id="send" type="submit" data-text="ai_chat_send" disabled>发送</button>
+      </footer>
+    </form>
+  </main>
+</body>
+</html>

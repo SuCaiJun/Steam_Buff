@@ -49,11 +49,13 @@
     if (expiredRun(job)) throw timeoutError(job);
   }
   function nodeOf(job) { return job.workflow && job.flow ? flow.currentNode(job.workflow, job.flow) : null; }
-  const hasUnconfirmedRequest = job => job.status === "committing" || job.status === "running-script" && nodeOf(job)?.action === "http-request";
+  const execution = job => job.toolRun || job;
+  const hasUnconfirmedRequest = job => job.status === "committing" || job.status === "running-script" && nodeOf(execution(job))?.action === "http-request";
   async function persistFlow(job, expectedStep, seconds = null) {
     return store.change(job.id, current => {
       if (current.finalized || current.status !== "queued" || current.step !== expectedStep) return null;
       current.flow = copy(job.flow); current.step = job.step;
+      if (job.toolRun) current.toolRun = copy(job.toolRun);
       return seconds === null ? current : delayState(current, seconds);
     });
   }
@@ -138,7 +140,7 @@
       const registry = await root.STSettings.storage.getAi(), service = root.STAI.findService(registry, job.service.id);
       if (!registry.enabled || !service?.enabled || service.revision !== job.service.revision) throw Object.assign(new Error("AI 服务已变化"), { code: "AUTOMATION_EXPIRED" });
     }
-    const node = nodeOf(job), requiresIdentity = node?.action === "ai-call" || node?.action === "notify" && node.scope === "account" || flow.effects[node?.action] && node.action !== "family-refresh";
+    const node = nodeOf(job), requiresIdentity = ["ai-call", "tool-call"].includes(node?.action) || node?.action === "notify" && node.scope === "account" || flow.effects[node?.action] && node.action !== "family-refresh";
     if (requiresIdentity && !job.owner) throw Object.assign(new Error("暂时无法确认工作流的 Steam 账号"), { code: "ACCOUNT_UNCONFIRMED" });
     if (job.owner) {
       const binding = verifiedBinding ?? await taskIdentity();
@@ -356,6 +358,7 @@
       current.results[node.id] = resultError(error, error.code || "ACTION_FAILED");
     if (current.pendingMessage) current.outbox = (current.outbox || []).filter(row => row.id !== current.pendingMessage);
     closeNotice(current, "cancelled");
+    delete current.toolRun;
     return current;
   }
   async function finish(jobId, status, error = null, binding = null, checkpoint = null) {
@@ -636,28 +639,137 @@
       return updated;
     }
   }
-  async function prepareAi(node, prompt, ai, state, evaluate) {
+  const invalidToolExchange = (message, cause) => actionError(message, "WORKFLOW_AI_TOOL_EXCHANGE_INVALID", cause);
+  const configured = value => value && flow.activeValue(value).literal !== "";
+
+  const toolRevision = tool => [tool.revision, tool.executionId].join(":");
+  function resolveTool(bundle, id, revision) {
+    const tool = bundle.tools?.find(item => item.id === id);
+    if (!tool?.enabled || revision !== undefined && toolRevision(tool) !== revision)
+      throw actionError("工具已停用、删除或修改，请检查工具设置", "WORKFLOW_TOOL_UNAVAILABLE");
+    return tool;
+  }
+  const guardTool = (bundle, frame) => resolveTool(bundle, frame.workflow.id, toolRevision(frame.workflow));
+
+  async function historyDigest(messages) {
+    const hash = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(JSON.stringify(messages)));
+    return Array.from(new Uint8Array(hash), byte => byte.toString(16).padStart(2, "0")).join("");
+  }
+
+  function matchToolRequest(batch, request) {
+    const original = batch?.calls.find(item => item.id === request?.id);
+    if (!original || request.contextId !== batch.id || request.toolId !== original.function.name)
+      throw invalidToolExchange("工具请求不属于本次待处理的对话历史");
+    return original;
+  }
+
+  function toolMessages(batch, results) {
+    if (!Array.isArray(results) || results.length !== batch.calls.length)
+      throw invalidToolExchange("请为本批每条工具请求传入一个结果");
+    const byId = new Map();
+    for (const result of results) {
+      matchToolRequest(batch, result);
+      if (byId.has(result.id) || !["success", "failed", "skipped"].includes(result.status) ||
+        result.status === "success" && !Object.hasOwn(result, "data") ||
+        result.status !== "success" && (typeof result.reason !== "string" || !result.reason.trim()))
+        throw invalidToolExchange("工具结果重复或格式无效");
+      byId.set(result.id, result);
+    }
+    return batch.calls.map(({ id }) => {
+      const { status, data, code, reason } = byId.get(id);
+      return { role: "tool", tool_call_id: id, content: JSON.stringify({ status, data, code, reason }) };
+    });
+  }
+
+  function withTools(ai, body, definitions) {
+    if (["tools", "tool_choice", "parallel_tool_calls", "functions", "function_call"].some(key => Object.hasOwn(body, key)))
+      throw invalidToolExchange("请在「调用 AI」的高级设置中选择工具，并从高级提示词删除工具声明");
+    if (ai.keyMode === "param" && (Object.hasOwn(body, ai.keyName || "key") ||
+      ["tools", "thinking"].includes(ai.keyName)))
+      throw invalidToolExchange("AI 请求参数中的密钥名称与请求体字段冲突");
+    return definitions.length ? { ...body, tools: definitions.map(model.toolSchema) } : body;
+  }
+
+  async function prepareAi(node, prompt, ai, state, evaluate, bundle) {
     const prompts = root.STPromptPlans;
+    const toolIds = node.toolIds || [];
+    const definitions = toolIds.map(id => resolveTool(bundle, id));
+    const context = configured(node.context) ? node.context : null;
+    const toolResults = configured(node.toolResults) ? node.toolResults : null;
+    await flow.evaluateValues([
+      ...(context ? [["对话历史", context]] : []),
+      ...(toolResults ? [["工具结果", toolResults]] : []),
+    ], state, evaluate);
+    const history = context ? flow.read(context, state) : undefined;
+    const results = toolResults ? flow.read(toolResults, state) : undefined;
+    const contextId = Array.isArray(history) ? history.at(-1)?.workflowContextId : undefined;
+    let messages, batch;
+    if (contextId !== undefined) {
+      // 运行记录保存批次及原请求参数。发给模型的消息先移除工作流标记。
+      if (typeof contextId !== "string" || !Object.hasOwn(state.aiHistories ?? {}, contextId))
+        throw invalidToolExchange("对话历史不属于本次工作流，或该批工具结果已经提交");
+      const { workflowContextId, ...last } = history.at(-1);
+      messages = [...history.slice(0, -1), last];
+      batch = state.aiHistories[contextId];
+      if (batch.digest !== await historyDigest(messages))
+        throw invalidToolExchange("对话历史已被修改，无法匹配工具请求");
+    }
+    if (batch?.calls.length) {
+      if (ai.id !== batch.serviceId || ai.revision !== batch.serviceRevision)
+        throw invalidToolExchange("处理本批工具结果时需要使用原 AI 服务和配置");
+      const body = { ...batch.options, messages: [...messages, ...toolMessages(batch, results)] };
+      return { body: withTools(ai, body, definitions), nativeHistory: body.messages, previousBatch: batch.id, definitions };
+    }
+    if (results !== undefined && (!Array.isArray(results) || results.length))
+      throw invalidToolExchange("传入工具结果时需要关联包含待处理工具请求的对话历史");
     const entries = prompts.parameters(prompt, ai.protocol).map(name => {
       if (!Object.hasOwn(node.inputs, name))
         throw actionError("请为占位符「" + name + "」提供数据", "PROMPT_VALUE_UNAVAILABLE");
       return [name, node.inputs[name]];
     });
-    const context = node.context && flow.activeValue(node.context).literal !== "" ? node.context : null;
-    const values = context ? [...entries, ["对话上下文", context]] : entries;
-    await flow.evaluateValues(values, state, evaluate);
+    await flow.evaluateValues(entries, state, evaluate);
     const inputs = Object.fromEntries(entries.map(([name, value]) => [name, flow.read(value, state)]));
-    const history = context ? flow.read(context, state) : undefined;
     const displayLanguage = prompts.usesDisplay(prompt)
       ? root.STI18n.languageName(await root.STSettings.storage.getUiLocale({ strict: true })) : undefined;
-    return prompts.prepare(prompt, ai, inputs, { history, captureTurn: !!node.contextOutput, displayLanguage });
+    const prepared = prompts.prepare(prompt, ai, inputs, { history,
+      requestHistory: messages?.filter(message => ["user", "assistant", "tool"].includes(message.role)),
+      captureTurn: !!node.contextOutput && !toolIds.length && !messages, displayLanguage });
+    if (!toolIds.length && !messages) return prepared;
+    const request = root.STAI.chatRequest({ ...ai, key: "" }, prepared.messages, prepared.body);
+    if (!request) throw actionError("请先填写 AI 服务的网关与模型", "AI_CONFIG_UNAVAILABLE");
+    return { body: withTools(ai, request.body, definitions), nativeHistory: request.body.messages, definitions };
+  }
+
+  async function updatedAiHistory(node, ai, prepared, response) {
+    const calls = response.calls;
+    if (!Array.isArray(calls) || calls.some(call => !node.toolIds?.includes(call.function.name)))
+      throw invalidToolExchange("模型请求了当前指令未授权的工具");
+    const id = crypto.randomUUID();
+    const assistant = { role: "assistant", content: response.text || null, ...(calls.length ? { tool_calls: calls } : {}) };
+    const messages = [...prepared.nativeHistory, assistant];
+    const options = { ...prepared.body };
+    delete options.messages;
+    delete options.tools;
+    const batch = {
+      id, calls, serviceId: ai.id, serviceRevision: ai.revision,
+      toolRevisions: Object.fromEntries(prepared.definitions.map(tool => [tool.id, toolRevision(tool)])),
+      ...(node.contextOutput ? { digest: await historyDigest(messages), ...(calls.length ? { options } : {}) } : {}),
+    };
+    const requests = calls.map(call => {
+      const toolId = call.function.name, definition = prepared.definitions.find(tool => tool.id === toolId);
+      let args;
+      try { args = model.toolArguments(definition, call.function.arguments); }
+      catch (error) { if (error.code !== "CHAT_TOOL_INVALID") throw error; args = null; }
+      return { contextId: id, id: call.id, toolId, arguments: args };
+    });
+    return { batch, messages: [...prepared.nativeHistory, { ...assistant, workflowContextId: id }], requests };
   }
   async function generateStep(job, node, bundle) {
     const prompt = root.STPromptPlans.resolve(bundle, node.promptId);
     const ai = await root.STAI.resolveService(await root.STSettings.storage.getAi(), node.serviceId);
     const promptBinding = { id: prompt.id, revision: prompt.revision };
     const serviceBinding = { id: ai.id, revision: ai.revision };
-    const prepared = await prepareAi(node, prompt, ai, job.flow, request => expressionValues({ ...job, prompt: promptBinding, service: serviceBinding }, request));
+    const prepared = await prepareAi(node, prompt, ai, job.flow, request => expressionValues({ ...job, prompt: promptBinding, service: serviceBinding }, request), bundle);
     const controller = new AbortController(); requests.set(job.id, controller);
     try {
       const started = await store.change(job.id, current => {
@@ -667,22 +779,101 @@
         return current;
       });
       if (!started) return null;
-      await guard(started);
+      const currentBundle = await guard(started);
+      for (const tool of prepared.definitions || []) resolveTool(currentBundle, tool.id, toolRevision(tool));
       const response = await services.ai({ messages: prepared.messages, serviceId: ai.id, serviceRevision: ai.revision, preparedBody: prepared.body,
+        ...(prepared.nativeHistory ? { workflowTools: true } : {}),
         timeoutMs: node.requestTimeoutSeconds * 1000, operationId: job.id, requestId: job.id, signal: controller.signal });
       if (response?.success !== true) throw actionError(response?.error || "AI 请求失败", response?.code || "AUTOMATION_AI_FAILED");
       if (typeof response.text !== "string") throw actionError("AI 回复不是文本", "AI_RESPONSE_INVALID");
-      await guard(started);
+      const updated = prepared.nativeHistory ? await updatedAiHistory(node, ai, prepared, response) : null;
+      const latestBundle = await guard(started);
+      for (const tool of prepared.definitions || []) resolveTool(latestBundle, tool.id, toolRevision(tool));
       return store.change(job.id, current => {
+        const pending = updated?.requests.length;
         const next = completeStep(current, node, response.text);
         if (!next) return null;
+        if (pending) {
+          delete next.flow.vars[node.output];
+          next.results[node.id] = { toolRequests: updated.requests };
+        }
+        if (node.toolRequestsOutput) flow.write(next.flow, node.toolRequestsOutput, updated?.requests || []);
         if (node.contextOutput) {
-          const updatedContext = [...prepared.turn, { role: "assistant", content: response.text }];
+          const updatedContext = updated?.messages ?? [...prepared.turn, { role: "assistant", content: response.text }];
           flow.write(next.flow, node.contextOutput, updatedContext);
         }
+        if (updated && (node.contextOutput || pending && node.toolRequestsOutput))
+          (next.flow.aiHistories ??= {})[updated.batch.id] = updated.batch;
+        if (prepared.previousBatch) delete next.flow.aiHistories[prepared.previousBatch];
         next.prompt = null; next.service = null;
         return next;
       });
+    } finally { if (requests.get(job.id) === controller) requests.delete(job.id); }
+  }
+  async function runAiTool(job, node) {
+    const state = job.flow;
+    await flow.evaluateValues(flow.inputs(node), state, request => expressionValues(job, request));
+    const controller = new AbortController();
+    requests.set(job.id, controller);
+    try {
+      const started = await store.change(job.id, current => {
+        if (current.finalized) return null;
+        current.status = "generating";
+        return current;
+      });
+      if (!started) return null;
+      const bundle = await guard(started);
+      let request, original, batch;
+      if (node.toolMode !== "registered") {
+        request = flow.read(node.toolRequest, state);
+        const id = request?.contextId;
+        batch = typeof id === "string" && Object.hasOwn(state.aiHistories ?? {}, id) ? state.aiHistories[id] : null;
+        original = matchToolRequest(batch, request);
+      }
+      const toolId = original?.function.name ?? node.toolId;
+      const binding = request ? { contextId: request.contextId, id: request.id, toolId } : { toolId };
+      let result;
+      if (node.toolMode === "skipped" || node.toolMode === "failed") {
+        const reason = flow.read(node.toolReason, state);
+        if (typeof reason !== "string" || !reason.trim()) throw invalidToolExchange("请填写跳过或失败的原因");
+        result = { ...binding, status: node.toolMode, reason };
+      } else {
+        try {
+          let data;
+          if (node.toolMode === "result") data = flow.read(node.toolData, state);
+          else {
+            const args = flow.read(node.toolArgs, state);
+            const useOriginal = original && Object.hasOwn(flow.activeValue(node.toolArgs), "literal") &&
+              args && typeof args === "object" && !Object.keys(args).length;
+            const input = useOriginal ? original.function.arguments : args;
+            const revision = batch?.toolRevisions?.[toolId];
+            const workflow = resolveTool(bundle, toolId, revision);
+            // 升级前只读预设的待处理批次没有修订，仅原始预设可继续领取
+            if (batch && revision === undefined && !model.isOriginalProviderTool(workflow))
+              throw invalidToolExchange("本批工具配置已变化，请重新请求 AI");
+            const local = flow.state(model.toolArguments(workflow, input), {}, workflow);
+            return store.change(job.id, current => {
+              if (current.finalized || nodeOf(current)?.id !== node.id) return null;
+              current.toolRun = { workflow, flow: local, binding, trace: {} };
+              current.status = "queued";
+              return current;
+            });
+          }
+          result = { ...binding, status: "success", data };
+        } catch (error) {
+          controller.signal.throwIfAborted();
+          if (!error.actionResult && !["CHAT_TOOL_INVALID", "WORKFLOW_VALUE_UNSET", "WORKFLOW_VALUE_TYPE"].includes(error.code))
+            throw error;
+          if (error.cause?.name === "SyntaxError") root.STLoggerSchema.markJsonError(error.cause);
+          const detail = resultError(error, error.code || "WORKFLOW_AI_TOOL_FAILED");
+          const failed = actionError(detail.reason, detail.code, error);
+          failed.toolResult = { ...binding, ...detail };
+          throw failed;
+        }
+      }
+      controller.signal.throwIfAborted();
+      await guard(started);
+      return saveResult(job, node, result);
     } finally { if (requests.get(job.id) === controller) requests.delete(job.id); }
   }
   function runScriptOrReading(node, state, id, signal) {
@@ -705,10 +896,21 @@
     return root.STWorkflowScript.run({ id, reading: { kind: node.action, ...args }, signal });
   }
   const httpError = (message, code = "WORKFLOW_HTTP_FAILED", cause) => Object.assign(new Error(message, { cause }), { code });
+  const toolKey = (tool, node) => tool.id + "." + node.id;
+  async function toolCredentials() {
+    const key = model.TOOL_CREDENTIALS_KEY;
+    return (await chrome.storage.local.get(key))[key] || {};
+  }
 
   /** 正式运行和试运行使用相同的站点校验，且超时覆盖响应体读取 */
-  async function runHttp(node, state, signal) {
-    const url = flow.httpUrl(flow.read(node.url, state));
+  async function runHttp(node, state, signal, tool = null) {
+    const active = flow.activeValue(node.url);
+    const address = tool && active.template ? active.template.map(part => {
+      if (typeof part === "string") return part;
+      const value = flow.read(part, state);
+      return encodeURIComponent(typeof value === "string" ? value : JSON.stringify(value));
+    }).join("") : flow.read(node.url, state);
+    const url = flow.httpUrl(address);
     if (!url) throw httpError("请输入有效的 HTTP 或 HTTPS URL");
     if (url.origin !== node.origin) throw httpError("实际 URL 与已配置的请求站点不一致");
     const headerValues = flow.read(node.headers, state);
@@ -737,6 +939,12 @@
     const granted = await chrome.permissions.contains({ origins: [pattern] });
     signal.throwIfAborted();
     if (!granted) throw httpError(`请在 HTTP 请求指令中授权站点 ${url.origin}`, "WORKFLOW_HTTP_PERMISSION_REQUIRED");
+    if (tool && node.keyHeader) {
+      const saved = (await toolCredentials())[toolKey(tool, node)];
+      if (!saved || saved.origin !== node.origin || saved.header !== node.keyHeader)
+        throw httpError("请为工具的 HTTP 指令设置本机密钥", "WORKFLOW_TOOL_KEY_REQUIRED");
+      headers.set(node.keyHeader, saved.value);
+    }
 
     try {
       return await root.STNetworkRequest.run(node.requestTimeoutSeconds * 1000, async requestSignal => {
@@ -762,24 +970,128 @@
     }
   }
 
+  const isToolQuery = node => node.action === "query-provider-data";
+  async function runQuery(node, state, signal, tool) {
+    if (!isToolQuery(node)) return runHttp(node, state, signal, tool);
+    try {
+      const appId = flow.read(node.appId, state);
+      return await services.aiTool(node.provider, { appId }, signal);
+    } catch (error) {
+      signal.throwIfAborted();
+      if (!error.aiToolFailure && !Number.isInteger(error.status) && error.name !== "TimeoutError" &&
+        !["CHAT_TOOL_INVALID", "AI_TOOL_RESPONSE_INVALID", "NETWORK_REQUEST_FAILED"].includes(error.code)) throw error;
+      const detail = resultError(error, error.code || "WORKFLOW_AI_TOOL_FAILED");
+      throw actionError(detail.reason, detail.code, error);
+    }
+  }
+
   async function hostStep(job, node) {
     const http = node.action === "http-request";
+    const query = http || isToolQuery(node);
+    const currentFlow = execution(job).flow;
     if (http || node.action === "script") await requireWorkflowPermission(node);
-    if (http) await flow.evaluateValues(flow.inputs(node), job.flow, request => expressionValues(job, request));
+    if (query) await flow.evaluateValues(flow.inputs(node), currentFlow, request => expressionValues(job, request));
     const current = await store.change(job.id, entry => {
-      if (entry.finalized || nodeOf(entry)?.id !== node.id) return null;
-      if (http && job.flow.expressionResults) entry.flow.expressionResults = job.flow.expressionResults;
+      if (entry.finalized || nodeOf(execution(entry))?.id !== node.id) return null;
+      if (query && currentFlow.expressionResults) execution(entry).flow.expressionResults = currentFlow.expressionResults;
       entry.status = "running-script"; return entry;
     });
     if (!current) return null;
     const controller = new AbortController();
     requests.set(job.id, controller);
     try {
-      if (http) await guard(current);
-      const value = await (http ? runHttp(node, current.flow, controller.signal) : runScriptOrReading(node, current.flow, job.id, controller.signal));
-      await guard(current);
+      const frame = current.toolRun;
+      if (query) {
+        const bundle = await guard(current);
+        if (frame) guardTool(bundle, frame);
+      }
+      const value = await (query ? runQuery(node, execution(current).flow, controller.signal, frame?.workflow) : runScriptOrReading(node, current.flow, job.id, controller.signal));
+      controller.signal.throwIfAborted();
+      const bundle = await guard(current);
+      if (frame) {
+        guardTool(bundle, frame);
+        return store.change(job.id, entry => {
+          if (entry.finalized || !entry.toolRun || nodeOf(entry.toolRun)?.id !== node.id) return null;
+          flow.complete(frame.workflow, entry.toolRun.flow, node, value);
+          traceTool(entry.toolRun, node, "success");
+          entry.step++; entry.status = "queued";
+          return entry;
+        });
+      }
       return saveResult(current, node, value);
     } finally { if (requests.get(job.id) === controller) requests.delete(job.id); }
+  }
+  function traceTool(frame, node, status) {
+    if (!node) return;
+    const previous = frame.trace[node.id];
+    frame.trace[node.id] = { nodeId: node.id, action: flow.type(node), status, count: (previous?.count || 0) + 1 };
+  }
+  function toolValue(frame) {
+    if (!Object.hasOwn(frame.flow, "returned"))
+      throw actionError("工具执行路径缺少「返回工具结果」", "WORKFLOW_TOOL_NO_RETURN");
+    return frame.flow.returned;
+  }
+  function toolFailure(frame, node, error) {
+    const known = error.actionResult || ["WORKFLOW_DATA_ERROR", "WORKFLOW_VALUE_UNSET", "WORKFLOW_VALUE_TYPE", "WORKFLOW_HTTP_FAILED",
+      "WORKFLOW_HTTP_TIMEOUT", "WORKFLOW_HTTP_PERMISSION_REQUIRED", "WORKFLOW_SUPPORTER_REQUIRED", "WORKFLOW_TOOL_KEY_REQUIRED"].includes(error.code);
+    const result = error.actionResult || !known ? error : actionError(error.message, error.code, error);
+    result.toolId = frame.workflow.id;
+    result.toolNodeId = error.nodeId ?? frame.flow.nodeId;
+    result.nodeId = node.id;
+    if (known) result.toolResult = { ...frame.binding, ...resultError(result, result.code || "WORKFLOW_AI_TOOL_FAILED") };
+    return result;
+  }
+  /** 草稿试运行使用相同的指令解释、权限和 HTTP 执行，预览会话由设置窗口持有 */
+  async function testTool(request, previewKey) {
+    if (previews.has(previewKey)) throw new Error("工具正在试运行");
+    const workflow = model.validateTool(request.tool);
+    const state = flow.state(model.toolArguments(workflow, request.inputs), {}, workflow);
+    const frame = { workflow, flow: state, trace: {} };
+    const controller = new AbortController();
+    previews.set(previewKey, controller);
+    try {
+      return await root.STNetworkRequest.run(60_000, async (signal, check) => {
+        const evaluate = data => root.STWorkflowScript.run({ id: "tool-preview-" + previewKey, ...data, seconds: 10, signal });
+        let budget = 0;
+        for (;;) {
+          check();
+          let node;
+          try {
+            const next = await flow.next(workflow, state, regex, evaluate);
+            if (next.kind === "done") return { value: toolValue(frame), steps: Object.values(frame.trace) };
+            node = next.node;
+            const failures = state.failures?.length || 0;
+            if (next.kind === "action" && !flow.local(workflow, state, node)) {
+              if (node.action === "http-request") await requireWorkflowPermission(node);
+              else if (!isToolQuery(node)) throw new TypeError("工具指令无法执行");
+              await flow.evaluateValues(flow.inputs(node), state, evaluate);
+              const result = await runQuery(node, state, signal, workflow);
+              check();
+              flow.complete(workflow, state, node, result);
+            }
+            if (node) traceTool(frame, node, (state.failures?.length || 0) > failures ? "failed" : "success");
+          } catch (error) {
+            check();
+            error.nodeId ??= state.nodeId;
+            traceTool(frame, node || nodeOf(frame), "failed");
+            const current = nodeOf(frame);
+            if (!(current && flow.failed(workflow, state, current, error)) && !flow.raise(workflow, state, error)) {
+              const issue = toolFailure(frame, { id: error.nodeId }, error);
+              log.error("automation-tool-preview-failed", "工具试运行失败", { error: issue });
+              return { error: { code: issue.code, message: root.STLoggerSchema.redactText(issue.message), nodeId: issue.toolNodeId },
+                steps: Object.values(frame.trace) };
+            }
+          }
+          if (++budget === 64) {
+            budget = 0;
+            await new Promise(resolve => root.setTimeout(resolve, 0));
+          }
+        }
+      }, controller.signal);
+    } catch (error) {
+      if (controller.signal.aborted) return { cancelled: true };
+      throw error;
+    } finally { if (previews.get(previewKey) === controller) previews.delete(previewKey); }
   }
   async function expressionValues(job, request) {
     await guard(job);
@@ -815,24 +1127,51 @@
       try {
         job = await beginRun(job);
         if (!job) return;
-        await guard(job);
+        const initialBundle = await guard(job);
+        // 配置变化在子流程边界交回父节点的错误处理
+        let initialToolBundle = initialBundle;
         while (job && !job.finalized) {
           try {
             checkRunTime(job);
-            const next = await flow.next(job.workflow, job.flow, regex, request => expressionValues(job, request));
+            const frame = job.toolRun, cursor = execution(job);
+            if (frame && initialToolBundle) guardTool(initialToolBundle, frame);
+            initialToolBundle = null;
+            const next = await flow.next(cursor.workflow, cursor.flow, regex, request => expressionValues(job, request));
             checkRunTime(job);
-            if (next.kind === "control") { job.step++; budget++; }
+            const failures = cursor.flow.failures?.length || 0;
+            if (next.kind === "control") {
+              if (frame) traceTool(frame, next.node, "success");
+              job.step++; budget++;
+            }
             else if (next.kind === "done") {
+              if (frame) {
+                const node = nodeOf(job), result = { ...frame.binding, status: "success", data: toolValue(frame) };
+                job = await configExclusive(async () => {
+                  guardTool(await guard(job), frame);
+                  return store.change(job.id, entry => {
+                    if (entry.finalized || entry.step !== base || nodeOf(entry)?.id !== node.id) return null;
+                    delete entry.toolRun;
+                    entry.step = job.step;
+                    return completeStep(entry, node, result);
+                  });
+                });
+                if (!job) return;
+                base = job.step; budget = 0;
+                continue;
+              }
               job = await persistFlow(job, base);
               if (job) await finish(job.id, "completed");
               return;
             } else if (next.kind === "wait") {
               await persistFlow(job, base, next.seconds); return;
-            } else if (flow.local(job.workflow, job.flow, next.node)) { job.step++; budget++; }
+            } else if (flow.local(cursor.workflow, cursor.flow, next.node)) {
+              if (frame) traceTool(frame, next.node, (cursor.flow.failures?.length || 0) > failures ? "failed" : "success");
+              job.step++; budget++;
+            }
             else {
               job = await persistFlow(job, base); if (!job) return;
               base = job.step;
-              const node = nodeOf(job), bundle = await guard(job);
+              const node = nodeOf(execution(job)), bundle = await guard(job);
               if (node.action === "wait") {
                 const seconds = flow.read(node.seconds, job.flow);
                 await store.change(job.id, current => {
@@ -847,9 +1186,10 @@
                   current.entries.push({ at: Date.now(), nodeId: node.id, level: node.level, text: typeof value === "string" ? value : JSON.stringify(value) });
                   return completeStep(current, node, { status: "success" });
                 });
-              } else if (node.action === "script" || node.action === "http-request" || root.STWorkflowData.readingActions.includes(node.action)) job = await hostStep(job, node);
+              } else if (node.action === "script" || node.action === "http-request" || isToolQuery(node) || root.STWorkflowData.readingActions.includes(node.action)) job = await hostStep(job, node);
               else if (node.action === "notify") job = await runNotice(job, node);
               else if (node.action === "ai-call") job = await generateStep(job, node, bundle);
+              else if (node.action === "tool-call") job = await runAiTool(job, node);
               else if (flow.effects[node.action]) job = await steamStep(job, node);
               else throw new TypeError("未注册的工作流操作");
               if (!job || job.status !== "queued") return;
@@ -868,15 +1208,33 @@
               if (!current) throw error;
             }
             if (current.step !== base) { job = current; base = current.step; }
-            error.nodeId ??= job.flow.nodeId;
-            const failedNode = flow.currentNode(job.workflow, job.flow);
-            if (!(failedNode && flow.failed(job.workflow, job.flow, failedNode, error)) && !flow.raise(job.workflow, job.flow, error)) throw error;
+            const frame = job.toolRun;
+            let handled = false;
+            if (frame) {
+              const child = nodeOf(frame);
+              traceTool(frame, child, "failed");
+              if (!["WORKFLOW_TOOL_UNAVAILABLE", "WORKFLOW_TOOL_NO_RETURN"].includes(error.code)) {
+                error.nodeId ??= frame.flow.nodeId;
+                handled = !!(child && flow.failed(frame.workflow, frame.flow, child, error)) || flow.raise(frame.workflow, frame.flow, error);
+              }
+              if (!handled) {
+                error = toolFailure(frame, nodeOf(job), error);
+                delete job.toolRun;
+              }
+            }
+            if (!handled) {
+              error.nodeId ??= job.flow.nodeId;
+              const failedNode = nodeOf(job);
+              if (!(failedNode && flow.failed(job.workflow, job.flow, failedNode, error)) && !flow.raise(job.workflow, job.flow, error)) throw error;
+            }
             job.step++; budget++;
             // 已捕获的异常仍保留在运行记录的异常变量中，只有显式 Catch 决定继续
             job.status = "queued";
             job = await store.change(jobId, current => {
               if (current.finalized) return null;
               current.flow = copy(job.flow); current.step = job.step; current.status = "queued";
+              if (job.toolRun) current.toolRun = copy(job.toolRun);
+              else delete current.toolRun;
               current.prompt = null; current.service = null; return current;
             });
             if (!job) return;
@@ -1072,9 +1430,17 @@
       throw Object.assign(new Error("配置已在另一窗口修改，请重新读取后保存"), { code: "WORKFLOW_REVISION_CONFLICT" });
     if (replace) next.epoch = crypto.randomUUID();
     next.revision = current.revision + 1;
-    for (const section of ["prompts", "workflows", "triggers"]) for (const item of next[section]) {
-      const old = current[section].find(row => row.id === item.id);
-      item.revision = old ? JSON.stringify({ ...old, revision: 0 }) === JSON.stringify({ ...item, revision: 0 }) ? old.revision : old.revision + 1 : 1;
+    const ids = new Set(next.tools.map(tool => tool.id));
+    for (const workflow of next.workflows) for (const node of flow.walk(workflow.steps)) {
+      if (flow.toolIds(node).some(id => flow.isToolId(id) && !ids.has(id)))
+        throw Object.assign(new Error("工作流引用了不存在的工具：" + workflow.name), { code: "WORKFLOW_TOOL_MISSING", nodeId: node.id });
+    }
+    for (const section of ["prompts", "workflows", "triggers", "tools"]) for (const item of next[section]) {
+      const old = current[section]?.find(row => row.id === item.id);
+      const definition = row => JSON.stringify({ ...row, revision: 0, ...(section === "tools" ? { name: "", executionId: "" } : {}) });
+      const same = old && definition(old) === definition(item);
+      item.revision = old ? same ? old.revision : old.revision + 1 : 1;
+      if (section === "tools") item.executionId = same ? old.executionId : crypto.randomUUID();
     }
     return next;
   }
@@ -1149,12 +1515,32 @@
       }
     }
     validateLinks({ ai, translate, workflow: next }, { ai: oldAi, translate: oldTranslate, workflow: current }, diagnostics.replace);
+    let credentials;
+    if (next !== current) {
+      const nextTools = new Map((next.tools || []).map(tool => [tool.id, tool]));
+      const expiredKeys = [];
+      for (const prior of current.tools || []) {
+        const replacement = nextTools.get(prior.id);
+        const endpoints = new Map(replacement ? [...flow.walk(replacement.steps)].filter(node => node.action === "http-request").map(node => [node.id, node]) : []);
+        for (const node of flow.walk(prior.steps)) {
+          if (node.action !== "http-request" || !node.keyHeader) continue;
+          const current = endpoints.get(node.id);
+          if (current?.origin !== node.origin || current.keyHeader !== node.keyHeader) expiredKeys.push(toolKey(prior, node));
+        }
+      }
+      if (expiredKeys.length) {
+        credentials = await toolCredentials();
+        for (const key of expiredKeys) delete credentials[key];
+      }
+    }
+    // 工具定义与失效密钥在同一次设置写入中提交
     await storage.writeAiSettings({
       ai: patch.ai ? ai : undefined,
       translate: translate !== oldTranslate ? translate : undefined,
       workflow: next !== current ? next : undefined,
       familyFeature: patch.familyFeature,
       familySettings: patch.familySettings,
+      toolCredentials: credentials,
     }, diagnostics);
 
     if (next !== current || patch.ai) {
@@ -1166,6 +1552,11 @@
           (job.prompt && (!prompt?.enabled || prompt.revision !== job.prompt.revision)) ||
           (job.service && (!ai.enabled || !service?.enabled || service.revision !== job.service.revision)))
           await finish(job.id, "expired");
+        else if (job.toolRun) {
+          const prior = job.toolRun.workflow, tool = next.tools?.find(item => item.id === prior.id);
+          if (!tool?.enabled || toolRevision(prior) !== toolRevision(tool))
+            requests.get(job.id)?.abort(actionError("工具已停用、删除或修改，请检查工具设置", "WORKFLOW_TOOL_UNAVAILABLE"));
+        }
       }
     }
     if (next === current) {
@@ -1318,12 +1709,36 @@
       const trigger = bundle.triggers.find(item => item.id === request.triggerId && item.revision === request.revision && item.enabled && item.event.type === "schedule");
       return trigger ? root.STAutomationSchedule.clock(trigger, bundle.epoch, await taskIdentity()) : null;
     }
-    if (["test-instruction", "cancel-instruction-test"].includes(request.action) && (typeof request.id !== "string" || !request.id || typeof sender.documentId !== "string")) throw new TypeError("指令试运行缺少页面和运行标识");
+    if (["test-instruction", "test-tool", "cancel-instruction-test"].includes(request.action) && (typeof request.id !== "string" || !request.id || typeof sender.documentId !== "string")) throw new TypeError("试运行缺少页面和运行标识");
     const previewKey = [sender?.documentId, request.id].join(":");
     if (request.action === "cancel-instruction-test") {
       const controller = previews.get(previewKey);
       controller?.abort(Object.assign(new Error("试运行已停止"), { code: "WORKFLOW_PREVIEW_CANCELLED" }));
       return !!controller;
+    }
+    if (request.action === "test-tool") return testTool(request, previewKey);
+    if (request.action === "tool-credential") {
+      return configExclusive(async () => {
+        const { toolId, nodeId, value, revision, executionId, origin, header, epoch } = request;
+        const bundle = await root.STSettings.storage.getWorkflow();
+        const tool = bundle.tools?.find(item => item.id === toolId);
+        const node = tool && [...flow.walk(tool.steps)].find(item => item.id === nodeId);
+        if (!node?.keyHeader || typeof value !== "string" || tool.revision !== revision || tool.executionId !== executionId || bundle.epoch !== epoch ||
+          node.origin !== origin || node.keyHeader !== header)
+          throw new TypeError("HTTP 密钥配置已变更，请关闭窗口并重新设置密钥");
+        const key = toolKey(tool, node), credentials = await toolCredentials();
+        if (!value) delete credentials[key];
+        else {
+          try { new Headers({ [node.keyHeader]: value }); }
+          catch (error) {
+            if (!(error instanceof TypeError)) throw error;
+            throw new TypeError("密钥值含有无效的 HTTP 请求头字符");
+          }
+          credentials[key] = { origin: node.origin, header: node.keyHeader, value };
+        }
+        await chrome.storage.local.set({ [model.TOOL_CREDENTIALS_KEY]: credentials });
+        return true;
+      });
     }
     if (request.action === "test-instruction") {
       if (previews.has(previewKey)) throw new Error("该指令正在试运行");
@@ -1354,7 +1769,8 @@
             const prompt = root.STPromptPlans.resolve(bundle, node.promptId);
             const ai = await root.STAI.resolveService(registry, node.serviceId, { preview: true });
             ai.key = "";
-            const prepared = await prepareAi(node, prompt, ai, state, evaluate);
+            if (node.toolResults) throw invalidToolExchange("请使用工具结果绑定预览");
+            const prepared = await prepareAi(node, prompt, ai, state, evaluate, bundle);
             const result = root.STAI.chatRequest(ai, prepared.messages, prepared.body);
             if (!result) throw new Error("请先填写 AI 服务的网关与模型");
             output = result.body;
@@ -1369,8 +1785,8 @@
               output = await gameFieldValue(appid, effect.gameField, native);
               if (!accounts.current(binding)) throw new Error("Steam 账号已切换，请重试");
               flow.complete(workflow, state, node, output);
-            } else if (node.action === "http-request") {
-              output = await runHttp(node, state, controller.signal);
+            } else if (node.action === "http-request" || isToolQuery(node)) {
+              output = await runQuery(node, state, controller.signal, flow.isToolId(workflow.id) ? workflow : null);
               flow.complete(workflow, state, node, output);
             } else if (node.action === "script" || root.STWorkflowData.readingActions.includes(node.action)) {
               output = await runScriptOrReading(node, state, "preview-" + previewKey, controller.signal);
@@ -1420,6 +1836,7 @@
         next = model.defaults(await root.STSettings.storage.templateLanguage(locale), locale);
       for (const [scene, binding] of Object.entries(next.bindings))
         binding.serviceId = current.bindings[scene].serviceId;
+      next.tools = current.tools || [];
       next.epoch = crypto.randomUUID();
       next.revision = current.revision;
       return commitConfig(next, { operationId: request.operationId, reset: true });

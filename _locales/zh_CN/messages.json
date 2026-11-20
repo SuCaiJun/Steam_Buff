@@ -9537,7 +9537,7 @@
     "message": "将触发器传入的数据保存为工作流变量"
   },
   "workflow_command_convert_name": {
-    "message": "类型转换"
+    "message": "变量类型转换"
   },
   "workflow_command_convert_hint": {
     "message": "按 JavaScript 的转换规则返回文本、数字或布尔值"
@@ -10721,6 +10721,349 @@
   "workflow_ui_prompts": {
     "message": "提示词"
   },
+  "ai_chat_tools": {
+    "message": "工具"
+  },
+  "ai_chat_tool_game": {
+    "message": "Steam 游戏资料"
+  },
+  "ai_chat_tool_game_help": {
+    "message": "按 AppID 查询 Steam 商店公开游戏资料。"
+  },
+  "ai_chat_tool_players": {
+    "message": "Steam 在线人数"
+  },
+  "ai_chat_tool_players_help": {
+    "message": "按 AppID 查询当前在线人数。"
+  },
+  "ai_chat_tool_prices": {
+    "message": "ITAD 价格与史低"
+  },
+  "ai_chat_tool_prices_help": {
+    "message": "按 AppID 查询配置地区的当前报价和历史最低价。"
+  },
+  "workflow_tool_title": {
+    "message": "工具"
+  },
+  "workflow_tool_name": {
+    "message": "工具名称"
+  },
+  "workflow_tool_description": {
+    "message": "工具用途"
+  },
+  "workflow_tool_inputs": {
+    "message": "工具输入"
+  },
+  "workflow_tool_test": {
+    "message": "测试工具"
+  },
+  "workflow_tool_integer": {
+    "message": "整数"
+  },
+  "workflow_tool_app_id": {
+    "message": "Steam AppID"
+  },
+  "workflow_tool_add_parameter": {
+    "message": "添加参数"
+  },
+  "workflow_tool_parameter_name": {
+    "message": "参数名"
+  },
+  "workflow_tool_parameter_description": {
+    "message": "参数说明"
+  },
+  "workflow_tool_required": {
+    "message": "必填"
+  },
+  "workflow_tool_settings": {
+    "message": "工具设置"
+  },
+  "workflow_tool_test_sites": {
+    "message": "运行会访问以下站点"
+  },
+  "workflow_tool_untitled": {
+    "message": "未命名工具"
+  },
+  "workflow_tool_edit": {
+    "message": "编辑工具"
+  },
+  "workflow_tool_new": {
+    "message": "新建工具"
+  },
+  "workflow_composition_group": {
+    "message": "组合指令"
+  },
+  "workflow_composition_ai": {
+    "message": "AI 查资料后回复"
+  },
+  "workflow_composition_http": {
+    "message": "HTTP 查询"
+  },
+  "workflow_composition_steps": {
+    "message": "将生成的步骤"
+  },
+  "workflow_composition_generate": {
+    "message": "生成指令"
+  },
+  "workflow_composition_select_tools": {
+    "message": "请至少选择一个可用工具。"
+  },
+  "workflow_composition_reply_required": {
+    "message": "请选择保存回复的变量。"
+  },
+  "workflow_composition_reply_type": {
+    "message": "请选择文本或任意数据类型的变量。"
+  },
+  "workflow_composition_new_input": {
+    "message": "新建工具入参"
+  },
+  "workflow_composition_query_key": {
+    "message": "查询参数名"
+  },
+  "workflow_composition_input_binding": {
+    "message": "绑定工具入参"
+  },
+  "workflow_composition_request_url": {
+    "message": "请求 URL"
+  },
+  "workflow_composition_query_mappings": {
+    "message": "查询参数映射"
+  },
+  "workflow_composition_output_mode": {
+    "message": "查询结果去向"
+  },
+  "workflow_composition_keep_return": {
+    "message": "保存到变量，保留现有返回"
+  },
+  "workflow_composition_use_return": {
+    "message": "交给现有返回指令"
+  },
+  "workflow_composition_before_return": {
+    "message": "新指令将插在现有返回之前。"
+  },
+  "workflow_composition_output_required": {
+    "message": "请选择查询结果的去向。"
+  },
+  "workflow_composition_query_required": {
+    "message": "请填写查询参数名。"
+  },
+  "workflow_tool_search": {
+    "message": "搜索工具"
+  },
+  "workflow_tool_key_header": {
+    "message": "密钥请求头"
+  },
+  "workflow_tool_unavailable": {
+    "message": "不可用"
+  },
+  "workflow_tool_update": {
+    "message": "更新工具"
+  },
+  "workflow_tool_affected": {
+    "message": "以下指令引用了此工具，请检查与新定义的兼容性。"
+  },
+  "workflow_tool_invalid_file": {
+    "message": "工具文件类型或版本无效"
+  },
+  "workflow_tool_import": {
+    "message": "导入工具"
+  },
+  "workflow_tool_import_copy": {
+    "message": "另存副本"
+  },
+  "workflow_tool_references": {
+    "message": "工具引用"
+  },
+  "workflow_tool_open_reference": {
+    "message": "定位指令"
+  },
+  "workflow_tool_credentials": {
+    "message": "本机密钥"
+  },
+  "workflow_tool_credential_node": {
+    "message": "HTTP 指令"
+  },
+  "workflow_tool_key_value": {
+    "message": "密钥值（含所需前缀）"
+  },
+  "workflow_tool_clear_key": {
+    "message": "清除密钥"
+  },
+  "workflow_tool_clear_key_confirm": {
+    "message": "清除后，此 HTTP 指令需重新填写密钥才能运行。"
+  },
+  "workflow_tool_key_required": {
+    "message": "请输入密钥值"
+  },
+  "workflow_command_query_provider_data_name": {
+    "message": "查询平台数据"
+  },
+  "workflow_command_query_provider_data_hint": {
+    "message": "按 AppID 查询 Steam 或 ITAD 数据"
+  },
+  "workflow_output_query_provider_data": {
+    "message": "查询结果"
+  },
+  "workflow_tool_provider": {
+    "message": "数据来源"
+  },
+  "workflow_tool_builtin": {
+    "message": "内置"
+  },
+  "workflow_tool_referenced_delete": {
+    "message": "请先解除工作流中的工具引用。"
+  },
+  "workflow_tool_missing": {
+    "message": "找不到工具 $id$，请导入或重新选择。",
+    "placeholders": {
+      "id": {
+        "content": "$1"
+      }
+    }
+  },
+  "workflow_tool_reference_count": {
+    "message": "$count$ 条指令引用",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "workflow_tool_count": {
+    "message": "$count$ 个工具",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "workflow_tool_delete_confirm": {
+    "message": "将删除「$name$」及其本机密钥。",
+    "placeholders": {
+      "name": {
+        "content": "$1"
+      }
+    }
+  },
+  "workflow_error_tool_instruction": {
+    "message": "此处不能使用该指令"
+  },
+  "workflow_error_tool_input": {
+    "message": "请选择已声明的工具输入"
+  },
+  "workflow_error_tool_http": {
+    "message": "工具只支持 GET 查询、URL 文本模板和本机密钥引用"
+  },
+  "workflow_command_tool_return_name": {
+    "message": "返回工具结果"
+  },
+  "workflow_command_tool_return_hint": {
+    "message": "返回数据并结束工具执行"
+  },
+  "ai_chat_tool_references": {
+    "message": "$count$ 条调用 AI 指令引用",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "ai_chat_new": {
+    "message": "新建对话"
+  },
+  "ai_chat_history": {
+    "message": "历史对话"
+  },
+  "ai_chat_service": {
+    "message": "AI 服务"
+  },
+  "ai_chat_message": {
+    "message": "消息"
+  },
+  "ai_chat_tool_preset": {
+    "message": "提示词的工具预设"
+  },
+  "ai_chat_settings": {
+    "message": "配置 AI 服务"
+  },
+  "ai_chat_stop": {
+    "message": "停止"
+  },
+  "ai_chat_send": {
+    "message": "发送"
+  },
+  "ai_chat_you": {
+    "message": "你"
+  },
+  "ai_chat_current": {
+    "message": "当前对话"
+  },
+  "ai_chat_select_service": {
+    "message": "选择 AI 服务"
+  },
+  "ai_chat_tool_preset_choose": {
+    "message": "选择预设"
+  },
+  "ai_chat_stopped": {
+    "message": "已停止生成"
+  },
+  "ai_chat_timeout": {
+    "message": "请求超时。可以重新发送。"
+  },
+  "ai_chat_disconnected": {
+    "message": "对话连接已断开。可以重新发送。"
+  },
+  "ai_chat_context_limit": {
+    "message": "对话上下文过长，请新建对话。"
+  },
+  "ai_chat_changed": {
+    "message": "此对话已更新，请查看最新记录后重新发送。"
+  },
+  "ai_chat_busy": {
+    "message": "此对话正在另一个窗口生成。"
+  },
+  "ai_chat_permission": {
+    "message": "请在第三方服务设置中授权当前 AI 网关。"
+  },
+  "ai_chat_config": {
+    "message": "当前 AI 服务不可用，请检查设置。"
+  },
+  "ai_chat_itad_key": {
+    "message": "请先在第三方服务中配置 ITAD API Key。"
+  },
+  "ai_chat_save_failed": {
+    "message": "保存对话失败，请检查扩展存储空间。"
+  },
+  "ai_chat_failed": {
+    "message": "请求失败。可以再次发送或检查 AI 服务设置。"
+  },
+  "ai_chat_waiting": {
+    "message": "正在生成…"
+  },
+  "ai_chat_querying": {
+    "message": "正在查询资料…"
+  },
+  "ai_chat_open_failed": {
+    "message": "无法打开 Steam AI 对话窗口，请重试。"
+  },
+  "settings_feature_ai_chat_web_name": {
+    "message": "网页 AI 对话入口"
+  },
+  "settings_feature_ai_chat_web_desc": {
+    "message": "在 Steam 商店和社区网页显示 AI 对话入口"
+  },
+  "settings_feature_ai_chat_main_name": {
+    "message": "客户端 AI 对话入口"
+  },
+  "settings_feature_ai_chat_main_desc": {
+    "message": "在 Steam 客户端主窗口右下角显示 AI 对话入口"
+  },
+  "settings_feature_ai_chat_friends_name": {
+    "message": "好友列表 AI 对话入口"
+  },
+  "settings_feature_ai_chat_friends_desc": {
+    "message": "在 Steam 客户端好友列表顶部显示本地 AI 对话入口"
+  },
   "workflow_ui_triggers": {
     "message": "触发器"
   },
@@ -11061,7 +11404,73 @@
     "message": "传入对话历史"
   },
   "workflow_ui_save_updated_conversation_history_to": {
-    "message": "保存更新后的对话历史至"
+    "message": "保存对话历史至"
+  },
+  "workflow_ui_tool_binding_preview": {
+    "message": "工具结果绑定预览 · 请求在运行时生成"
+  },
+  "workflow_ui_tool_results_help": {
+    "message": "待处理工具结果会沿用原请求的消息和模型参数。常规页的提示词用于发起新的提问。"
+  },
+  "workflow_ui_tool_results_input": {
+    "message": "传入工具结果"
+  },
+  "workflow_ui_available_tools": {
+    "message": "可用工具"
+  },
+  "workflow_ui_save_tool_requests_to": {
+    "message": "保存工具请求至"
+  },
+  "workflow_command_tool_call_name": {
+    "message": "调用工具"
+  },
+  "workflow_command_tool_call_hint": {
+    "message": "执行登记的工具，或为 AI 记录一条已有结果"
+  },
+  "workflow_ui_tool_mode": {
+    "message": "执行方式"
+  },
+  "workflow_ui_tool_run_request": {
+    "message": "执行 AI 的工具请求"
+  },
+  "workflow_ui_tool_run_selected": {
+    "message": "执行指定工具"
+  },
+  "workflow_ui_tool_use_result": {
+    "message": "传入已有结果"
+  },
+  "workflow_ui_tool_skip_request": {
+    "message": "跳过 AI 的工具请求"
+  },
+  "workflow_ui_tool_record_failure": {
+    "message": "记录工具失败"
+  },
+  "workflow_ui_select_tool": {
+    "message": "请选择工具"
+  },
+  "workflow_seed_chat_history": {
+    "message": "对话历史"
+  },
+  "workflow_seed_tool_requests": {
+    "message": "工具请求"
+  },
+  "workflow_output_tool_call": {
+    "message": "工具结果"
+  },
+  "workflow_ui_tool_arguments": {
+    "message": "工具参数"
+  },
+  "workflow_ui_tool_reason": {
+    "message": "原因"
+  },
+  "workflow_error_tool_settings": {
+    "message": "请选择工具执行方式与工具"
+  },
+  "workflow_error_tool_output": {
+    "message": "工具结果需要保存到字典或动态变量"
+  },
+  "workflow_error_ai_list_output": {
+    "message": "对话历史和工具请求分别需要独立的列表或动态变量"
   },
   "workflow_ui_error_policy": {
     "message": "处理方式"

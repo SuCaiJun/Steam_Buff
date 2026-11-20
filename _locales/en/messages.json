@@ -9537,7 +9537,7 @@
     "message": "Save trigger input into a workflow variable."
   },
   "workflow_command_convert_name": {
-    "message": "Convert type"
+    "message": "Convert variable type"
   },
   "workflow_command_convert_hint": {
     "message": "Convert to text, number, or boolean using JavaScript rules."
@@ -10721,6 +10721,349 @@
   "workflow_ui_prompts": {
     "message": "Prompts"
   },
+  "ai_chat_tools": {
+    "message": "Tools"
+  },
+  "ai_chat_tool_game": {
+    "message": "Steam game details"
+  },
+  "ai_chat_tool_game_help": {
+    "message": "Look up public Steam store details by AppID."
+  },
+  "ai_chat_tool_players": {
+    "message": "Steam player count"
+  },
+  "ai_chat_tool_players_help": {
+    "message": "Look up the current player count by AppID."
+  },
+  "ai_chat_tool_prices": {
+    "message": "ITAD price and historical low"
+  },
+  "ai_chat_tool_prices_help": {
+    "message": "Look up the current price and historical low in the configured region."
+  },
+  "workflow_tool_title": {
+    "message": "Tool"
+  },
+  "workflow_tool_name": {
+    "message": "Tool name"
+  },
+  "workflow_tool_description": {
+    "message": "Tool purpose"
+  },
+  "workflow_tool_inputs": {
+    "message": "Tool inputs"
+  },
+  "workflow_tool_test": {
+    "message": "Test tool"
+  },
+  "workflow_tool_integer": {
+    "message": "Integer"
+  },
+  "workflow_tool_app_id": {
+    "message": "Steam AppID"
+  },
+  "workflow_tool_add_parameter": {
+    "message": "Add parameter"
+  },
+  "workflow_tool_parameter_name": {
+    "message": "Parameter name"
+  },
+  "workflow_tool_parameter_description": {
+    "message": "Parameter description"
+  },
+  "workflow_tool_required": {
+    "message": "Required"
+  },
+  "workflow_tool_settings": {
+    "message": "Tool settings"
+  },
+  "workflow_tool_test_sites": {
+    "message": "This run will access these sites"
+  },
+  "workflow_tool_untitled": {
+    "message": "Untitled tool"
+  },
+  "workflow_tool_edit": {
+    "message": "Edit tool"
+  },
+  "workflow_tool_new": {
+    "message": "New tool"
+  },
+  "workflow_composition_group": {
+    "message": "Action sets"
+  },
+  "workflow_composition_ai": {
+    "message": "AI lookup and reply"
+  },
+  "workflow_composition_http": {
+    "message": "HTTP query"
+  },
+  "workflow_composition_steps": {
+    "message": "Actions to generate"
+  },
+  "workflow_composition_generate": {
+    "message": "Generate actions"
+  },
+  "workflow_composition_select_tools": {
+    "message": "Select at least one available tool."
+  },
+  "workflow_composition_reply_required": {
+    "message": "Select a variable to store the reply."
+  },
+  "workflow_composition_reply_type": {
+    "message": "Select a text or any-type variable."
+  },
+  "workflow_composition_new_input": {
+    "message": "New tool input"
+  },
+  "workflow_composition_query_key": {
+    "message": "Query parameter name"
+  },
+  "workflow_composition_input_binding": {
+    "message": "Bind to tool input"
+  },
+  "workflow_composition_request_url": {
+    "message": "Request URL"
+  },
+  "workflow_composition_query_mappings": {
+    "message": "Query parameter mappings"
+  },
+  "workflow_composition_output_mode": {
+    "message": "Query result destination"
+  },
+  "workflow_composition_keep_return": {
+    "message": "Save to a variable and keep the existing return"
+  },
+  "workflow_composition_use_return": {
+    "message": "Use the existing return action"
+  },
+  "workflow_composition_before_return": {
+    "message": "The new actions will be inserted before the existing return."
+  },
+  "workflow_composition_output_required": {
+    "message": "Select where to send the query result."
+  },
+  "workflow_composition_query_required": {
+    "message": "Enter a query parameter name."
+  },
+  "workflow_tool_search": {
+    "message": "Search tools"
+  },
+  "workflow_tool_key_header": {
+    "message": "Credential header"
+  },
+  "workflow_tool_unavailable": {
+    "message": "Unavailable"
+  },
+  "workflow_tool_update": {
+    "message": "Update tool"
+  },
+  "workflow_tool_affected": {
+    "message": "Check these actions for compatibility with the updated tool."
+  },
+  "workflow_tool_invalid_file": {
+    "message": "Invalid tool file type or version"
+  },
+  "workflow_tool_import": {
+    "message": "Import tool"
+  },
+  "workflow_tool_import_copy": {
+    "message": "Save a copy"
+  },
+  "workflow_tool_references": {
+    "message": "Tool references"
+  },
+  "workflow_tool_open_reference": {
+    "message": "Go to action"
+  },
+  "workflow_tool_credentials": {
+    "message": "Local credentials"
+  },
+  "workflow_tool_credential_node": {
+    "message": "HTTP action"
+  },
+  "workflow_tool_key_value": {
+    "message": "Credential value (include any required prefix)"
+  },
+  "workflow_tool_clear_key": {
+    "message": "Clear credential"
+  },
+  "workflow_tool_clear_key_confirm": {
+    "message": "You will need to set a new credential before running this HTTP action."
+  },
+  "workflow_tool_key_required": {
+    "message": "Enter a credential value"
+  },
+  "workflow_command_query_provider_data_name": {
+    "message": "Query platform data"
+  },
+  "workflow_command_query_provider_data_hint": {
+    "message": "Query Steam or ITAD data by AppID"
+  },
+  "workflow_output_query_provider_data": {
+    "message": "Query result"
+  },
+  "workflow_tool_provider": {
+    "message": "Data source"
+  },
+  "workflow_tool_builtin": {
+    "message": "Built-in"
+  },
+  "workflow_tool_referenced_delete": {
+    "message": "Remove this tool’s workflow references first."
+  },
+  "workflow_tool_missing": {
+    "message": "Tool $id$ is missing. Import it or select another.",
+    "placeholders": {
+      "id": {
+        "content": "$1"
+      }
+    }
+  },
+  "workflow_tool_reference_count": {
+    "message": "$count$ action references",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "workflow_tool_count": {
+    "message": "$count$ tools",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "workflow_tool_delete_confirm": {
+    "message": "Delete “$name$” and its local credentials?",
+    "placeholders": {
+      "name": {
+        "content": "$1"
+      }
+    }
+  },
+  "workflow_error_tool_instruction": {
+    "message": "This action is unavailable here."
+  },
+  "workflow_error_tool_input": {
+    "message": "Select a declared tool input"
+  },
+  "workflow_error_tool_http": {
+    "message": "Tools support GET queries, URL text templates, and local credential references."
+  },
+  "workflow_command_tool_return_name": {
+    "message": "Return tool result"
+  },
+  "workflow_command_tool_return_hint": {
+    "message": "Return data and finish the tool run"
+  },
+  "ai_chat_tool_references": {
+    "message": "Used by $count$ Call AI actions",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "ai_chat_new": {
+    "message": "New chat"
+  },
+  "ai_chat_history": {
+    "message": "Chat history"
+  },
+  "ai_chat_service": {
+    "message": "AI service"
+  },
+  "ai_chat_message": {
+    "message": "Message"
+  },
+  "ai_chat_tool_preset": {
+    "message": "Tool presets from prompts"
+  },
+  "ai_chat_settings": {
+    "message": "Configure AI services"
+  },
+  "ai_chat_stop": {
+    "message": "Stop"
+  },
+  "ai_chat_send": {
+    "message": "Send"
+  },
+  "ai_chat_you": {
+    "message": "You"
+  },
+  "ai_chat_current": {
+    "message": "Current chat"
+  },
+  "ai_chat_select_service": {
+    "message": "Select an AI service"
+  },
+  "ai_chat_tool_preset_choose": {
+    "message": "Select a preset"
+  },
+  "ai_chat_stopped": {
+    "message": "Generation stopped"
+  },
+  "ai_chat_timeout": {
+    "message": "The request timed out. You can send it again."
+  },
+  "ai_chat_disconnected": {
+    "message": "The chat disconnected. You can send the message again."
+  },
+  "ai_chat_context_limit": {
+    "message": "This conversation is too long to continue. Start a new chat."
+  },
+  "ai_chat_changed": {
+    "message": "This chat changed. Review the latest messages before sending again."
+  },
+  "ai_chat_busy": {
+    "message": "Another window is generating a response in this chat."
+  },
+  "ai_chat_permission": {
+    "message": "Grant access to this AI gateway in Third-party Services."
+  },
+  "ai_chat_config": {
+    "message": "This AI service is unavailable. Check its settings."
+  },
+  "ai_chat_itad_key": {
+    "message": "Configure your ITAD API key in Third-party Services."
+  },
+  "ai_chat_save_failed": {
+    "message": "Could not save the chat. Check available extension storage."
+  },
+  "ai_chat_failed": {
+    "message": "The request failed. Try again or check the AI service settings."
+  },
+  "ai_chat_waiting": {
+    "message": "Generating…"
+  },
+  "ai_chat_querying": {
+    "message": "Looking up data…"
+  },
+  "ai_chat_open_failed": {
+    "message": "Could not open the Steam AI chat window. Try again."
+  },
+  "settings_feature_ai_chat_web_name": {
+    "message": "AI chat on Steam websites"
+  },
+  "settings_feature_ai_chat_web_desc": {
+    "message": "Show the AI chat button on the Steam Store and Community websites."
+  },
+  "settings_feature_ai_chat_main_name": {
+    "message": "AI chat in the Steam client"
+  },
+  "settings_feature_ai_chat_main_desc": {
+    "message": "Show the AI chat button in the bottom-right corner of the main Steam window."
+  },
+  "settings_feature_ai_chat_friends_name": {
+    "message": "AI chat in the friends list"
+  },
+  "settings_feature_ai_chat_friends_desc": {
+    "message": "Show the local AI chat button above your Steam friends."
+  },
   "workflow_ui_triggers": {
     "message": "Triggers"
   },
@@ -11061,7 +11404,73 @@
     "message": "Conversation history input"
   },
   "workflow_ui_save_updated_conversation_history_to": {
-    "message": "Save updated conversation history to"
+    "message": "Save conversation history to"
+  },
+  "workflow_ui_tool_binding_preview": {
+    "message": "Tool result bindings · Request generated at runtime"
+  },
+  "workflow_ui_tool_results_help": {
+    "message": "Pending tool results use the original messages and model parameters. The General prompt starts a new question."
+  },
+  "workflow_ui_tool_results_input": {
+    "message": "Pass tool results"
+  },
+  "workflow_ui_available_tools": {
+    "message": "Available tools"
+  },
+  "workflow_ui_save_tool_requests_to": {
+    "message": "Save tool requests to"
+  },
+  "workflow_command_tool_call_name": {
+    "message": "Call Tool"
+  },
+  "workflow_command_tool_call_hint": {
+    "message": "Run a registered tool or record an existing result for AI"
+  },
+  "workflow_ui_tool_mode": {
+    "message": "Execution mode"
+  },
+  "workflow_ui_tool_run_request": {
+    "message": "Run AI tool request"
+  },
+  "workflow_ui_tool_run_selected": {
+    "message": "Run selected tool"
+  },
+  "workflow_ui_tool_use_result": {
+    "message": "Use existing result"
+  },
+  "workflow_ui_tool_skip_request": {
+    "message": "Skip AI tool request"
+  },
+  "workflow_ui_tool_record_failure": {
+    "message": "Record tool failure"
+  },
+  "workflow_ui_select_tool": {
+    "message": "Select a tool"
+  },
+  "workflow_seed_chat_history": {
+    "message": "Conversation history"
+  },
+  "workflow_seed_tool_requests": {
+    "message": "Tool requests"
+  },
+  "workflow_output_tool_call": {
+    "message": "Tool result"
+  },
+  "workflow_ui_tool_arguments": {
+    "message": "Tool arguments"
+  },
+  "workflow_ui_tool_reason": {
+    "message": "Reason"
+  },
+  "workflow_error_tool_settings": {
+    "message": "Select a tool execution mode and a tool"
+  },
+  "workflow_error_tool_output": {
+    "message": "Save tool results to a dictionary or dynamically typed variable"
+  },
+  "workflow_error_ai_list_output": {
+    "message": "Use separate list or dynamically typed variables for conversation history and tool requests"
   },
   "workflow_ui_error_policy": {
     "message": "Error policy"

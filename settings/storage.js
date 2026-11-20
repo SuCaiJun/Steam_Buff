@@ -875,7 +875,7 @@
   }
 
   /** 三处关联配置在后台串行校验后一次写入，避免迁移或导入留下悬空引用 */
-  async function writeAiSettings({ ai, translate, workflow, familyFeature, familySettings, setupLocale, gameLinks, finishPendingConnection }, diagnostics = {}) {
+  async function writeAiSettings({ ai, translate, workflow, familyFeature, familySettings, setupLocale, gameLinks, finishPendingConnection, toolCredentials }, diagnostics = {}) {
     const data = translate ? translatePatch(translate) : {};
     if (ai) {
       const { enabled, aiConcurrency, ...registry } = ai;
@@ -894,6 +894,7 @@
     }
     if (finishPendingConnection) data[globalThis.STAI.ONBOARDING_CONNECTION_KEY] = null;
     if (workflow) data[globalThis.STAutomation.KEY] = workflow;
+    if (toolCredentials) data[globalThis.STAutomation.TOOL_CREDENTIALS_KEY] = toolCredentials;
     if (setupLocale) data[SETUP_KEY] = setupLocale;
     if (gameLinks) data[GAME_LINKS_KEY] = gameLinks;
     if (typeof familyFeature === "boolean") data[key("family-library-owned-marker")] = familyFeature;
@@ -1055,8 +1056,11 @@
     const { ai: aiEnabled, "family-library-owned-marker": familyFeature, ...features } = sections.features || {};
     const ai = sections.ai ?? (typeof aiEnabled === "boolean"
       ? { ...globalThis.STAI.normalizeServices(), enabled: aiEnabled } : undefined);
+    const workflow = sections.workflow?.toolLibraryVersion === undefined && sections.workflow
+      ? globalThis.STAutomation.normalize(sections.workflow, await templateLanguage(sections.uiLocale ?? await getUiLocale({ strict: true })))
+      : sections.workflow;
     await configureAi("apply-ai-settings", {
-      ai, translate: sections.translate, workflow: sections.workflow,
+      ai, translate: sections.translate, workflow,
       familyFeature, familySettings: sections.familyLibrary,
     }, diagnostics);
     const jobs = {
@@ -1138,7 +1142,16 @@
     const legacyKeys = aiConfig.V222_CONNECTION_FIELDS.map(aiKey);
     const stored = await get([SETUP_KEY, UI_LOCALE_KEY, GAME_LINKS_KEY, transKey("aiTarget"), transKey("to"), model.KEY, familyFeatureKey, installedVersionKey, ...Object.values(family.SETTINGS_KEYS),
       ...aiConfig.SETTINGS_KEYS, ...legacyKeys, ...Object.keys(defaults).map(transKey)], { strict: true });
-    if (stored[SETUP_KEY]) return true;
+    const existing = stored[model.KEY];
+    const migrateTools = existing && existing.toolLibraryVersion === undefined;
+    if (stored[SETUP_KEY]) {
+      if (migrateTools) {
+        const locale = localeOf(stored[UI_LOCALE_KEY], localeOf(stored[SETUP_KEY]));
+        const workflow = model.normalize(existing, await templateLanguage(locale));
+        await writeAiSettings({ workflow }, { reason: "initialize-workflow-tools" });
+      }
+      return true;
+    }
     const hasRegistry = Object.hasOwn(stored, aiConfig.SERVICES_KEY);
     const flags = aiConfig.flagsFromStorage(stored);
     const pendingConnection = stored[aiConfig.ONBOARDING_CONNECTION_KEY] != null;
@@ -1173,7 +1186,8 @@
       : undefined;
     if (complete && workflow && !alreadyInstalled && !legacy && !familySettings && !Object.hasOwn(stored, transKey("to")) && !Object.hasOwn(stored, transKey("aiTarget")))
       translate.aiTarget = "display";
-    await writeAiSettings({ workflow, ai, translate, familySettings, gameLinks, setupLocale: locale, finishPendingConnection: pendingConnection }, { reason: "initialize-workflow" });
+    const configured = workflow || (migrateTools ? model.normalize(existing, text) : undefined);
+    await writeAiSettings({ workflow: configured, ai, translate, familySettings, gameLinks, setupLocale: locale, finishPendingConnection: pendingConnection }, { reason: "initialize-workflow" });
     if (legacy) log.info("ai-v222-config-migrated", "2.2.2 AI 连接已迁移到默认服务");
     return true;
   }

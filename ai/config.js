@@ -493,6 +493,22 @@
     };
   }
 
+  const TOOL_APP_ID_MAX = 0xffffffff;
+  const isToolAppId = id => Number.isSafeInteger(id) && id > 0 && id <= TOOL_APP_ID_MAX;
+  const CHAT_TOOLS = Object.freeze([
+    Object.freeze({ id: "steam_game", label: "ai_chat_tool_game", name: "Steam 游戏资料", help: "ai_chat_tool_game_help", description: "按 AppID 查询 Steam 商店公开游戏资料。" }),
+    Object.freeze({ id: "steam_players", label: "ai_chat_tool_players", name: "Steam 在线人数", help: "ai_chat_tool_players_help", description: "按 AppID 查询当前在线人数。" }),
+    Object.freeze({ id: "itad_prices", label: "ai_chat_tool_prices", name: "ITAD 价格与史低", help: "ai_chat_tool_prices_help", description: "按 AppID 查询配置地区的当前报价和历史最低价。" }),
+  ]);
+
+  /** 只接受登记的工具 ID。旧提示词省略这个字段 */
+  function validateChatToolIds(ids) {
+    if (!Array.isArray(ids) || new Set(ids).size !== ids.length ||
+        ids.some(id => !CHAT_TOOLS.some(tool => tool.id === id)))
+      throw new TypeError("AI 工具选择无效");
+    return [...ids];
+  }
+
   function chatText(data) {
     const choice = data?.choices?.[0];
     const content = choice?.message?.content ?? choice?.text;
@@ -563,6 +579,8 @@
     endpoint,
     hostPermissionPattern,
     chatRequest,
+    CHAT_TOOLS, TOOL_APP_ID_MAX, isToolAppId,
+    validateChatToolIds,
     chatBody,
     chatText,
     chatDelta,

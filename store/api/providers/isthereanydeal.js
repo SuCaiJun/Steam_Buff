@@ -11,7 +11,7 @@
 (() => {
   "use strict";
 
-  const api = window.STStore;
+  const api = globalThis.STStore;
   if (!api) return;
 
   const ID = "isthereanydeal";
@@ -300,6 +300,7 @@
         silentLog: true,
         parseJSON: false,
         timeoutMs: request.timeoutMs || TIMEOUT_MS,
+        ...(request.signal ? { signal: request.signal } : {}),
         retries: 0,
         messageType: `itad-${endpointKey}`,
         logUrl: `itad://${endpointKey}`,
@@ -336,7 +337,7 @@
       }));
       return { data, status, requestId: id, durationMs: now() - startedAt };
     } catch (error) {
-      if (error?.name === "ProviderError") {
+      if (error?.name === "ProviderError" || request.signal?.aborted) {
         throw error;
       }
       const code = error?.name === "TimeoutError" || error?.code === "REQUEST_TIMEOUT"
@@ -367,7 +368,8 @@
     return `${cacheKey(endpointKey)}::${JSON.stringify(requestData ?? null)}`;
   }
 
-  async function withCache(endpointKey, requestData, ttl, loader) {
+  async function withCache(endpointKey, requestData, ttl, loader, signal) {
+    if (signal) return { ...await loader(), cache: { hit: false, ttlMs: ttl } };
     const key = cacheKey(endpointKey);
     const cached = api.cache?.get?.(key, requestData);
     if (cached) {
@@ -825,6 +827,7 @@
         method: "POST",
         body,
         requestId: options.requestId,
+        signal: options.signal,
       }, config);
       if (!validateLookup(res.data, clean)) {
         throw invalidShape("lookup", res.status, res.requestId);
@@ -835,7 +838,7 @@
         requestId: res.requestId,
         updatedAt: now(),
       };
-    });
+    }, options.signal);
   }
 
   async function getPrices(ids, options = {}, config = {}) {
@@ -951,6 +954,7 @@
         method: "POST",
         body: clean,
         requestId: options.requestId,
+        signal: options.signal,
       }, config);
       if (!validateOverviewResponse(res.data)) throw invalidShape("overview", res.status, res.requestId);
       validateExpectedCurrencies("overview", res.data, country, expectedCurrency, res.status, res.requestId);
@@ -963,7 +967,7 @@
         requestId: res.requestId,
         updatedAt: now(),
       };
-    });
+    }, options.signal);
   }
 
   async function getInfo(id, options = {}, config = {}) {

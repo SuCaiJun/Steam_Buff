@@ -83,9 +83,23 @@
   const http = Object.freeze({ id: "http-request", name: "HTTP 请求", category: "网络", outputType: "object", outputName: "HTTP 响应", fields: [
     data.field("url", "URL"), data.field("headers", "请求头", "object", {}), data.field("body", "请求体", "any", ""),
   ] });
-  const definitions = Object.freeze({ ...data.byId, ...effects, [http.id]: http });
+  const aiTool = Object.freeze({ id: "tool-call", name: "调用工具", category: "AI", outputType: "object", outputName: "工具结果", fields: [
+    data.field("toolRequest", "工具请求", "object", {}),
+    data.field("toolArgs", "工具参数", "object", {}),
+    data.field("toolData", "工具结果", "any", ""),
+    data.field("toolReason", "跳过原因"),
+  ] });
+  const toolQuery = Object.freeze({ id: "query-provider-data", name: "查询平台数据", category: "网络", outputType: "object", outputName: "查询结果",
+    fields: [data.field("appId", "AppID", "number", 0)] });
+  const toolFields = Object.freeze({
+    request: ["toolRequest", "toolArgs"], registered: ["toolArgs"],
+    result: ["toolRequest", "toolData"], skipped: ["toolRequest", "toolReason"], failed: ["toolRequest", "toolReason"],
+  });
+  const definitions = Object.freeze({ ...data.byId, ...effects, [http.id]: http, [aiTool.id]: aiTool, [toolQuery.id]: toolQuery });
+  const actionFields = node => definitions[node.action]?.fields.filter(field =>
+    node.action !== aiTool.id || toolFields[node.toolMode]?.includes(field.key));
   const failable = node => !!definitions[node.action] || ["script", "ai-call"].includes(node.action);
-  const catalog = [...data.definitions, ...effectDefinitions, http, ...[
+  const catalog = [...data.definitions, ...effectDefinitions, http, aiTool, toolQuery, ...[
     ["if", "IF 判断", "条件判断"], ["if-many", "IF 多条件", "条件判断"],
     ["else-if", "Else IF", "条件判断"], ["else-if-many", "Else IF 多条件", "条件判断"],
     ["else", "Else", "条件判断"], ["end-if", "End IF", "条件判断"],
@@ -95,7 +109,7 @@
     ["break", "退出循环", "循环"], ["end-loop", "循环结束标记", "循环"],
     ["ai-call", "调用 AI", "AI"], ["notify", "发送通知", "消息"],
     ["interactive", "发送交互消息并等待", "消息"], ["wait", "等待", "等待与控制"],
-    ["stop", "结束本次运行", "等待与控制"], ["log", "打印日志", "日志与备注"],
+    ["stop", "结束本次运行", "等待与控制"], ["tool-return", "返回工具结果", "等待与控制"], ["log", "打印日志", "日志与备注"],
     ["comment", "添加备注说明", "日志与备注"], ["try", "Try", "异常处理"],
     ["catch", "Catch", "异常处理"], ["finally", "Finally", "异常处理"],
     ["end-try", "End Try", "异常处理"], ["raise", "Raise", "异常处理"],
@@ -209,7 +223,7 @@
       get: { value: literal({}), key: literal(""), output: variableIf("get", "workflow_ui_item", "项目") },
       json: { value: literal(""), output: variableIf("json", "seed_variable_json", "JSON 数据") },
       wait: { seconds: literal(1) }, log: { value: literal(""), level: "info" },
-      comment: { text: "" }, raise: { value: literal(text("workflow_ui_exception_raised_by_workflow", "流程主动抛出异常")) },
+      comment: { text: "" }, "tool-return": { value: literal("") }, raise: { value: literal(text("workflow_ui_exception_raised_by_workflow", "流程主动抛出异常")) },
     };
     function variableIf(action, labelKey, fallback, kind) {
       return key === action ? variable(workflow, text(labelKey, fallback), kind) : "";
@@ -226,6 +240,8 @@
       });
       if (key === "family-refresh") node.requestTimeoutSeconds = 12;
       if (key === http.id) Object.assign(node, { method: "GET", origin: "", requestTimeoutSeconds: httpMaxTimeout });
+      if (key === aiTool.id) node.toolMode = "request";
+      if (key === toolQuery.id) node.provider = root.STAI.CHAT_TOOLS[0].id;
       return node;
     }
     if (key === "script") return Object.assign(node, { code: [""], seconds: 10, output: variable(workflow, text("workflow_ui_script_result", "脚本结果")) });
@@ -306,6 +322,7 @@
       !Number.isSafeInteger(workflow.revision) || workflow.revision < 1 || !Array.isArray(workflow.variables) || !Array.isArray(workflow.steps))
       throw configurationError("工作流结构无效", "workflow_error_workflow");
     const vars = new Set(), labels = new Set(), ids = new Set();
+    const inTool = isToolId(workflow.id);
     for (const item of workflow.variables) {
       if (!validId(item.id) || vars.has(item.id) || typeof item.name !== "string" || !item.name.trim() || labels.has(item.name) ||
         !["any", "text", "number", "boolean", "list", "object", "result"].includes(item.type)) throw configurationError("变量 ID、名称或类型无效", "workflow_error_variable");
@@ -321,6 +338,8 @@
         if (!node || !validId(node.id) || ids.has(node.id) || !Object.hasOwn(names, type(node)) || markers.has(type(node))) throw configurationError("指令 ID 或类型无效", "workflow_error_action");
         ids.add(node.id);
         try {
+          if (inTool ? !toolAction(type(node)) : toolOnlyAction(node.action))
+            throw configurationError("此处不能使用该指令", "workflow_error_tool_instruction");
           if (node.disabled !== undefined && typeof node.disabled !== "boolean") throw configurationError("指令禁用状态无效", "workflow_error_disabled");
           if (node.kind === "if" && (node.endDisabled !== undefined && typeof node.endDisabled !== "boolean" || !!node.disabled !== !!node.endDisabled)) throw configurationError("IF 与 End IF 的启用状态必须一致，请分别设置这两行", "workflow_error_if_enabled");
           if (node.kind === "if") {
@@ -341,7 +360,7 @@
             if (node.finally !== null) sequence(node.finally, depth);
           } else {
             if (node.kind !== "action") throw configurationError("指令结构无效", "workflow_error_action_structure");
-            const required = definitions[node.action]?.fields.map(field => field.key).filter(key => node.action !== http.id || key !== "body" || hasHttpBody(node.method)) || { raise: ["value"], log: ["value"], wait: ["seconds"], notify: ["body"] }[node.action] || [];
+            const required = actionFields(node)?.map(field => field.key).filter(key => node.action !== http.id || key !== "body" || hasHttpBody(node.method)) || { raise: ["value"], log: ["value"], wait: ["seconds"], notify: ["body"], "tool-return": ["value"] }[node.action] || [];
             if (required.some(key => !Object.hasOwn(node, key))) throw configurationError("指令缺少必填输入", "workflow_error_action_input");
             if (["break", "continue"].includes(node.action) && !depth) throw configurationError("该指令只能放在循环内", "workflow_error_loop");
             for (const key of new Set([...required, "game", "source", "body"])) if (Object.hasOwn(node, key)) validateValue(node[key], vars);
@@ -364,7 +383,26 @@
               if (Object.hasOwn(url, "literal") && !known) throw configurationError("请输入有效的 HTTP 或 HTTPS URL", "workflow_error_http_url");
               if (!node.origin || node.origin !== httpUrl(node.origin)?.origin || known && known !== node.origin) throw configurationError("请选择与 URL 一致的请求站点", "workflow_error_http_origin");
               if (!httpMethods.includes(node.method) || !Number.isSafeInteger(node.requestTimeoutSeconds) || node.requestTimeoutSeconds < 1 || node.requestTimeoutSeconds > httpMaxTimeout) throw configurationError(`请选择 HTTP 方法，并将超时设置为 1–${httpMaxTimeout} 秒`, "workflow_error_http_method", { max: httpMaxTimeout });
+              if (inTool) {
+                const headers = activeValue(node.headers);
+                if (node.method !== "GET" || !Object.hasOwn(url, "literal") && !Array.isArray(url.template) ||
+                  !Object.hasOwn(headers, "literal") || !headers.literal ||
+                  typeof headers.literal !== "object" || Array.isArray(headers.literal) || Object.keys(headers.literal).length ||
+                  node.keyHeader !== undefined && (typeof node.keyHeader !== "string" ||
+                    !/^[!#$%&'*+.^_`|~A-Za-z0-9-]+$/.test(node.keyHeader) ||
+                    /^(cookie|host|referer|origin|proxy-.*|sec-.*)$/i.test(node.keyHeader)))
+                  throw configurationError("工具只支持 GET 查询、URL 文本模板和本机密钥引用", "workflow_error_tool_http");
+              }
             }
+            if (node.action === aiTool.id) {
+              if (!Object.hasOwn(toolFields, node.toolMode) || node.toolMode === "registered" &&
+                !isToolId(node.toolId))
+                throw configurationError("请选择工具执行方式与工具", "workflow_error_tool_settings");
+              if (!["any", "object"].includes(workflow.variables.find(item => item.id === node.output).type))
+                throw configurationError("工具结果需要保存到字典或动态变量", "workflow_error_tool_output");
+            }
+            if (node.action === toolQuery.id && !isProviderToolId(node.provider))
+              throw configurationError("请选择数据来源", "workflow_tool_provider");
             if (node.onError !== undefined) {
               if (!failable(node) || !["throw", "continue"].includes(node.onError)) throw configurationError("错误处理方式无效", "workflow_error_error_mode");
             }
@@ -383,10 +421,19 @@
                 throw configurationError("请选择 AI 服务、提示词并配置请求超时", "workflow_error_ai_settings");
               output(node.output, true);
               if (node.context !== undefined) validateValue(node.context, vars);
-              output(node.contextOutput);
-              if (node.contextOutput && (node.contextOutput === node.output || node.contextOutput === node.errorOutput ||
-                !["any", "list"].includes(workflow.variables.find(item => item.id === node.contextOutput).type)))
-                throw configurationError("对话上下文需要保存到独立的列表或动态变量", "workflow_error_chat_output");
+              if (node.toolResults !== undefined) validateValue(node.toolResults, vars);
+              if (node.toolIds !== undefined && (!Array.isArray(node.toolIds) ||
+                new Set(node.toolIds).size !== node.toolIds.length || node.toolIds.some(id => !isToolId(id))))
+                throw configurationError("可用工具配置无效", "workflow_error_tool_settings");
+              const assigned = new Set([node.output, node.errorOutput]);
+              for (const slot of ["contextOutput", "toolRequestsOutput"]) {
+                const id = node[slot];
+                output(id);
+                if (!id) continue;
+                if (assigned.has(id) || !["any", "list"].includes(workflow.variables.find(item => item.id === id).type))
+                  throw configurationError("对话历史和工具请求分别需要独立的列表或动态变量", "workflow_error_ai_list_output");
+                assigned.add(id);
+              }
             }
             if (node.action === "family-refresh" && (!Number.isSafeInteger(node.requestTimeoutSeconds) || node.requestTimeoutSeconds < 1 || node.requestTimeoutSeconds > 3600)) throw configurationError("家庭库刷新超时无效", "workflow_error_family_timeout");
             if (node.action === "family-refresh" && (Object.hasOwn(node, "retryCount") || Object.hasOwn(node, "retrySeconds"))) throw configurationError("旧家庭库重试参数需要改为显式循环和等待", "workflow_error_legacy_family");
@@ -418,6 +465,9 @@
       const ready = available.get(node.id);
       if (!ready) throw Object.assign(configurationError("当前指令不属于工作流", "workflow_error_not_in_flow"), { nodeId: node.id });
       for (const ref of nodeReferences(node)) {
+        if (inTool && (ref.source === "meta" || ref.source === "input" && ref.path.length &&
+          !workflow.parameters?.some(parameter => parameter.name === ref.path[0])))
+          throw Object.assign(configurationError("请选择已声明的工具输入", "workflow_error_tool_input"), { nodeId: node.id });
         if (ref.source === "variable" && !ready.has(ref.id)) {
           const name = workflow.variables.find(item => item.id === ref.id)?.name || ref.id;
           throw Object.assign(configurationError(`变量“${name}”尚未在此前指令中创建`, "workflow_error_unassigned", { name }), { nodeId: node.id });
@@ -442,7 +492,9 @@
     const result = { status: "执行状态", code: "原因代码", reason: "失败原因" };
     if (slot === "errorOutput") return Object.entries({ ...result, error: "异常信息" });
     if (slot === "error") return Object.entries({ name: "异常类型", message: "异常内容", stack: "调用堆栈", code: "错误代码", nodeId: "指令 ID", field: "输入字段", cause: "原始原因" });
+    if (slot === "toolRequestItem") return [["id", "请求 ID"], ["toolId", "工具 ID"], ["arguments", "工具参数"], ["contextId", "请求批次 ID"]];
     if (node.action === http.id) return [["status", "HTTP 状态码"], ["ok", "是否成功"], ["headers", "响应头"], ["body", "响应体"]];
+    if (node.action === aiTool.id) return [["status", "执行状态"], ["toolId", "工具 ID"], ["data", "工具数据"], ["reason", "原因"], ["code", "原因代码"]];
     if (node.action === "notify") return Object.entries(node.messageType === "interactive" ? { ...result, decision: "用户操作", decisionLabel: "按钮名称" } : result);
 
     if (node.action === "steam-save-translations") return [["saved", "已保存的译文"]];
@@ -490,7 +542,13 @@
           if (active) { ready.clear(); merge(ready, after); }
         } else if (loops.has(node.kind)) {
           const locals = new Map(ready);
-          if (["foreach", "entries"].includes(node.kind)) { locals.set(node.item, [{ node, slot: "item" }]); locals.set(node.index, [{ node, slot: "index" }]); }
+          if (["foreach", "entries"].includes(node.kind)) {
+            const input = activeValue(node.value);
+            const toolList = node.kind === "foreach" && input.source === "variable" && !input.path.length &&
+              ready.get(input.id)?.some(({ slot }) => slot === "toolRequestsOutput");
+            locals.set(node.item, [{ node, slot: toolList ? "toolRequestItem" : "item" }]);
+            locals.set(node.index, [{ node, slot: "index" }]);
+          }
           const after = sequence(node.body, locals, active);
           if (active) for (const [id, producers] of after) if (id !== node.item && id !== node.index) merge(ready, new Map([[id, producers]]));
         } else if (node.kind === "try") {
@@ -504,6 +562,7 @@
         } else if (active) {
           if (node.output) ready.set(node.output, [{ node, slot: "output" }]);
           if (node.action === "ai-call" && node.contextOutput) ready.set(node.contextOutput, [{ node, slot: "contextOutput" }]);
+          if (node.action === "ai-call" && node.toolRequestsOutput) ready.set(node.toolRequestsOutput, [{ node, slot: "toolRequestsOutput" }]);
           if (node.errorOutput) ready.set(node.errorOutput, [{ node, slot: "errorOutput" }]);
         }
       }
@@ -551,12 +610,21 @@
     state.vars[id] = clone(value);
   }
   const empty = value => value === null || value === "" || (Array.isArray(value) && value.length === 0) || (value !== null && typeof value === "object" && Object.keys(value).length === 0);
+  const isProviderToolId = id => root.STAI.CHAT_TOOLS.some(tool => tool.id === id);
+  const isToolId = id => typeof id === "string" && (/^tool_[a-f0-9]{32}$/.test(id) || isProviderToolId(id));
+  const toolOnlyAction = key => key === "tool-return" || key === toolQuery.id;
+  const toolIds = node => node.action === "ai-call" ? node.toolIds || []
+    : node.action === "tool-call" && node.toolMode === "registered" ? [node.toolId] : [];
+  const toolAction = key => toolOnlyAction(key) || Object.hasOwn(data.byId, key) && !data.readingActions.includes(key) ||
+    loops.has(key) && key !== "forever" || ["http-request", "if", "if-many", "else-if", "else-if-many", "else", "end-if",
+      "continue", "break", "end-loop", "try", "catch", "finally", "end-try", "raise", "comment", "fold-start", "fold-end"].includes(key);
   /** 指令契约中的输入值；运行、编辑器引用与表达式求值共用此边界。 */
   function inputs(node) {
     const result = [];
-    const keys = new Set([...(definitions[node.action]?.fields.map(field => field.key) || []), "body", "seconds", "value", "count"]);
+    const keys = new Set([...(actionFields(node)?.map(field => field.key) || []), "body", "seconds", "value", "count"]);
     for (const key of keys) if (node[key] && typeof node[key] === "object" && (node.action !== http.id || key !== "body" || hasHttpBody(node.method))) result.push([key, node[key]]);
     if (node.action === "ai-call" && node.context !== undefined) result.push(["context", node.context]);
+    if (node.action === "ai-call" && node.toolResults !== undefined) result.push(["toolResults", node.toolResults]);
     if (node.action === "script" && Array.isArray(node.code)) node.code.forEach((part, index) => { if (typeof part !== "string") result.push(["code." + index, part]); });
     if (node.action === "ai-call") for (const [key, value] of Object.entries(node.inputs || {})) result.push(["inputs." + key, value]);
     return result;
@@ -642,13 +710,13 @@
   function pop(state) { const frame = state.stack.pop(); if (frame?.kind === "loop") restore(frame, state); return frame; }
   function errorData(error) {
     const value = {};
-    for (const key of ["name", "message", "stack", "code", "nodeId", "field", "saved", "conflicts"]) if (error[key] !== undefined) value[key] = clone(error[key]);
+    for (const key of ["name", "message", "stack", "code", "nodeId", "field", "saved", "conflicts", "toolId", "toolNodeId"]) if (error[key] !== undefined) value[key] = clone(error[key]);
     if (error.cause) value.cause = errorData(error.cause);
     return value;
   }
   function errorObject(value) {
     const error = new Error(value.message, value.cause ? { cause: errorObject(value.cause) } : undefined);
-    for (const key of ["name", "stack", "code", "nodeId", "field", "saved", "conflicts"]) if (value[key] !== undefined) error[key] = value[key];
+    for (const key of ["name", "stack", "code", "nodeId", "field", "saved", "conflicts", "toolId", "toolNodeId"]) if (value[key] !== undefined) error[key] = value[key];
     return error;
   }
   /** Catch 只处理显式 Try 范围；停止/账号失效由宿主终止，不进入此分支 */
@@ -672,20 +740,22 @@
     }
     return false;
   }
-  function transfer(workflow, state, kind) {
-    const target = kind === "stop" ? -1 : state.stack.findLastIndex(frame => frame.kind === "loop");
-    if (kind !== "stop" && target < 0) throw new Error("当前不在循环中");
+  function transfer(workflow, state, kind, value) {
+    const ends = kind === "stop" || kind === "return";
+    const target = ends ? -1 : state.stack.findLastIndex(frame => frame.kind === "loop");
+    if (!ends && target < 0) throw new Error("当前不在循环中");
     while (state.stack.length - 1 > target) {
       const frame = state.stack.at(-1);
       if (frame.kind === "try" && frame.phase !== "finally" && pathGet(workflow, frame.path).finally !== null) {
-        frame.phase = "finally"; frame.pending = { kind };
+        frame.phase = "finally"; frame.pending = kind === "return" ? { kind, value } : { kind };
         state.stack.push(sequenceFrame([...frame.path, "finally"]));
         return;
       }
       pop(state);
     }
     if (kind === "break") pop(state);
-    if (kind === "stop") state.done = true;
+    if (ends) state.done = true;
+    if (kind === "return") state.returned = value;
   }
   function complete(workflow, state, node, value) {
     if (currentNode(workflow, state)?.id !== node.id) throw new Error("工作流执行位置已改变");
@@ -696,9 +766,11 @@
   }
   /** 仅显式继续的已知数据/脚本失败可在当前指令结束；未知宿主异常仍交给 Try/Catch */
   function failed(workflow, state, node, error) {
-    if (node.onError !== "continue" || !error.actionResult && !error.familyResult && !["WORKFLOW_DATA_ERROR", "WORKFLOW_VALUE_UNSET", "WORKFLOW_VALUE_TYPE", "WORKFLOW_GAME_FIELD_UNAVAILABLE", "WORKFLOW_SCRIPT_ERROR", "WORKFLOW_SCRIPT_TIMEOUT", "WORKFLOW_HTTP_FAILED", "WORKFLOW_HTTP_PERMISSION_REQUIRED", "WORKFLOW_HTTP_TIMEOUT", "WORKFLOW_SUPPORTER_REQUIRED", "AUTOMATION_NAME_ACCESS", "AI_CONFIG_UNAVAILABLE", "AI_RESPONSE_INVALID", "AI_RESPONSE_REFUSED", "PROMPT_UNAVAILABLE", "PROMPT_INVALID", "ACTION_WRITE_CONFLICT", "ACHIEVEMENT_VALUE_INVALID", "ACHIEVEMENT_CONFLICT"].includes(error.code)) return false;
+    if (node.onError !== "continue" || !error.actionResult && !error.familyResult && !["WORKFLOW_DATA_ERROR", "WORKFLOW_VALUE_UNSET", "WORKFLOW_VALUE_TYPE", "WORKFLOW_GAME_FIELD_UNAVAILABLE", "WORKFLOW_SCRIPT_ERROR", "WORKFLOW_SCRIPT_TIMEOUT", "WORKFLOW_HTTP_FAILED", "WORKFLOW_HTTP_PERMISSION_REQUIRED", "WORKFLOW_HTTP_TIMEOUT", "WORKFLOW_SUPPORTER_REQUIRED", "WORKFLOW_TOOL_KEY_REQUIRED", "AUTOMATION_NAME_ACCESS", "AI_CONFIG_UNAVAILABLE", "AI_RESPONSE_INVALID", "AI_RESPONSE_REFUSED", "PROMPT_UNAVAILABLE", "PROMPT_INVALID", "ACTION_WRITE_CONFLICT", "ACHIEVEMENT_VALUE_INVALID", "ACHIEVEMENT_CONFLICT"].includes(error.code)) return false;
     if (currentNode(workflow, state)?.id !== node.id) throw new Error("工作流执行位置已改变");
     if (node.output) delete state.vars[node.output];
+    if (node.toolRequestsOutput) write(state, node.toolRequestsOutput, []);
+    if (node.action === aiTool.id && error.toolResult) write(state, node.output, error.toolResult);
     const detail = { status: "failed", reason: error.message, code: error.code, error: errorData(error) };
     if (node.errorOutput) write(state, node.errorOutput, detail);
     (state.failures ??= []).push({ at: Date.now(), nodeId: node.id, ...detail });
@@ -717,7 +789,7 @@
       if (node.disabled) { frame.index++; return { kind: "control" }; }
       if (node.kind === "action") {
         // AI 输入由模板确定，HTTP 输入在确认账号权限后求值，脚本只读取代码中的变量引用
-        if (node.action !== "ai-call" && node.action !== http.id && node.action !== "script") await evaluateValues(inputs(node), state, evaluate);
+        if (!["ai-call", aiTool.id, http.id, toolQuery.id, "script"].includes(node.action)) await evaluateValues(inputs(node), state, evaluate);
         return { kind: "action", node };
       }
       const path = [...frame.path, frame.index];
@@ -745,7 +817,7 @@
         frame.index++;
         state.stack.push({ kind: "try", path, phase: "body", pending: null }, sequenceFrame([...path, "body"]));
       }
-      return { kind: "control" };
+      return { kind: "control", node };
     }
     const node = pathGet(workflow, frame.path);
     state.nodeId = node.id;
@@ -774,7 +846,7 @@
       if (frame.pending?.kind === "error") {
         const error = errorObject(frame.pending.error);
         if (!raise(workflow, state, error)) throw error;
-      } else if (frame.pending) transfer(workflow, state, frame.pending.kind);
+      } else if (frame.pending) transfer(workflow, state, frame.pending.kind, frame.pending.value);
     }
     return { kind: "control" };
   }
@@ -792,7 +864,8 @@
     } else if (node.action === "raise") {
       const value = read(node.value, state);
       throw value && typeof value === "object" && typeof value.message === "string" ? errorObject(value) : new Error(String(value));
-    } else if (["break", "continue", "stop"].includes(node.action)) { transfer(workflow, state, node.action); return true; }
+    } else if (node.action === "tool-return") { transfer(workflow, state, "return", read(node.value, state)); return true; }
+    else if (["break", "continue", "stop"].includes(node.action)) { transfer(workflow, state, node.action); return true; }
     else if (node.action === "comment") result = null;
     else return false;
     complete(workflow, state, node, result);
@@ -859,8 +932,8 @@
     out.push({ depth: 0, marker: "insert", listPath: ["steps"], index: workflow.steps.length, key: "root-gap" });
     return out;
   }
-  const previewable = node => node.kind === "if" || !!(data.byId[node.action] || effects[node.action]?.gameField || ["script", "ai-call", http.id].includes(node.action));
-  root.STWorkflow = Object.freeze({ catalog: Object.freeze(catalog), definitions, effects, failable, previewable, names: Object.freeze(names), loops, markers, operations, clone, literal, constant, reference,
+  const previewable = node => node.kind === "if" || !!(data.byId[node.action] || effects[node.action]?.gameField || ["script", "ai-call", http.id, toolQuery.id].includes(node.action));
+  root.STWorkflow = Object.freeze({ catalog: Object.freeze(catalog), definitions, actionFields, effects, failable, previewable, names: Object.freeze(names), loops, markers, operations, clone, literal, constant, reference, isToolId, isProviderToolId, toolAction, toolOnlyAction, toolIds,
     httpMethods, httpMaxTimeout, hasHttpBody, httpUrl, staticHttpOrigin, instructionPermission, permissionNotice, permissionDenial,
     numericId, variable, condition, comparison, multiple, unary, inputs, conditionInputs, inputValue, activeValue, references, nodeReferences, scopes, outputFields, evaluateValues, type, walk, createNode, validate, validateValue, validateCondition, read, write, matches, state, next, local, failed,
     complete, currentNode, raise, transfer, rows, foldPairs, foldLayout, visitSequences, pathGet, errorData, errorObject });

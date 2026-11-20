@@ -385,6 +385,27 @@
       desc: "设置中心显示效果和基础偏好。",
       items: Object.freeze([
         {
+          id: "ai-chat-web",
+          name: "网页 AI 对话入口",
+          desc: "在 Steam 商店和社区网页显示 AI 对话入口",
+          area: "settings",
+          enabled: false,
+        },
+        {
+          id: "ai-chat-main",
+          name: "客户端 AI 对话入口",
+          desc: "在 Steam 客户端主窗口右下角显示 AI 对话入口",
+          area: "settings",
+          enabled: false,
+        },
+        {
+          id: "ai-chat-friends",
+          name: "好友列表 AI 对话入口",
+          desc: "在 Steam 客户端好友列表顶部显示本地 AI 对话入口",
+          area: "settings",
+          enabled: false,
+        },
+        {
           id: "settings-startup-animation",
           name: "设置中心启动动画",
           desc: "开启后，设置中心首次打开时播放 Logo 启动动画",

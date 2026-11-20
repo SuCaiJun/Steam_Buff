@@ -13,13 +13,13 @@
   const tr = (key, fallback) => globalThis.STI18n?.text(key, fallback) ?? fallback;
   const flow = root.STWorkflow, model = root.STAutomation;
   const categories = Object.freeze({
-    "条件判断": "sitemap", "循环": "repeat", "等待与控制": "player-pause", "数据处理": "database", "Steam 操作": "device-gamepad-2",
-    "AI": "brain", "消息": "messages", "网络": "link", "脚本": "terminal-2", "其他": "category",
+    "数据处理": "database", "条件判断": "sitemap", "循环": "repeat", "AI": "brain", "Steam 操作": "device-gamepad-2",
+    "网络": "link", "消息": "messages", "等待与控制": "player-pause", "脚本": "terminal-2", "其他": "category",
   });
   const otherCategories = Object.freeze({ "异常处理": "shield-exclamation", "折叠": "layout-list", "日志与备注": "notebook" });
   const groups = Object.freeze({
-    "输入与变量": "variable", "文本操作": "typography", "列表操作": "list", "字典操作": "braces",
-    "日期时间": "calendar", "JSON 转换": "file-code", "CSV 转换": "file-type-csv", "Base64 编解码": "binary",
+    "输入与变量": "variable", "列表操作": "list", "字典操作": "braces", "文本操作": "typography",
+    "JSON 转换": "file-code", "日期时间": "calendar", "CSV 转换": "file-type-csv", "Base64 编解码": "binary",
     "游戏名称": "tag", "收藏分组": "folders", "家庭库": "users-group", "游戏成就": "trophy",
     "应用与状态": "apps", "内容与支持": "list-details", "评价与时间": "chart-bar",
   });
@@ -27,21 +27,21 @@
     { id: "fold-end", name: "折叠结束", category: "折叠" }];
   const byId = Object.fromEntries(definitions.map(item => [item.id, item]));
   const commands = [
-    "ai-call",
-    "wait", "stop",
-    "http-request", "script",
+    "ai-call", "tool-call",
+    "tool-return", "wait", "stop",
+    "http-request", "query-provider-data", "script",
     "log", "comment",
     "base64-encode", "base64-decode",
     "csv-parse", "csv-stringify",
     "json", "json-stringify",
-    "list-filter-condition", "list", "list-get", "list-reverse", "list-filter", "list-merge", "list-intersection",
-    "list-length", "list-index", "list-slice", "list-insert", "list-chunk", "list-sort", "list-unique", "list-shuffle",
-    "list-clear", "list-field", "list-set", "list-remove", "append",
-    "date-now", "date-diff", "date-parts", "date-to-timestamp", "date-format", "date-from-timestamp", "date-add", "date-parse",
-    "random", "get", "receive", "convert", "set", "calculate",
-    "text-pad", "text-extract", "text-case", "text-length", "text-slice", "text-join", "text-trim", "text-pinyin",
-    "text-mnemonic", "text-split", "text-replace", "text-append",
-    "record", "dict-get", "dict-get-default", "dict-keys", "dict-values", "dict-has", "dict-clear", "dict-delete", "dict-set",
+    "set", "receive", "get", "convert", "calculate", "random",
+    "list", "append", "list-get", "list-set", "list-insert", "list-filter-condition", "list-filter", "list-field",
+    "list-sort", "list-unique", "list-merge", "list-length", "list-index", "list-slice", "list-chunk",
+    "list-intersection", "list-reverse", "list-shuffle", "list-remove", "list-clear",
+    "record", "dict-set", "dict-get", "dict-get-default", "dict-has", "dict-keys", "dict-values", "dict-delete", "dict-clear",
+    "text-append", "text-replace", "text-trim", "text-split", "text-join", "text-slice", "text-extract",
+    "text-length", "text-case", "text-pad", "text-pinyin", "text-mnemonic",
+    "date-now", "date-parse", "date-format", "date-add", "date-diff", "date-parts", "date-to-timestamp", "date-from-timestamp",
     "family-refresh",
     "steam-game-accessibility", "steam-game-tags", "steam-game-hardware", "steam-game-features", "steam-game-genres", "steam-game-languages",
     "steam-game-date-release", "steam-game-metacritic-score", "steam-game-review-score", "steam-game-date-added",
@@ -52,9 +52,9 @@
     "steam-display-name", "steam-custom-name", "steam-original-name", "steam-game-aliases", "steam-game-pinyin", "steam-game-mnemonic",
     "steam-game-original-language", "steam-sort-name", "steam-set-custom-name", "steam-set-aliases", "steam-set-pinyin",
     "steam-set-mnemonic", "steam-set-sort-name",
-    "if", "if-many", "else-if", "else-if-many", "else", "end-if",
+    "if", "if-many", "else", "else-if", "else-if-many", "end-if",
     "interactive", "notify",
-    "for", "while", "foreach", "entries", "forever", "continue", "break", "end-loop",
+    "for", "while", "forever", "foreach", "entries", "continue", "break", "end-loop",
     "try", "catch", "finally", "end-try", "raise",
     "fold-start", "fold-end",
   ].map(id => byId[id]);
@@ -65,7 +65,7 @@
     groupOrder.indexOf(a.group) - groupOrder.indexOf(b.group)));
   // 键沿用指令契约，值使用 Tabler 上游 SVG 文件名。
   const commandIcons = Object.freeze({
-    "ai-call": "sparkles", "http-request": "link", wait: "hourglass", stop: "player-stop", script: "code", log: "article",
+    "ai-call": "sparkles", "tool-call": "link", "tool-return": "arrow-back-up", "http-request": "link", "query-provider-data": "database", wait: "hourglass", stop: "player-stop", script: "code", log: "article",
     comment: "message", "base64-encode": "binary", "base64-decode": "file-symlink",
     "csv-parse": "file-type-csv", "csv-stringify": "file-export", json: "braces",
     "json-stringify": "file-code", "list-filter-condition": "filter-check", list: "list",
@@ -116,6 +116,9 @@
     for: "按指定次数执行内部指令", while: "每轮开始前判断条件，满足时继续循环", foreach: "逐项读取列表并执行内部指令", entries: "逐项读取字典的键和值", forever: "重复执行内部指令，直到流程退出循环",
     continue: "跳过当前轮剩余指令，开始下一轮", break: "退出当前循环", "end-loop": "结束当前循环区域",
     "ai-call": "发送内容给 AI，保存回复原文",
+    "tool-call": "执行登记的工具，或为 AI 记录一条已有结果",
+    "tool-return": "返回数据并结束工具执行",
+    "query-provider-data": "按 AppID 查询 Steam 或 ITAD 数据",
     notify: "按配置的级别、范围和方式发送通知", interactive: "发送带操作按钮的消息并等待用户操作或超时",
     wait: "等待指定时间后继续执行", stop: "结束本次工作流运行", log: "将内容写入本次运行日志", comment: "为流程添加不参与执行的备注",
     try: "尝试执行内部指令", catch: "发生异常时执行，并保存异常信息", finally: "无论成功或失败都执行", "end-try": "结束异常处理区域", raise: "主动抛出异常，由 Catch 处理或结束失败",
@@ -471,7 +474,9 @@
       return [tr("workflow_ui_use", "使用 "), token(service?.name || tr("workflow_ui_select_ai_service", "待选 AI 服务")), tr("settings_lock_depAnd", " 和 "),
         token(plan?.name || tr("workflow_ui_select_prompt_template", "待选提示词模板")), ...inputs, ...(node.output ? [tr("workflow_ui_save_reply_to_label", "，回复保存到 "), variable(node.output)] : []),
         ...(node.context && flow.activeValue(node.context).literal !== "" ? [tr("workflow_ui_pass_chat_history", "，传入对话历史 "), ...value(node.context)] : []),
-        ...(node.contextOutput ? [tr("workflow_ui_save_chat_history_to", "，对话历史保存到 "), variable(node.contextOutput)] : [])];
+        ...(node.contextOutput ? [tr("workflow_ui_save_chat_history_to", "，对话历史保存到 "), variable(node.contextOutput)] : []),
+        ...(node.toolResults ? ["，", tr("workflow_ui_tool_results_input", "传入工具结果"), " ", ...value(node.toolResults)] : []),
+        ...(node.toolRequestsOutput ? ["，", tr("workflow_ui_save_tool_requests_to", "保存工具请求至"), " ", variable(node.toolRequestsOutput)] : [])];
     }
     if (id === "notify" || id === "interactive") return [tr("workflow_ui_send", "发送 "), ...value(node.body), "（", schemaLabel(model.NOTICE_TYPES[node.level]), "），", token(node.delivery === "popup" ? tr("workflow_ui_message_center_and_popup", "消息中心并弹出") : tr("messageCenter_navigationLabel", "消息中心")),
       ...id === "interactive" ? [tr("workflow_ui_buttons", "；按钮："), token(node.buttons.map(item => item.label || item.id).join(" / ")), ...node.timeout ? [tr("workflow_ui_wait_up_to", "，最多等待 "), token(node.timeout.seconds), tr("workflow_ui_seconds_label", " 秒")] : [tr("workflow_ui_no_timeout", "，不设置超时")]] : ["，", token(node.scope === "device" ? tr("workflow_ui_this_device", "本机") : tr("workflow_ui_current_account", "当前账号"))], ...output(node.output)];
@@ -480,6 +485,16 @@
     if (id === "list" || id === "record" || id === "json") return [id === "json" ? tr("workflow_ui_parse", "解析 ") : tr("workflow_ui_create", "创建 "), ...value(node.value), ...output(node.output)];
     if (id === "get") return [tr("workflow_ui_from", "从 "), ...value(node.value), tr("workflow_ui_read", " 读取 "), ...value(node.key), ...output(node.output)];
     if (id === "http-request") return [tr("workflow_ui_to_label", "向 "), token(node.origin || tr("workflow_ui_site_required", "待填站点")), tr("workflow_ui_send_label", " 发送 "), token(node.method), tr("workflow_ui_request", " 请求"), ...output(node.output)];
+    if (id === "tool-call") {
+      const tool = editor.toolLibrary?.find(item => item.id === node.toolId);
+      return [tool && node.toolMode === "registered" ? token(tool.name) : hint(id), ...output(node.output)];
+    }
+    if (id === "query-provider-data") {
+      const provider = root.STAI.CHAT_TOOLS.find(item => item.id === node.provider);
+      return [token(provider ? tr(provider.label, provider.name) : tr("workflow_tool_provider", "数据来源")),
+        " · AppID ", ...value(node.appId), ...output(node.output)];
+    }
+    if (id === "tool-return") return value(node.value);
     if (flow.definitions[id]) return [...(flow.definitions[id].fields.length ? [] : [hint(id)]), ...flow.definitions[id].fields.flatMap((field, index) => [index ? "，" : "", schemaLabel(field.label), " ", ...value(node[field.key], schemaChoices(field.choices || []))]), ...output(node.output)];
     if (id === "script") {
       const references = [...new Set(flow.inputs(node).filter(([path]) => path.startsWith("code.")).map(([, ref]) => ref.id))];

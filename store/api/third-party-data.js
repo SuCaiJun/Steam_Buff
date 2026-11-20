@@ -11,7 +11,7 @@
 (() => {
   "use strict";
 
-  const api = window.STStore;
+  const api = globalThis.STStore;
   if (!api) return;
 
   const DEFAULT_PROVIDER = "isthereanydeal";
@@ -355,6 +355,7 @@
       includeSteam: options.includeSteam !== false,
       pageCountry: options.pageCountry || config.country || "",
       requestId: options.requestId,
+      signal: options.signal,
       since: options.since || DEFAULT_HISTORY_SINCE,
       until: options.until || "",
     };

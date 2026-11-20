@@ -13,7 +13,7 @@
   const tr = (key, fallback, params) => globalThis.STI18n?.text(key, fallback, params) ?? fallback;
   const flow = root.STWorkflow;
   const copyName = name => root.STI18n?.text("workflow_format_copy_name", "$name$副本", { name }) ?? name + "副本";
-  const outputKeys = ["output", "item", "index", "error", "errorOutput", "contextOutput"];
+  const outputKeys = ["output", "item", "index", "error", "errorOutput", "contextOutput", "toolRequestsOutput"];
   const typeNames = Object.freeze({ get any() { return tr("workflow_ui_dynamic", "动态"); }, get text() { return tr("steam_independentName_bulk_text", "文本"); }, get number() { return tr("steam_independentName_bulk_number", "数字"); }, get boolean() { return tr("workflow_ui_boolean", "布尔值"); }, get list() { return tr("seed_variable_list", "列表"); }, get object() { return tr("seed_variable_record", "字典"); }, get result() { return tr("workflow_ui_action_result", "指令结果"); } });
   const foldError = (message, nodeId) => Object.assign(new Error(message), { code: "WORKFLOW_CONFIG_INVALID", nodeId });
   function openDraft(workflow) {

@@ -9537,7 +9537,7 @@
     "message": "트리거 입력을 워크플로 변수에 저장합니다."
   },
   "workflow_command_convert_name": {
-    "message": "형식 변환"
+    "message": "변수 형식 변환"
   },
   "workflow_command_convert_hint": {
     "message": "JavaScript 규칙으로 텍스트, 숫자 또는 불리언으로 변환합니다."
@@ -10721,6 +10721,349 @@
   "workflow_ui_prompts": {
     "message": "프롬프트"
   },
+  "ai_chat_tools": {
+    "message": "도구"
+  },
+  "ai_chat_tool_game": {
+    "message": "Steam 게임 정보"
+  },
+  "ai_chat_tool_game_help": {
+    "message": "AppID로 Steam 상점의 공개 게임 정보를 조회합니다."
+  },
+  "ai_chat_tool_players": {
+    "message": "Steam 동시 접속자 수"
+  },
+  "ai_chat_tool_players_help": {
+    "message": "AppID로 현재 접속자 수를 조회합니다."
+  },
+  "ai_chat_tool_prices": {
+    "message": "ITAD 가격 및 역대 최저가"
+  },
+  "ai_chat_tool_prices_help": {
+    "message": "AppID로 설정한 지역의 현재 가격과 역대 최저가를 조회합니다."
+  },
+  "workflow_tool_title": {
+    "message": "도구"
+  },
+  "workflow_tool_name": {
+    "message": "도구 이름"
+  },
+  "workflow_tool_description": {
+    "message": "도구 용도"
+  },
+  "workflow_tool_inputs": {
+    "message": "도구 입력"
+  },
+  "workflow_tool_test": {
+    "message": "도구 테스트"
+  },
+  "workflow_tool_integer": {
+    "message": "정수"
+  },
+  "workflow_tool_app_id": {
+    "message": "Steam AppID"
+  },
+  "workflow_tool_add_parameter": {
+    "message": "매개변수 추가"
+  },
+  "workflow_tool_parameter_name": {
+    "message": "매개변수 이름"
+  },
+  "workflow_tool_parameter_description": {
+    "message": "매개변수 설명"
+  },
+  "workflow_tool_required": {
+    "message": "필수"
+  },
+  "workflow_tool_settings": {
+    "message": "도구 설정"
+  },
+  "workflow_tool_test_sites": {
+    "message": "실행 시 다음 사이트에 접근합니다"
+  },
+  "workflow_tool_untitled": {
+    "message": "제목 없는 도구"
+  },
+  "workflow_tool_edit": {
+    "message": "도구 편집"
+  },
+  "workflow_tool_new": {
+    "message": "새 도구"
+  },
+  "workflow_composition_group": {
+    "message": "명령 모음"
+  },
+  "workflow_composition_ai": {
+    "message": "AI 조회 후 답변"
+  },
+  "workflow_composition_http": {
+    "message": "HTTP 조회"
+  },
+  "workflow_composition_steps": {
+    "message": "생성할 단계"
+  },
+  "workflow_composition_generate": {
+    "message": "명령 생성"
+  },
+  "workflow_composition_select_tools": {
+    "message": "사용할 수 있는 도구를 하나 이상 선택하세요."
+  },
+  "workflow_composition_reply_required": {
+    "message": "답변을 저장할 변수를 선택하세요."
+  },
+  "workflow_composition_reply_type": {
+    "message": "텍스트 또는 임의 데이터 유형의 변수를 선택하세요."
+  },
+  "workflow_composition_new_input": {
+    "message": "도구 입력 추가"
+  },
+  "workflow_composition_query_key": {
+    "message": "쿼리 매개변수 이름"
+  },
+  "workflow_composition_input_binding": {
+    "message": "도구 입력 연결"
+  },
+  "workflow_composition_request_url": {
+    "message": "요청 URL"
+  },
+  "workflow_composition_query_mappings": {
+    "message": "쿼리 매개변수 매핑"
+  },
+  "workflow_composition_output_mode": {
+    "message": "조회 결과 저장 위치"
+  },
+  "workflow_composition_keep_return": {
+    "message": "변수에 저장하고 기존 반환 유지"
+  },
+  "workflow_composition_use_return": {
+    "message": "기존 반환 명령으로 전달"
+  },
+  "workflow_composition_before_return": {
+    "message": "새 명령이 기존 반환 앞에 삽입됩니다."
+  },
+  "workflow_composition_output_required": {
+    "message": "조회 결과를 보낼 위치를 선택하세요."
+  },
+  "workflow_composition_query_required": {
+    "message": "쿼리 매개변수 이름을 입력하세요."
+  },
+  "workflow_tool_search": {
+    "message": "도구 검색"
+  },
+  "workflow_tool_key_header": {
+    "message": "인증 헤더"
+  },
+  "workflow_tool_unavailable": {
+    "message": "사용 불가"
+  },
+  "workflow_tool_update": {
+    "message": "도구 업데이트"
+  },
+  "workflow_tool_affected": {
+    "message": "업데이트된 도구와 다음 작업의 호환성을 확인하세요."
+  },
+  "workflow_tool_invalid_file": {
+    "message": "도구 파일 유형 또는 버전이 올바르지 않습니다"
+  },
+  "workflow_tool_import": {
+    "message": "도구 가져오기"
+  },
+  "workflow_tool_import_copy": {
+    "message": "사본 저장"
+  },
+  "workflow_tool_references": {
+    "message": "도구 참조"
+  },
+  "workflow_tool_open_reference": {
+    "message": "작업으로 이동"
+  },
+  "workflow_tool_credentials": {
+    "message": "로컬 인증 정보"
+  },
+  "workflow_tool_credential_node": {
+    "message": "HTTP 작업"
+  },
+  "workflow_tool_key_value": {
+    "message": "인증 값(필요한 접두사 포함)"
+  },
+  "workflow_tool_clear_key": {
+    "message": "인증 정보 지우기"
+  },
+  "workflow_tool_clear_key_confirm": {
+    "message": "이 HTTP 작업을 실행하려면 인증 정보를 다시 입력해야 합니다."
+  },
+  "workflow_tool_key_required": {
+    "message": "인증 값을 입력하세요"
+  },
+  "workflow_command_query_provider_data_name": {
+    "message": "플랫폼 데이터 조회"
+  },
+  "workflow_command_query_provider_data_hint": {
+    "message": "AppID로 Steam 또는 ITAD 데이터를 조회합니다"
+  },
+  "workflow_output_query_provider_data": {
+    "message": "조회 결과"
+  },
+  "workflow_tool_provider": {
+    "message": "데이터 소스"
+  },
+  "workflow_tool_builtin": {
+    "message": "기본 제공"
+  },
+  "workflow_tool_referenced_delete": {
+    "message": "먼저 워크플로에서 이 도구의 참조를 제거하세요."
+  },
+  "workflow_tool_missing": {
+    "message": "도구 $id$을(를) 찾을 수 없습니다. 가져오거나 다른 도구를 선택하세요.",
+    "placeholders": {
+      "id": {
+        "content": "$1"
+      }
+    }
+  },
+  "workflow_tool_reference_count": {
+    "message": "작업 $count$개에서 참조",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "workflow_tool_count": {
+    "message": "도구 $count$개",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "workflow_tool_delete_confirm": {
+    "message": "‘$name$’ 및 로컬 인증 정보를 삭제합니다.",
+    "placeholders": {
+      "name": {
+        "content": "$1"
+      }
+    }
+  },
+  "workflow_error_tool_instruction": {
+    "message": "여기에서는 이 작업을 사용할 수 없습니다."
+  },
+  "workflow_error_tool_input": {
+    "message": "선언된 도구 입력을 선택하세요"
+  },
+  "workflow_error_tool_http": {
+    "message": "도구는 GET 조회, URL 텍스트 템플릿, 로컬 인증 참조를 지원합니다."
+  },
+  "workflow_command_tool_return_name": {
+    "message": "도구 결과 반환"
+  },
+  "workflow_command_tool_return_hint": {
+    "message": "데이터를 반환하고 도구 실행을 종료합니다"
+  },
+  "ai_chat_tool_references": {
+    "message": "AI 호출 작업 $count$개에서 사용",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "ai_chat_new": {
+    "message": "새 대화"
+  },
+  "ai_chat_history": {
+    "message": "대화 기록"
+  },
+  "ai_chat_service": {
+    "message": "AI 서비스"
+  },
+  "ai_chat_message": {
+    "message": "메시지"
+  },
+  "ai_chat_tool_preset": {
+    "message": "프롬프트 도구 프리셋"
+  },
+  "ai_chat_settings": {
+    "message": "AI 서비스 설정"
+  },
+  "ai_chat_stop": {
+    "message": "중지"
+  },
+  "ai_chat_send": {
+    "message": "보내기"
+  },
+  "ai_chat_you": {
+    "message": "나"
+  },
+  "ai_chat_current": {
+    "message": "현재 대화"
+  },
+  "ai_chat_select_service": {
+    "message": "AI 서비스 선택"
+  },
+  "ai_chat_tool_preset_choose": {
+    "message": "프리셋 선택"
+  },
+  "ai_chat_stopped": {
+    "message": "생성을 중지했습니다"
+  },
+  "ai_chat_timeout": {
+    "message": "요청 시간이 초과되었습니다. 다시 보낼 수 있습니다."
+  },
+  "ai_chat_disconnected": {
+    "message": "대화 연결이 끊겼습니다. 다시 보낼 수 있습니다."
+  },
+  "ai_chat_context_limit": {
+    "message": "대화가 너무 깁니다. 새 대화를 시작하세요."
+  },
+  "ai_chat_changed": {
+    "message": "대화가 업데이트되었습니다. 최신 메시지를 확인한 뒤 다시 보내세요."
+  },
+  "ai_chat_busy": {
+    "message": "다른 창에서 응답을 생성 중입니다."
+  },
+  "ai_chat_permission": {
+    "message": "타사 서비스 설정에서 AI 게이트웨이 접근을 허용하세요."
+  },
+  "ai_chat_config": {
+    "message": "AI 서비스를 사용할 수 없습니다. 설정을 확인하세요."
+  },
+  "ai_chat_itad_key": {
+    "message": "타사 서비스에서 ITAD API 키를 설정하세요."
+  },
+  "ai_chat_save_failed": {
+    "message": "대화를 저장하지 못했습니다. 확장 프로그램의 저장 공간을 확인하세요."
+  },
+  "ai_chat_failed": {
+    "message": "요청에 실패했습니다. 다시 보내거나 AI 서비스 설정을 확인하세요."
+  },
+  "ai_chat_waiting": {
+    "message": "생성 중…"
+  },
+  "ai_chat_querying": {
+    "message": "데이터 조회 중…"
+  },
+  "ai_chat_open_failed": {
+    "message": "Steam AI 대화 창을 열지 못했습니다. 다시 시도하세요."
+  },
+  "settings_feature_ai_chat_web_name": {
+    "message": "Steam 웹 AI 대화"
+  },
+  "settings_feature_ai_chat_web_desc": {
+    "message": "Steam 상점과 커뮤니티 웹 페이지에서 AI 대화 버튼을 표시합니다."
+  },
+  "settings_feature_ai_chat_main_name": {
+    "message": "Steam 클라이언트 AI 대화"
+  },
+  "settings_feature_ai_chat_main_desc": {
+    "message": "Steam 기본 창의 오른쪽 아래에 AI 대화 버튼을 표시합니다."
+  },
+  "settings_feature_ai_chat_friends_name": {
+    "message": "친구 목록 AI 대화"
+  },
+  "settings_feature_ai_chat_friends_desc": {
+    "message": "Steam 친구 목록 위에 로컬 AI 대화 버튼을 표시합니다."
+  },
   "workflow_ui_triggers": {
     "message": "트리거"
   },
@@ -11061,7 +11404,73 @@
     "message": "입력할 대화 기록"
   },
   "workflow_ui_save_updated_conversation_history_to": {
-    "message": "갱신된 대화 기록 저장 위치"
+    "message": "대화 기록 저장 위치"
+  },
+  "workflow_ui_tool_binding_preview": {
+    "message": "도구 결과 연결 미리보기 · 실행 시 요청 생성"
+  },
+  "workflow_ui_tool_results_help": {
+    "message": "대기 중인 도구 결과에는 원래 요청의 메시지와 모델 매개변수를 사용합니다. 일반 탭의 프롬프트는 새 질문을 시작할 때 사용합니다."
+  },
+  "workflow_ui_tool_results_input": {
+    "message": "도구 결과 전달"
+  },
+  "workflow_ui_available_tools": {
+    "message": "사용 가능한 도구"
+  },
+  "workflow_ui_save_tool_requests_to": {
+    "message": "도구 요청 저장 위치"
+  },
+  "workflow_command_tool_call_name": {
+    "message": "도구 호출"
+  },
+  "workflow_command_tool_call_hint": {
+    "message": "등록된 도구를 실행하거나 기존 결과를 AI용으로 기록합니다"
+  },
+  "workflow_ui_tool_mode": {
+    "message": "실행 방식"
+  },
+  "workflow_ui_tool_run_request": {
+    "message": "AI 도구 요청 실행"
+  },
+  "workflow_ui_tool_run_selected": {
+    "message": "선택한 도구 실행"
+  },
+  "workflow_ui_tool_use_result": {
+    "message": "기존 결과 전달"
+  },
+  "workflow_ui_tool_skip_request": {
+    "message": "AI 도구 요청 건너뛰기"
+  },
+  "workflow_ui_tool_record_failure": {
+    "message": "도구 실패 기록"
+  },
+  "workflow_ui_select_tool": {
+    "message": "도구 선택"
+  },
+  "workflow_seed_chat_history": {
+    "message": "대화 기록"
+  },
+  "workflow_seed_tool_requests": {
+    "message": "도구 요청"
+  },
+  "workflow_output_tool_call": {
+    "message": "도구 결과"
+  },
+  "workflow_ui_tool_arguments": {
+    "message": "도구 인수"
+  },
+  "workflow_ui_tool_reason": {
+    "message": "이유"
+  },
+  "workflow_error_tool_settings": {
+    "message": "도구 실행 방식과 도구를 선택하세요"
+  },
+  "workflow_error_tool_output": {
+    "message": "도구 결과를 사전 또는 동적 변수에 저장하세요"
+  },
+  "workflow_error_ai_list_output": {
+    "message": "대화 기록과 도구 요청은 별개의 목록 또는 동적 변수에 저장하세요"
   },
   "workflow_ui_error_policy": {
     "message": "오류 처리 방식"

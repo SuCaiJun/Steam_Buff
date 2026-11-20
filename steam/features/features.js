@@ -15,6 +15,19 @@
   const effectiveNameMode = settings => window.STConfig.effectiveLibraryNameMode(settings || {});
 
   const features = [
+    ...["ai-chat-main", "ai-chat-friends"].map(id => ({
+      id,
+      settingsKey: id,
+      loadStrategy: "on-demand-entry",
+      modes: ["ui"],
+      pageScope: ["main-ui"],
+      dependencies: ["steam/shared/ai-chat.js", "steam/shared/native-window.js"],
+      cost: "event-driven",
+      entries: { ui: "steam/shared/ai-chat.js" },
+      shouldRun(api, context, snapshot) {
+        return context === "ui" && api.ctx.isMainUi() && snapshot.settingsSnapshot[id] === true;
+      },
+    })),
     {
       id: "automation",
       name: "自动化原生数据入口",

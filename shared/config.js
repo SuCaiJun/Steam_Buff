@@ -339,6 +339,8 @@
     },
   });
 
+  const onboardingPath = "/wizard/v2/";
+  const onboardingWizard = join(ORIGINS.onboarding, onboardingPath);
   const urls = Object.freeze({
     siteOrigin: ORIGINS.site,
     apiOrigin: ORIGINS.api,
@@ -370,9 +372,10 @@
     helpSearch,
     aiTranslateProxy: join(ORIGINS.aiProxy, "/"),
     onboardingOrigin: ORIGINS.onboarding,
-    onboardingWizard: join(ORIGINS.onboarding, "/wizard/v1/"),
-    onboardingFlow: join(ORIGINS.onboarding, "/wizard/v1/flow.json"),
-    onboardingPage: (page) => `${join(ORIGINS.onboarding, "/wizard/v1/")}?page=${encoded(page)}`,
+    onboardingPath,
+    onboardingWizard,
+    onboardingFlow: onboardingWizard + "flow.json",
+    onboardingPage: (page) => `${onboardingWizard}?page=${encoded(page)}`,
     subscriptionInfoGameData: join(ORIGINS.subscriptionInfo, "/SubscriptionInfo/ajax/gamedata.php"),
   });
 

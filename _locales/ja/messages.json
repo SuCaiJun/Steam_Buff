@@ -9537,7 +9537,7 @@
     "message": "トリガーの入力をワークフロー変数に保存します。"
   },
   "workflow_command_convert_name": {
-    "message": "型を変換"
+    "message": "変数の型を変換"
   },
   "workflow_command_convert_hint": {
     "message": "JavaScript の規則で文字列、数値、真偽値に変換します。"
@@ -10721,6 +10721,349 @@
   "workflow_ui_prompts": {
     "message": "プロンプト"
   },
+  "ai_chat_tools": {
+    "message": "ツール"
+  },
+  "ai_chat_tool_game": {
+    "message": "Steam ゲーム情報"
+  },
+  "ai_chat_tool_game_help": {
+    "message": "AppID から Steam ストアの公開ゲーム情報を取得します。"
+  },
+  "ai_chat_tool_players": {
+    "message": "Steam 同時接続数"
+  },
+  "ai_chat_tool_players_help": {
+    "message": "AppID から現在の同時接続数を取得します。"
+  },
+  "ai_chat_tool_prices": {
+    "message": "ITAD 価格と過去最安値"
+  },
+  "ai_chat_tool_prices_help": {
+    "message": "AppID から設定地域の現在価格と過去最安値を取得します。"
+  },
+  "workflow_tool_title": {
+    "message": "ツール"
+  },
+  "workflow_tool_name": {
+    "message": "ツール名"
+  },
+  "workflow_tool_description": {
+    "message": "ツールの用途"
+  },
+  "workflow_tool_inputs": {
+    "message": "ツール入力"
+  },
+  "workflow_tool_test": {
+    "message": "ツールをテスト"
+  },
+  "workflow_tool_integer": {
+    "message": "整数"
+  },
+  "workflow_tool_app_id": {
+    "message": "Steam AppID"
+  },
+  "workflow_tool_add_parameter": {
+    "message": "パラメーターを追加"
+  },
+  "workflow_tool_parameter_name": {
+    "message": "パラメーター名"
+  },
+  "workflow_tool_parameter_description": {
+    "message": "パラメーターの説明"
+  },
+  "workflow_tool_required": {
+    "message": "必須"
+  },
+  "workflow_tool_settings": {
+    "message": "ツール設定"
+  },
+  "workflow_tool_test_sites": {
+    "message": "実行時にアクセスするサイト"
+  },
+  "workflow_tool_untitled": {
+    "message": "無題のツール"
+  },
+  "workflow_tool_edit": {
+    "message": "ツールを編集"
+  },
+  "workflow_tool_new": {
+    "message": "ツールを作成"
+  },
+  "workflow_composition_group": {
+    "message": "指令セット"
+  },
+  "workflow_composition_ai": {
+    "message": "AI で調べて回答"
+  },
+  "workflow_composition_http": {
+    "message": "HTTP クエリ"
+  },
+  "workflow_composition_steps": {
+    "message": "生成する手順"
+  },
+  "workflow_composition_generate": {
+    "message": "指令を生成"
+  },
+  "workflow_composition_select_tools": {
+    "message": "利用できるツールを 1 つ以上選択してください。"
+  },
+  "workflow_composition_reply_required": {
+    "message": "回答を保存する変数を選択してください。"
+  },
+  "workflow_composition_reply_type": {
+    "message": "テキスト型または任意の型の変数を選択してください。"
+  },
+  "workflow_composition_new_input": {
+    "message": "ツール入力を新規作成"
+  },
+  "workflow_composition_query_key": {
+    "message": "クエリパラメータ名"
+  },
+  "workflow_composition_input_binding": {
+    "message": "ツール入力に紐づける"
+  },
+  "workflow_composition_request_url": {
+    "message": "リクエスト URL"
+  },
+  "workflow_composition_query_mappings": {
+    "message": "クエリパラメータの対応付け"
+  },
+  "workflow_composition_output_mode": {
+    "message": "クエリ結果の出力先"
+  },
+  "workflow_composition_keep_return": {
+    "message": "変数に保存して既存のリターンを保持"
+  },
+  "workflow_composition_use_return": {
+    "message": "既存のリターン指令に渡す"
+  },
+  "workflow_composition_before_return": {
+    "message": "新しい指令は既存のリターンの前に挿入されます。"
+  },
+  "workflow_composition_output_required": {
+    "message": "クエリ結果の出力先を選択してください。"
+  },
+  "workflow_composition_query_required": {
+    "message": "クエリパラメータ名を入力してください。"
+  },
+  "workflow_tool_search": {
+    "message": "ツールを検索"
+  },
+  "workflow_tool_key_header": {
+    "message": "認証ヘッダー"
+  },
+  "workflow_tool_unavailable": {
+    "message": "利用不可"
+  },
+  "workflow_tool_update": {
+    "message": "ツールを更新"
+  },
+  "workflow_tool_affected": {
+    "message": "更新したツールと以下の指示の互換性を確認してください。"
+  },
+  "workflow_tool_invalid_file": {
+    "message": "ツールファイルの種類またはバージョンが無効です"
+  },
+  "workflow_tool_import": {
+    "message": "ツールをインポート"
+  },
+  "workflow_tool_import_copy": {
+    "message": "コピーとして保存"
+  },
+  "workflow_tool_references": {
+    "message": "ツールの参照"
+  },
+  "workflow_tool_open_reference": {
+    "message": "指示へ移動"
+  },
+  "workflow_tool_credentials": {
+    "message": "ローカル認証情報"
+  },
+  "workflow_tool_credential_node": {
+    "message": "HTTP 指示"
+  },
+  "workflow_tool_key_value": {
+    "message": "認証値（必要な接頭辞を含む）"
+  },
+  "workflow_tool_clear_key": {
+    "message": "認証情報を消去"
+  },
+  "workflow_tool_clear_key_confirm": {
+    "message": "この HTTP 指示を実行するには認証情報を再設定してください。"
+  },
+  "workflow_tool_key_required": {
+    "message": "認証値を入力してください"
+  },
+  "workflow_command_query_provider_data_name": {
+    "message": "プラットフォームデータを取得"
+  },
+  "workflow_command_query_provider_data_hint": {
+    "message": "AppID で Steam または ITAD のデータを取得します"
+  },
+  "workflow_output_query_provider_data": {
+    "message": "取得結果"
+  },
+  "workflow_tool_provider": {
+    "message": "データソース"
+  },
+  "workflow_tool_builtin": {
+    "message": "組み込み"
+  },
+  "workflow_tool_referenced_delete": {
+    "message": "先にワークフローでのツール参照を解除してください。"
+  },
+  "workflow_tool_missing": {
+    "message": "ツール $id$ が見つかりません。インポートするか別のツールを選択してください。",
+    "placeholders": {
+      "id": {
+        "content": "$1"
+      }
+    }
+  },
+  "workflow_tool_reference_count": {
+    "message": "$count$ 件の指示で参照",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "workflow_tool_count": {
+    "message": "$count$ 件のツール",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "workflow_tool_delete_confirm": {
+    "message": "「$name$」とローカル認証情報を削除します。",
+    "placeholders": {
+      "name": {
+        "content": "$1"
+      }
+    }
+  },
+  "workflow_error_tool_instruction": {
+    "message": "この指示はここでは使用できません。"
+  },
+  "workflow_error_tool_input": {
+    "message": "宣言済みのツール入力を選択してください"
+  },
+  "workflow_error_tool_http": {
+    "message": "ツールは GET クエリ、URL テキストのテンプレート、ローカル認証情報の参照に対応しています。"
+  },
+  "workflow_command_tool_return_name": {
+    "message": "ツール結果を返す"
+  },
+  "workflow_command_tool_return_hint": {
+    "message": "データを返してツールの実行を終了します"
+  },
+  "ai_chat_tool_references": {
+    "message": "$count$ 件の AI 呼び出し指示で使用",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "ai_chat_new": {
+    "message": "新しいチャット"
+  },
+  "ai_chat_history": {
+    "message": "チャット履歴"
+  },
+  "ai_chat_service": {
+    "message": "AI サービス"
+  },
+  "ai_chat_message": {
+    "message": "メッセージ"
+  },
+  "ai_chat_tool_preset": {
+    "message": "プロンプトのツール設定"
+  },
+  "ai_chat_settings": {
+    "message": "AI サービスを設定"
+  },
+  "ai_chat_stop": {
+    "message": "停止"
+  },
+  "ai_chat_send": {
+    "message": "送信"
+  },
+  "ai_chat_you": {
+    "message": "あなた"
+  },
+  "ai_chat_current": {
+    "message": "現在のチャット"
+  },
+  "ai_chat_select_service": {
+    "message": "AI サービスを選択"
+  },
+  "ai_chat_tool_preset_choose": {
+    "message": "プリセットを選択"
+  },
+  "ai_chat_stopped": {
+    "message": "生成を停止しました"
+  },
+  "ai_chat_timeout": {
+    "message": "タイムアウトしました。再送信できます。"
+  },
+  "ai_chat_disconnected": {
+    "message": "接続が切れました。再送信できます。"
+  },
+  "ai_chat_context_limit": {
+    "message": "会話が長すぎます。新しいチャットを開始してください。"
+  },
+  "ai_chat_changed": {
+    "message": "会話が更新されました。最新のメッセージを確認してから再送信してください。"
+  },
+  "ai_chat_busy": {
+    "message": "別のウィンドウで応答を生成中です。"
+  },
+  "ai_chat_permission": {
+    "message": "サードパーティーサービスの設定で AI ゲートウェイへのアクセスを許可してください。"
+  },
+  "ai_chat_config": {
+    "message": "この AI サービスを利用できません。設定を確認してください。"
+  },
+  "ai_chat_itad_key": {
+    "message": "サードパーティーサービスで ITAD API キーを設定してください。"
+  },
+  "ai_chat_save_failed": {
+    "message": "会話を保存できませんでした。拡張機能の空き容量を確認してください。"
+  },
+  "ai_chat_failed": {
+    "message": "リクエストに失敗しました。再送信するか、AI サービスの設定を確認してください。"
+  },
+  "ai_chat_waiting": {
+    "message": "生成中…"
+  },
+  "ai_chat_querying": {
+    "message": "データを取得中…"
+  },
+  "ai_chat_open_failed": {
+    "message": "Steam AI チャットを開けませんでした。もう一度お試しください。"
+  },
+  "settings_feature_ai_chat_web_name": {
+    "message": "Steam ウェブの AI チャット"
+  },
+  "settings_feature_ai_chat_web_desc": {
+    "message": "Steam ストアとコミュニティのウェブページに AI チャットを表示します。"
+  },
+  "settings_feature_ai_chat_main_name": {
+    "message": "Steam クライアントの AI チャット"
+  },
+  "settings_feature_ai_chat_main_desc": {
+    "message": "Steam メインウィンドウの右下に AI チャットを表示します。"
+  },
+  "settings_feature_ai_chat_friends_name": {
+    "message": "フレンド一覧の AI チャット"
+  },
+  "settings_feature_ai_chat_friends_desc": {
+    "message": "Steam のフレンド一覧の上部に AI チャットを表示します。"
+  },
   "workflow_ui_triggers": {
     "message": "トリガー"
   },
@@ -11061,7 +11404,73 @@
     "message": "渡す会話履歴"
   },
   "workflow_ui_save_updated_conversation_history_to": {
-    "message": "更新した会話履歴の保存先"
+    "message": "会話履歴の保存先"
+  },
+  "workflow_ui_tool_binding_preview": {
+    "message": "ツール結果の割り当て · リクエストは実行時に生成"
+  },
+  "workflow_ui_tool_results_help": {
+    "message": "未処理のツール結果には元のリクエストのメッセージとモデル設定を使用します。一般タブのプロンプトは新しい質問に使用します。"
+  },
+  "workflow_ui_tool_results_input": {
+    "message": "ツール結果を渡す"
+  },
+  "workflow_ui_available_tools": {
+    "message": "利用可能なツール"
+  },
+  "workflow_ui_save_tool_requests_to": {
+    "message": "ツールリクエストの保存先"
+  },
+  "workflow_command_tool_call_name": {
+    "message": "ツールを呼び出す"
+  },
+  "workflow_command_tool_call_hint": {
+    "message": "登録済みツールを実行するか、既存の結果を AI 用に記録します"
+  },
+  "workflow_ui_tool_mode": {
+    "message": "実行方法"
+  },
+  "workflow_ui_tool_run_request": {
+    "message": "AI のツールリクエストを実行"
+  },
+  "workflow_ui_tool_run_selected": {
+    "message": "指定したツールを実行"
+  },
+  "workflow_ui_tool_use_result": {
+    "message": "既存の結果を渡す"
+  },
+  "workflow_ui_tool_skip_request": {
+    "message": "AI のツールリクエストをスキップ"
+  },
+  "workflow_ui_tool_record_failure": {
+    "message": "ツールの失敗を記録"
+  },
+  "workflow_ui_select_tool": {
+    "message": "ツールを選択"
+  },
+  "workflow_seed_chat_history": {
+    "message": "会話履歴"
+  },
+  "workflow_seed_tool_requests": {
+    "message": "ツールリクエスト"
+  },
+  "workflow_output_tool_call": {
+    "message": "ツール結果"
+  },
+  "workflow_ui_tool_arguments": {
+    "message": "ツール引数"
+  },
+  "workflow_ui_tool_reason": {
+    "message": "理由"
+  },
+  "workflow_error_tool_settings": {
+    "message": "ツールの実行方法とツールを選択してください"
+  },
+  "workflow_error_tool_output": {
+    "message": "ツール結果は辞書型または動的型の変数に保存してください"
+  },
+  "workflow_error_ai_list_output": {
+    "message": "会話履歴とツールリクエストには別々のリスト型または動的型の変数を使用してください"
   },
   "workflow_ui_error_policy": {
     "message": "エラー処理方法"

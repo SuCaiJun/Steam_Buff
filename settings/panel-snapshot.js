@@ -179,7 +179,7 @@
         continue;
       }
       if (name === "workflow") {
-        if (Object.hasOwn(src, name)) { out[name] = root.STAutomation.normalize(src[name]); box.imported += 1; }
+        if (Object.hasOwn(src, name)) { out[name] = root.STAutomation.normalize(src[name], undefined, { deferToolLibrary: true }); box.imported += 1; }
         continue;
       }
       if (name === "ai") {

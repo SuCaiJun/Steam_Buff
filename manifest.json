@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "__MSG_extName__",
-  "version": "2.2.46",
+  "version": "2.2.47",
   "description": "__MSG_extDescription__",
   "default_locale": "zh_CN",
   "author": "Ricky",
@@ -64,7 +64,7 @@
   "content_scripts": [
     {
       "matches": [
-        "https://steam-buff.sucaijun.com/wizard/v1/*"
+        "https://steam-buff.sucaijun.com/wizard/v2/*"
       ],
       "js": [
         "shared/config.js",
@@ -238,6 +238,10 @@
   ],
   "web_accessible_resources": [
     {
+      "resources": ["ai/chat.html"],
+      "matches": ["https://store.steampowered.com/*", "https://steamcommunity.com/*", "https://steamloopback.host/*"]
+    },
+    {
       "resources": ["settings/pages/workflow-code.js", "vendor/codemirror/editor.js"],
       "matches": ["https://*.steampowered.com/*", "https://steampowered.com/*", "https://steamcommunity.com/*", "https://*.steamcommunity.com/*", "https://steamloopback.host/*"]
     },
@@ -327,6 +331,8 @@
         "shared/family-library.js",
         "steam/shared/name-table.js",
         "steam/shared/native-window.js",
+        "steam/shared/ai-chat.js",
+        "ai/chat-launcher.js",
         "steam/shared/name-batch.js",
         "shared/workflow-fields.js",
         "shared/workflow-data.js",

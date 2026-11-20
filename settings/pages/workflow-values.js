@@ -42,7 +42,8 @@
         return "本次事件." + label;
       }
     }
-    const prefix = value.source === "input" ? workflow.triggerInput ? "本次事件" : "触发输入" : value.source === "meta" ? "运行信息" : workflow.variables.find(item => item.id === value.id)?.name || value.id;
+    const inputLabel = workflow.triggerInput ? "本次事件" : !code && flow.isToolId(workflow.id) ? tr("workflow_tool_inputs", "工具输入") : "触发输入";
+    const prefix = value.source === "input" ? inputLabel : value.source === "meta" ? "运行信息" : workflow.variables.find(item => item.id === value.id)?.name || value.id;
     return prefix + value.path.map(key => typeof key === "number" ? `[${key}]` : /^[\p{ID_Start}_$][\p{ID_Continue}$]*$/u.test(key) ? "." + key : "[" + JSON.stringify(key) + "]").join("");
   };
   function text(value, workflow, code = false) {
@@ -367,9 +368,12 @@
         if (fields.length) rows.push({ key: "input", name: tr("workflow_ui_current_event", "本次事件"), detail: tr("seed_variable_input", "输入数据"), group, value: flow.reference("input"),
           children: children(fields.filter(([path]) => path[0] !== "game")) });
       } else if (!output && !workflow.literalOnly && !scriptControl(input)) {
-        rows.push({ key: "input", name: tr("workflow_ui_trigger_input", "触发输入"), detail: tr("seed_variable_input", "输入数据"), group: tr("workflow_ui_run_context", "运行上下文"), value: flow.reference("input"),
-          children: inputNames(workflow).map(key => ({ key: "input." + key, name: key, detail: tr("workflow_ui_member", "成员"), value: flow.reference("input", "", [key]) })) });
-        rows.push({ key: "meta", name: tr("workflow_ui_run_information", "运行信息"), detail: tr("workflow_ui_current_run", "本次运行"), group: tr("workflow_ui_run_context", "运行上下文"), value: flow.reference("meta"),
+        const inTool = flow.isToolId(workflow.id);
+        const fields = inTool ? workflow.parameters.map(parameter => [parameter.name, parameter.description]) : inputNames(workflow).map(key => [key, tr("workflow_ui_member", "成员")]);
+        rows.push({ key: "input", name: inTool ? tr("workflow_tool_inputs", "工具输入") : tr("workflow_ui_trigger_input", "触发输入"),
+          detail: tr("seed_variable_input", "输入数据"), group: tr("workflow_ui_run_context", "运行上下文"), value: flow.reference("input"),
+          children: fields.map(([key, detail]) => ({ key: "input." + key, name: key, detail, value: flow.reference("input", "", [key]) })) });
+        if (!inTool) rows.push({ key: "meta", name: tr("workflow_ui_run_information", "运行信息"), detail: tr("workflow_ui_current_run", "本次运行"), group: tr("workflow_ui_run_context", "运行上下文"), value: flow.reference("meta"),
           children: Object.entries(metaFields).map(([key, name]) => ({ key: "meta." + key, name: key, detail: name, value: flow.reference("meta", "", [key]) })) });
       }
       return rows;

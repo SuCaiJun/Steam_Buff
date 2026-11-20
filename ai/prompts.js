@@ -268,6 +268,10 @@
     }
     const { id, name, enabled, revision, mode, basic } = plan;
     const result = { id, name, enabled, revision, mode, basic, advanced: { [CHAT]: plan.advanced[CHAT] } };
+    if (plan.toolIds !== undefined) {
+      const toolIds = root.STAI.validateChatToolIds(plan.toolIds);
+      if (toolIds.length) result.toolIds = toolIds;
+    }
     if (plan.tokenLocale !== undefined) {
       if (!["zh_CN", "en", "zh_TW", "ja", "ko"].includes(plan.tokenLocale)) throw promptError("提示词语言无效");
       result.tokenLocale = plan.tokenLocale;
@@ -350,13 +354,13 @@
   }
 
   /** 调用方按名称提供值，已展开的文本与消息不会再次解释为占位符 */
-  function prepare(plan, ai, input, { history, captureTurn = false, displayLanguage } = {}) {
+  function prepare(plan, ai, input, { history, requestHistory, captureTurn = false, displayLanguage } = {}) {
     const values = { ...input, "模型": ai.model, "温度": ai.temperature };
     for (const [alias, field] of Object.entries(plan.tokens || {})) {
       if (Object.hasOwn(SERVICE_TOKENS, field)) values[alias] = values[field];
       else if (field === DISPLAY_LANGUAGE) values[alias] = displayLanguage;
     }
-    const previous = conversation(history);
+    const previous = requestHistory ?? conversation(history);
     if (plan.mode === "advanced") {
       const { body: source, key, historyIndex } = advancedTemplate(plan);
       if (history !== undefined && historyIndex === -1)

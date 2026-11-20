@@ -267,6 +267,84 @@
   const engine = root.STWorkflow;
   const walkSteps = engine.walk;
   function newWorkflow(id = "wf-1", name = "未命名工作流") { return { id, name, revision: 1, variables: [], steps: [] }; }
+  const TOOL_CREDENTIALS_KEY = "st.automation.tool-credentials.v1";
+  const PRESET_TOOL_EXECUTION_ID = "00000000-0000-4000-8000-000000000001";
+  const TOOL_LIBRARY_VERSION = 1;
+  const toolTypes = Object.freeze(["string", "integer", "number", "boolean", "array", "object", "appId"]);
+  function newTool(name) {
+    return { ...newWorkflow("tool_" + crypto.randomUUID().replaceAll("-", ""), name), executionId: crypto.randomUUID(),
+      enabled: true, description: "", parameters: [] };
+  }
+  const isOriginalProviderTool = tool => engine.isProviderToolId(tool.id) && tool.executionId === PRESET_TOOL_EXECUTION_ID && tool.revision === 1;
+  function providerTools(text = (_key, fallback) => fallback) {
+    return root.STAI.CHAT_TOOLS.map(provider => {
+      const tool = { ...newWorkflow(provider.id, text(provider.label, provider.name)), executionId: PRESET_TOOL_EXECUTION_ID,
+        enabled: true, description: text(provider.help, provider.description),
+        parameters: [{ name: "appId", type: "appId", required: true, description: text("workflow_tool_app_id", "Steam AppID") }] };
+      const query = engine.createNode("query-provider-data", tool, text);
+      query.provider = provider.id;
+      query.appId = engine.reference("input", "", ["appId"]);
+      tool.steps.push(query);
+      const output = engine.createNode("tool-return", tool, text);
+      output.value = engine.reference("variable", query.output);
+      tool.steps.push(output);
+      return tool;
+    });
+  }
+  function toolParameters(parameters) {
+    if (!Array.isArray(parameters)) throw new TypeError("工具输入列表无效");
+    const names = new Set();
+    return parameters.map(parameter => {
+      if (!parameter || typeof parameter.name !== "string" || !/^[\p{L}_][\p{L}\p{N}_-]*$/u.test(parameter.name) ||
+        ["__proto__", "constructor", "prototype"].includes(parameter.name) || names.has(parameter.name) ||
+        !toolTypes.includes(parameter.type) || typeof parameter.required !== "boolean" || typeof parameter.description !== "string")
+        throw new TypeError("工具输入名称、类型或必填设置无效");
+      names.add(parameter.name);
+      const { name, type, required, description } = parameter;
+      return { name, type, required, description };
+    });
+  }
+  /** 验证工具定义和指令能力，保存、导入和试运行共用 */
+  function validateTool(tool) {
+    if (!engine.isToolId(tool?.id) || typeof tool.executionId !== "string" || !/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/.test(tool.executionId) ||
+      typeof tool.enabled !== "boolean" ||
+      typeof tool.description !== "string" || !tool.description.trim()) throw new TypeError("请填写工具名称和用途");
+    const parameters = toolParameters(tool.parameters);
+    engine.validate(tool);
+    if (![...engine.walk(tool.steps, true)].some(node => node.action === "tool-return")) throw new TypeError("请插入「返回工具结果」指令");
+    const { id, name, revision, executionId, enabled, description, variables, steps, folds } = tool;
+    return clone({ id, name, revision, executionId, enabled, description, parameters, variables, steps, ...(folds ? { folds } : {}) });
+  }
+  function toolArguments(tool, args) {
+    const invalid = () => Object.assign(new TypeError("输入不符合工具参数定义"), { code: "CHAT_TOOL_INVALID" });
+    if (typeof args === "string") {
+      try { args = JSON.parse(args); }
+      catch (cause) {
+        const error = invalid(); error.cause = cause; throw error;
+      }
+    }
+    if (!args || typeof args !== "object" || Array.isArray(args) ||
+      Object.keys(args).some(name => !tool.parameters.some(parameter => parameter.name === name))) throw invalid();
+    for (const { name, type, required } of tool.parameters) {
+      if (!Object.hasOwn(args, name)) { if (required) throw invalid(); continue; }
+      const value = args[name], valid = type === "appId" ? root.STAI.isToolAppId(value) : type === "integer" ? Number.isSafeInteger(value) :
+        type === "number" ? Number.isFinite(value) : type === "array" ? Array.isArray(value) :
+          type === "object" ? value && typeof value === "object" && !Array.isArray(value) : typeof value === type;
+      if (!valid) throw invalid();
+    }
+    return args;
+  }
+  function toolSchema(tool) {
+    return { type: "function", function: {
+      name: tool.id, description: tool.description,
+      parameters: { type: "object", additionalProperties: false,
+        properties: Object.fromEntries(tool.parameters.map(({ name, type, description }) => [name, {
+          ...(type === "appId" ? { type: "integer", minimum: 1, maximum: root.STAI.TOOL_APP_ID_MAX } : { type }),
+          ...(description ? { description } : {}),
+        }])),
+        required: tool.parameters.filter(parameter => parameter.required).map(parameter => parameter.name) },
+    } };
+  }
   function newTrigger(id = "trigger-1", workflowId = "", name = "未命名触发器") {
     return { id, name, revision: 1, enabled: false, workflowId, event: { type: "manual" },
       conditions: group(), inputs: {}, busy: "queue" };
@@ -332,7 +410,8 @@
     return workflow;
   }
   function empty() {
-    return { version: VERSION, epoch: "initial", revision: 1, prompts: [], bindings: initialBindings(), workflows: [], triggers: [] };
+    return { version: VERSION, epoch: "initial", revision: 1, prompts: [], bindings: initialBindings(), workflows: [], triggers: [],
+      toolLibraryVersion: TOOL_LIBRARY_VERSION, tools: [] };
   }
 
   // 只在构建出厂工作流时为可编辑变量命名。已有配置直接读取其保存的名称。
@@ -392,7 +471,7 @@
       workflows.push(workflow); triggers.push(trigger);
     }
     return { version: VERSION, epoch: "initial", revision: 1, prompts,
-      bindings: initialBindings(), triggers, workflows };
+      bindings: initialBindings(), triggers, workflows, toolLibraryVersion: TOOL_LIBRARY_VERSION, tools: providerTools(text) };
   }
   /** 正式版没有工作流，只转换全局家庭库配置。现有新版流程用独立的保留 ID 承接旧配置 */
   function restoreFamilySchedule(bundle, settings, enabled, initial = false, text) {
@@ -423,7 +502,7 @@
     trigger.enabled = Boolean(interval && enabled);
     return next;
   }
-  function normalize(value) {
+  function normalize(value, text, { deferToolLibrary = false } = {}) {
     if (!value || value.version !== VERSION || !Array.isArray(value.prompts) || !Array.isArray(value.triggers) || !Array.isArray(value.workflows) || !value.bindings || Object.hasOwn(value, "rules"))
       throw new TypeError("提示词与工作流配置包无效");
     id(value.epoch, "配置代次");
@@ -443,6 +522,21 @@
       if (!/^wf-\d+$/.test(workflow.id) || ids.has(workflow.id)) throw new TypeError("工作流 ID 无效或重复");
       ids.add(workflow.id); engine.validate(workflow);
     }
+    ids.clear();
+    if (result.tools === undefined) result.tools = [];
+    if (!Array.isArray(result.tools)) throw new TypeError("工具列表无效");
+    if (result.toolLibraryVersion === undefined) {
+      // 旧备份在实际恢复时使用选定语言构建可编辑的默认工具
+      if (!deferToolLibrary) {
+        result.tools.unshift(...providerTools(text));
+        result.toolLibraryVersion = TOOL_LIBRARY_VERSION;
+      }
+    } else if (result.toolLibraryVersion !== TOOL_LIBRARY_VERSION) throw new TypeError("工具库配置版本无效");
+    result.tools = result.tools.map(tool => {
+      const valid = validateTool(tool);
+      if (ids.has(valid.id)) throw new TypeError("工具 ID 重复");
+      ids.add(valid.id); return valid;
+    });
     ids.clear();
     for (const trigger of result.triggers) {
       if (!/^trigger-\d+$/.test(trigger.id) || ids.has(trigger.id) || typeof trigger.name !== "string" || !trigger.name.trim() ||
@@ -477,6 +571,6 @@
   }
   root.STAutomation = Object.freeze({ empty, KEY, ROUTE, CHANNEL, PREVIEW_CHANNEL, VERSION, DEFAULT_LANGUAGE, CHECK_INTERVAL_MS, isTriggerType,
     STEP_STATES, NOTICE_TYPES, TYPES, RANGES, OPS, group, conditionFields,
-    newWorkflow, newTrigger, template, defaults, restoreFamilySchedule, normalize, walkSteps, operators, validateCondition, match, matchAsync, dateWindow, inRange, triggered, nativeConfig, clone });
+    newWorkflow, newTrigger, newTool, validateTool, toolParameters, toolArguments, toolSchema, toolTypes, isOriginalProviderTool, TOOL_CREDENTIALS_KEY, template, defaults, restoreFamilySchedule, normalize, walkSteps, operators, validateCondition, match, matchAsync, dateWindow, inRange, triggered, nativeConfig, clone });
 
 })(globalThis);

@@ -116,7 +116,7 @@
   }, "在指定位置插入一个项目");
   define("append", "追加到列表", "列表操作", [list(), field("item", "追加的项目", "any", "")], "list", args => [...args.value, args.item], "追加项目并保存结果，可以写回原列表变量");
   define("calculate", "数值计算", "输入与变量", [number("left", "对象1"), option("operator", "运算", "+", [["+", "加"], ["-", "减"], ["*", "乘"], ["/", "除"], ["%", "取余"], ["**", "幂"]]), number("right", "对象2")], "number", args => ({ "+": () => args.left + args.right, "-": () => args.left - args.right, "*": () => args.left * args.right, "/": () => args.left / args.right, "%": () => args.left % args.right, "**": () => args.left ** args.right })[args.operator](), "对两个数字执行一次运算");
-  define("convert", "类型转换", "输入与变量", [field("value", "要转换的数据", "any", ""), option("targetType", "转换为", "text", [["text", "文本"], ["number", "数字"], ["boolean", "布尔值"]])], "any", args => {
+  define("convert", "变量类型转换", "输入与变量", [field("value", "要转换的数据", "any", ""), option("targetType", "转换为", "text", [["text", "文本"], ["number", "数字"], ["boolean", "布尔值"]])], "any", args => {
     const value = args.targetType === "text" ? String(args.value) : args.targetType === "number" ? Number(args.value) : Boolean(args.value);
     check(typeof value !== "number" || Number.isFinite(value), "无法转换为有限数字"); return value;
   }, "按 JavaScript 的转换规则返回文本、数字或布尔值");

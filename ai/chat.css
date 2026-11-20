@@ -1,0 +1,47 @@
+/*
+ * Steam Buff AI
+ * @Author : 顾青离
+ * @Url    : sucaijun.com
+ */
+:root {
+  color-scheme: dark;
+  color: var(--st-color-text-primary);
+  background: var(--st-dialog-surface);
+  font: 14px/1.5 system-ui, sans-serif;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body { margin: 0; }
+main { display: flex; flex-direction: column; height: 100dvh; min-height: 0; padding: 16px; gap: 12px; }
+header, footer { display: flex; align-items: center; gap: 8px; }
+header { justify-content: space-between; }
+h1 { margin: 0; font-size: 16px; font-weight: 650; }
+.selectors { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+label { display: grid; gap: 4px; min-width: 0; }
+select, textarea, button, summary { font: inherit; color: inherit; }
+select, textarea, button, fieldset {
+  background: var(--st-dialog-surface-inset);
+  border: 1px solid var(--st-dialog-border);
+  border-radius: var(--st-control-radius);
+}
+select, textarea { width: 100%; padding: 6px 8px; }
+textarea { display: block; resize: vertical; max-height: 26dvh; margin-block: 4px 8px; }
+button { padding: 6px 12px; cursor: pointer; }
+button:disabled { opacity: .5; cursor: default; }
+button[type=submit] { background: var(--st-color-primary-surface); color: var(--st-dialog-title-color); }
+:focus-visible { outline: 2px solid var(--st-color-primary); outline-offset: 2px; }
+#transcript { min-height: 0; flex: 1; overflow-y: auto; overscroll-behavior: contain; scrollbar-gutter: stable; }
+.message { padding: 8px 10px; border-block-start: 1px solid var(--st-dialog-border); }
+.message:first-child { border-block-start: 0; }
+.message-user { background: var(--st-dialog-surface-inset); border-radius: var(--st-control-radius); }
+.message p { margin: 4px 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.sources { display: flex; flex-wrap: wrap; gap: 8px; font-size: .85rem; }
+a { color: var(--st-color-primary-soft-text); }
+#status { margin: 0; color: var(--st-color-text-secondary); }
+#status:empty { display: none; }
+footer { position: relative; justify-content: flex-end; }
+details { margin-inline-end: auto; }
+summary { cursor: pointer; padding: 4px 2px; }
+fieldset { position: absolute; inset-inline-start: 0; inset-block-end: 42px; min-width: min(260px, 100%); margin: 0; padding: 8px 12px 12px; }
+#tool-options label { display: flex; align-items: center; padding: 4px 0; }
+@media (max-width: 370px) { main { padding: 10px; gap: 8px; } }

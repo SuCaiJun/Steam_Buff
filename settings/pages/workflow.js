@@ -80,7 +80,7 @@
   }
   async function rpc(action, value = {}) {
     if (action === "cancel-instruction-test") { const cancel = previews.get(value.id); cancel?.(); return !!cancel; }
-    const result = action === "test-instruction" ? await preview(value) : await root.STMessageBus.request(
+    const result = ["test-instruction", "test-tool"].includes(action) ? await preview({ ...value, action }) : await root.STMessageBus.request(
       { type: model.ROUTE, action, ...value },
       { timeoutMs: 120000, logFailures: false },
     );

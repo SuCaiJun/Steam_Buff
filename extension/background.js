@@ -38,6 +38,7 @@
   importScripts(chrome.runtime.getURL("extension/background-lifecycle.js"));
   importScripts(chrome.runtime.getURL("vendor/fflate/fflate.js"));
   importScripts(chrome.runtime.getURL("ai/config.js"));
+  importScripts(chrome.runtime.getURL("extension/background-ai-chat.js"));
   importScripts(chrome.runtime.getURL("shared/price-comparison-catalog.js"));
   importScripts(chrome.runtime.getURL("shared/game-links.js"));
   importScripts(chrome.runtime.getURL("shared/auth-session.js"));
@@ -206,6 +207,7 @@
     "settings/ui/styles.js",
     "settings/ui/scroll-targets.js",
     "settings/ui/page-translate.js",
+    "ai/chat-launcher.js",
     "settings/floating-rail.js",
     "settings/api/request.js",
     "settings/update-log-renderer.js",
@@ -465,7 +467,7 @@
     "store/main.js": ["store/features/features.js"],
   });
   const CONTENT_MARK = "steamBuffContentStarted";
-  const CONTENT_MARK_VERSION = "steam-buff-runtime-v78";
+  const CONTENT_MARK_VERSION = "steam-buff-runtime-v79";
   const RUNTIME_READY_ATTR = "steamBuffRuntimeReady";
   const RUNTIME_READY_OPERATION_ATTR = "steamBuffRuntimeReadyOperationId";
   const STEAM_RUNTIME_READY_WAIT_MS = 6000;
@@ -1109,12 +1111,12 @@
     });
   }
 
-  // 云端只能从正式 HTTPS v1 顶层页面请求切换当前标签
+  // 只有当前版本的正式云端顶层页面可以请求切换当前标签
   function isOnboardingCloudSender(sender) {
     const url = senderUrlObject(sender);
     return !!url
       && url.origin === CFG.urls.onboardingOrigin
-      && url.pathname === "/wizard/v1/"
+      && url.pathname === CFG.urls.onboardingPath
       && sender?.frameId === 0
       && Number.isInteger(sender?.tab?.id);
   }
@@ -1485,11 +1487,12 @@
       globalThis.STLoggerSchema?.markJsonError?.(error);
       const result = new TypeError("Steam 实时在线人数响应不是 JSON");
       result.cause = error;
+      result.code = "AI_TOOL_RESPONSE_INVALID";
       throw result;
     }
     const count = payload?.response?.player_count;
     if (typeof count !== "number" || !Number.isFinite(count) || count < 0) {
-      throw new TypeError("Steam 实时在线人数响应无效");
+      throw Object.assign(new TypeError("Steam 实时在线人数响应无效"), { code: "AI_TOOL_RESPONSE_INVALID" });
     }
     return count;
   }
@@ -1593,7 +1596,7 @@
     let diagnostics;
     let phase = "network";
     try {
-      const result = await fetchDiagnosticText(url, { method: "GET", headers: { Accept: "application/json" }, cache: "no-cache", credentials: "omit" }, request?.timeoutMs ?? STORE_FETCH_TIMEOUT_MS);
+      const result = await fetchDiagnosticText(url, { method: "GET", headers: { Accept: "application/json" }, cache: "no-cache", credentials: "omit" }, request?.timeoutMs ?? STORE_FETCH_TIMEOUT_MS, request?.signal);
       const { response, data } = result;
       diagnostics = result.diagnostics;
       phase = "http";
@@ -2524,9 +2527,10 @@
     });
   }
 
-  async function fetchAiChat(url, next, timeoutMs, signal) {
+  async function fetchAiChat(url, next, timeoutMs, signal, chat) {
     return await fetchDiagnosticText(url, {
       method: "POST", headers: next.headers, body: JSON.stringify(next.body), cache: "no-cache", credentials: "omit",
+      ...(chat ? { redirect: "error" } : {}),
     }, timeoutMs, signal, ({ response, data: text, diagnostics }, check) => {
       let phase = "http";
       try {
@@ -2546,7 +2550,16 @@
         check();
         phase = "validate";
         const content = globalThis.STAI.chatText(data);
-        if (!content) throw Object.assign(new Error("AI 响应格式异常"), { code: "AI_RESPONSE_INVALID" });
+        if (chat) {
+          const choice = data?.choices?.[0], message = choice?.message;
+          if (!message || message.tool_calls != null && !Array.isArray(message.tool_calls))
+            throw Object.assign(new Error("AI 响应格式异常"), { code: "AI_RESPONSE_INVALID" });
+          chat.consume({
+            finish_reason: choice.finish_reason,
+            delta: { content: message.content, tool_calls: message.tool_calls?.map((call, index) => ({ ...call, index })) },
+          });
+        }
+        if (!content && !chat?.hasToolCalls()) throw Object.assign(new Error("AI 响应格式异常"), { code: "AI_RESPONSE_INVALID" });
         return { content, status: response.status };
       } catch (error) {
         if (error && typeof error === "object" && Object.isExtensible(error)) {
@@ -2671,14 +2684,14 @@
   }
 
 
-  async function fetchPreparedAi(next, url, timeoutMs, signal) {
-    if (next.body.stream !== true) return fetchAiChat(url, next, timeoutMs, signal);
+  async function fetchPreparedAi(next, url, timeoutMs, signal, chat) {
+    if (next.body.stream !== true) return fetchAiChat(url, next, timeoutMs, signal, chat);
     const controller = new AbortController();
     const cancel = () => controller.abort(signal.reason);
     if (signal?.aborted) cancel();
     else signal?.addEventListener("abort", cancel, { once: true });
     try {
-      return await fetchAiChatStream(url, next, timeoutMs, controller);
+      return await fetchAiChatStream(url, next, timeoutMs, controller, chat);
     } finally {
       signal?.removeEventListener("abort", cancel);
     }
@@ -2733,6 +2746,8 @@
 
     let next, url;
     const listModels = request.action === "list-models";
+    const workflowTools = request[AI_PREPARED] === true && request.workflowTools;
+    const toolReader = workflowTools && globalThis.STBackgroundAiChat.collector(() => {}, false);
     const timeoutMs = capTimeout(request.timeoutMs, AI_FETCH_TIMEOUT_MS, AI_FETCH_TIMEOUT_MAX_MS);
     try {
       if (request.action === "resolve-translation") {
@@ -2752,6 +2767,7 @@
         next = listModels ? globalThis.STAI.modelListRequest(request.ai) : await prepareAiRequest(request, sender);
         if (!next) throw Object.assign(new Error("AI 配置不完整"), { code: "AI_CONFIG_INCOMPLETE" });
         url = new URL(next.url);
+        if (toolReader) configureToolThinking(next.body, url);
         if (!(await hasAiGatewayPermission(url.toString())))
           throw Object.assign(
             new Error("未获得当前 AI 网关的访问权限，请在设置中心重新保存 AI 配置并允许访问"),
@@ -2759,9 +2775,10 @@
           );
         return listModels
           ? fetchAiModels(next, timeoutMs, request.signal)
-          : fetchPreparedAi(next, url.href, timeoutMs, request.signal);
+          : fetchPreparedAi(next, url.href, timeoutMs, request.signal, toolReader);
       }, request.signal);
-      sendResponse(listModels ? { success: true, models: result } : { success: true, text: result.content, status: result.status });
+      const calls = toolReader ? toolReader.finish() : undefined;
+      sendResponse(listModels ? { success: true, models: result } : { success: true, text: result.content, status: result.status, ...(toolReader ? { calls } : {}) });
     } catch (error) {
       if (error?.name === "SyntaxError") globalThis.STLoggerSchema.markJsonError(error);
       if (error?.name !== "AbortError")
@@ -2791,7 +2808,7 @@
     }
   }
 
-  function parseAiStreamEvent(block) {
+  function parseAiStreamEvent(block, chat) {
     const dataText = String(block || "")
       .split(/\r?\n/)
       .filter(line => line.startsWith("data:"))
@@ -2811,13 +2828,32 @@
       error.code = "AI_STREAM_EVENT_INVALID";
       throw error;
     }
+    if (data.choices?.[0] && chat) chat.consume(data.choices[0]);
     return {
       done: false,
       text: globalThis.STAI?.chatDelta?.(data) || "",
     };
   }
 
-  async function fetchAiChatStream(url, next, timeoutMs, controller) {
+  async function chatPricePack(appId, signal) {
+    const config = await globalThis.STSettings.storage.getThirdPartyServices();
+    const country = config.isthereanydeal.country;
+    const service = globalThis.STStore.thirdPartyData;
+    const item = { type: "app", id: appId };
+    const pack = await service.getPricePack({}, {
+      config, items: [item], overviewItems: [item], country, overviewSummary: true, includeHistory: false, signal,
+    });
+    signal.throwIfAborted();
+    if (!pack.ok) throw Object.assign(new Error("ITAD 价格查询失败"), { code: pack.code, aiToolFailure: true });
+    const summary = service.summarizePricePack(pack, item);
+    return {
+      source: "IsThereAnyDeal", appId, country, checkedAt: new Date(summary.updatedAt).toISOString(),
+      url: CFG.gameLinkTemplates.itad.replace("{APPID}", String(appId)),
+      current: summary.current, historicalLow: summary.historicalLow,
+    };
+  }
+
+  async function fetchAiChatStream(url, next, timeoutMs, controller, chat) {
     const timeout = normalizeTimeout(timeoutMs, 0);
     const timer = timeout > 0
       ? setTimeout(() => controller.abort(timeoutError(timeout)), timeout)
@@ -2833,6 +2869,7 @@
         body: JSON.stringify(next.body),
         cache: "no-cache",
         credentials: "omit",
+        ...(chat ? { redirect: "error" } : {}),
         signal: controller.signal,
       }); } catch (error) {
         if (error.name === "TypeError") error.code = "NETWORK_REQUEST_FAILED";
@@ -2862,7 +2899,9 @@
 
       const consume = (block) => {
         phase = "parse";
-        const event = parseAiStreamEvent(block);
+        if (chat && block.length > 1024 * 1024)
+          throw Object.assign(new Error("AI 流式事件数据过大"), { code: "CHAT_STREAM_EVENT_TOO_LARGE" });
+        const event = parseAiStreamEvent(block, chat);
         if (event.done) {
           finished = true;
           return;
@@ -2888,10 +2927,12 @@
           if (finished) break;
           boundary = /\r?\n\r?\n/.exec(buffer);
         }
+        if (chat && !finished && buffer.length > 1024 * 1024)
+          throw Object.assign(new Error("AI 流式事件数据过大"), { code: "CHAT_STREAM_EVENT_TOO_LARGE" });
       }
       buffer += decoder.decode();
       if (!finished && buffer.trim()) consume(buffer);
-      if (!content.trim()) {
+      if (!content.trim() && !chat?.hasToolCalls()) {
         const error = new Error("AI 流式响应没有返回文本");
         error.code = "AI_STREAM_TEXT_EMPTY";
         throw error;
@@ -2905,6 +2946,7 @@
       }
       return { content, status: response.status };
     } catch (error) {
+      if (chat && !controller.signal.aborted) controller.abort(error);
       const failure = controller.signal.aborted ? controller.signal.reason : error;
       if (failure && typeof failure === "object" && Object.isExtensible(failure)) {
         failure.phase = phase;
@@ -3154,7 +3196,7 @@
       sender?.id !== chrome.runtime.id ||
       !(isSettingsSender(sender) || isSteamRuntimeSender(sender) || onboardingAiSave) ||
       (nativeActions.includes(request.action) && !isSteamRuntimeSender(sender)) ||
-      (["test-instruction", "cancel-instruction-test"].includes(request.action) && !isSettingsSender(sender))
+      (["test-instruction", "test-tool", "tool-credential", "cancel-instruction-test"].includes(request.action) && !isSettingsSender(sender))
     )
       throw new Error("自动化请求来源无效");
     try {
@@ -3194,8 +3236,10 @@
     });
     port.onMessage.addListener(request => {
       if (id !== null || typeof request?.id !== "string" || !request.id) { port.disconnect(); return; }
+      const action = request.action ?? "test-instruction";
+      if (!["test-instruction", "test-tool"].includes(action)) { port.disconnect(); return; }
       id = request.id;
-      void automationRoute({ ...request, action: "test-instruction" }, sender, response => {
+      void automationRoute({ ...request, action }, sender, response => {
         done = true;
         if (!disconnected) port.postMessage(response);
       });
@@ -4083,6 +4127,61 @@
     return false;
   });
   chrome.runtime.onConnect.addListener(automationPreviewConnect);
+  globalThis.STStore = { net: { async sendRequest(request) {
+    const url = new URL(request.url);
+    if (url.origin !== CFG.vendors.isthereanydeal.origin) throw new TypeError("ITAD 请求地址无效");
+    const { response, data } = await fetchDiagnosticText(url.href, {
+      method: request.method, headers: request.headers, body: request.data, redirect: "error", credentials: "omit",
+    }, request.timeoutMs, request.signal);
+    return { data, response: { status: response.status, ok: response.ok, headers: cleanResponseHeaders(response.headers) } };
+  } } };
+  importScripts(chrome.runtime.getURL("store/api/providers/isthereanydeal.js"));
+  importScripts(chrome.runtime.getURL("store/api/third-party-data.js"));
+  function configureToolThinking(body, url) {
+    const deepSeek = CFG.aiProviders.find(item => item.id === "deepseek");
+    // DeepSeek 的思考模式要求回传所有历史思考文本。工具对话仅保存可见消息
+    if (url.origin === deepSeek.base && deepSeek.models.includes(body.model)) body.thinking = { type: "disabled" };
+  }
+  const aiTools = {
+    async round(service, messages, tools, signal, chat) {
+      const next = globalThis.STAI.chatRequest(service, messages);
+      const url = new URL(next.url);
+      next.body.stream = true;
+      if (tools.length) {
+        next.body.tools = tools;
+        configureToolThinking(next.body, url);
+      }
+      return runAiLimited(service.aiConcurrency, async () => {
+        signal.throwIfAborted();
+        if (!await hasAiGatewayPermission(url.href))
+          throw Object.assign(new Error("请在第三方服务设置中授权当前 AI 网关"), { code: "AI_HOST_PERMISSION_REQUIRED" });
+        return fetchPreparedAi(next, url.href, AI_FETCH_TIMEOUT_MAX_MS, signal, chat);
+      }, signal);
+    },
+    async steamGame(appId, signal) {
+      const url = CFG.vendors.steamStore.appDetails(appId);
+      const { response, data } = await fetchDiagnosticText(url, { credentials: "omit", redirect: "error" }, STORE_FETCH_TIMEOUT_MS, signal);
+      if (!response.ok) throw Object.assign(new Error("Steam 游戏资料查询失败"), { status: response.status });
+      let game;
+      try { game = parseJson(data)?.[appId]; }
+      catch (error) {
+        if (error.name === "SyntaxError") error.code = "AI_TOOL_RESPONSE_INVALID";
+        throw error;
+      }
+      if (game?.success === false) return { found: false };
+      if (game?.success !== true || typeof game.data?.name !== "string")
+        throw Object.assign(new TypeError("Steam 游戏资料响应异常"), { code: "AI_TOOL_RESPONSE_INVALID" });
+      const { name, type, short_description, developers, publishers, release_date } = game.data;
+      return { found: true, name, type, short_description, developers, publishers, release_date };
+    },
+    currentPlayers(appId, signal) {
+      return fetchSteamCurrentPlayers({ signal }, appId);
+    },
+    itadPrices(appId, signal) {
+      return chatPricePack(appId, signal);
+    },
+  };
+  chrome.runtime.onConnect.addListener(globalThis.STBackgroundAiChat.connect(aiTools));
   globalThis.STBackgroundUpdate.start();
   globalThis.STBackgroundLifecycle.start();
   void globalThis.STSettings.storage.initializeDownloadToolbar().catch(error =>
@@ -4100,6 +4199,7 @@
     ai: (input) => new Promise((resolve, reject) => {
       void aiChat({ ...input, [AI_PREPARED]: true }, {}, resolve).catch(reject);
     }),
+    aiTool: (id, args, signal) => globalThis.STBackgroundAiChat.execute(aiTools, id, args, signal),
     taskContext: async (required) => {
       const binding = await globalThis.STBackgroundSteamAccount.identity();
       const fields = { logged_in: !!binding.steamAccountId };

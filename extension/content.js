@@ -26,7 +26,7 @@
   const { cleanAuth } = authSession;
 
   const RUN_MARK = "steamBuffContentStarted";
-  const RUN_VERSION = "steam-buff-runtime-v78";
+  const RUN_VERSION = "steam-buff-runtime-v79";
   const RUN_PENDING = `${RUN_VERSION}:pending`;
   const EXCLUDED_STEAM_CLEANUP_SCRIPT = "steam/runtime/cleanup-stale.js";
   const SETTINGS_OPEN_MESSAGE = "STEAM_BUFF_OPEN_SETTINGS";
@@ -142,6 +142,7 @@
   const NAME_MODE_ID = CFG.libraryNameMode.key;
   const DOWNLOAD_ENHANCEMENT = "download-manager-enhancement";
   const DOWNLOAD_SHUTDOWN = "download-auto-shutdown";
+  const STEAM_CHAT_SETTINGS = ["ai-chat-main", "ai-chat-friends"];
   const STEAM_SETTING_DEFAULTS = Object.freeze({
     [SORT_TITLE_ID]: true,
     [ORIGINAL_NAME_SEARCH_ID]: false,
@@ -154,6 +155,8 @@
     [NEWS_TRANSLATE_ID]: true,
     "steam-achievement-translate": true,
     "message-center-navigation": false,
+    "ai-chat-main": false,
+    "ai-chat-friends": false,
     [STEAM_PLAYER_STATS_ID]: true,
     [STEAM_GAME_LINKS_ID]: true,
     [THIRD_PARTY_SERVICES_ID]: false,
@@ -172,6 +175,7 @@
     STEAM_PLAYER_STATS_ID,
     "steam-achievement-translate",
     "message-center-navigation",
+    ...STEAM_CHAT_SETTINGS,
     STEAM_GAME_LINKS_ID,
     THIRD_PARTY_SERVICES_ID,
     NAME_MODE_ID,
@@ -188,6 +192,7 @@
     PLAYER_STATS_ID,
     "steam-achievement-translate",
     "game-links",
+    ...STEAM_CHAT_SETTINGS,
   ]);
   const STEAM_FEATURE_SETTING_IDS = Object.freeze({
     [SORT_TITLE_ID]: SORT_TITLE_ID,
@@ -200,6 +205,8 @@
     "steam-achievement-translate": "steam-achievement-translate",
     [PLAYER_STATS_ID]: STEAM_PLAYER_STATS_ID,
     "game-links": STEAM_GAME_LINKS_ID,
+    "ai-chat-main": "ai-chat-main",
+    "ai-chat-friends": "ai-chat-friends",
   });
   const SEEN_NAME_MAX = 200;
   const BOOT_MS = 250;
@@ -598,6 +605,7 @@
     globalThis[SETTINGS_RAIL_LOAD_MARK] = SETTINGS_RAIL_LOAD_PENDING;
     try {
       await injectContentBundle(CONTENT_BUNDLES.settingsRail);
+      globalThis.STAIChatLauncher.watchWeb(globalThis.STRuntime.get({ id: "steam-buff-page-runtime" }));
       globalThis[SETTINGS_RAIL_LOAD_MARK] = "ready";
       activateLightRuntime("settings", {
         reason,
@@ -1905,7 +1913,7 @@
   // 展示类设置只更新对应功能，不触发无关的云名称同步
   function steamSettingsNeedNameSync(keys) {
     return keys.includes(MEMBERSHIP_KEY) || STEAM_SETTING_IDS.some(id =>
-      id !== STEAM_PLAYER_STATS_ID && id !== STEAM_GAME_LINKS_ID && id !== "steam-achievement-translate" && id !== "message-center-navigation" && id !== THIRD_PARTY_SERVICES_ID && id !== DOWNLOAD_ENHANCEMENT && id !== DOWNLOAD_SHUTDOWN && id !== "download-batch-actions" && keys.includes(settingKey(id)));
+      id !== STEAM_PLAYER_STATS_ID && id !== STEAM_GAME_LINKS_ID && id !== "steam-achievement-translate" && id !== "message-center-navigation" && id !== THIRD_PARTY_SERVICES_ID && id !== DOWNLOAD_ENHANCEMENT && id !== DOWNLOAD_SHUTDOWN && id !== "download-batch-actions" && !STEAM_CHAT_SETTINGS.includes(id) && keys.includes(settingKey(id)));
   }
 
   const downloadToolOn = (settings, id) => settings[DOWNLOAD_ENHANCEMENT] !== false && settings[id] !== false;
@@ -1962,6 +1970,9 @@
     }
     if (prev[STEAM_GAME_LINKS_ID] !== true && next[STEAM_GAME_LINKS_ID] === true) out.push("game-links");
     if (prev["steam-achievement-translate"] !== true && next["steam-achievement-translate"] === true) out.push("steam-achievement-translate");
+    for (const id of STEAM_CHAT_SETTINGS) {
+      if (prev[id] !== true && next[id] === true) out.push(id);
+    }
     if (prev[DOWNLOAD_ENHANCEMENT] === false && next[DOWNLOAD_ENHANCEMENT] === true) out.push(DOWNLOAD_ENHANCEMENT);
     for (const id of [DOWNLOAD_SHUTDOWN, "download-batch-actions"]) {
       if (!downloadToolOn(prev, id) && downloadToolOn(next, id)) out.push(id);

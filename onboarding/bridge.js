@@ -11,7 +11,7 @@
 (() => {
   "use strict";
 
-  const MARK = "__steamBuffOnboardingBridgeV1";
+  const MARK = "__steamBuffOnboardingBridgeV2";
   if (globalThis[MARK]) return;
   globalThis[MARK] = true;
 
@@ -25,7 +25,7 @@
   } catch {
     return;
   }
-  if (current.origin !== cfg.urls.onboardingOrigin || current.pathname !== "/wizard/v1/") return;
+  if (current.origin !== cfg.urls.onboardingOrigin || current.pathname !== cfg.urls.onboardingPath) return;
 
   const progress = document.getElementById("wizard-progress");
   const label = document.getElementById("step-label");
