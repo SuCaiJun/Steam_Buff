@@ -4939,9 +4939,6 @@
   "store_cartSelect_purchaseCount": {
     "message": "Items selected"
   },
-  "store_cartSelect_waitingForLoad": {
-    "message": "Waiting for the cart to load…"
-  },
   "store_cartSelect_removeAll": {
     "message": "Remove all"
   },

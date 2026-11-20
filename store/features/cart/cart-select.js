@@ -107,7 +107,7 @@
         const reply = await request("check-line", { lineId: item.lineId, key: item.key });
         if (!reply.ok || reply.result?.valid !== true) {
           scheduleScan();
-          throw new Error(waitingForCart());
+          throw new Error("无法确认要保存勾选状态的购物车商品");
         }
       }
       await saveState(snapshot);
@@ -916,13 +916,9 @@
     return items;
   }
 
-  function waitingForCart() {
-    return t("store_cartSelect_waitingForLoad", "正在等待加载…");
-  }
-
   function requireCompleteCart() {
     if (!itemsComplete) {
-      throw Object.assign(new Error(waitingForCart()), { code: "CART_ITEMS_UNAVAILABLE" });
+      throw Object.assign(new Error(t("store_cartSelect_checkoutFailed", "购物车选择处理失败")), { code: "CART_ITEMS_UNAVAILABLE" });
     }
   }
 
