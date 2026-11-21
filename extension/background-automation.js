@@ -128,6 +128,7 @@
   async function guard(job, verifiedBinding = null) {
     if (job.definition !== model.VERSION || !model.isTriggerType(job.trigger?.event?.type) || (await store.get(job.id))?.finalized)
       throw Object.assign(new Error("本次运行已结束"), { code: "AUTOMATION_EXPIRED" });
+    flow.validateEntryPosition(job.workflow);
     checkRunTime(job);
     const bundle = await root.STSettings.storage.getWorkflow();
     const trigger = bundle.triggers.find(item => item.id === job.trigger.id);
@@ -430,8 +431,8 @@
     }
   }
   function gameId(value) {
-    const appid = typeof value === "number" ? value : value?.appid;
-    if (!Number.isSafeInteger(appid) || appid <= 0) throw actionError("请选择游戏或有效的 AppID", "ACTION_INPUT_INVALID");
+    const appid = flow.gameAppId(value);
+    if (!appid) throw actionError("请选择游戏或有效的 AppID", "ACTION_INPUT_INVALID");
     return appid;
   }
   const customNameState = () => nameState({ forContext: true, requireCustomNames: true });
@@ -505,6 +506,9 @@
     const appid = Object.hasOwn(args, "game") ? gameId(args.game) : 0;
     const native = (action, value) => nativeFrame().then(frame => services.native(frame, action, value));
     if (definition.gameField) return gameFieldValue(appid, definition.gameField, native);
+    if (node.action === "steam-collections") return native("collections", {});
+    if (node.action === "steam-translations") return root.STAchievementTranslationStore.load(appid, args.language);
+    if (node.action === "steam-achievements") return native("achievements", { appid });
     const writeGuard = { epoch: job.epoch, ruleId: job.trigger.id, revision: job.trigger.revision,
       ...(job.runDeadlineAt ? { runDeadlineAt: job.runDeadlineAt } : {}) };
     const nativeWrite = async (action, value) => {
@@ -513,9 +517,7 @@
       checkRunTime(job);
       return services.native(frame, action, { ...value, guard: writeGuard });
     };
-    if (node.action === "steam-collections") return native("collections", {});
     if (definition.nameField) return setPersonalName(job, appid, definition.nameField, args.value, native, beforeWrite);
-    if (node.action === "steam-translations") return root.STAchievementTranslationStore.load(appid, args.language);
     if (node.action === "steam-set-sort-name") {
       const expected = await gameFieldValue(appid, "sort", native);
       await nativeWrite("save-sort", { appid, name: args.value, expected });
@@ -549,7 +551,6 @@
       }
       return { saved };
     }
-    if (node.action === "steam-achievements") return native("achievements", { appid });
     throw new TypeError("未注册的 Steam 操作");
   }
   async function steamStep(job, node) {
@@ -652,9 +653,13 @@
     const tool = bundle.tools?.find(item => item.id === id);
     if (!tool?.enabled || revision !== undefined && toolRevision(tool) !== revision)
       throw actionError("工具已停用、删除或修改，请检查工具设置", "WORKFLOW_TOOL_UNAVAILABLE");
+    flow.validateEntryPosition(tool);
     return tool;
   }
-  const guardTool = (bundle, frame) => resolveTool(bundle, frame.workflow.id, toolRevision(frame.workflow));
+  function guardTool(bundle, frame) {
+    flow.validateEntryPosition(frame.workflow);
+    return resolveTool(bundle, frame.workflow.id, toolRevision(frame.workflow));
+  }
 
   async function historyDigest(messages) {
     const hash = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(JSON.stringify(messages)));
@@ -995,7 +1000,7 @@
     }
   }
 
-  async function scriptHttp({ url: address, method, options = {} }, seconds, signal, checkpoint, confirmed = true) {
+  async function scriptHttp({ url: address, method, options = {} }, seconds, signal, checkpoint, confirmed = true, beforeSend) {
     const url = flow.httpUrl(address);
     if (!url || !flow.httpMethods.includes(method) || !options || typeof options !== "object" || Array.isArray(options) ||
       Object.keys(options).some(key => key !== "body" && key !== "headers"))
@@ -1006,6 +1011,7 @@
     const body = requestBody(options.body, headers);
     await requireHttpSite(url, signal);
     if (!confirmed) throw httpError("请确认试运行将发送真实 HTTP 请求");
+    if (beforeSend) await beforeSend();
     return sendHttp(url, method, headers, body, Math.min(seconds, flow.httpMaxTimeout), signal, 2 * 1024 * 1024, writes ? checkpoint : null);
   }
 
@@ -1031,7 +1037,7 @@
   }
 
   /** 正式运行和试运行使用相同的站点校验，且超时覆盖响应体读取 */
-  async function runHttp(node, state, signal, tool = null, checkpoint) {
+  async function runHttp(node, state, signal, tool = null, checkpoint, beforeSend) {
     const active = flow.activeValue(node.url);
     const address = tool && active.template ? active.template.map(part => {
       if (typeof part === "string") return part;
@@ -1050,6 +1056,7 @@
         throw httpError("请为工具的 HTTP 指令设置本机密钥", "WORKFLOW_TOOL_KEY_REQUIRED");
       headers.set(node.keyHeader, saved.value);
     }
+    if (beforeSend) await beforeSend();
 
     return sendHttp(url, node.method, headers, body, node.requestTimeoutSeconds, signal, null,
       flow.hasHttpBody(node.method) ? checkpoint : null);
@@ -1131,10 +1138,11 @@
       return saveResult(current, node, value);
     } finally { if (requests.get(job.id) === controller) requests.delete(job.id); }
   }
-  function traceTool(frame, node, status) {
+  function traceTool(frame, node, status, countEachStatus = false) {
     if (!node) return;
-    const previous = frame.trace[node.id];
-    frame.trace[node.id] = { nodeId: node.id, action: flow.type(node), status, count: (previous?.count || 0) + 1 };
+    const key = countEachStatus ? node.id + ":" + status : node.id;
+    const previous = frame.trace[key];
+    frame.trace[key] = { nodeId: node.id, action: flow.type(node), status, count: (previous?.count || 0) + 1 };
   }
   function toolValue(frame) {
     if (!Object.hasOwn(frame.flow, "returned"))
@@ -1187,11 +1195,11 @@
               check();
               flow.complete(workflow, state, node, result);
             }
-            if (node) traceTool(frame, node, (state.failures?.length || 0) > failures ? "failed" : "success");
+            if (node) traceTool(frame, node, (state.failures?.length || 0) > failures ? "failed" : "success", true);
           } catch (error) {
             check();
             error.nodeId ??= state.nodeId;
-            traceTool(frame, node || nodeOf(frame), "failed");
+            traceTool(frame, node || nodeOf(frame), "failed", true);
             const current = nodeOf(frame);
             if (!(current && flow.failed(workflow, state, current, error)) && !flow.raise(workflow, state, error)) {
               const issue = toolFailure(frame, { id: error.nodeId }, error);
@@ -1435,6 +1443,145 @@
     }
     return flow.state(inputs, meta, workflow);
   }
+  const previewSteamRead = node => !!flow.effects[node.action]?.gameField ||
+    ["steam-collections", "steam-translations", "steam-achievements"].includes(node.action);
+  const previewAction = node => previewSteamRead(node) || Object.hasOwn(root.STWorkflowData.byId, node.action) ||
+    ["script", "http-request", "log", "wait", "stop", "break", "continue", "raise", "comment"].includes(node.action);
+  async function readPreviewSteam(node, state, binding) {
+    const accounts = root.STBackgroundSteamAccount;
+    binding ??= await accounts.identity();
+    requiredOwner(binding.steamAccountId);
+    const value = await steamOperation({ flow: state }, node);
+    if (!accounts.current(binding)) throw Object.assign(new Error("Steam 账号已切换，请重试"), { code: "ACCOUNT_CHANGED" });
+    return value;
+  }
+
+  function waitPreview(seconds, signal) {
+    if (!Number.isFinite(seconds) || seconds < 0) throw new TypeError("等待时间需要非负数字");
+    signal.throwIfAborted();
+    return new Promise((resolve, reject) => {
+      const abort = () => { root.clearTimeout(timer); reject(signal.reason); };
+      const timer = root.setTimeout(() => {
+        signal.removeEventListener("abort", abort);
+        resolve();
+      }, Math.min(60_000, seconds * 1000));
+      signal.addEventListener("abort", abort, { once: true });
+    });
+  }
+
+  // 整段试运行只推进草稿中的指令，不进入正式任务队列。
+  async function testWorkflow(request, previewKey, emit) {
+    if (previews.has(previewKey)) throw new Error("工作流正在试运行");
+    const workflow = copy(request.workflow);
+    if (flow.isToolId(workflow.id)) throw new TypeError("工具需要使用工具试运行");
+    flow.validate(workflow);
+    const { input = {}, meta = { triggerName: "工作流试运行", triggerType: "manual" } } = request;
+    if (typeof meta.triggerName !== "string" || !meta.triggerName.trim() || !model.isTriggerType(meta.triggerType))
+      throw new TypeError("试运行的触发器样例无效");
+    root.STWorkflowData.json(input);
+    model.workflowArguments(workflow, input);
+    const controller = new AbortController(), entries = [], trace = {};
+    const id = "workflow-preview-" + previewKey;
+    const flush = () => { if (emit && entries.length) emit(entries.splice(0)); };
+    // 打开 Port 本身不续活，整个试运行共用一条有界的连接计时。
+    function keepAlive() {
+      try { emit([]); heartbeat = root.setTimeout(keepAlive, 20_000); }
+      catch (error) { controller.abort(error); }
+    }
+    let heartbeat = emit ? root.setTimeout(keepAlive, 20_000) : null;
+    let writePending = false, nodeId;
+    let binding;
+    const accounts = root.STBackgroundSteamAccount;
+    const ensureAccount = () => {
+      if (binding && !accounts.current(binding)) throw Object.assign(new Error("Steam 账号已切换，试运行已停止"), { code: "ACCOUNT_CHANGED" });
+    };
+    const verifyAccount = async () => { if (binding) { await accounts.identity(); ensureAccount(); } };
+    const checkpoint = active => { if (active) ensureAccount(); writePending = active; };
+    const failure = error => ({ code: error.code, message: root.STLoggerSchema.redactText(error.message),
+      nodeId: error.nodeId || nodeId, ...(error.code === "WORKFLOW_HTTP_PERMISSION_REQUIRED" && { origin: error.origin }) });
+    previews.set(previewKey, controller);
+    try {
+      return await root.STNetworkRequest.run(60_000, async (signal, check) => {
+        const state = await workflowState(workflow, input, meta.triggerName.trim(), meta.triggerType);
+        const frame = { workflow, flow: state, trace };
+        const evaluate = data => root.STWorkflowScript.run({ id: id + "-expression", ...data, seconds: 10, signal });
+        const network = (http, seconds, requestSignal) => scriptHttp(http, seconds, requestSignal, checkpoint, request.confirmNetwork === true, verifyAccount);
+        let budget = 0;
+        for (;;) {
+          check(); ensureAccount();
+          let node;
+          try {
+            const pending = nodeOf(frame);
+            if (pending?.kind === "action" && !pending.disabled && !previewAction(pending)) {
+              node = pending;
+              throw Object.assign(new Error("草稿试运行不执行这条指令"), { code: "WORKFLOW_PREVIEW_UNSUPPORTED" });
+            }
+            const next = await flow.next(workflow, state, regex, evaluate);
+            if (next.kind === "done") return { entries, steps: Object.values(trace) };
+            node = next.node;
+            nodeId = node?.id || state.nodeId;
+            const failures = state.failures?.length || 0;
+            if (next.kind === "wait") {
+              flush(); await waitPreview(next.seconds, signal);
+            } else if (next.kind === "action" && !flow.local(workflow, state, node)) {
+              let value;
+              if (node.action === "log") {
+                value = flow.read(node.value, state);
+                entries.push({ at: Date.now(), nodeId, level: node.level, text: typeof value === "string" ? value : JSON.stringify(value) });
+              } else if (node.action === "wait") {
+                flush(); await waitPreview(flow.read(node.seconds, state), signal);
+              } else {
+                flush();
+                if (previewSteamRead(node)) {
+                  const actual = await accounts.identity();
+                  binding ??= actual;
+                  check(); ensureAccount();
+                  value = await readPreviewSteam(node, state, binding);
+                }
+                else if (node.action === "script" || root.STWorkflowData.readingActions.includes(node.action)) {
+                  if (node.action === "script") await requireWorkflowPermission(node);
+                  check(); value = await runScriptOrReading(node, state, id, signal, node.action === "script" ? network : undefined);
+                } else if (node.action === "http-request") {
+                  await requireWorkflowPermission(node);
+                  if (request.confirmNetwork !== true) throw httpError("请确认试运行将发送真实 HTTP 请求");
+                  await flow.evaluateValues(flow.inputs(node), state, evaluate);
+                  check(); value = await runHttp(node, state, signal, null, checkpoint, verifyAccount);
+                } else throw new TypeError("未登记的草稿试运行指令");
+              }
+              check(); ensureAccount();
+              if (writePending) throw httpError("HTTP 写请求已发送，结果待核实", "WORKFLOW_HTTP_UNCERTAIN");
+              flow.complete(workflow, state, node, value);
+            }
+            if (node) traceTool(frame, node, (state.failures?.length || 0) > failures ? "failed" : "success", true);
+            for (const item of (state.failures || []).slice(failures))
+              entries.push({ at: item.at, level: "error", ...failure(item.error) });
+          } catch (error) {
+            check();
+            nodeId = node?.id || state.nodeId;
+            if (writePending) throw httpError("HTTP 写请求已发送，结果待核实", "WORKFLOW_HTTP_UNCERTAIN", error);
+            const current = nodeOf(frame);
+            traceTool(frame, node || current, "failed", true);
+            if (["WORKFLOW_PREVIEW_UNSUPPORTED", "WORKFLOW_HTTP_UNCERTAIN", "ACCOUNT_CHANGED"].includes(error.code) ||
+              !(current && flow.failed(workflow, state, current, error)) && !flow.raise(workflow, state, error)) throw error;
+            entries.push({ at: Date.now(), level: "error", ...failure(error) });
+          }
+          if (++budget === 64) {
+            budget = 0; flush();
+            await new Promise(resolve => root.setTimeout(resolve, 0));
+          }
+        }
+      }, controller.signal);
+    } catch (error) {
+      if (controller.signal.reason?.code === "WORKFLOW_PREVIEW_CANCELLED")
+        return { cancelled: true, uncertain: writePending, entries, steps: Object.values(trace) };
+      const issue = writePending ? httpError("HTTP 写请求已发送，结果待核实", "WORKFLOW_HTTP_UNCERTAIN", error) : error;
+      log.error("automation-workflow-preview-failed", "工作流试运行失败", { error: issue });
+      return { error: failure(issue), entries, steps: Object.values(trace) };
+    } finally {
+      if (heartbeat !== null) root.clearTimeout(heartbeat);
+      if (previews.get(previewKey) === controller) previews.delete(previewKey);
+    }
+  }
   async function enqueue(trigger, event, ctx, owner, bundle, { startNow = true, checkRevision = false, binding, inputs: supplied, error = null } = {}) {
     if (!root.STBackgroundSteamAccount.current(binding)) return null;
     const workflow = bundle.workflows.find(item => item.id === trigger.workflowId);
@@ -1443,6 +1590,13 @@
     if (inputs === undefined) {
       try { inputs = Object.fromEntries(Object.entries(trigger.inputs).map(([key, value]) => [key, flow.read(value, flow.state({ ...event, game: ctx?.game }))])); }
       catch (failure) { error = failure; inputs = {}; }
+    }
+    if (!error) {
+      try { model.workflowArguments(workflow, inputs); }
+      catch (failure) {
+        if (failure.code !== "WORKFLOW_CONFIG_INVALID") throw failure;
+        error = failure; inputs = {};
+      }
     }
     const job = { id: "automation:" + crypto.randomUUID(), definition: model.VERSION, eventKey: eventKey(owner, trigger, event),
       owner: owner || "", ownerBinding: { runtime: binding.runtime, accountEpoch: binding.accountEpoch }, epoch: bundle.epoch,
@@ -1546,7 +1700,7 @@
     return next;
   }
   function reviseWorkflow(value, current, replace) {
-    const next = model.normalize(value);
+    const next = model.normalize(value, undefined, { structureOnly: !replace });
     if (!replace && next.revision !== current.revision)
       throw Object.assign(new Error("配置已在另一窗口修改，请重新读取后保存"), { code: "WORKFLOW_REVISION_CONFLICT" });
     if (replace) next.epoch = crypto.randomUUID();
@@ -1569,7 +1723,10 @@
     }
     for (const section of ["prompts", "workflows", "triggers", "tools"]) for (const item of next[section]) {
       const old = current[section]?.find(row => row.id === item.id);
-      const definition = row => JSON.stringify({ ...row, revision: 0, ...(section === "tools" ? { name: "", executionId: "" } : {}) });
+      // 整包保存只提交有改动的定义，其他错误仍可逐项在编辑器中修正
+      if (item.entryRow !== undefined && (section === "workflows" || section === "tools") && JSON.stringify(item) !== JSON.stringify(old))
+        flow.validateEntryPosition(item);
+      const definition = section === "tools" || section === "workflows" ? model.workflowDefinitionKey : row => JSON.stringify({ ...row, revision: 0 });
       const same = old && definition(old) === definition(item);
       item.revision = old ? same ? old.revision : old.revision + 1 : 1;
       if (section === "tools") item.executionId = same ? old.executionId : crypto.randomUUID();
@@ -1842,7 +1999,7 @@
     });
     return reconciling;
   }
-  async function execute(request, sender) {
+  async function execute(request, sender, onPreviewLog) {
     if (request.action === "settings-ready") return ready({ retry: request.retry === true });
     if (request.action === "site-permissions") return sitePermissions(request.hosts, request.workflow);
     if (request.action === "remove-site-permission") {
@@ -1860,7 +2017,7 @@
       const trigger = bundle.triggers.find(item => item.id === request.triggerId && item.revision === request.revision && item.enabled && item.event.type === "schedule");
       return trigger ? root.STAutomationSchedule.clock(trigger, bundle.epoch, await taskIdentity()) : null;
     }
-    if (["test-instruction", "test-tool", "cancel-instruction-test"].includes(request.action) && (typeof request.id !== "string" || !request.id || typeof sender.documentId !== "string")) throw new TypeError("试运行缺少页面和运行标识");
+    if (["test-instruction", "test-tool", "test-workflow", "cancel-instruction-test"].includes(request.action) && (typeof request.id !== "string" || !request.id || typeof sender.documentId !== "string")) throw new TypeError("试运行缺少页面和运行标识");
     const previewKey = [sender?.documentId, request.id].join(":");
     if (request.action === "cancel-instruction-test") {
       const controller = previews.get(previewKey);
@@ -1868,6 +2025,7 @@
       return !!controller;
     }
     if (request.action === "test-tool") return testTool(request, previewKey);
+    if (request.action === "test-workflow") return testWorkflow(request, previewKey, onPreviewLog);
     if (request.action === "tool-credential") {
       return configExclusive(async () => {
         const { toolId, nodeId, value, revision, executionId, origin, header, epoch } = request;
@@ -1932,12 +2090,7 @@
             if (node.action !== "script") await flow.evaluateValues(flow.inputs(node), state, evaluate);
             const effect = flow.effects[node.action];
             if (effect?.gameField) {
-              const accounts = root.STBackgroundSteamAccount, binding = await accounts.identity();
-              requiredOwner(binding.steamAccountId);
-              const appid = gameId(flow.read(node.game, state));
-              const native = (action, value) => nativeFrame().then(frame => services.native(frame, action, value));
-              output = await gameFieldValue(appid, effect.gameField, native);
-              if (!accounts.current(binding)) throw new Error("Steam 账号已切换，请重试");
+              output = await readPreviewSteam(node, state);
               flow.complete(workflow, state, node, output);
             } else if (node.action === "http-request" || isToolQuery(node)) {
               output = await runQuery(node, state, controller.signal, flow.isToolId(workflow.id) ? workflow : null, checkpoint);
@@ -2039,7 +2192,15 @@
       const defaults = Object.fromEntries(Object.entries(trigger.inputs).map(([key, value]) => [key, flow.read(value, flow.state(request.inputs))]));
       const inputs = { ...defaults, ...copy(request.inputs) };
       const fields = [...model.conditionFields(trigger.conditions)];
-      const ctx = fields.length && inputs.game?.appid ? await context(inputs.game.appid, fields) : { game: inputs.game || null, fields: {}, labels: {} };
+      const workflow = bundle.workflows.find(item => item.id === trigger.workflowId);
+      if (!workflow) throw new Error("触发器引用的工作流已删除：" + trigger.workflowId);
+      model.workflowArguments(workflow, inputs);
+      const hasFilterAppId = request.filterAppId !== undefined;
+      if (workflow.inputParameters && hasFilterAppId && !root.STAI.isToolAppId(request.filterAppId)) throw new TypeError("请选择有效的筛选 AppID");
+      const game = workflow.inputParameters ? (hasFilterAppId ? { appid: request.filterAppId } : null) : inputs.game;
+      const ctx = fields.length && game?.appid ? await context(game.appid, fields) : { game: game || null, fields: {}, labels: {} };
+      if (workflow.inputParameters && fields.length && !ctx.game && fields.every(field => ["logged_in", "has_family"].includes(field)))
+        Object.assign(ctx, await services.taskContext(fields));
       if (!await model.matchAsync(trigger.conditions, ctx, regex)) return { matched: false };
       const job = await enqueue(trigger, { id: "manual:" + crypto.randomUUID(), type: "manual", at: Date.now() }, ctx, owner, bundle, { checkRevision: true, binding, inputs });
       return { matched: !!job, id: job?.id };
@@ -2117,8 +2278,19 @@
         new Error("上次运行已中断；未自动重复提交，请查看任务结果"),
       );
     }
-    for (const job of await store.byStatus(activeStates))
-      if (job.definition !== model.VERSION || !model.isTriggerType(job.trigger?.event?.type)) await finish(job.id, "expired");
+    for (const job of await store.byStatus(activeStates)) {
+      if (job.definition !== model.VERSION || !model.isTriggerType(job.trigger?.event?.type)) {
+        await finish(job.id, "expired");
+        continue;
+      }
+      try {
+        flow.validateEntryPosition(job.workflow);
+        flow.validateEntryPosition(job.toolRun?.workflow);
+      } catch (error) {
+        if (error.messageKey !== "workflow_parameter_first") throw error;
+        await finish(job.id, "failed", error);
+      }
+    }
     await reconcile();
   }
   async function reconcileSchedules() {

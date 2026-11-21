@@ -315,6 +315,39 @@ export function scriptParts(source, workflow) {
   return parts;
 }
 
+const codeEditorTheme = EditorView.theme({
+  "&": { height: "100%", color: "var(--st-color-text-primary)", backgroundColor: "var(--st-dialog-surface-inset)", fontSize: "var(--st-font-size-body-small)" },
+  ".cm-scroller": { fontFamily: "monospace", overflow: "auto", lineHeight: "1.6" },
+  ".cm-gutters": { backgroundColor: "var(--st-dialog-surface)", color: "var(--st-color-text-muted)", borderRight: "1px solid var(--st-dialog-divider)" },
+  ".cm-content": { padding: "12px 0", caretColor: "var(--st-color-text-primary)" },
+  ".cm-activeLine,.cm-activeLineGutter": { backgroundColor: "var(--st-color-surface-subtle)" },
+  ".cm-selectionBackground,&.cm-focused .cm-selectionBackground": { backgroundColor: "var(--st-color-primary-alpha-25)" },
+  ".cm-cursor,.cm-dropCursor": { borderLeftColor: "var(--st-color-text-primary)" },
+  ".cm-panels,.cm-tooltip": { backgroundColor: "var(--st-dialog-surface-raised)", color: "var(--st-color-text-primary)", borderColor: "var(--st-dialog-border)" },
+  "&.cm-focused": { outline: "none" },
+}, { dark: true });
+
+export function mountLogViewer(parent, { value, label, root }) {
+  const view = new EditorView({ parent, root, state: EditorState.create({ doc: value, extensions: [
+    codeEditorTheme, lineNumbers(), drawSelection(), EditorView.lineWrapping,
+    EditorState.readOnly.of(true), EditorView.editable.of(false),
+    // Let the native dialog handle Escape even when there is a selection.
+    keymap.of(defaultKeymap.filter(binding => binding.key !== "Escape")),
+    EditorView.contentAttributes.of({ tabindex: "0", role: "textbox", "aria-label": label, "aria-readonly": "true", "aria-multiline": "true" }),
+  ] }) });
+  return Object.freeze({
+    contentDOM: view.contentDOM,
+    setValue(next) {
+      view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: next }, selection: { anchor: 0 }, scrollIntoView: true });
+    },
+    selectAll() {
+      view.dispatch({ selection: { anchor: 0, head: view.state.doc.length } });
+      view.focus();
+    },
+    destroy() { view.destroy(); },
+  });
+}
+
 /** 仅挂载在调用方提供的脚本字段；销毁时释放编辑器监听与测量任务 */
 export function mount(parent, { value, change, workflow }) {
   const view = new EditorView({ parent, state: EditorState.create({ doc: value, extensions: [
@@ -329,17 +362,7 @@ export function mount(parent, { value, change, workflow }) {
       { tag: [tags.number, tags.bool, tags.null], color: "var(--st-color-gold)" }, { tag: tags.comment, color: "var(--st-color-text-muted)" },
       { tag: tags.variableName, color: "var(--st-color-text-primary)" },
     ])),
-    EditorView.theme({
-      "&": { height: "100%", color: "var(--st-color-text-primary)", backgroundColor: "var(--st-dialog-surface-inset)", fontSize: "var(--st-font-size-body-small)" },
-      ".cm-scroller": { fontFamily: "monospace", overflow: "auto", lineHeight: "1.6" },
-      ".cm-gutters": { backgroundColor: "var(--st-dialog-surface)", color: "var(--st-color-text-muted)", borderRight: "1px solid var(--st-dialog-divider)" },
-      ".cm-content": { padding: "12px 0", caretColor: "var(--st-color-text-primary)" },
-      ".cm-activeLine,.cm-activeLineGutter": { backgroundColor: "var(--st-color-surface-subtle)" },
-      ".cm-selectionBackground,&.cm-focused .cm-selectionBackground": { backgroundColor: "var(--st-color-primary-alpha-25)" },
-      ".cm-cursor,.cm-dropCursor": { borderLeftColor: "var(--st-color-text-primary)" },
-      ".cm-panels,.cm-tooltip": { backgroundColor: "var(--st-dialog-surface-raised)", color: "var(--st-color-text-primary)", borderColor: "var(--st-dialog-border)" },
-      "&.cm-focused": { outline: "none" },
-    }, { dark: true }),
+    codeEditorTheme,
   ] }) });
   return Object.freeze({
     insert(text, { from, to } = view.state.selection.main, pick = "") {

@@ -22,10 +22,10 @@
   const STEP_STATES = Object.freeze({ success: "成功", failed: "失败", skipped: "跳过" });
   const NOTICE_TYPES = Object.freeze({ info: "普通", success: "成功", warning: "警告", error: "错误" });
   const TYPES = Object.freeze({
-    name: "游戏名称",
-    collection: "收藏分组",
-    achievement: "成就翻译",
-    family: "家庭库维护",
+    name: "游戏名称汉化",
+    collection: "将游戏添加收藏分组",
+    achievement: "游戏的成就翻译",
+    family: "家庭库刷新",
   });
   const RANGES = Object.freeze([
     ["30m", "最近 30 分钟", 1800],
@@ -280,10 +280,12 @@
     return root.STAI.CHAT_TOOLS.map(provider => {
       const tool = { ...newWorkflow(provider.id, text(provider.label, provider.name)), executionId: PRESET_TOOL_EXECUTION_ID,
         enabled: true, description: text(provider.help, provider.description),
-        parameters: [{ name: "appId", type: "appId", required: true, description: text("workflow_tool_app_id", "Steam AppID") }] };
+        parameters: [] };
+      const variableId = engine.variable(tool, "appId", "number");
+      tool.parameters.push({ name: "appId", type: "appId", required: true, description: text("workflow_tool_app_id", "Steam AppID"), variableId });
       const query = engine.createNode("query-provider-data", tool, text);
       query.provider = provider.id;
-      query.appId = engine.reference("input", "", ["appId"]);
+      query.appId = engine.reference("variable", variableId);
       tool.steps.push(query);
       const output = engine.createNode("tool-return", tool, text);
       output.value = engine.reference("variable", query.output);
@@ -291,29 +293,129 @@
       return tool;
     });
   }
+  const toolConfigError = (message, messageKey) => Object.assign(new TypeError(message), { code: "WORKFLOW_CONFIG_INVALID", messageKey });
   function toolParameters(parameters) {
-    if (!Array.isArray(parameters)) throw new TypeError("工具输入列表无效");
+    if (!Array.isArray(parameters)) throw toolConfigError("工具输入列表无效", "workflow_tool_invalid_parameters");
     const names = new Set();
     return parameters.map(parameter => {
       if (!parameter || typeof parameter.name !== "string" || !/^[\p{L}_][\p{L}\p{N}_-]*$/u.test(parameter.name) ||
         ["__proto__", "constructor", "prototype"].includes(parameter.name) || names.has(parameter.name) ||
         !toolTypes.includes(parameter.type) || typeof parameter.required !== "boolean" || typeof parameter.description !== "string")
-        throw new TypeError("工具输入名称、类型或必填设置无效");
+        throw toolConfigError("工具输入名称、类型或必填设置无效", "workflow_tool_invalid_parameters");
       names.add(parameter.name);
-      const { name, type, required, description } = parameter;
-      return { name, type, required, description };
+      const { name, type, required, description, variableId } = parameter;
+      return { name, type, required, description, ...(variableId !== undefined && { variableId }) };
     });
   }
-  /** 验证工具定义和指令能力，保存、导入和试运行共用 */
-  function validateTool(tool) {
+  function toolDefinition(tool) {
     if (!engine.isToolId(tool?.id) || typeof tool.executionId !== "string" || !/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/.test(tool.executionId) ||
       typeof tool.enabled !== "boolean" ||
-      typeof tool.description !== "string" || !tool.description.trim()) throw new TypeError("请填写工具名称和用途");
-    const parameters = toolParameters(tool.parameters);
-    engine.validate(tool);
-    if (![...engine.walk(tool.steps, true)].some(node => node.action === "tool-return")) throw new TypeError("请插入「返回工具结果」指令");
-    const { id, name, revision, executionId, enabled, description, variables, steps, folds } = tool;
-    return clone({ id, name, revision, executionId, enabled, description, parameters, variables, steps, ...(folds ? { folds } : {}) });
+      typeof tool.description !== "string" || !tool.description.trim())
+      throw toolConfigError("请填写工具描述", "workflow_tool_incomplete_definition");
+    return toolParameters(tool.parameters);
+  }
+  function requireToolResult(tool) {
+    if (![...engine.walk(tool.steps, true)].some(node => node.action === "tool-return"))
+      throw toolConfigError("请插入「返回工具结果」指令", "workflow_tool_missing_return");
+  }
+  /** 工具元数据和返回结果使用与正式保存相同的检查，编辑器另外定位各指令错误 */
+  function toolDiagnostics(tool) {
+    const issues = [];
+    for (const check of [toolDefinition, requireToolResult]) {
+      try { check(tool); }
+      catch (error) { if (error.code !== "WORKFLOW_CONFIG_INVALID") throw error; issues.push(error); }
+    }
+    return issues;
+  }
+  /** 验证工具定义和指令能力，保存、导入和试运行共用 */
+  function validateTool(tool, { structureOnly = false } = {}) {
+    const parameters = toolDefinition(tool);
+    const { id, name, revision, executionId, enabled, description, variables, steps, folds, entryRow } = tool;
+    const definition = clone({ id, name, revision, executionId, enabled, description, parameters, variables, steps, ...(folds ? { folds } : {}), ...(entryRow !== undefined && { entryRow }) });
+    if (Array.isArray(definition.variables) && Array.isArray(definition.steps)) upgradeToolParameters(definition);
+    engine.validate(definition, { structureOnly });
+    requireToolResult(definition);
+    return definition;
+  }
+  function upgradeToolParameters(tool) {
+    const ids = new Set(tool.variables.map(variable => variable.id)), names = new Set(tool.variables.map(variable => variable.name));
+    let serial = 0;
+    for (const parameter of tool.parameters) {
+      if (parameter.variableId !== undefined) continue;
+      let id, name = parameter.name, suffix = 1;
+      do { id = "var-param-" + ++serial; } while (ids.has(id));
+      while (names.has(name)) name = parameter.name + ++suffix;
+      ids.add(id); names.add(name);
+      parameter.variableId = id;
+      tool.variables.push({ id, name, type: engine.parameterVariableType(parameter.type) });
+    }
+    const variables = new Map(tool.parameters.map(parameter => [parameter.name, parameter.variableId]));
+    for (const node of engine.walk(tool.steps)) {
+      for (const ref of engine.nodeReferences(node, true)) {
+        if (ref.source === "input" && variables.has(ref.path[0]))
+          Object.assign(ref, engine.reference("variable", variables.get(ref.path[0]), ref.path.slice(1)));
+      }
+      if (node.action === "receive") node.action = "set";
+    }
+  }
+  function parameterAccepts(type, value) {
+    if (value === undefined) return false;
+    switch (type) {
+      case "any": return true;
+      case "appId": return root.STAI.isToolAppId(value);
+      case "integer": return Number.isSafeInteger(value);
+      case "number": return Number.isFinite(value);
+      case "object": return !!value && typeof value === "object" && !Array.isArray(value);
+      case "list": case "array": return Array.isArray(value);
+      case "text": case "string": return typeof value === "string";
+      case "boolean": return typeof value === "boolean";
+      default: return false;
+    }
+  }
+  const commonEventFields = { id: "text", type: "text" };
+  const gameEventFields = { ...commonEventFields, game: "object", "game.official": "text", "game.appid": "number", appid: "number" };
+  const eventFields = {
+    added: gameEventFields,
+    installed: { ...gameEventFields, phase: "text" },
+    schedule: { ...commonEventFields, scheduledAt: "number", at: "number", unconfirmed: "boolean" },
+  };
+  const triggerEventPaths = type => Object.keys(eventFields[type] || {}).map(key => key.split("."));
+  function eventParameterType(eventType, path) {
+    if (!Object.hasOwn(eventFields, eventType)) return null;
+    if (!path.length) return "object";
+    const key = path.join("."), fields = eventFields[eventType];
+    return Object.hasOwn(fields, key) && key.split(".").length === path.length ? fields[key] : null;
+  }
+  function triggerParameterIssue({ name, type }, binding, eventType, allowMissing) {
+    const issue = (message, key, params = { name }) => Object.assign(toolConfigError(message, key), { messageParams: params });
+    const value = engine.activeValue(binding);
+    if (!value) return allowMissing ? null : issue("缺少触发参数：" + name, "workflow_parameter_missing");
+    for (const ref of engine.references(value)) {
+      if (ref.source === "input" && eventParameterType(eventType, ref.path)) continue;
+      const path = ref.path.join(".");
+      return issue("当前触发方式无法提供参数「" + name + "」的来源", "workflow_format_source_unavailable", { name, path });
+    }
+    const actualType = value.template ? "text" : value.source === "input" ? eventParameterType(eventType, value.path) : null;
+    if ((Object.hasOwn(value, "literal") && !parameterAccepts(type, value.literal)) || (actualType && type !== "any" && type !== actualType))
+      return issue("触发参数类型不符：" + name, "workflow_parameter_type");
+    return null;
+  }
+  function inputBindingIssue(workflow, inputs, eventType, { allowMissing = false } = {}) {
+    for (const parameter of workflow.inputParameters ?? []) {
+      const issue = triggerParameterIssue(parameter, inputs[parameter.variableId], eventType, allowMissing);
+      if (issue) return issue;
+    }
+    return null;
+  }
+  function workflowArguments(workflow, input) {
+    engine.validateEntryPosition(workflow);
+    for (const { name, type, variableId } of workflow.inputParameters ?? []) {
+      if (!Object.hasOwn(input, variableId))
+        throw Object.assign(toolConfigError("缺少触发参数：" + name, "workflow_parameter_missing"), { messageParams: { name } });
+      if (!parameterAccepts(type, input[variableId]))
+        throw Object.assign(toolConfigError("触发参数类型不符：" + name, "workflow_parameter_type"), { messageParams: { name } });
+    }
+    return input;
   }
   function toolArguments(tool, args) {
     const invalid = () => Object.assign(new TypeError("输入不符合工具参数定义"), { code: "CHAT_TOOL_INVALID" });
@@ -327,10 +429,7 @@
       Object.keys(args).some(name => !tool.parameters.some(parameter => parameter.name === name))) throw invalid();
     for (const { name, type, required } of tool.parameters) {
       if (!Object.hasOwn(args, name)) { if (required) throw invalid(); continue; }
-      const value = args[name], valid = type === "appId" ? root.STAI.isToolAppId(value) : type === "integer" ? Number.isSafeInteger(value) :
-        type === "number" ? Number.isFinite(value) : type === "array" ? Array.isArray(value) :
-          type === "object" ? value && typeof value === "object" && !Array.isArray(value) : typeof value === type;
-      if (!valid) throw invalid();
+      if (!parameterAccepts(type, args[name])) throw invalid();
     }
     return args;
   }
@@ -345,6 +444,10 @@
         required: tool.parameters.filter(parameter => parameter.required).map(parameter => parameter.name) },
     } };
   }
+  function workflowDefinitionKey(workflow) {
+    const { entryRow, ...definition } = workflow;
+    return JSON.stringify({ ...definition, revision: 0, ...(engine.isToolId(workflow.id) ? { name: "", executionId: "" } : {}) });
+  }
   function newTrigger(id = "trigger-1", workflowId = "", name = "未命名触发器") {
     return { id, name, revision: 1, enabled: false, workflowId, event: { type: "manual" },
       conditions: group(), inputs: {}, busy: "queue" };
@@ -352,6 +455,7 @@
   function initialBindings() { return Object.fromEntries(Object.keys(root.STAI.MANUAL_TASKS).map(scene => [scene, root.STAI.initialBinding(scene)])); }
   function template(type, id) {
     const workflow = newWorkflow(id, TYPES[type]);
+    workflow.inputParameters = [];
     const add = (key, steps = workflow.steps) => { const node = engine.createNode(key, workflow); steps.push(node); return node; };
     const ref = (id, path = []) => engine.reference("variable", id, path);
     if (type === "family") {
@@ -361,15 +465,22 @@
       branch.otherwise = []; const failed = add("notify", branch.otherwise); failed.body = { template: ["家庭库刷新未完成：", ref(refresh.errorOutput, ["reason"])] }; failed.level = "error";
       return workflow;
     }
-    const input = add("receive"); input.value.path = ["game"];
-    const game = add("steam-original-name"); game.game = ref(input.output);
+    const parameter = (name, type) => {
+      const variableId = engine.variable(workflow, name, type);
+      workflow.inputParameters.push({ name, type, variableId });
+      return variableId;
+    };
+    const appId = parameter("传入APPID", "number"), gameName = parameter("传入游戏名称", "text");
     if (type === "name") {
-      const existing = add("steam-sort-name"); existing.game = ref(input.output);
+      const containsHan = add("if");
+      containsHan.branches[0].condition = { op: "regex", left: ref(gameName), right: engine.literal(String.raw`/\p{Script=Han}/u`) };
+      add("stop", containsHan.branches[0].steps);
+      const existing = add("steam-sort-name"); existing.game = ref(appId);
       const branch = add("if"); branch.branches[0].condition = { op: "empty", left: ref(existing.output) };
-      const ai = add("ai-call", branch.branches[0].steps); Object.assign(ai, root.STAI.initialBinding("auto-name")); ai.inputs = { "Steam 原名": ref(game.output) };
+      const ai = add("ai-call", branch.branches[0].steps); Object.assign(ai, root.STAI.initialBinding("auto-name")); ai.inputs = { "Steam 原名": ref(gameName) };
       const trim = add("text-trim", branch.branches[0].steps); trim.value = ref(ai.output);
       const valid = add("if", branch.branches[0].steps); valid.branches[0].condition = { op: "notEmpty", left: ref(trim.output) };
-      const write = add("steam-set-sort-name", valid.branches[0].steps); write.game = ref(input.output); write.value = ref(trim.output);
+      const write = add("steam-set-sort-name", valid.branches[0].steps); write.game = ref(appId); write.value = ref(trim.output);
     } else if (type === "collection") {
       const info = add("record");
       const setField = (key, value, steps) => {
@@ -378,9 +489,9 @@
         set.item = ref(value); set.output = info.output;
         workflow.variables.pop(); // 保留同一个游戏资料变量
       };
-      setField("official", game.output);
+      setField("official", gameName);
       for (const field of ["app-type", "genres", "features", "tags"]) {
-        const read = add("steam-game-" + field); read.game = ref(input.output); read.onError = "continue";
+        const read = add("steam-game-" + field); read.game = ref(appId); read.onError = "continue";
         const available = add("if");
         available.branches[0].condition = { op: "exists", left: ref(read.output) };
         setField(field.replace("-", "_"), read.output, available.branches[0].steps);
@@ -392,10 +503,10 @@
       const append = add("append", writable.branches[0].steps); append.value = ref(allowed.output); append.item = ref(loop.item); append.output = allowed.output;
       const ai = add("ai-call"); Object.assign(ai, root.STAI.initialBinding("collection")); ai.inputs = { "游戏资料": ref(info.output), "可选收藏分组": ref(allowed.output) };
       const parsed = add("json"); parsed.value = ref(ai.output);
-      const write = add("steam-add-collections"); write.game = ref(input.output); write.value = ref(parsed.output, ["collection_ids"]);
+      const write = add("steam-add-collections"); write.game = ref(appId); write.value = ref(parsed.output, ["collection_ids"]);
     } else if (type === "achievement") {
-      const items = add("steam-achievements"); items.game = ref(input.output);
-      const saved = add("steam-translations"); saved.game = ref(input.output);
+      const items = add("steam-achievements"); items.game = ref(appId);
+      const saved = add("steam-translations"); saved.game = ref(appId);
       const pending = add("list");
       const scan = add("foreach"); scan.value = ref(items.output);
       const missing = add("if", scan.body); missing.branches[0].condition = { op: "isFalse", left: { expression: [ref(saved.output), ".some(item => item.id === ", ref(scan.item, ["id"]), ")"] } };
@@ -403,9 +514,9 @@
       const batches = add("list-chunk"); batches.value = ref(pending.output);
       const loop = add("foreach"); loop.value = ref(batches.output);
       const ai = add("ai-call", loop.body); ai.promptId = "P-12";
-      ai.inputs = { "成就条目": ref(loop.item), "任务游戏名称": ref(game.output), "目标语言": engine.literal("chinese_simplified") };
+      ai.inputs = { "成就条目": ref(loop.item), "任务游戏名称": ref(gameName), "目标语言": engine.literal("chinese_simplified") };
       const parsed = add("json", loop.body); parsed.value = ref(ai.output);
-      const write = add("steam-save-translations", loop.body); write.game = ref(input.output); write.value = ref(parsed.output); write.origin = engine.literal("ai");
+      const write = add("steam-save-translations", loop.body); write.game = ref(appId); write.value = ref(parsed.output); write.origin = engine.literal("ai");
     } else throw new TypeError("工作流模板类型无效");
     return workflow;
   }
@@ -416,7 +527,7 @@
 
   // 只在构建出厂工作流时为可编辑变量命名。已有配置直接读取其保存的名称。
   const starterVariables = {
-    "输入数据": "input", "Steam 原名称": "original", "自定义排序名称": "sort", "AI 回复": "ai",
+    "传入APPID": "inputAppId", "传入游戏名称": "inputGameName", "自定义排序名称": "sort", "AI 回复": "ai",
     "删除文本两端的空白结果": "trim", "设置自定义排序名称结果": "setSort", "字典": "record",
     "游戏类型": "type", "游戏题材": "genres", "游戏特色": "features", "商店标签": "tags",
     "读取收藏分组列表结果": "collections", "列表": "list", "当前项目": "item", "当前序号": "index",
@@ -432,6 +543,7 @@
       const [, base, suffix] = /^(.*?)(\d*)$/.exec(variable.name);
       variable.name = text("seed.variable." + starterVariables[base], base) + suffix;
     }
+    for (const parameter of workflow.inputParameters) parameter.name = workflow.variables.find(item => item.id === parameter.variableId).name;
     for (const node of walkSteps(workflow.steps)) {
       if (node.action === "ai-call") {
         const plan = prompts.find(plan => plan.id === node.promptId);
@@ -462,8 +574,13 @@
     for (const [type, name, event] of starter) {
       const workflow = template(type, "wf-" + (workflows.length + 1));
       const trigger = { ...newTrigger("trigger-" + (triggers.length + 1), workflow.id), name, event };
-      if (event.type === "added" || event.type === "installed")
-        trigger.inputs = { game: engine.reference("input", "", ["game"]) };
+      if (event.type === "added" || event.type === "installed") {
+        const [appId, gameName] = workflow.inputParameters;
+        trigger.inputs = {
+          [appId.variableId]: engine.reference("input", "", ["appid"]),
+          [gameName.variableId]: engine.reference("input", "", ["game", "official"]),
+        };
+      }
       if (text) {
         localizeStarterWorkflow(workflow, type, text, prompts);
         trigger.name = text("seed.trigger." + type, trigger.name);
@@ -490,7 +607,7 @@
           next.workflows.push(workflow);
         }
       }
-      trigger = { ...newTrigger("trigger-0", workflow.id), name: text ? text("seed.workflow.family", "家庭库维护") : "维护家庭库" };
+      trigger = { ...newTrigger("trigger-0", workflow.id), name: text ? text("seed.workflow.family", TYPES.family) : "维护家庭库" };
       if (initial) {
         next.workflows = next.workflows.filter(item => item.id !== "wf-4");
         next.triggers = next.triggers.filter(item => item.id !== "trigger-4");
@@ -502,7 +619,7 @@
     trigger.enabled = Boolean(interval && enabled);
     return next;
   }
-  function normalize(value, text, { deferToolLibrary = false } = {}) {
+  function normalize(value, text, { deferToolLibrary = false, structureOnly = false } = {}) {
     if (!value || value.version !== VERSION || !Array.isArray(value.prompts) || !Array.isArray(value.triggers) || !Array.isArray(value.workflows) || !value.bindings || Object.hasOwn(value, "rules"))
       throw new TypeError("提示词与工作流配置包无效");
     id(value.epoch, "配置代次");
@@ -520,7 +637,7 @@
     ids.clear();
     for (const workflow of result.workflows) {
       if (!/^wf-\d+$/.test(workflow.id) || ids.has(workflow.id)) throw new TypeError("工作流 ID 无效或重复");
-      ids.add(workflow.id); engine.validate(workflow);
+      ids.add(workflow.id); engine.validate(workflow, { structureOnly });
     }
     ids.clear();
     if (result.tools === undefined) result.tools = [];
@@ -533,11 +650,12 @@
       }
     } else if (result.toolLibraryVersion !== TOOL_LIBRARY_VERSION) throw new TypeError("工具库配置版本无效");
     result.tools = result.tools.map(tool => {
-      const valid = validateTool(tool);
+      const valid = validateTool(tool, { structureOnly });
       if (ids.has(valid.id)) throw new TypeError("工具 ID 重复");
       ids.add(valid.id); return valid;
     });
     ids.clear();
+    const workflows = new Map(result.workflows.map(workflow => [workflow.id, workflow]));
     for (const trigger of result.triggers) {
       if (!/^trigger-\d+$/.test(trigger.id) || ids.has(trigger.id) || typeof trigger.name !== "string" || !trigger.name.trim() ||
         typeof trigger.enabled !== "boolean" || !Number.isSafeInteger(trigger.revision) || trigger.revision < 1 || !/^wf-\d+$/.test(trigger.workflowId) ||
@@ -555,6 +673,16 @@
         engine.validateValue(value, new Set(), false);
         if (value.source === "meta") throw new TypeError("触发器输入只能选择事件字段或固定值");
       }
+      const workflow = workflows.get(trigger.workflowId);
+      if (workflow?.inputParameters) {
+        const declared = new Set(workflow.inputParameters.map(parameter => parameter.variableId));
+        if (Object.keys(trigger.inputs).some(key => !declared.has(key)))
+          throw toolConfigError("触发器包含未声明的参数", "workflow_parameter_invalid");
+        if (trigger.enabled) {
+          const issue = inputBindingIssue(workflow, trigger.inputs, event.type);
+          if (issue) throw issue;
+        }
+      }
     }
     return result;
   }
@@ -571,6 +699,6 @@
   }
   root.STAutomation = Object.freeze({ empty, KEY, ROUTE, CHANNEL, PREVIEW_CHANNEL, VERSION, DEFAULT_LANGUAGE, CHECK_INTERVAL_MS, isTriggerType,
     STEP_STATES, NOTICE_TYPES, TYPES, RANGES, OPS, group, conditionFields,
-    newWorkflow, newTrigger, newTool, validateTool, toolParameters, toolArguments, toolSchema, toolTypes, isOriginalProviderTool, TOOL_CREDENTIALS_KEY, template, defaults, restoreFamilySchedule, normalize, walkSteps, operators, validateCondition, match, matchAsync, dateWindow, inRange, triggered, nativeConfig, clone });
+    newWorkflow, newTrigger, newTool, validateTool, toolDiagnostics, toolParameters, toolArguments, toolSchema, toolTypes, workflowDefinitionKey, triggerEventPaths, triggerParameterIssue, inputBindingIssue, workflowArguments, isOriginalProviderTool, TOOL_CREDENTIALS_KEY, template, defaults, restoreFamilySchedule, normalize, walkSteps, operators, validateCondition, match, matchAsync, dateWindow, inRange, triggered, nativeConfig, clone });
 
 })(globalThis);

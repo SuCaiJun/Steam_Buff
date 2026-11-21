@@ -86,18 +86,79 @@
     .aw-inspector-panel:not([hidden]):has(>.aw-inspector-empty:not([hidden])){display:flex;flex-direction:column}
     .aw-inspector-panel>table{flex:none}
     .aw-inspector-empty{display:grid;place-items:center;flex:1;min-height:0;color:var(--st-color-text-muted);font-size:var(--st-font-size-caption)}
-    .aw-inspector-panel[hidden],.aw-inspector-empty[hidden],.aw-variable-search[hidden]{display:none}
-    .aw-inspector th.aw-variable-actions{width:1%;padding:2px 0 2px 8px;white-space:nowrap}
-    .aw-variable-tools{display:flex;align-items:center;justify-content:flex-end;gap:4px}
-    .aw .aw-variable-tools .aw-variable-search{width:clamp(96px,18vw,176px);height:28px;min-width:0}
+    .aw-param-dialog .aw-form.aw-entry-form{gap:16px;padding-top:16px}
+    .aw-entry-list{display:grid;gap:8px;--aw-entry-columns:minmax(0,1.25fr) minmax(0,1fr) 28px}
+    .aw-entry-list[data-tool-entry]{--aw-entry-columns:minmax(0,1fr) minmax(0,1fr) minmax(0,1.3fr) max-content 28px}
+    .aw-entry-fields{display:grid;grid-template-columns:var(--aw-entry-columns);align-items:center;gap:8px;min-width:0}
+    .aw-entry-fields>*{min-width:0}.aw-entry-fields .aw-trigger-check{display:grid;justify-items:center}
+    .aw-entry-head{color:var(--st-color-text-muted);font-size:var(--st-font-size-caption);overflow-wrap:anywhere}
+    .aw-entry-description-field textarea{resize:vertical}
+    .aw-entry-description{margin:0;color:var(--st-color-text-secondary);white-space:pre-wrap;overflow-wrap:anywhere}
+    .aw-trigger-parameter{display:grid;grid-template-columns:minmax(0,1fr) 28px;align-items:center;gap:8px}
+    .aw-param-dialog .aw-trigger-parameter>.aw-value{grid-template-columns:minmax(72px,27%) minmax(0,1fr);align-items:center}
+    .aw-trigger-parameter:has(>[data-aw=binding-add]){grid-template-columns:minmax(72px,27%) minmax(0,1fr) 28px}
+    .aw-trigger-parameter>small{grid-column:1/-1}
+    .aw-inspector-panel[hidden],.aw-inspector-empty[hidden]{display:none}
+    .aw-inspector th.aw-inspector-actions{width:1%;padding:2px 0 2px 8px;white-space:nowrap}
+    .aw-inspector-controls{display:flex;align-items:center;justify-content:flex-end;gap:4px}
+    .aw-inspector .aw-variable-table td:last-child{text-align:end;padding-inline-end:calc(var(--st-control-height-compact) + var(--st-spacing-xs))}
+    .aw-inspector-find{--aw-search-width:clamp(112px,calc(30vw - 32px),280px);display:grid;grid-template-areas:"search";flex:none;inline-size:var(--aw-search-width);block-size:var(--st-control-height-compact)}
+    .aw .aw-inspector-find>input.aw-inspector-search{grid-area:search;padding-inline:calc(var(--st-control-height-compact) + var(--st-spacing-xs)) 0;opacity:1;clip-path:inset(-4px round var(--st-control-radius))}
+    .aw-inspector-search::-webkit-search-cancel-button{appearance:none;flex:none;inline-size:var(--st-spacing-xl);block-size:var(--st-spacing-xl);margin:0;cursor:pointer;background:currentColor;mask:url('${instructions.iconAsset("x")}') center/12px no-repeat;forced-color-adjust:none}
+    .aw .aw-inspector-find>input.aw-inspector-search[inert]{visibility:hidden;opacity:0;clip-path:inset(-4px -4px -4px calc(100% - var(--st-control-height-compact)) round var(--st-control-radius))}
+    .aw .aw-inspector-find>button{grid-area:search;justify-self:end;order:1}
+    .aw .aw-inspector-find>button[aria-expanded=true]{transform:translateX(calc(var(--st-control-height-compact) - var(--aw-search-width)));color:var(--st-color-steam-blue)}
+    @media(prefers-reduced-motion:no-preference){
+      .aw .aw-inspector-find>input.aw-inspector-search{transition:clip-path var(--st-motion-normal),opacity var(--st-motion-fast),border-color var(--st-motion-fast),box-shadow var(--st-motion-fast),var(--aw-search-visibility,visibility 0s)}
+      .aw .aw-inspector-find>input.aw-inspector-search[inert]{--aw-search-visibility:visibility var(--st-motion-normal)}
+      .aw .aw-inspector-find>button{transition:transform var(--st-motion-normal),color var(--st-motion-fast),background-color var(--st-motion-fast),border-color var(--st-motion-fast),box-shadow var(--st-motion-fast)}
+    }
     @media(max-width:760px){.aw-editor-main{grid-template-columns:160px minmax(0,1fr);--aw-indent:20px}.aw-editor-top{flex-wrap:wrap}.aw-editor-top>.aw-workflow-name{max-width:none;flex-basis:60%}.aw-inspector-head>[data-count]{display:none}.aw-grid{grid-template-columns:1fr}.aw-param-dialog .aw-value,.aw-param-dialog .aw-condition-fields>label{grid-template-columns:1fr;gap:6px}.aw-param-dialog .aw-value>span{padding-top:0}}
     .aw-palette details[data-group]{margin-inline-start:8px}.aw-palette details[data-group]>summary{font-weight:var(--st-font-weight-regular);font-size:var(--st-font-size-caption)}
     .aw-param-dialog{width:min(680px,calc(100vw - 32px))!important}.aw-param-dialog .settings-dialog-header{min-height:88px;height:auto;padding-block:16px!important}.aw-param-dialog .settings-dialog-message{padding:0 20px 20px!important;max-height:calc(100dvh - 200px);overflow:auto;white-space:normal}.aw-param-dialog .aw-form{gap:0}.aw-param-dialog .aw-param-tabs{margin:0 0 20px;gap:16px;flex-shrink:0}.aw-param-dialog .aw-param-tabs [role=tab]{padding-inline:0}.aw-param-dialog .aw-param-tabs [aria-selected=true]::after{inset-inline:0}.aw-param-dialog [role=tabpanel]{display:grid;gap:24px}.aw-param-dialog .aw-section{gap:16px}.aw-param-dialog .aw-section+.aw-section{border-top:1px solid var(--st-dialog-divider);padding-top:20px}.aw-param-dialog .aw-grid{grid-template-columns:minmax(0,1fr);gap:16px}.aw-param-dialog .aw-section>label,.aw-param-dialog .aw-grid>label,.aw-param-dialog .aw-output-field{display:grid;grid-template-columns:112px minmax(0,1fr);gap:16px;align-items:center}.aw-param-dialog .aw-value{gap:16px}.aw-param-dialog .aw-section h4{font-size:var(--st-font-size-body-small);margin:0 0 4px}.aw-param-dialog [data-dialog-action=test]{margin-inline-end:auto}
     .aw-param-dialog .aw-single-condition{grid-template-columns:minmax(0,1fr);border:0;padding:0}.aw-param-dialog .aw-condition-fields>label select{max-width:none}.aw-code-section{display:grid;gap:8px}.aw-code-toolbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.aw-code-toolbar>span{margin-inline-end:auto}.aw-code-editor{height:280px;min-width:0;border:1px solid var(--st-dialog-border);border-radius:var(--st-control-radius);overflow:hidden;display:grid;grid-template-columns:minmax(0,1fr) auto}.aw-code-editor>[data-code]{min-width:0;min-height:0}.aw .aw-code-editor>[data-script-reference]{align-self:start;height:32px;border-radius:var(--st-control-radius)}.aw-code-editor:focus-within{border-color:var(--st-color-steam-blue);box-shadow:var(--st-control-focus-shadow)}.aw-code-expanded{width:calc(100vw - 32px)!important}.aw-code-expanded .aw-code-editor{height:48vh}.aw-test-result{margin-top:16px;padding-top:16px;border-top:1px solid var(--st-dialog-divider);white-space:pre-wrap;overflow-wrap:anywhere;font-family:monospace;max-height:200px;overflow:auto}.aw-param-dialog [hidden]{display:none!important}
     .aw-inspector .aw-table-link:has(.aw-diagnostic-warning){color:var(--st-dialog-text-color)}.aw-diagnostic-warning{color:var(--st-color-warning);margin-inline-end:4px}
+    .aw-diagnostic-error{color:var(--st-color-danger-text);overflow-wrap:anywhere}
+    .aw-inspector [data-diagnostics] th:first-child{width:18%}
+    .aw-inspector [data-diagnostics] td{overflow-wrap:anywhere}
+    .aw-diagnostic-lines .aw-inspector-controls{justify-content:space-between;gap:var(--st-spacing-sm)}
     .aw-inspector [data-diagnostics] tbody tr:is(:hover,:has(:focus-visible)){background-color:var(--st-color-surface-subtle-hover)}
-    .aw-inspector [data-diagnostics] button,.aw-inspector [data-diagnostics] button:is(:hover,:focus-visible){border:0;border-radius:0;background:transparent;box-shadow:none}
-    .aw-inspector [data-diagnostics] button:focus-visible{text-decoration:underline;text-underline-offset:.2em}
+    .aw-inspector [data-diagnostics] tbody button,.aw-inspector [data-diagnostics] tbody button:is(:hover,:focus-visible){border:0;border-radius:0;background:transparent;box-shadow:none}
+    .aw-inspector [data-diagnostics] tbody button:focus-visible{text-decoration:underline;text-underline-offset:.2em}
+    .aw-debug-status{min-width:0;margin:0;padding-inline:8px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--st-color-text-secondary);font-size:var(--st-font-size-caption)}
+    .aw-debug-head,.aw-debug-pages{display:flex;align-items:center;justify-content:space-between;gap:4px}.aw-debug-pages{font-variant-numeric:tabular-nums;color:var(--st-color-text-muted);font-size:var(--st-font-size-caption)}
+    .aw-debug-head{position:sticky;inset-block-start:0;z-index:var(--st-z-index-base);box-sizing:border-box;block-size:var(--st-control-height-regular);background:var(--st-dialog-surface);border-block-end:1px solid var(--st-dialog-divider);flex:none}
+    .aw-debug-pages [data-aw=log-prev]>.aw-command-icon{transform:rotate(180deg)}
+    .aw .aw-editor-run{margin-inline-start:auto;flex:none}.aw .aw-editor-run[aria-disabled=true]{opacity:.65;cursor:default}
+    .aw-debug-head:not([hidden])+.aw-debug-log th{top:var(--st-control-height-regular)}
+    .aw-debug-log th:first-child{width:clamp(52px,6vw,88px);white-space:nowrap}
+    .aw-debug-log th:nth-child(2){width:clamp(80px,11vw,144px);white-space:nowrap}
+    .aw-debug-log .aw-inspector-controls>span{margin-inline-end:var(--st-spacing-sm)}
+    .aw-debug-log .aw-inspector-find{--aw-search-width:clamp(76px,21vw,156px)}
+    .aw-debug-log td{vertical-align:middle}
+    .aw-debug-log td:nth-child(2){font-variant-numeric:tabular-nums;color:var(--st-color-text-muted);white-space:nowrap}
+    .aw-inspector td.aw-debug-message{padding-block:2px}
+    .aw-debug-content{display:grid;grid-template:"field" / minmax(0,1fr);align-items:center}
+    .aw .aw-debug-content>textarea{grid-area:field;display:block;min-height:0;height:var(--st-control-height-compact);padding:4px 6px;padding-inline-end:calc(var(--st-control-height-compact) + var(--st-spacing-xs));margin:0;resize:none;overflow:hidden;background:transparent;border-color:transparent;line-height:calc(var(--st-control-height-compact) - 10px);color:inherit;cursor:text}
+    .aw .aw-debug-content:hover>textarea,.aw .aw-debug-content:focus-within>textarea{border-color:var(--st-dialog-border)}
+    .aw .aw-debug-content>textarea:focus{border-color:var(--st-dialog-border-hover)}
+    .aw .aw-debug-content>button{grid-area:field;justify-self:end;inline-size:calc(var(--st-control-height-compact) - 2px);block-size:calc(var(--st-control-height-compact) - 2px);margin-inline-end:1px}
+    @media(hover:hover){
+      .aw-debug-content>button{opacity:0}
+      .aw-debug-log tr:hover .aw-debug-content>button,.aw-debug-content:focus-within>button{opacity:1}
+    }
+    @media(prefers-reduced-motion:no-preference){.aw-debug-content>button{transition:opacity var(--st-motion-fast)}}
+    .settings-native-layer .settings-form-dialog.aw-log-view-dialog{width:min(820px,100%)}
+    .aw-log-view-dialog .settings-dialog-actions:empty{display:none}
+    .aw-log-view{display:grid;gap:var(--st-spacing-sm);white-space:normal}
+    .aw-log-view-toolbar{display:flex;justify-content:flex-end;align-items:center;gap:var(--st-spacing-md);flex-wrap:wrap}
+    .aw-log-view-toolbar [role=status]{margin-inline-end:auto;color:var(--st-color-text-secondary);font-size:var(--st-font-size-caption)}
+    .aw .aw-log-view-toolbar>label{display:flex;align-items:center;gap:var(--st-spacing-xs)}
+    .aw-log-view-editor{height:min(52vh,480px);min-width:0;overflow:hidden;border:1px solid var(--st-dialog-border);border-radius:var(--st-control-radius)}
+    .aw-log-view-editor:focus-within{border-color:var(--st-dialog-border-hover)}
+    .aw-debug-log [data-level=warning]>td:first-child{color:var(--st-color-warning)}
+    .aw-debug-log [data-level=error]>td:first-child{color:var(--st-color-danger-text)}
+    .aw-debug-log [data-level=success]>td:first-child{color:var(--st-color-success)}
     @media(max-width:600px){.aw-param-dialog .aw-section>label,.aw-param-dialog .aw-grid>label,.aw-param-dialog .aw-output-field,.aw-param-dialog .aw-value{grid-template-columns:minmax(0,1fr);gap:8px}}
     .aw-param-dialog:has(.aw-trigger-form) .settings-dialog-header{min-height:0}
     .aw-trigger-form{display:grid;gap:16px;padding-top:20px}
@@ -135,7 +196,7 @@
     .aw-import-issues .settings-dialog-message{white-space:pre-line;overflow-wrap:anywhere}
     .aw-automation-dialog:not(.settings-form-dialog) .settings-dialog-message{white-space:pre-line;overflow-wrap:anywhere}
     .aw-automation-dialog .settings-dialog-danger{color:var(--st-color-danger-text)}
-    .aw-summary-reference{display:inline;border:1px solid var(--st-color-border-hover);border-radius:var(--st-radius-sm);background:var(--st-color-primary-surface);padding-inline:3px;box-decoration-break:clone;-webkit-box-decoration-break:clone}
+    .aw-summary-reference,.aw-summary-fragment{display:inline;border:1px solid var(--st-color-border-hover);border-radius:var(--st-radius-sm);background:var(--st-color-primary-surface);padding-inline:3px;box-decoration-break:clone;-webkit-box-decoration-break:clone}
     .aw-note-card{display:flex;align-items:center;gap:8px;min-width:0;padding:6px 8px;border-radius:var(--st-radius-sm);background:color-mix(in srgb,var(--st-color-success) 12%,transparent);color:var(--st-color-success-bright);font-size:var(--st-font-size-caption)}
     .aw-note-card .aw-command-icon{width:16px;height:16px}
     .aw-node-note{max-width:min(240px,20vw)}.aw-node-note .aw-note-text{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -307,7 +368,7 @@
   function importReferenceIssues(workflow) {
     // 有效的指令树可以带入编辑器重绑变量。损坏的文件格式仍由原校验器拒绝。
     const editable = error => error.code === "WORKFLOW_CONFIG_INVALID" && error.nodeId &&
-      ["workflow_error_unassigned", "workflow_error_deleted_variable", "workflow_error_output"].includes(error.messageKey);
+      ["workflow_error_unassigned", "workflow_error_deleted_variable", "workflow_error_output", "workflow_parameter_replace_receive", "workflow_parameter_legacy_reference"].includes(error.messageKey);
     try { flow.validate(workflow); return []; }
     catch (error) {
       if (!editable(error)) throw error;
@@ -322,7 +383,12 @@
     const data = JSON.parse(await file.text());
     if (data?.schemaVersion !== 1 || !/^wf-\d+$/.test(data.workflow?.id))
       throw new Error(tr("workflow_ui_invalid_workflow_file_version", "工作流文件版本无效"));
-    const workflow = data.workflow, issues = [...importReferenceIssues(workflow), ...toolIssues(workflow, state.bundle.tools || [])];
+    const workflow = data.workflow, referenceIssues = importReferenceIssues(workflow);
+    if (!referenceIssues.length && !workflow.inputParameters) {
+      openWorkflowParameters(workflow);
+      referenceIssues.push(...importReferenceIssues(workflow));
+    }
+    const issues = [...referenceIssues, ...toolIssues(workflow, state.bundle.tools || [])];
     const calls = [...flow.walk(workflow.steps)].filter(node => node.action === "ai-call");
     if (calls.length) {
       const registry = await state.ctx.storage.getAi();
@@ -370,7 +436,9 @@
       },
     }).then(answer => answer === "save" ? draft.id : null).finally(() => lifetime.abort());
   }
-  const description = (row, workflow, editor) => instructions.describe(row, workflow, editor).map(part => typeof part === "string" ? esc(part) : `<span class="aw-summary-value${part.reference ? " aw-summary-reference" : ""}">${esc(part.value)}</span>`).join("");
+  const description = (row, workflow, editor) => tools.isEntryRow(row.node)
+    ? esc(flow.entryParameters(workflow).map(item => item.name).join("、"))
+    : instructions.describe(row, workflow, editor).map(part => typeof part === "string" ? esc(part) : `<span class="aw-summary-value${part.reference ? " aw-summary-reference" : part.fragment ? " aw-summary-fragment" : ""}">${esc(part.value)}</span>`).join("");
   const permissionLabel = () => tr("settings_account_profileEntitlement", "权益");
   const nameBadge = id => {
     const permission = flow.instructionPermission(id);
@@ -378,6 +446,9 @@
   };
   function nodeName(node) { return node.action === "notify" && node.messageType === "interactive" ? instructions.name("interactive") : instructions.name(flow.type(node)); }
   const isFold = row => row?.node?.kind === "fold";
+  const isEnd = row => !!row?.marker?.startsWith("end-");
+  const isBlockBoundary = row => !!row?.node && !["action", "fold"].includes(row.node.kind) && (!row.marker || isEnd(row));
+  const owningBlockPath = listPath => listPath.slice(0, listPath.at(-3) === "branches" ? -3 : -1);
   const canFold = row => row?.marker === "fold-start" ? row.partner !== undefined : !!row?.node && !row.marker && row.node.kind !== "action";
   const containsFold = (row, target) => row.marker === "fold-start" && row.partner !== undefined && target.path &&
     row.listPath.every((key, index) => target.path[index] === key) &&
@@ -403,33 +474,101 @@
     }
     return null;
   }
-  function snapshot(editor) { editor.undo.push(flow.clone(editor.draft)); editor.redo.length = 0; editor.diagnostics = null; }
-  async function removeNode(state, editor, row) {
-    if (isFold(row)) {
-      snapshot(editor);
-      const list = flow.pathGet(editor.draft, row.listPath);
-      const indices = row.partner === undefined ? [row.index] : [Math.max(row.index, row.partner), Math.min(row.index, row.partner)];
-      for (const index of indices) { editor.collapsed.delete(list[index].id); list.splice(index, 1); }
-      paintEditor(editor); focusSelection(editor); return;
+  function snapshot(editor) {
+    editor.undo.push(flow.clone(editor.draft)); editor.redo.length = 0; editor.diagnostics = null;
+    editor.insertionIssue = null; editor.saveIssue = null;
+  }
+  function showPairIssue(editor, selection) {
+    openInspectorErrors(editor);
+    if (selection) editor.selected = selection;
+  }
+  function restoreBoundary(editor, node, field, selection = node.id) {
+    snapshot(editor);
+    delete node[field];
+    editor.collapsed.delete(node.id);
+    editor.selected = selection; editor.reveal = true;
+    closeInsertion(editor, false);
+    paintEditor(editor); focusSelection(editor);
+  }
+  function hasBlockContents(node) {
+    if (node.kind === "if") return node.branches[0].steps.length > 0 || node.branches.length > 1 || node.otherwise !== null;
+    return node.body.length > 0 || node.kind === "try" && (node.catch !== null || node.finally !== null);
+  }
+  function enclosingIncompleteBlocks(draft, listPath) {
+    const blocks = [];
+    while (listPath.length > 1) {
+      const path = owningBlockPath(listPath), node = flow.pathGet(draft, path);
+      if (!node.draftMissingStart || !node.draftMissingEnd) break;
+      listPath = path.slice(0, -1);
+      blocks.push({ node, list: flow.pathGet(draft, listPath) });
     }
+    return blocks;
+  }
+  function pruneEmptyBlocks(blocks) {
+    for (const { node, list } of blocks) {
+      if (!node.draftMissingStart || !node.draftMissingEnd || hasBlockContents(node)) break;
+      const index = list.indexOf(node);
+      if (index >= 0) list.splice(index, 1);
+    }
+  }
+  function removeDraftStep(draft, path) {
+    const listPath = path.slice(0, -1), blocks = enclosingIncompleteBlocks(draft, listPath);
+    flow.pathGet(draft, listPath).splice(path.at(-1), 1);
+    pruneEmptyBlocks(blocks);
+  }
+  const foldPartner = (list, index) => flow.foldPairs(list).get(index);
+  function removeBoundary(editor, row) {
+    snapshot(editor);
+    if (isFold(row)) {
+      const list = flow.pathGet(editor.draft, row.listPath);
+      const index = foldPartner(list, row.index), partner = list[index];
+      editor.collapsed.delete(row.node.id);
+      if (partner) editor.collapsed.delete(partner.id);
+      if (index === undefined) removeDraftStep(editor.draft, row.path);
+      else if (partner.draftRemoved) {
+        const blocks = enclosingIncompleteBlocks(editor.draft, row.listPath);
+        list.splice(Math.max(row.index, index), 1);
+        list.splice(Math.min(row.index, index), 1);
+        pruneEmptyBlocks(blocks);
+      } else {
+        row.node.draftRemoved = true;
+        showPairIssue(editor, partner.id);
+      }
+    } else {
+      const { node, path } = row;
+      node[isEnd(row) ? "draftMissingEnd" : "draftMissingStart"] = true;
+      editor.collapsed.delete(node.id);
+      if (node.draftMissingStart && node.draftMissingEnd && !hasBlockContents(node)) removeDraftStep(editor.draft, path);
+      else showPairIssue(editor, node.draftMissingStart && !node.draftMissingEnd ? node.id + ":end" : node.id);
+    }
+    paintEditor(editor); focusSelection(editor);
+  }
+  async function removeNode(state, editor, row, entireBlock = false) {
+    if (!entireBlock && (isFold(row) || isBlockBoundary(row))) return removeBoundary(editor, row);
     if (["else-if", "else", "catch", "finally"].includes(row.marker)) {
       const title = instructions.name(instructions.key(row));
       if (!await confirm(state, tr("workflow_ui_delete_branch", "删除分支"), tr("workflow_format_delete_branch", "将删除“$name$”分支及其内部全部步骤，可在保存前撤销。", { name: title }))) return;
       snapshot(editor);
       if (row.marker === "else-if") row.node.branches.splice(row.branch, 1);
       else row.node[row.marker === "else" ? "otherwise" : row.marker] = null;
+      const listPath = row.path.slice(0, -1);
+      pruneEmptyBlocks([{ node: row.node, list: flow.pathGet(editor.draft, listPath) }, ...enclosingIncompleteBlocks(editor.draft, listPath)]);
+      tools.clearEntryData(editor.draft);
       editor.selected = row.node.id; paintEditor(editor); focusSelection(editor); return;
     }
-    if (!await confirm(state, tr("workflow_ui_delete_action", "删除指令"), row.node.kind === "action" ? tr("workflow_format_delete_action", "将删除“$name$”，可在保存前撤销。", { name: nodeName(row.node) }) : tr("workflow_format_delete_block", "将删除“$name$”及其内部全部步骤，可在保存前撤销。", { name: nodeName(row.node) }))) return;
-    snapshot(editor); flow.pathGet(editor.draft, row.path.slice(0, -1)).splice(row.path.at(-1), 1); paintEditor(editor); focusSelection(editor);
+    const title = entireBlock ? tr("workflow_ui_delete_whole_block", "删除整个流程块") : tr("workflow_ui_delete_action", "删除指令");
+    if (!await confirm(state, title, row.node.kind === "action" ? tr("workflow_format_delete_action", "将删除“$name$”，可在保存前撤销。", { name: nodeName(row.node) }) : tr("workflow_format_delete_block", "将删除“$name$”及其内部全部步骤，可在保存前撤销。", { name: nodeName(row.node) }))) return;
+    snapshot(editor); removeDraftStep(editor.draft, row.path); tools.clearEntryData(editor.draft); paintEditor(editor); focusSelection(editor);
   }
   function moveNode(editor, source, destination) {
     if (!source?.path || !destination) return;
     if (destination.path.slice(0, source.path.length).join(".") === source.path.join(".")) throw new Error(tr("workflow_ui_a_block_cannot_be_moved_into_itself", "不能把流程块移入自身"));
-    const from = flow.pathGet(editor.draft, source.path.slice(0, -1)), to = flow.pathGet(editor.draft, destination.path), index = Number(source.path.at(-1));
+    const listPath = source.path.slice(0, -1), from = flow.pathGet(editor.draft, listPath), to = flow.pathGet(editor.draft, destination.path), index = Number(source.path.at(-1));
     const target = destination.index - (from === to && index < destination.index ? 1 : 0);
     if (from === to && target === index) return;
+    const blocks = enclosingIncompleteBlocks(editor.draft, listPath);
     snapshot(editor); const [node] = from.splice(index, 1); to.splice(target, 0, node);
+    pruneEmptyBlocks(blocks);
     revealNode(editor, node.id);
   }
   function focusSelection(editor) {
@@ -467,11 +606,18 @@
     picker.style.setProperty("--aw-picker-width", width + "px");
     picker.style.setProperty("--aw-picker-height", Math.max(80, height) + "px");
   }
+  function pickerCatalog(inTool) {
+    const catalog = editorCatalog(inTool), quick = new Set(["log", "comment"]);
+    const commands = catalog.filter(item => !quick.has(item.id));
+    const index = commands.findIndex(item => item.id === "get");
+    commands.splice(index < 0 ? 0 : index, 0, ...catalog.filter(item => quick.has(item.id)));
+    return commands;
+  }
   function renderPicker(editor) {
     const insertion = editor.insertion; if (!insertion) return;
     const input = editor.root.querySelector("[data-insert-search]"), picker = editor.root.querySelector(".aw-command-picker");
     const query = insertion.query.trim().toLocaleLowerCase();
-    insertion.candidates = editorCatalog(editor.inTool).filter(item => [instructions.name(item.id), instructions.schemaLabel(item.category), instructions.schemaLabel(item.group), instructions.hint(item.id), item.id].join(" ").toLocaleLowerCase().includes(query));
+    insertion.candidates = pickerCatalog(editor.inTool).filter(item => [instructions.name(item.id), instructions.schemaLabel(item.category), instructions.schemaLabel(item.group), instructions.hint(item.id), item.id].join(" ").toLocaleLowerCase().includes(query));
     insertion.active = Math.min(insertion.active, Math.max(0, insertion.candidates.length - 1));
     html(picker, insertion.candidates.map((item, index) => `<button type="button" class="aw-candidate" id="aw-candidate-${item.id}" role="option" tabindex="-1" aria-selected="${index === insertion.active}" data-instruction="${item.id}">${commandIcon(item.id)}<span><span>${esc(instructions.name(item.id))}${nameBadge(item.id)}</span><small>${esc(instructions.schemaLabel(item.category))} · ${esc(instructions.hint(item.id))}</small></span></button>`).join("") || `<div class="aw-picker-empty" role="status">${esc(tr("workflow_ui_no_matching_actions", "没有匹配的指令"))}</div>`);
     if (insertion.candidates.length) input.setAttribute("aria-activedescendant", "aw-candidate-" + insertion.candidates[insertion.active].id);
@@ -490,7 +636,8 @@
     const previousIndex = editor.rows.findIndex(row => row.key === editor.selected);
     const rowErrors = new Map();
     for (const error of editorDiagnostics(editor)) {
-      if (error.nodeId && error.severity !== "warning" && !rowErrors.has(error.nodeId)) rowErrors.set(error.nodeId, error);
+      const rowKey = error.rowKey || error.nodeId;
+      if (rowKey && error.severity !== "warning" && !rowErrors.has(rowKey)) rowErrors.set(rowKey, error);
     }
     editor.rows = flow.rows(draft, editor.collapsed);
     if (!editor.rows.some(row => row.key === editor.selected)) {
@@ -515,7 +662,8 @@
         if (row.key !== "root-gap") return "";
         return `<div class="aw-gap aw-end-gap" data-row="${index}"><button type="button" data-aw="select-gap"><span class="aw-end-plus">${icon("plus")}</span>${esc(tr("workflow_ui_add_an_action", "点击添加指令"))}</button></div>`;
       }
-      const key = instructions.key(row), title = row.marker === "fold-start" ? tr("workflow_ui_start_fold", "折叠开始") : row.marker === "fold-end" ? tr("workflow_ui_end_fold", "折叠结束") : instructions.name(key);
+      const key = instructions.key(row), title = row.placeholder ? tr("workflow_draft_missing_both", "流程块缺少开始和结束指令") :
+        row.marker === "fold-start" ? tr("workflow_ui_start_fold", "折叠开始") : row.marker === "fold-end" ? tr("workflow_ui_end_fold", "折叠结束") : instructions.name(key);
       const guides = Array.from({ length: row.depth + 1 }, (_, level) => `<span class="aw-indent" style="--aw-level:${level}"></span>`).join("");
       const collapsed = editor.collapsed.has(row.node.id);
       const fold = canFold(row) ? iconButton("collapse", collapsed ? tr("workflow_ui_expand_block", "展开流程块") : tr("workflow_ui_collapse_block", "折叠流程块"), collapsed ? "chevron-right" : "chevron-down", `aria-expanded="${!collapsed}"`) : "";
@@ -523,7 +671,7 @@
       const disabled = row.marker === "end-if" ? row.node.endDisabled : row.node.disabled;
       const error = rowErrors.get(row.key);
       const errorMarker = error ? `<span class="aw-error-marker" role="img" aria-label="${esc(tr("common_error", "错误"))}" title="${esc(view().errorCaption(error))}">${icon("alert-triangle")}</span>` : "";
-      const summary = isFold(row) ? esc(row.node.name || (row.marker === "fold-start" ? tr("workflow_ui_untitled_fold", "未命名折叠区域") : "")) : description(row, draft, editor);
+      const summary = row.placeholder ? esc(instructions.name(key)) : isFold(row) ? esc(row.node.name || (row.marker === "fold-start" ? tr("workflow_ui_untitled_fold", "未命名折叠区域") : "")) : description(row, draft, editor);
       const content = key === "comment"
         ? `<div class="aw-note-card aw-standalone-note">${nodeIcon}<span class="aw-note-text aw-selectable-text">${summary}${errorMarker}</span></div>`
         : `${nodeIcon}<div class="aw-line-copy"><strong>${esc(title)}${nameBadge(key)}${errorMarker}</strong>${summary ? `<small><span class="aw-selectable-text">${summary}</span></small>` : ""}</div>`;
@@ -532,7 +680,7 @@
       return (inserting && editor.insertion.before ? insertRow() : "") + `<div class="aw-line ${row.marker ? "aw-marker" : ""}${disabled ? " aw-instruction-disabled" : ""}${key === "comment" ? " aw-comment-line" : ""}" data-row="${index}" data-key="${esc(row.key)}" role="option" tabindex="0" aria-selected="${editor.selected === row.key}" ${error ? 'aria-invalid="true"' : ""} style="--aw-depth:${row.depth}">
         ${guides}<span class="aw-number">${numbers.get(row.key)}</span><span class="aw-fold">${fold}</span>
         <div class="aw-content">${content}${attachment}</div>
-        ${!row.marker || isFold(row) ? `<span class="aw-row-delete">${iconButton("node-delete", isFold(row) ? tr("workflow_ui_remove_fold_marker", "移除折叠标记") : tr("common_delete", "删除") + " " + title, "trash")}</span>` : "<span></span>"}
+        ${!row.placeholder && (!row.marker || isEnd(row) || isFold(row)) ? `<span class="aw-row-delete">${iconButton("node-delete", isFold(row) ? tr("workflow_ui_remove_fold_marker", "移除折叠标记") : tr("common_delete", "删除") + " " + title, "trash")}</span>` : "<span></span>"}
         ${index === 0 ? `<button type="button" class="aw-insert-control" data-aw="insert" data-position="before" aria-label="${esc(tr("workflow_ui_insert_action_above", "在上方插入指令"))}" title="${esc(tr("workflow_ui_insert_action_above", "在上方插入指令"))}">` + icon("plus") + '</button>' : ""}
         <button type="button" class="aw-insert-control" data-aw="insert" aria-label="${esc(tr("workflow_ui_insert_action_below", "在下方插入指令"))}" title="${esc(tr("workflow_ui_insert_action_below", "在下方插入指令"))}">${icon("plus")}</button></div>` + (inserting && !editor.insertion.before ? insertRow() : "");
     }).join(""));
@@ -559,21 +707,37 @@
     });
     return result === "save" ? input.value.trim() : null;
   }
-  async function addFold(state, editor, key, cursor) {
-    const edge = key === "fold-start" ? "start" : "end";
+  async function addFold(state, editor, key, cursor, selected) {
+    const edge = key === "fold-start" ? "start" : "end", list = flow.pathGet(editor.draft, cursor.path);
+    if (isFold(selected) && selected.node.edge !== edge) {
+      const selectedList = flow.pathGet(editor.draft, selected.listPath), partner = selectedList[foldPartner(selectedList, selected.index)];
+      if (partner?.draftRemoved) return restoreBoundary(editor, partner, "draftRemoved");
+    }
+    const adjacent = [list[cursor.index], list[cursor.index - 1]].find(item => item?.draftRemoved && item.edge === edge);
+    if (adjacent) return restoreBoundary(editor, adjacent, "draftRemoved");
     const node = { id: flow.numericId("fold-", [...flow.walk(editor.draft.steps)]), kind: "fold", edge };
-    const list = flow.pathGet(editor.draft, cursor.path);
+    let startIndex = -1;
     closeInsertion(editor, false);
     try {
       if (edge === "start") {
         node.name = await editFoldName(state);
         if (node.name === null) return;
+        // 已有结束标记保留原配对，新的开始行等自己的结束标记。
+        node.draftUnpaired = true;
       } else {
-        const trial = list.slice(); trial.splice(cursor.index, 0, node);
-        const pairs = flow.foldPairs(trial);
-        if (!pairs.has(cursor.index) || pairs.size <= flow.foldPairs(list).size) throw new Error(tr("workflow_ui_insert_an_unmatched_fold_start_in_this_branch_first", "请在同一分支先插入尚未结束的折叠开始"));
+        const existing = flow.foldPairs(list);
+        startIndex = list.findLastIndex((item, index) => index < cursor.index && item.kind === "fold" && item.edge === "start" && !item.draftRemoved && !existing.has(index));
+        if (startIndex < 0) throw insertionError(tr("workflow_ui_insert_an_unmatched_fold_start_in_this_branch_first", "请在同一分支先插入尚未结束的折叠开始"));
+        const trial = list.slice();
+        trial[startIndex] = { ...trial[startIndex] }; delete trial[startIndex].draftUnpaired;
+        trial.splice(cursor.index, 0, node);
+        const pairs = flow.foldPairs(trial), shifted = index => index < cursor.index ? index : index + 1;
+        if (pairs.get(cursor.index) !== startIndex || [...existing].some(([from, to]) => pairs.get(shifted(from)) !== shifted(to)))
+          throw insertionError(tr("workflow_draft_fold_crossed", "折叠区域的起止位置不能交叉"));
       }
-      snapshot(editor); list.splice(cursor.index, 0, node);
+      snapshot(editor);
+      if (startIndex >= 0) delete list[startIndex].draftUnpaired;
+      list.splice(cursor.index, 0, node);
       editor.collapsed.delete(node.id);
       editor.selected = node.id;
     } finally {
@@ -607,19 +771,45 @@
     Object.assign(next, flow.clone(first), { id: nextId, context: ref(first.contextOutput), toolResults: ref(results.output) });
     draft.variables = draft.variables.filter(item => item.id !== oldAppendOutput && item.id !== oldAiOutput);
   }
-  async function addInstruction(state, editor, key, drop = null) {
-    if (editor.inTool ? !flow.toolAction(key) : flow.toolOnlyAction(key)) throw new Error(tr("workflow_error_tool_instruction", "此处不能使用该指令"));
+  const insertionError = message => Object.assign(new Error(message), { code: "WORKFLOW_INSERT_INVALID" });
+  function noteInsertionIssue(editor, error, instruction) {
+    editor.insertionIssue = { message: view().validationCaption(error), instruction };
+    openInspectorErrors(editor);
+  }
+  async function insertInstruction(state, editor, key, drop = null) {
+    if (editor.insertionIssue) { editor.insertionIssue = null; paintInspector(editor); }
+    try {
+      return await addInstruction(state, editor, key, drop);
+    } catch (error) {
+      if (error.code !== "WORKFLOW_INSERT_INVALID") view().reportFailure(error, null);
+      if (editor.signal.aborted) return;
+      noteInsertionIssue(editor, error, key);
+      closeInsertion(editor, false);
+      paintEditor(editor);
+      editor.root.querySelector('[data-inspector-tab="errors"]').focus({ preventScroll: true });
+    }
+  }
+  async function addInstruction(state, editor, key, drop) {
+    const entry = key === tools.entryKey(editor.draft);
+    if (!entry && (editor.inTool ? !flow.toolAction(key) : flow.toolOnlyAction(key))) throw insertionError(tr("workflow_error_tool_instruction", "此处不能使用该指令"));
     const selected = editor.rows.find(row => row.key === editor.selected) || editor.rows.at(-1);
+    const repairRow = drop ? editor.rows.find(row => row.key === drop.rowKey) : selected;
+    if (isBlockBoundary(repairRow) && repairRow.node.draftMissingStart &&
+        key === instructions.key({ node: repairRow.node, marker: "" }))
+      return restoreBoundary(editor, repairRow.node, "draftMissingStart");
     if (flow.markers.has(key)) {
-      const block = ancestor(drop ? { ...editor, cursor: drop } : editor, node => key.includes("if") || key === "else" ? node.kind === "if" : key === "end-loop" ? flow.loops.has(node.kind) : node.kind === "try");
-      if (!block) throw new Error(tr("workflow_ui_select_the_corresponding_if_loop_or_try_block_first", "请先选择对应的 IF、循环或 Try 块"));
+      const matches = node => key.includes("if") || key === "else" ? node.kind === "if" : key === "end-loop" ? flow.loops.has(node.kind) : node.kind === "try";
+      const block = key.startsWith("end-") && isBlockBoundary(repairRow) && matches(repairRow.node) && repairRow.node.draftMissingEnd
+        ? repairRow.node : ancestor(drop ? { ...editor, cursor: drop } : editor, matches);
+      if (!block) throw insertionError(tr("workflow_ui_select_the_corresponding_if_loop_or_try_block_first", "请先选择对应的 IF、循环或 Try 块"));
+      if (key.startsWith("end-") && block.draftMissingEnd) return restoreBoundary(editor, block, "draftMissingEnd", block.id + ":end");
       if (["else-if", "else-if-many"].includes(key)) {
         const draft = flow.clone(editor.draft), target = [...flow.walk(draft.steps)].find(node => node.id === block.id);
         const branch = target.branches.length;
         target.branches.push({ condition: key === "else-if-many" ? { op: "all", children: [flow.comparison()] } : flow.comparison(), steps: [] });
         const pending = { ...editor, draft, rows: flow.rows(draft) };
         closeInsertion(editor, false);
-        if (await editNode(state, pending, pending.rows.find(row => row.key === block.id + ":else-if:" + branch)) === "save") {
+        if (await editNode(state, pending, pending.rows.find(row => row.key === block.id + ":else-if:" + branch), null, editor) === "save") {
           snapshot(editor); Object.assign(editor.draft, pending.draft); editor.selected = block.id + ":else-if:" + branch; editor.collapsed.delete(block.id);
         }
         paintEditor(editor); return;
@@ -632,25 +822,31 @@
       closeInsertion(editor, false); editor.collapsed.delete(block.id); paintEditor(editor); return;
     }
     const cursor = drop || editor.cursor || cursorFor(selected, editor.draft);
-    if (key === "fold-start" || key === "fold-end") return addFold(state, editor, key, cursor);
+    if (key === "fold-start" || key === "fold-end") return addFold(state, editor, key, cursor, repairRow);
     // 新指令及自动创建的输出变量只进入临时草稿，确认参数后一起提交
     const localize = root.STI18n.forLocale(root.STI18n.locale());
-    const draft = flow.clone(editor.draft), node = flow.createNode(key, draft, localize);
+    const draft = flow.clone(editor.draft), node = entry ? tools.createEntryRow(draft) : flow.createNode(key, draft, localize);
+    const duplicate = entry && [...flow.walk(draft.steps)].some(item => item.action === key);
+    if (duplicate) node.draftDuplicateEntry = true;
     flow.pathGet(draft, cursor.path).splice(cursor.index, 0, node);
     const pending = { ...editor, draft, rows: flow.rows(draft), undo: [], redo: [], originalVariableIds: new Set(editor.draft.variables.map(item => item.id)) };
     closeInsertion(editor, false);
     try {
-      if (!drop && !(node.kind === "action" && ["break", "continue", "stop"].includes(node.action)) &&
-          await editNode(state, pending, pending.rows.find(row => row.key === node.id)) !== "save") return;
+      if (!drop && !duplicate && !(node.kind === "action" && ["break", "continue", "stop"].includes(node.action)) &&
+          await editNode(state, pending, pending.rows.find(row => row.key === node.id), null, editor) !== "save") return;
       snapshot(editor); Object.assign(editor.draft, pending.draft);
       editor.selected = node.id;
+      if (duplicate) openInspectorErrors(editor);
     } finally {
       if (editor.selected === node.id) revealNode(editor, node.id);
       else { paintEditor(editor); focusSelection(editor); }
     }
   }
   function editorCatalog(inTool) {
-    return instructions.catalog.filter(item => inTool ? flow.toolAction(item.id) : !flow.toolOnlyAction(item.id));
+    return instructions.catalog.filter(({ id }) => {
+      if (id === "ai-parameters" || id === "trigger-parameters") return id === (inTool ? "ai-parameters" : "trigger-parameters");
+      return inTool ? flow.toolAction(id) : !flow.toolOnlyAction(id);
+    });
   }
   function palette(inTool) {
     const catalog = editorCatalog(inTool);
@@ -673,16 +869,51 @@
       return content ? section(category, symbol, content, "category") : "";
     }).join("");
   }
-  function filterVariables(editor) {
-    const panel = editor.root.querySelector(".aw-inspector-panel"), query = (editor.variableQuery || "").trim().toLocaleLowerCase();
+  const searchTerm = value => value.trim().toLocaleLowerCase();
+  function openInspectorErrors(editor) {
+    editor.panel = "errors"; editor.panelClosed = false;
+    editor.searches.errors.query = "";
+  }
+  function inspectorSearch(editor, pane, label) {
+    const { open, query } = editor.searches[pane];
+    const id = pane === "variables" ? "aw-variable-search" : "aw-" + pane + "-search";
+    return `<div class="aw-inspector-find" data-inspector-search="${pane}">
+      ${iconButton("inspector-search", label, "search", `aria-expanded="${open}" aria-controls="${id}"`)}
+      <input type="search" class="aw-inspector-search" id="${id}" aria-label="${esc(label)}" placeholder="${esc(label)}" value="${esc(query)}" ${pane === "variables" ? "data-variable-search" : ""} ${open ? "" : "inert"}>
+    </div>`;
+  }
+  function filterInspector(editor, pane) {
+    if (pane === "debug") {
+      const list = editor.root.querySelector("[data-debug-log]");
+      if (list) delete list.dataset.offset;
+      if (editor.run) editor.run.logPage = undefined;
+      debugEntries(editor);
+      return;
+    }
+    const panel = editor.root.querySelector(".aw-inspector-panel"), query = searchTerm(editor.searches[pane].query);
+    const variable = pane === "variables", rows = panel.querySelectorAll("tbody tr");
     let matches = 0;
-    for (const row of panel.querySelectorAll("[data-variable-id]")) {
-      row.hidden = !row.querySelector(".aw-variable-name").textContent.toLocaleLowerCase().includes(query);
+    for (const row of rows) {
+      const text = variable ? row.querySelector(".aw-variable-name").textContent : [...row.cells].map(cell => cell.textContent).join(" ");
+      row.hidden = !searchTerm(text).includes(query);
       if (!row.hidden) matches++;
     }
     const empty = panel.querySelector("[data-inspector-empty]");
-    empty.textContent = editor.draft.variables.length ? tr("workflow_ui_no_matching_variables", "没有匹配的变量") : tr("workflow_ui_no_variables_yet", "暂无变量");
     empty.hidden = matches > 0;
+    if (!matches) empty.textContent = variable
+      ? rows.length ? tr("workflow_ui_no_matching_variables", "没有匹配的变量") : tr("workflow_ui_no_variables_yet", "暂无变量")
+      : rows.length ? tr("workflow_ui_no_matching_errors", "没有匹配的错误或警告") : tr("workflow_ui_no_errors", "暂无错误");
+  }
+  function setInspectorSearch(editor, search, open) {
+    const pane = search.dataset.inspectorSearch, state = editor.searches[pane];
+    const input = search.querySelector("input"), toggle = search.querySelector("button");
+    state.open = open;
+    state.query = input.value = "";
+    toggle.setAttribute("aria-expanded", String(open));
+    if (!open) toggle.focus({ preventScroll: true });
+    input.inert = !open;
+    if (open) input.focus({ preventScroll: true });
+    filterInspector(editor, pane);
   }
   function permissionMessage(action, fields) {
     return root.STMessageBus.request({ type: "AI_GATEWAY_PERMISSION_" + action, purpose: "workflow-http", ...fields }, { timeoutMs: 10000, logFailures: false }).then(result => {
@@ -726,11 +957,26 @@
     const warnings = entries.filter(entry => entry.severity === "warning").length, errors = entries.length - warnings;
     return [errors && tr("workflow_format_errors", "$count$ 个错误", { count: errors }), warnings && tr("workflow_format_warnings", "$count$ 个警告", { count: warnings })].filter(Boolean).join(" · ");
   }
-  function siteIssueRow(entry, lines, name) {
-    const numbers = entry.nodeIds.map(id => lines.get(id)?.number).filter(Number.isInteger).sort((a, b) => a - b);
-    const caption = numbers.length ? tr("workflow_format_line", "第 $count$ 行", { count: numbers.join("、") }) : "";
-    return `<tr><td>${esc(entry.origin)} ${esc(tr("workflow_site_not_granted", "未授权"))}${button("site-authorize",
-      "[" + tr("workflow_click_authorize", "点我授权") + "]", `class="aw-variable-name" data-origin="${esc(entry.origin)}"`)}${caption ? `　·　${esc(caption)}` : ""}</td><td>${esc(name)}</td><td></td></tr>`;
+  function instructionPositions(locations) {
+    return locations.sort((a, b) => a.number - b.number).map(({ row, number }) =>
+      `<button type="button" class="aw-variable-name" data-aw="instruction-locate" data-node-id="${esc(row.node.id)}" aria-label="${esc(tr("workflow_format_locate", "定位第 $count$ 行", { count: number }))}">${number}</button>`
+    ).join("、") || "—";
+  }
+  function diagnosticRow(entry, index, lines) {
+    const related = [...new Set(entry.nodeIds || [entry.nodeId])].map(id => lines.get(id)).filter(Boolean);
+    const names = [...new Set(related.map(({ row }) => instructions.name(instructions.key(row))))];
+    const instruction = names.join(" / ") || (entry.instruction ? instructions.name(entry.instruction) : "—");
+    let content;
+    if (entry.origin && entry.nodeIds) {
+      content = `${esc(entry.origin)} ${esc(tr("workflow_site_not_granted", "未授权"))}${button("site-authorize",
+        "[" + tr("workflow_click_authorize", "点我授权") + "]", `class="aw-variable-name" data-origin="${esc(entry.origin)}"`)}`;
+    } else {
+      const message = esc(view().errorCaption(entry));
+      const caption = entry.severity === "warning" ? `<span class="aw-diagnostic-warning">${esc(tr("messageCenter_level_warning", "警告"))}</span> ${message}` : message;
+      content = related.length ? `<button type="button" class="aw-table-link" data-aw="error-locate" data-error="${index}">${caption}</button>` :
+        `<span class="aw-diagnostic-error">${caption}</span>`;
+    }
+    return `<tr><td>${esc(instruction)}</td><td>${content}</td><td>${instructionPositions(related)}</td></tr>`;
   }
   const requestFingerprint = node => JSON.stringify([node.action, node.url, node.code, node.serviceId]);
   function rememberSiteIssue(editor, node, error) {
@@ -738,7 +984,7 @@
     const url = flow.httpUrl(error.origin);
     if (!url) return;
     editor.runtimeSites.set(node.id, { origin: url.origin, fingerprint: requestFingerprint(node) });
-    editor.panel = "errors"; editor.panelClosed = false;
+    openInspectorErrors(editor);
     checkEditorSites(editor, true);
   }
   function checkEditorSites(editor, refresh = false) {
@@ -781,7 +1027,7 @@
         return { origin, nodeIds, nodeId: nodeIds[0], severity: "warning", message: origin + " " + tr("workflow_site_not_granted", "未授权") };
       });
       editor.diagnostics = null;
-      paintInspector(editor);
+      paintInspector(editor, { issuesOnly: true });
     })().catch(error => {
       if (!editor.signal.aborted && editor.root.isConnected && sequence === editor.siteSequence) {
         editor.siteKey = null;
@@ -790,31 +1036,233 @@
     });
   }
   function editorDiagnostics(editor) {
-    return editor.diagnostics ??= [...tools.diagnostics(editor.draft), ...promptIssues(editor.draft, editor.plans, editor.registry),
+    return editor.diagnostics ??= [...tools.diagnostics(editor.draft), ...(editor.inTool ? model.toolDiagnostics(editor.draft) : []),
+      ...promptIssues(editor.draft, editor.plans, editor.registry),
       ...toolIssues(editor.draft, editor.toolLibrary), ...tools.permissionWarnings(tools.lines(editor.draft), editor.membership), ...editor.siteIssues];
   }
-  function paintInspector(editor) {
+  function inspectorIssues(editor) {
+    return [...[editor.insertionIssue, editor.saveIssue].filter(Boolean), ...editorDiagnostics(editor)];
+  }
+  const debugPageSize = 100;
+  const debugLogContent = new WeakMap();
+
+  function isStructuredLog(text) {
+    if (!/^[ \t\r\n]*[\[{]/.test(text)) return false;
+    try { JSON.parse(text); }
+    catch (error) { if (error instanceof SyntaxError) return false; throw error; }
+    return true;
+  }
+
+  function formatStructuredLog(text) {
+    // Adjust whitespace between JSON tokens without rewriting numbers, keys or strings.
+    const output = [];
+    let depth = 0, previous = "";
+    for (const [token] of text.matchAll(/"[^"\\]*(?:\\[\s\S][^"\\]*)*"|[{}\[\],:]|[^ \t\r\n{}\[\],:"]+/g)) {
+      const opens = token === "{" || token === "[";
+      const closes = token === "}" || token === "]";
+      const afterOpen = previous === "{" || previous === "[";
+      if (closes) depth--;
+      if (closes ? !afterOpen : afterOpen || previous === ",") {
+        // Bound indentation in very deeply nested input; every token is still shown.
+        output.push("\n", "  ".repeat(Math.min(depth, 64)));
+      }
+      output.push(token === ":" ? ": " : token);
+      if (opens) depth++;
+      previous = token;
+    }
+    return output.join("");
+  }
+
+  async function showDebugLog(state, editor, control) {
+    const text = debugLogContent.get(control);
+    if (text === undefined || editor.viewingDebugLog) return;
+    editor.viewingDebugLog = true;
+    let viewer;
+    try {
+      const { mountLogViewer } = await import(root.chrome.runtime.getURL("settings/pages/workflow-code.js"));
+      if (editor.signal.aborted || !editor.root.isConnected) return;
+      const title = tr("workflow_ui_log_message", "日志内容");
+      const formatLabel = tr("workflow_ui_log_format_view", "格式化查看");
+      let displayedText = text, formattedText;
+      await state.ctx.dialog(state.shadow, {
+        title, form: true, className: "aw-log-view-dialog", actions: [],
+        initial: () => viewer.contentDOM,
+        render(body) {
+          const toggle = isStructuredLog(text) ? '<label><input type="checkbox" data-log-format>' + esc(formatLabel) + '</label>' : "";
+          html(body, '<div class="aw aw-log-view"><div class="aw-log-view-toolbar"><span role="status"></span>' +
+            toggle + button("log-copy", tr("common_copy", "复制"), "", "copy") +
+            '</div><div class="aw-log-view-editor"></div></div>');
+          viewer = mountLogViewer(body.querySelector(".aw-log-view-editor"), {
+            value: displayedText, label: title, root: state.shadow,
+          });
+          const status = body.querySelector("[role=status]");
+          body.querySelector("[data-log-format]")?.addEventListener("change", event => {
+            displayedText = event.target.checked ? (formattedText ??= formatStructuredLog(text)) : text;
+            viewer.setValue(displayedText);
+            status.textContent = "";
+          });
+          body.querySelector('[data-aw="log-copy"]').addEventListener("click", async () => {
+            const copyText = displayedText;
+            try {
+              await root.navigator.clipboard.writeText(copyText);
+              if (status.isConnected && copyText === displayedText)
+                status.textContent = tr("workflow_ui_log_copied", "已复制日志内容");
+            } catch (error) {
+              reportFailure(error, null);
+              if (status.isConnected && copyText === displayedText) {
+                viewer.selectAll();
+                status.textContent = tr("common_copyFailedManual", "复制失败，请手动复制");
+              }
+            }
+          });
+        },
+      });
+    } finally {
+      viewer?.destroy();
+      editor.viewingDebugLog = false;
+      if (!editor.signal.aborted)
+        (control.isConnected ? control : editor.root.querySelector('[data-inspector-tab="debug"]'))?.focus({ preventScroll: true });
+    }
+  }
+
+  function matchesDebugEntry(entry, query, positions) {
+    const number = positions.get(entry.nodeId)?.number;
+    const line = number === undefined ? "" : tr("workflow_format_line", "第 $count$ 行", { count: number }) + " · ";
+    return searchTerm(entry.label + " " + line + entry.text).includes(query);
+  }
+  function debugResults(editor) {
+    const run = editor.run;
+    if (!run) return [];
+    const query = searchTerm(editor.searches.debug.query);
+    if (run.query !== query) {
+      run.query = query;
+      run.matches = query ? run.entries.filter(entry => matchesDebugEntry(entry, query, run.positions)) : null;
+    }
+    return run.matches ?? run.entries;
+  }
+  function debugEntries(editor) {
+    const list = editor.root.querySelector("[data-debug-log]");
+    if (!list) return;
+    const run = editor.run, panel = list.closest(".aw-inspector-panel"), doc = list.ownerDocument;
+    const results = debugResults(editor);
+    const pages = Math.max(1, Math.ceil(results.length / debugPageSize));
+    const previousOffset = Number(list.dataset.offset);
+    const focusedLog = list.contains(list.getRootNode().activeElement);
+    if (run && run.logPage === undefined && previousOffset < (pages - 1) * debugPageSize && focusedLog)
+      run.logPage = previousOffset / debugPageSize;
+    if (run && run.logPage >= pages) run.logPage = undefined;
+    const page = run?.logPage ?? pages - 1;
+    const navigation = panel.querySelector(".aw-debug-pages");
+    navigation.hidden = pages < 2;
+    navigation.querySelector("[data-debug-page]").textContent = (page + 1) + " / " + pages;
+    navigation.querySelector('[data-aw="log-prev"]').disabled = page === 0;
+    navigation.querySelector('[data-aw="log-next"]').disabled = page === pages - 1;
+    panel.querySelector('[data-aw="log-clear"]').disabled = !run?.entries.length;
+    const empty = panel.querySelector("[data-inspector-empty]");
+    empty.hidden = results.length > 0;
+    if (!results.length) {
+      const message = run?.entries.length ? tr("workflow_ui_no_matching_logs", "没有匹配的日志") : tr("workflow_ui_no_debug_log", "暂无调试日志");
+      if (empty.textContent !== message) empty.textContent = message;
+    }
+    const atEnd = panel.scrollHeight - panel.scrollTop - panel.clientHeight < 12;
+    const start = page * debugPageSize;
+    const changedPage = previousOffset !== start;
+    if (changedPage) { list.replaceChildren(); list.dataset.offset = start; }
+    const entries = results.slice(start + list.childElementCount, start + debugPageSize);
+    const fragment = doc.createDocumentFragment();
+    const content = entries.length && doc.createElement("template");
+    if (content) html(content, '<div class="aw-debug-content"><textarea readonly rows="1" wrap="off" aria-label="' +
+      esc(tr("workflow_ui_log_message", "日志内容")) + '"></textarea>' +
+      iconButton("log-expand", tr("workflow_ui_expand_log", "展开日志内容"), "arrows-diagonal") + '</div>');
+    for (const entry of entries) {
+      const row = doc.createElement("tr");
+      const level = doc.createElement("td"), timestamp = doc.createElement("td");
+      const message = doc.createElement("td"), position = doc.createElement("td");
+      if (entry.at) {
+        const time = doc.createElement("time");
+        const date = new Date(entry.at);
+        time.dateTime = date.toISOString(); time.textContent = date.toLocaleTimeString(root.STI18n.intlLocale());
+        timestamp.append(time);
+      } else timestamp.textContent = "—";
+      row.dataset.level = entry.level;
+      level.textContent = entry.label;
+      message.className = "aw-debug-message";
+      message.append(content.content.cloneNode(true));
+      message.querySelector("textarea").defaultValue = entry.text;
+      debugLogContent.set(message.querySelector('[data-aw="log-expand"]'), entry.text);
+      const location = run.positions.get(entry.nodeId);
+      if (location) html(position, instructionPositions([location]));
+      else position.textContent = "—";
+      row.append(level, timestamp, message, position); fragment.append(row);
+    }
+    list.append(fragment);
+    if (!focusedLog && run?.logPage === undefined && (changedPage || atEnd)) panel.scrollTop = panel.scrollHeight;
+    else if (changedPage) panel.scrollTop = 0;
+  }
+  function paintDebugLog(editor, panel) {
+    if (!panel.querySelector("[data-debug-log]")) {
+      const positionLabel = esc(tr("workflow_ui_used_at", "使用位置"));
+      html(panel, `<div class="aw-debug-head" hidden><p class="aw-debug-status" role="status"></p>
+      <div class="aw-debug-pages" hidden>${iconButton("log-prev", tr("common_previousPage", "上一页"), "chevron-right")}<span data-debug-page></span>${iconButton("log-next", tr("common_nextPage", "下一页"), "chevron-right")}</div></div>
+      <table class="aw-debug-log"><thead><tr>
+        <th scope="col">${esc(tr("common_type", "类型"))}</th>
+        <th scope="col">${esc(tr("common_time", "时间"))}</th>
+        <th scope="col">${esc(tr("common_content", "内容"))}</th>
+        <th scope="col" class="aw-inspector-actions" aria-label="${positionLabel}"><div class="aw-inspector-controls">
+          <span>${positionLabel}</span>
+          ${inspectorSearch(editor, "debug", tr("workflow_ui_search_debug_log", "搜索调试日志"))}
+          ${iconButton("log-clear", tr("workflow_ui_clear_debug_log", "清空调试日志"), "trash")}
+        </div></th>
+      </tr></thead><tbody data-debug-log></tbody></table><div class="aw-inspector-empty" data-inspector-empty role="status"></div>`);
+    }
+    const run = editor.run, list = panel.querySelector("[data-debug-log]"), id = run?.id ?? "";
+    if (list.dataset.debugLog !== id) {
+      list.dataset.debugLog = id;
+      delete list.dataset.offset;
+    }
+    if (run) {
+      const positions = tools.lines(editor.draft);
+      if (positions.size !== run.positions.size || [...positions].some(([key, { number }]) => run.positions.get(key)?.number !== number)) {
+        run.positions = positions;
+        delete run.query;
+        delete list.dataset.offset;
+      }
+    }
+    panel.querySelector(".aw-debug-head").hidden = !run;
+    panel.querySelector(".aw-debug-status").textContent = run?.status ?? "";
+    debugEntries(editor);
+  }
+  function paintInspector(editor, { issuesOnly = false } = {}) {
     const { root: node, draft } = editor;
-    const lines = tools.lines(draft), variable = editor.panel === "variables", references = variable ? tools.index(draft) : null;
-    const entries = editorDiagnostics(editor);
+    const entries = inspectorIssues(editor);
     node.querySelector("[data-count]").textContent = tr("workflow_format_action_variables", "$actions$ 条指令 · $count$ 个变量", { actions: [...flow.walk(draft.steps)].filter(step => step.kind !== "fold").length, count: draft.variables.length });
     for (const tab of node.querySelectorAll("[data-inspector-tab]")) {
       const selected = tab.dataset.inspectorTab === editor.panel; tab.setAttribute("aria-selected", String(selected)); tab.tabIndex = selected ? 0 : -1;
-      tab.textContent = tab.dataset.inspectorTab === "errors" ? tr("workflow_ui_errors", "错误列表") + (entries.length ? "·" + entries.length : "") : tr("workflow_ui_variables", "变量列表") + "·" + draft.variables.length;
+      if (tab.dataset.inspectorTab === "errors") tab.textContent = tr("workflow_ui_errors", "错误列表") + (entries.length ? "·" + entries.length : "");
+      else if (tab.dataset.inspectorTab === "variables") tab.textContent = tr("workflow_ui_variables", "变量列表") + "·" + draft.variables.length;
     }
+    if (issuesOnly && editor.panel !== "errors") return;
     const panel = node.querySelector(".aw-inspector-panel"); panel.hidden = editor.panelClosed;
     panel.setAttribute("aria-labelledby", "aw-inspector-" + editor.panel);
     node.querySelector('[data-aw="panel-toggle"]').setAttribute("aria-expanded", String(!editor.panelClosed));
-    const empty = label => `<div class="aw-inspector-empty" data-inspector-empty>${label}</div>`;
-    html(panel, variable ? `<table><thead><tr><th scope="col">${esc(tr("workflow_ui_variable_name", "变量名称"))}</th><th scope="col">${esc(tr("common_type", "类型"))}</th><th scope="col">${esc(tr("workflow_ui_used_at", "使用位置"))}</th><th class="aw-variable-actions"><div class="aw-variable-tools" role="group" aria-label="${esc(tr("workflow_ui_variable_tools", "变量工具"))}">
-      <input type="search" class="aw-variable-search" id="aw-variable-search" data-variable-search aria-label="${esc(tr("workflow_ui_search_variables", "搜索变量"))}" placeholder="${esc(tr("workflow_ui_search_variables", "搜索变量"))}" value="${esc(editor.variableQuery || "")}" ${editor.variableSearchOpen ? "" : "hidden"}>
-      ${iconButton("variable-search", tr("workflow_ui_search_variables", "搜索变量"), "search", `aria-expanded="${!!editor.variableSearchOpen}" aria-controls="aw-variable-search"`)}
-      ${iconButton("variable-new", tr("workflow_ui_add_variable", "新增变量"), "variable-plus")}</div></th></tr></thead><tbody>${draft.variables.map(item => {
-      const uses = [...new Set((references.get(item.id) || []).map(use => lines.get(use.nodeId)?.number))].filter(number => number !== undefined);
-      return `<tr data-variable-id="${esc(item.id)}"><td><button type="button" class="aw-variable-name" data-aw="variable-edit">${esc(item.name)}</button></td><td>${esc(tools.typeNames[item.type])}</td><td>${uses.length ? uses.map(number => `<button type="button" class="aw-variable-name" data-aw="variable-locate" data-line="${number}" aria-label="${esc(tr("workflow_format_locate", "定位第 $count$ 行", { count: number }))}">${number}</button>`).join("、") : "—"}</td><td>${iconButton("variable-delete", tr("workflow_ui_delete_variable", "删除变量") + " " + item.name, "trash")}</td></tr>`;
-    }).join("")}</tbody></table>${empty(tr("workflow_ui_no_variables_yet", "暂无变量"))}`
-      : `<table data-diagnostics><thead><tr><th scope="col">${esc(tr("workflow_ui_errors_and_warnings", "错误与警告"))}</th><th scope="col">${esc(tr("workflow_ui_workflows", "工作流"))}</th><th scope="col">${esc(tr("workflow_ui_line", "行号"))}</th></tr></thead><tbody>${entries.map((entry, index) => entry.origin ? siteIssueRow(entry, lines, draft.name) : `<tr><td><button type="button" class="aw-table-link" data-aw="error-locate" data-error="${index}">${entry.severity === "warning" ? `<span class="aw-diagnostic-warning">${esc(tr("messageCenter_level_warning", "警告"))}</span> ` : ""}${esc(view().errorCaption(entry))}</button></td><td>${esc(draft.name)}</td><td>${lines.get(entry.nodeId)?.number || "—"}</td></tr>`).join("")}</tbody></table>${entries.length ? "" : empty(tr("workflow_ui_no_errors", "暂无错误"))}<div class="aw-error" data-editor-error role="alert"></div>`);
-    if (variable) filterVariables(editor);
+    if (editor.panel === "debug") { paintDebugLog(editor, panel); return; }
+    const lines = tools.lines(draft), variable = editor.panel === "variables", references = variable ? tools.index(draft) : null;
+    const empty = '<div class="aw-inspector-empty" data-inspector-empty role="status"></div>';
+    if (variable && !panel.querySelector(".aw-variable-table")) html(panel, `<table class="aw-variable-table"><thead><tr><th scope="col">${esc(tr("workflow_ui_variable_name", "变量名称"))}</th><th scope="col">${esc(tr("common_type", "类型"))}</th><th scope="col">${esc(tr("workflow_ui_used_at", "使用位置"))}</th><th class="aw-inspector-actions"><div class="aw-inspector-controls" role="group" aria-label="${esc(tr("workflow_ui_variable_tools", "变量工具"))}">
+      ${inspectorSearch(editor, "variables", tr("workflow_ui_search_variables", "搜索变量"))}
+      ${iconButton("variable-new", tr("workflow_ui_add_variable", "新增变量"), "variable-plus")}</div></th></tr></thead><tbody></tbody></table>${empty}`);
+    const positionLabel = esc(tr("workflow_ui_used_at", "使用位置"));
+    if (!variable && !panel.querySelector("[data-diagnostics]")) html(panel, `<table data-diagnostics><thead><tr><th scope="col">${esc(tr("messageCenter_detail_instruction", "指令"))}</th><th scope="col">${esc(tr("workflow_ui_errors_and_warnings", "错误与警告"))}</th><th scope="col" class="aw-inspector-actions aw-diagnostic-lines" aria-label="${positionLabel}"><div class="aw-inspector-controls">
+      <span>${positionLabel}</span>${inspectorSearch(editor, "errors", tr("workflow_ui_search_errors", "搜索错误和警告"))}
+      </div></th></tr></thead><tbody></tbody></table>${empty}<div class="aw-error" data-editor-error role="alert"></div>`);
+    html(panel.querySelector("tbody"), variable ? draft.variables.map(item => {
+      const uses = [...new Set((references.get(item.id) || []).map(use => use.nodeId))].map(id => lines.get(id)).filter(Boolean);
+      return `<tr data-variable-id="${esc(item.id)}"><td><button type="button" class="aw-variable-name" data-aw="variable-edit">${esc(item.name)}</button></td><td>${esc(tools.typeNames[item.type])}</td><td>${instructionPositions(uses)}</td><td>${iconButton("variable-delete", tr("workflow_ui_delete_variable", "删除变量") + " " + item.name, "trash")}</td></tr>`;
+    }).join("") : entries.map((entry, index) => diagnosticRow(entry, index, lines)).join(""));
+    const input = panel.querySelector(".aw-inspector-search"), query = editor.searches[editor.panel].query;
+    if (input.value !== query) input.value = query;
+    if (!variable) panel.querySelector("[data-editor-error]").textContent = "";
+    filterInspector(editor, editor.panel);
   }
   function revealNode(editor, id) {
     const lines = tools.lines(editor.draft), target = lines.get(id)?.row;
@@ -836,29 +1284,32 @@
   function available(editor, action, row) {
     if (action === "undo" || action === "redo") return !!editor[action].length;
     if (action === "paste") return !!clipboard;
-    if (action === "note") return !!row?.node && !row.marker && row.node.action !== "comment";
+    if (action === "note") return !!row?.node && !row.marker && !row.placeholder && row.node.action !== "comment";
     if (action === "clear-note") return !!row?.node && !row.marker && row.node.action === "comment" && !!row.node.note;
-    if (action === "disable") return !!row?.node && (!row.marker || row.marker === "end-if");
-    if (action === "node-delete") return !!row?.node && (!row.marker || isFold(row) || ["else-if", "else", "catch", "finally"].includes(row.marker));
+    if (action === "disable") return !!row?.node && !tools.isEntryRow(row.node) && !row.placeholder && (!row.marker || row.marker === "end-if");
+    if (action === "node-delete-block") return isBlockBoundary(row);
+    if (action === "node-delete") return !!row?.node && !row.placeholder && (!row.marker || isEnd(row) || isFold(row) || ["else-if", "else", "catch", "finally"].includes(row.marker));
     if (["fold", "unfold"].includes(action)) return canFold(row) || !!row?.node && !isFold(row) && row.node.kind !== "action";
-    return !!row?.node && !row.marker;
+    return !!row?.node && !row.marker && !row.placeholder;
   }
   async function editorCommand(state, editor, action, row = editor.rows.find(row => row.key === editor.selected)) {
     if (action === "save-workflow") { editor.root.closest("dialog").querySelector('[data-dialog-action="save"]').click(); return; }
     if (!available(editor, action, row)) return;
     if (action === "copy" || action === "cut") {
       clipboard = tools.capture(editor.draft, row.node, action === "cut");
-      if (action === "cut") { snapshot(editor); flow.pathGet(editor.draft, row.listPath).splice(row.index, 1); paintEditor(editor); focusSelection(editor); }
+      if (action === "cut") { snapshot(editor); removeDraftStep(editor.draft, row.path); tools.clearEntryData(editor.draft); paintEditor(editor); focusSelection(editor); }
       editor.status.textContent = action === "cut" ? tr("workflow_ui_action_cut", "指令已剪切") : tr("workflow_ui_action_copied", "指令已复制");
     } else if (action === "paste") {
       const cursor = row ? cursorFor(row, editor.draft) : { path: ["steps"], index: editor.draft.steps.length };
       snapshot(editor); const node = tools.paste(editor.draft, clipboard);
       flow.pathGet(editor.draft, cursor.path).splice(cursor.index, 0, node);
+      if ([...flow.walk([node])].some(item => item.draftDuplicateEntry)) openInspectorErrors(editor);
       if (row?.node) editor.collapsed.delete(row.node.id);
       editor.selected = node.id; editor.reveal = true; paintEditor(editor); focusSelection(editor);
     } else if (action === "undo" || action === "redo") {
       const from = editor[action], to = editor[action === "undo" ? "redo" : "undo"];
       to.push(flow.clone(editor.draft)); Object.assign(editor.draft, from.pop()); editor.diagnostics = null; editor.cursor = null;
+      editor.insertionIssue = null; editor.saveIssue = null;
       editor.root.querySelector("[data-name]").value = editor.draft.name; paintEditor(editor); focusSelection(editor);
     } else if (action === "fold" || action === "unfold") {
       action === "fold" ? editor.collapsed.add(row.node.id) : editor.collapsed.delete(row.node.id); paintEditor(editor); focusSelection(editor);
@@ -869,6 +1320,7 @@
     } else if (action === "note") await editNote(state, editor, row);
     else if (action === "clear-note") { snapshot(editor); delete row.node.note; paintEditor(editor); focusSelection(editor); }
     else if (action === "node-delete") await removeNode(state, editor, row);
+    else if (action === "node-delete-block") await removeNode(state, editor, row, true);
   }
   function openContextMenu(state, editor, row, point) {
     editor.closeMenu?.(); editor.selected = row.key; paintEditor(editor);
@@ -879,11 +1331,12 @@
       ...(row.node.action === "comment" ? (row.node.note ? [["clear-note", tr("workflow_ui_remove_attached_comment", "移除附加备注"), "", "eraser"]] : []) : [["note", tr("workflow_ui_action_comment", "指令备注"), "Ctrl+Alt+/", "message"]]),
       ["redo", tr("workflow_ui_redo", "重做"), "Ctrl+Y", "arrow-forward-up"], ["undo", tr("workflow_ui_undo", "撤销"), "Ctrl+Z", "arrow-back-up"], null,
       ["fold", tr("settings_drawer_collapse", "收起"), "Ctrl+[", "chevron-right"], ["unfold", tr("settings_drawer_expand", "展开"), "Ctrl+]", "chevron-down"], null,
-      ["node-delete", isFold(row) ? tr("workflow_ui_remove_fold_marker", "移除折叠标记") : tr("common_delete", "删除"), "Delete", "trash"]];
+      ...(!row.placeholder ? [["node-delete", isFold(row) ? tr("workflow_ui_remove_fold_marker", "移除折叠标记") : tr("common_delete", "删除"), "Delete", "trash"]] : []),
+      ...(isBlockBoundary(row) ? [["node-delete-block", tr("workflow_ui_delete_whole_block", "删除整个流程块"), "", "trash"]] : [])];
     html(menu, entries.map(item => {
       if (!item) return "<hr role=separator>";
       const [action, label, shortcut, iconName] = item;
-      return `<button type="button" role="menuitem" tabindex="-1" class="aw-context-item${action === "node-delete" ? " aw-context-danger" : ""}" data-command="${action}" ${available(editor, action, row) ? "" : "disabled"}>${icon(iconName)}<span>${label}</span><kbd aria-hidden="true">${shortcut}</kbd></button>`;
+      return `<button type="button" role="menuitem" tabindex="-1" class="aw-context-item${action.startsWith("node-delete") ? " aw-context-danger" : ""}" data-command="${action}" ${available(editor, action, row) ? "" : "disabled"}>${icon(iconName)}<span>${label}</span><kbd aria-hidden="true">${shortcut}</kbd></button>`;
     }).join(""));
     editor.root.append(menu); const lifetime = new AbortController();
     const close = (restore = false) => { lifetime.abort(); if (menu.isConnected) { if (menu.matches(":popover-open")) menu.hidePopover(); menu.remove(); } editor.closeMenu = null; if (restore) focusSelection(editor); };
@@ -906,8 +1359,7 @@
   const toolTitle = () => tr("workflow_tool_title", "工具");
   const toolTestLabel = () => tr("workflow_tool_test", "测试工具");
   const toolNameLabel = () => tr("workflow_tool_name", "工具名称");
-  const toolDescriptionLabel = () => tr("workflow_tool_description", "工具用途");
-  const toolInputsLabel = () => tr("workflow_tool_inputs", "工具输入");
+  const toolDescriptionLabel = () => tr("workflow_tool_description", "工具描述");
   const toolTypeLabel = type => ({ string: tools.typeNames.text, integer: tr("workflow_tool_integer", "整数"), number: tools.typeNames.number,
     boolean: tools.typeNames.boolean, array: tools.typeNames.list, object: tools.typeNames.object, appId: tr("workflow_tool_app_id", "Steam AppID") })[type];
   const compositionTitle = inTool => inTool ? tr("workflow_composition_http", "HTTP 查询") : tr("workflow_composition_ai", "AI 查资料后回复");
@@ -1029,8 +1481,6 @@
     const form = { url: "", mappings: [], outputMode: "" };
     let result;
     function render(node) {
-      const newInputs = form.mappings.filter(item => !item.input).length;
-      const boundInputs = new Set(form.mappings.map(item => item.input).filter(Boolean)).size;
       const mappingFields = form.mappings.map((item, index) => {
         const path = `mappings.${index}`;
         return `<div class="aw-http-mapping"><div class="aw-grid">
@@ -1051,7 +1501,7 @@
           ["return", tr("workflow_composition_use_return", "交给现有返回指令")],
         ])}
         ${existingReturn >= 0 && position !== cursor.index ? `<p class="aw-hint">${esc(tr("workflow_composition_before_return", "新指令将插在现有返回之前。"))}</p>` : ""}</section>
-        ${compositionPreview([...Array.from({ length: newInputs + boundInputs }, () => compositionStep("receive")), compositionStep("http-request"), compositionStep("json"),
+        ${compositionPreview([...(form.mappings.length ? [compositionStep("ai-parameters")] : []), compositionStep("http-request"), compositionStep("json"),
           ...(existingReturn < 0 ? [compositionStep("tool-return")] : form.outputMode === "return" ? [{ label: tr("workflow_composition_use_return", "交给现有返回指令") }] : [])])}
         <div class="aw-error" role="alert"></div></div>`);
     }
@@ -1082,7 +1532,9 @@
           if (mappings.some(item => !item.key)) throw new Error(tr("workflow_composition_query_required", "请填写查询参数名。"));
           const draft = flow.clone(workflow), localize = root.STI18n.forLocale(root.STI18n.locale());
           draft.parameters = model.toolParameters([...draft.parameters, ...mappings.filter(item => !item.input)
-            .map(item => ({ name: item.name, type: item.type, required: true, description: "" }))]);
+            .map(item => ({ name: item.name, type: item.type, required: true, description: "",
+              variableId: flow.variable(draft, item.name, flow.parameterVariableType(item.type)) }))]);
+          const variables = new Map(draft.parameters.map(item => [item.name, item.variableId]));
           const steps = flow.pathGet(draft, cursor.path), returnNode = steps[existingReturn];
           let index = position;
           const add = key => {
@@ -1092,16 +1544,9 @@
           };
           const hash = url.hash; url.hash = "";
           const parts = [url.href], separator = url.search ? "&" : url.href.endsWith("?") ? "" : "?";
-          const read = new Map();
           for (const [i, item] of mappings.entries()) {
-            const name = item.input || item.name;
-            if (!read.has(name)) {
-              const step = add("receive");
-              step.value = flow.reference("input", "", [name]);
-              read.set(name, step.output);
-            }
             const key = new URLSearchParams([[item.key, ""]]).toString();
-            parts.push((i ? "&" : separator) + key, flow.reference("variable", read.get(name)));
+            parts.push((i ? "&" : separator) + key, flow.reference("variable", variables.get(item.input || item.name)));
           }
           const http = add("http-request"), parse = add("json");
           http.url = mappings.length ? { template: [...parts, hash] } : flow.literal(url.href + hash);
@@ -1109,6 +1554,7 @@
           parse.value = flow.reference("variable", http.output, ["body"]);
           if (existingReturn < 0 || form.outputMode === "return")
             (returnNode || add("tool-return")).value = flow.reference("variable", parse.output);
+          tools.ensureEntryRow(draft);
           result = { draft, id: http.id };
           return true;
         } catch (error) { reportFailure(error, node.querySelector(".aw-error")); return false; }
@@ -1116,47 +1562,86 @@
     });
     return action === "generate" ? result : null;
   }
-  async function editToolInputs(state, editor) {
-    const draft = { description: editor.draft.description, parameters: flow.clone(editor.draft.parameters) };
-    let container;
+  async function editEntryParameters(state, editor, { inserting = false } = {}) {
+    const inTool = editor.inTool, key = tools.entryKey(editor.draft);
+    const original = flow.entryParameters(editor.draft);
+    const draft = { description: editor.draft.description ?? "", parameters: flow.clone(original) };
+    const types = inTool ? model.toolTypes.map(type => [type, toolTypeLabel(type)]) :
+      Object.entries(variableTypes).filter(([type]) => type !== "result");
+    const nameLabel = tr("workflow_tool_parameter_name", "参数名"), typeLabel = tr("common_type", "类型");
+    const detailLabel = tr("workflow_tool_parameter_description", "参数说明"), requiredLabel = tr("workflow_tool_required", "必填");
+    let container, next;
     const collect = () => {
-      draft.description = container.querySelector("[data-tool-description]").value;
+      draft.description = container.querySelector("[data-entry-description]").value;
       draft.parameters = [...container.querySelectorAll("[data-tool-parameter]")].map(row => ({
-        name: row.querySelector("[data-parameter-name]").value.trim(), description: row.querySelector("[data-parameter-description]").value,
-        type: row.querySelector("[data-parameter-type]").value, required: row.querySelector("[data-parameter-required]").checked,
+        ...(row.dataset.variableId && { variableId: row.dataset.variableId }),
+        name: row.querySelector("[data-parameter-name]").value.trim(), type: row.querySelector("[data-parameter-type]").value,
+        ...(inTool && { description: row.querySelector("[data-parameter-description]").value, required: row.querySelector("[data-parameter-required]").checked }),
       }));
     };
-    const render = () => formHtml(container, `<div class="aw aw-form"><label>${esc(toolDescriptionLabel())}<textarea data-tool-description>${esc(draft.description)}</textarea></label>
-      <div class="aw-toolbar"><strong>${esc(toolInputsLabel())}</strong>${button("parameter-add", tr("workflow_tool_add_parameter", "添加参数"), "", "plus")}</div>
-      ${draft.parameters.map((parameter, index) => `<div class="aw-section" data-tool-parameter="${index}"><div class="aw-grid">
-        <label>${esc(tr("workflow_tool_parameter_name", "参数名"))}<input data-parameter-name value="${esc(parameter.name)}"></label>
-        <label>${esc(tr("common_type", "类型"))}<select data-parameter-type>${options(model.toolTypes.map(type => [type, toolTypeLabel(type)]), parameter.type)}</select></label>
-        <label>${esc(tr("workflow_tool_parameter_description", "参数说明"))}<input data-parameter-description value="${esc(parameter.description)}"></label>
-        <div class="aw-tools"><label class="aw-trigger-check"><input data-parameter-required type="checkbox" ${parameter.required ? "checked" : ""}>${esc(tr("workflow_tool_required", "必填"))}</label>
-          ${iconButton("parameter-delete", tr("common_delete", "删除") + " " + parameter.name, "trash")}</div></div></div>`).join("")}
-      <div class="aw-error" role="alert"></div></div>`);
+    const render = () => formHtml(container, `<div class="aw aw-form aw-entry-form">
+      <label class="aw-entry-description-field">${esc(inTool ? toolDescriptionLabel() : tr("workflow_parameter_description", "工作流描述"))}<textarea data-entry-description rows="3">${esc(draft.description)}</textarea></label>
+      <div class="aw-entry-list"${inTool ? " data-tool-entry" : ""}>
+        <div class="aw-toolbar">${button("parameter-add", tr("workflow_tool_add_parameter", "添加参数"), "", "plus")}</div>
+        ${draft.parameters.length ? `<div class="aw-entry-fields aw-entry-head" aria-hidden="true"><span>${esc(nameLabel)}</span><span>${esc(typeLabel)}</span>${inTool ? `<span>${esc(detailLabel)}</span><span>${esc(requiredLabel)}</span>` : ""}</div>` : ""}
+        ${draft.parameters.map((parameter, index) => `<div class="aw-entry-fields" data-tool-parameter="${index}" data-variable-id="${esc(parameter.variableId || "")}">
+          <input data-parameter-name aria-label="${esc(nameLabel)}" value="${esc(parameter.name)}">
+          <select data-parameter-type aria-label="${esc(typeLabel)}">${options(types, parameter.type)}</select>
+          ${inTool ? `<input data-parameter-description aria-label="${esc(detailLabel)}" value="${esc(parameter.description)}">
+          <label class="aw-trigger-check"><input data-parameter-required type="checkbox" aria-label="${esc(requiredLabel)}" ${parameter.required ? "checked" : ""}></label>` : ""}
+          ${iconButton("parameter-delete", [tr("common_delete", "删除"), parameter.name || nameLabel].join(" "), "trash")}</div>`).join("")}
+      </div><div class="aw-error" role="alert"></div></div>`);
     const answer = await state.ctx.dialog(state.shadow, {
-      title: tr("workflow_tool_settings", "工具设置"), className: "aw-param-dialog", form: true,
+      title: instructions.name(key), className: "aw-param-dialog", form: true,
       render(node) {
         container = node; render();
         node.addEventListener("click", event => {
           const target = event.target.closest("[data-aw]");
           if (!target) return;
           collect();
-          if (target.dataset.aw === "parameter-add") draft.parameters.push({ name: "", description: "", type: "string", required: true });
+          if (target.dataset.aw === "parameter-add") draft.parameters.push(inTool
+            ? { name: "", description: "", type: "string", required: true } : { name: "", type: "text" });
           else if (target.dataset.aw === "parameter-delete") draft.parameters.splice(Number(target.closest("[data-tool-parameter]").dataset.toolParameter), 1);
           render();
-          if (target.dataset.aw === "parameter-add") node.querySelector("[data-tool-parameter]:last-of-type [data-parameter-name]")?.focus();
+          if (target.dataset.aw === "parameter-add") [...node.querySelectorAll("[data-parameter-name]")].at(-1)?.focus();
         });
       },
       actions: [{ id: "cancel", label: tr("common_cancel", "取消") }, { id: "save", label: tr("common_confirm", "确定"), primary: true }],
       onAction(action) {
         if (action !== "save") return true;
-        try { collect(); draft.parameters = model.toolParameters(draft.parameters); return true; }
-        catch (error) { reportFailure(error, container.querySelector(".aw-error")); return false; }
+        try {
+          collect();
+          const parameters = inTool ? model.toolParameters(draft.parameters) : draft.parameters;
+          const previous = new Map(original.map(parameter => [parameter.variableId, parameter]));
+          next = flow.clone(editor.draft);
+          next.variables = next.variables.filter(variable => !previous.has(variable.id));
+          for (const parameter of parameters) {
+            const type = flow.parameterVariableType(parameter.type);
+            const existing = editor.draft.variables.find(variable => variable.id === parameter.variableId);
+            const name = inTool && parameter.name === previous.get(parameter.variableId)?.name && existing ? existing.name : parameter.name;
+            const variable = next.variables.find(variable => variable.name === name);
+            if (variable && (parameter.variableId || variable.type !== type) || !name)
+              throw Object.assign(new TypeError(tr("workflow_parameter_invalid", "参数名称、类型或变量定义不一致")), { code: "WORKFLOW_CONFIG_INVALID" });
+            if (!parameter.variableId) parameter.variableId = variable?.id || flow.variable(next, name, type);
+            else next.variables.push({ id: parameter.variableId, name, type });
+          }
+          next.description = draft.description;
+          next[inTool ? "parameters" : "inputParameters"] = parameters;
+          flow.validate({ ...next, steps: [], folds: undefined });
+          return true;
+        } catch (error) {
+          if (error.code !== "WORKFLOW_CONFIG_INVALID") reportFailure(error, container.querySelector(".aw-error"));
+          else container.querySelector(".aw-error").textContent = view().errorCaption(error);
+          return false;
+        }
       },
     });
-    if (answer === "save") { snapshot(editor); Object.assign(editor.draft, draft); paintEditor(editor); }
+    if (answer === "save") {
+      if (!inserting) snapshot(editor);
+      Object.assign(editor.draft, next);
+      if (!inserting) { paintEditor(editor); focusSelection(editor); }
+    }
+    return answer;
   }
   function toolSites(tool) {
     return [...new Set([...flow.walk(tool.steps, true)].filter(node => node.action === "http-request").map(node => node.origin))];
@@ -1165,9 +1650,28 @@
     const ids = new Set([...flow.walk(tool.steps, true)].filter(node => node.action === "query-provider-data").map(node => node.provider));
     return root.STAI.CHAT_TOOLS.filter(item => ids.has(item.id)).map(item => tr(item.label, item.name));
   }
+  function toolSampleFields(tool) {
+    return tool.parameters.map(({ name, type, required }) => `<label>${esc(name)} · ${esc(toolTypeLabel(type))}${required ? " *" : ""}
+      ${type === "boolean" ? `<select data-tool-sample>${options([["", ""], ["true", tr("common_yes", "是")], ["false", tr("common_no", "否")]], "")}</select>`
+        : type === "object" || type === "array" ? '<textarea data-tool-sample></textarea>'
+          : `<input data-tool-sample type="${["number", "integer", "appId"].includes(type) ? "number" : "text"}" step="${type === "number" ? "any" : "1"}">`}</label>`).join("");
+  }
+  function readToolSamples(container, tool) {
+    const inputs = Object.fromEntries([...container.querySelectorAll("[data-tool-sample]")].flatMap((control, index) => {
+      const { name, type, required } = tool.parameters[index];
+      if (!control.value && (type !== "string" || !required)) return [];
+      return [[name, type === "string" ? control.value : JSON.parse(control.value)]];
+    }));
+    model.toolArguments(tool, inputs);
+    return inputs;
+  }
+  function toolSampleNotice(tool) {
+    const sites = toolSites(tool), providers = toolProviders(tool);
+    return `${sites.length ? `<p>${esc(tr("workflow_tool_test_sites", "运行会访问以下站点"))} · ${esc(sites.join("、"))}</p>` : ""}
+      ${providers.length ? `<p>${esc(tr("workflow_tool_provider", "数据来源"))} · ${esc(providers.join("、"))}</p>` : ""}`;
+  }
   async function testToolDialog(state, tool) {
     tool = model.validateTool(tool);
-    const sites = toolSites(tool), providers = toolProviders(tool);
     let dialog, runId = null;
     async function run() {
       const id = crypto.randomUUID(), output = dialog.querySelector("[data-test-result]");
@@ -1175,12 +1679,7 @@
       runId = id; start.textContent = tr("workflow_ui_stop_test", "停止试运行");
       output.textContent = tr("workflow_ui_running", "正在运行…");
       try {
-        const inputs = Object.fromEntries([...dialog.querySelectorAll("[data-tool-sample]")].flatMap((control, index) => {
-          const { name, type } = tool.parameters[index];
-          if (!control.value && (type !== "string" || !tool.parameters[index].required)) return [];
-          return [[name, type === "string" ? control.value : JSON.parse(control.value)]];
-        }));
-        model.toolArguments(tool, inputs);
+        const inputs = readToolSamples(dialog, tool);
         const result = await view().rpc("test-tool", { id, tool, inputs });
         if (runId !== id || !dialog.isConnected) return;
         output.textContent = result.cancelled ? tr("workflow_ui_test_stopped", "试运行已停止") :
@@ -1197,12 +1696,7 @@
         title: toolTestLabel(), className: "aw-param-dialog", form: true,
         render(node) {
           dialog = node;
-          formHtml(node, `<div class="aw aw-form">${sites.length ? `<p>${esc(tr("workflow_tool_test_sites", "运行会访问以下站点"))} · ${esc(sites.join("、"))}</p>` : ""}
-            ${providers.length ? `<p>${esc(tr("workflow_tool_provider", "数据来源"))} · ${esc(providers.join("、"))}</p>` : ""}
-            ${tool.parameters.map(({ name, type, required }) => `<label>${esc(name)} · ${esc(toolTypeLabel(type))}${required ? " *" : ""}
-              ${type === "boolean" ? `<select data-tool-sample>${options([["", ""], ["true", tr("common_yes", "是")], ["false", tr("common_no", "否")]], "")}</select>`
-                : type === "object" || type === "array" ? '<textarea data-tool-sample></textarea>'
-                  : `<input data-tool-sample type="${["number", "integer", "appId"].includes(type) ? "number" : "text"}" step="${type === "number" ? "any" : "1"}">`}</label>`).join("")}
+          formHtml(node, `<div class="aw aw-form">${toolSampleNotice(tool)}${toolSampleFields(tool)}
             <pre class="aw-pre" data-test-result role="status"></pre></div>`);
         },
         actions: [{ id: "cancel", label: tr("common_close", "关闭") }, { id: "run", label: tr("workflow_ui_run", "运行"), primary: true }],
@@ -1217,10 +1711,160 @@
       if (runId) { const id = runId; runId = null; await view().rpc("cancel-instruction-test", { id }); }
     }
   }
+  async function editorToolSamples(state, tool) {
+    if (!tool.parameters.length && !toolSites(tool).length && !toolProviders(tool).length) return {};
+    let inputs;
+    const answer = await state.ctx.dialog(state.shadow, { title: toolTestLabel(), className: "aw-param-dialog", form: true,
+      render: node => formHtml(node, `<div class="aw aw-form">${toolSampleNotice(tool)}${toolSampleFields(tool)}<div class="aw-error" role="alert"></div></div>`),
+      actions: [{ id: "cancel", label: tr("common_cancel", "取消") }, { id: "run", label: tr("workflow_ui_run", "运行"), primary: true }],
+      onAction(action, node) {
+        if (action !== "run") return true;
+        try { inputs = readToolSamples(node, tool); return true; }
+        catch (error) { reportFailure(error, node.querySelector(".aw-error")); return false; }
+      },
+    });
+    return answer === "run" ? inputs : null;
+  }
+  function runControl(editor) {
+    const control = editor.root.querySelector('[data-aw="editor-run"]');
+    const running = editor.run?.running, busy = editor.preparingRun || editor.run?.stopping;
+    control.setAttribute("aria-disabled", String(!!busy));
+    const label = running ? tr("workflow_ui_stop_test", "停止试运行") : tr("workflow_ui_run", "运行");
+    html(control, icon(running ? "player-stop" : "player-play") + `<span class="aw-button-label">${esc(label)}</span>`);
+  }
+  async function runEditorDraft(state, editor) {
+    if (editor.run?.running) {
+      editor.run.stopping = true; runControl(editor);
+      try { await view().rpc("cancel-instruction-test", { id: editor.run.id }); }
+      finally { if (editor.run.running) { editor.run.stopping = false; if (!editor.signal.aborted) runControl(editor); } }
+      return;
+    }
+    if (editor.preparingRun) return;
+    let draft;
+    try { draft = tools.forStorage(editor.draft); }
+    catch (error) {
+      if (!error.pairing) throw error;
+      locateError(editor, error);
+      focusSelection(editor);
+      return;
+    }
+    const inTool = editor.inTool;
+    let samples;
+    editor.preparingRun = true; runControl(editor);
+    try {
+      if (inTool) samples = await editorToolSamples(state, model.validateTool(draft));
+      else {
+        flow.validate(draft);
+        const steps = [...flow.walk(draft.steps, true)];
+        const scripts = steps.filter(node => node.action === "script");
+        let confirmNetwork = steps.some(node => node.action === "http-request");
+        if (!confirmNetwork && scripts.length) {
+          const { scriptNetwork } = await import(root.chrome.runtime.getURL("settings/pages/workflow-code.js"));
+          confirmNetwork = scripts.some(node => scriptNetwork(node.code).used);
+        }
+        if (editor.signal.aborted) return;
+        samples = await testValues(state, draft, steps, { includeVariables: false, confirmNetwork });
+      }
+    } finally { editor.preparingRun = false; if (!editor.signal.aborted) runControl(editor); }
+    if (!samples || editor.signal.aborted) return;
+    const lines = tools.lines(editor.draft);
+    const run = { id: crypto.randomUUID(), status: tr("workflow_ui_running", "正在运行…"), running: true, entries: [], sites: new Set(), lines, positions: lines };
+    editor.run = run; editor.panel = "debug"; editor.panelClosed = false;
+    paintInspector(editor); runControl(editor);
+    const append = entries => {
+      if (editor.signal.aborted || editor.run !== run || !entries.length) return;
+      const formatted = entries.map(entry => {
+        const node = run.lines.get(entry.nodeId)?.row.node;
+        if (node && entry.origin) {
+          const site = entry.nodeId + " " + entry.origin;
+          if (!run.sites.has(site)) { run.sites.add(site); rememberSiteIssue(editor, node, entry); }
+        }
+        const text = entry.text ?? view().errorCaption(entry);
+        const label = instructions.schemaLabel(model.NOTICE_TYPES[entry.level]);
+        return { ...entry, label, text };
+      });
+      run.entries.push(...formatted);
+      if (run.matches) run.matches.push(...formatted.filter(entry => matchesDebugEntry(entry, run.query, run.positions)));
+      debugEntries(editor);
+    };
+    const abort = () => void view().rpc("cancel-instruction-test", { id: run.id }).catch(error => reportFailure(error, null));
+    editor.signal.addEventListener("abort", abort, { once: true });
+    try {
+      const result = await (inTool ? view().rpc("test-tool", { id: run.id, tool: draft, inputs: samples })
+        : view().rpc("test-workflow", { id: run.id, workflow: draft, ...samples }, append));
+      if (editor.signal.aborted) return;
+      if (result.entries?.length) append(result.entries);
+      const steps = (result.steps || []).map(step => ({ nodeId: step.nodeId, level: step.status === "success" ? "info" : "error",
+        text: instructions.name(step.action) + " · " + (step.status === "success" ? tr("workflow_ui_run_completed", "运行完成") : tr("workflow_ui_run_failed", "运行失败")) + " ×" + step.count }));
+      if (steps.length) append(steps);
+      if (result.error) {
+        const entry = { ...result.error, at: Date.now(), level: "error" };
+        if (entry.code === "WORKFLOW_PREVIEW_UNSUPPORTED") entry.message = tr("workflow_ui_preview_unsupported", "草稿试运行已停在此指令。此指令需要正式运行。");
+        append([entry]);
+      } else if (inTool && !result.cancelled) append([{ level: "success", text: JSON.stringify(result.value, null, 2) }]);
+      run.status = result.uncertain ? tr("workflow_script_preview_uncertain", "试运行已停止，已发送的写请求结果待核实")
+        : result.cancelled ? tr("workflow_ui_test_stopped", "试运行已停止")
+          : result.error ? tr("workflow_ui_run_failed", "运行失败")
+            : result.steps?.some(step => step.status === "failed") ? tr("workflow_ui_failed_continued_as_configured", "失败，已按配置继续")
+              : tr("workflow_ui_run_completed", "运行完成");
+    } catch (error) {
+      if (!editor.signal.aborted) {
+        reportFailure(error, null);
+        append([{ at: Date.now(), level: "error", text: view().errorCaption(error) }]);
+        run.status = tr("workflow_ui_run_failed", "运行失败");
+      }
+    } finally {
+      editor.signal.removeEventListener("abort", abort);
+      run.running = false; run.stopping = false;
+      if (!editor.signal.aborted) {
+        runControl(editor);
+        const status = editor.root.querySelector(".aw-debug-status");
+        if (status) status.textContent = run.status;
+      }
+    }
+  }
+  function openWorkflowParameters(draft) {
+    const legacy = new Map();
+    if (draft.inputParameters) return legacy;
+    draft.inputParameters = [];
+    while (draft.steps.length && !draft.folds?.length) {
+      const node = draft.steps[0], input = flow.activeValue(node.value);
+      if (node.action !== "receive" || node.disabled || node.note || node.errorOutput || node.onError && node.onError !== "throw" ||
+          input?.source !== "input" || input.path.length !== 1 || legacy.has(input.path[0])) break;
+      const variable = draft.variables.find(item => item.id === node.output);
+      if (!variable || variable.type === "result" || [...legacy.values()].includes(variable.id)) break;
+      legacy.set(input.path[0], variable.id);
+      draft.inputParameters.push({ name: variable.name, type: variable.type, variableId: variable.id });
+      draft.steps.shift();
+    }
+    return legacy;
+  }
+  async function reconcileTriggerParameters(state, bundle, workflow, legacy) {
+    const paused = [];
+    for (const trigger of bundle.triggers) {
+      if (trigger.workflowId !== workflow.id) continue;
+      const bindings = { ...trigger.inputs };
+      for (const [old, id] of legacy) if (Object.hasOwn(bindings, old) && !Object.hasOwn(bindings, id)) bindings[id] = bindings[old];
+      trigger.inputs = Object.fromEntries(workflow.inputParameters.filter(parameter => Object.hasOwn(bindings, parameter.variableId))
+        .map(parameter => [parameter.variableId, bindings[parameter.variableId]]));
+      if (!trigger.enabled || !model.inputBindingIssue(workflow, trigger.inputs, trigger.event.type)) continue;
+      trigger.enabled = false;
+      paused.push(trigger.name);
+    }
+    if (!paused.length) return true;
+    const title = tr("workflow_parameter_pause_triggers", "更新触发传参");
+    return await state.ctx.dialog(state.shadow, { title,
+      message: [tr("workflow_parameter_pause_notice", "以下触发器需要重新绑定参数。保存后将暂停，修正后可重新启用。"), ...paused].join("\n"),
+      actions: [{ id: "cancel", label: tr("common_cancel", "取消") }, { id: "save", label: tr("common_save", "保存"), primary: true }],
+    }) === "save";
+  }
   async function editWorkflow(state, original = null, importIssue = null, newTool = false) {
     const inTool = newTool || flow.isToolId(original?.id);
     const draft = original ? tools.openDraft(original) : inTool ? model.newTool(tr("workflow_tool_untitled", "未命名工具"))
       : model.newWorkflow(flow.numericId("wf-", state.bundle.workflows), tr("workflow_ui_untitled_workflow", "未命名工作流"));
+    const legacy = inTool ? null : openWorkflowParameters(draft);
+    tools.ensureEntryRow(draft);
+    draft.description ??= "";
     const initial = JSON.stringify(draft), controller = new AbortController(), nameLabel = inTool ? toolNameLabel() : tr("workflow_ui_workflow_name", "工作流名称");
     let editor;
     const [registry, membership] = await Promise.all([state.ctx.storage.getAi(), state.ctx.storage.getMembership()]);
@@ -1239,42 +1883,51 @@
         initial: node => node.querySelector("[data-name]"),
         render: node => {
           html(node, `<div class="aw aw-editor"><div class="aw-editor-top"><label class="aw-workflow-name">${icon("binary-tree")}<input data-name aria-label="${esc(nameLabel)}" placeholder="${esc(nameLabel)}" value="${esc(draft.name)}"></label>
-            ${inTool ? `<div class="aw-tools">${button("tool-settings", tr("workflow_tool_settings", "工具设置"))}</div>` : ""}
             <div class="aw-editor-toolbar" role="toolbar" aria-label="${esc(tr("workflow_ui_workflow_tools", "工作流工具"))}" focusgroup="toolbar wrap">${iconButton("expand-all", tr("workflow_ui_expand_all", "全部展开"), "chevrons-down")}${iconButton("collapse-all", tr("workflow_ui_collapse_all", "全部折叠"), "chevrons-up")}<span class="aw-tool-separator" role="separator" aria-orientation="vertical"></span>${iconButton("undo", tr("workflow_ui_undo", "撤销"), "arrow-back-up")}${iconButton("redo", tr("workflow_ui_redo", "重做"), "arrow-forward-up")}<span class="aw-tool-separator" role="separator" aria-orientation="vertical"></span>${iconButton("variables", tr("workflow_ui_variables", "变量列表"), "variable")}${iconButton("validate", tr("workflow_ui_validate_again", "重新校验"), "list-check", 'aria-controls="aw-inspector-panel"')}</div>
+            ${button("editor-run", tr("workflow_ui_run", "运行"), 'class="aw-primary aw-editor-run"', "player-play")}
             </div><div class="aw-editor-main"><aside class="aw-palette" aria-label="${esc(tr("workflow_ui_action_library", "指令库"))}"><input type="search" data-search aria-label="${esc(tr("workflow_ui_search_actions", "搜索指令"))}" placeholder="${esc(tr("workflow_ui_search_actions", "搜索指令"))}">
             ${palette(inTool)}
             </aside><div class="aw-canvas" role="listbox" aria-label="${esc(tr("workflow_ui_workflow_actions", "工作流指令"))}" aria-multiselectable="false"></div></div>
-            <section class="aw-inspector" aria-label="${esc(tr("workflow_ui_workflow_checks", "工作流检查"))}"><div class="aw-inspector-head"><div class="aw-tabs" role="tablist" aria-label="${esc(tr("workflow_ui_workflow_checks_panel", "工作流检查面板"))}"><button type="button" role="tab" id="aw-inspector-errors" data-inspector-tab="errors" aria-controls="aw-inspector-panel">${esc(tr("workflow_ui_errors", "错误列表"))}</button><button type="button" role="tab" id="aw-inspector-variables" data-inspector-tab="variables" aria-controls="aw-inspector-panel">${esc(tr("workflow_ui_variables", "变量列表"))}</button></div><span data-count></span>${iconButton("panel-toggle", tr("workflow_ui_toggle_inspector", "折叠或展开检查面板"), "layout-bottombar", 'aria-expanded="true" aria-controls="aw-inspector-panel"')}</div><div class="aw-inspector-panel" id="aw-inspector-panel" role="tabpanel"></div></section></div>`);
+            <section class="aw-inspector" aria-label="${esc(tr("workflow_ui_workflow_checks", "工作流检查"))}"><div class="aw-inspector-head"><div class="aw-tabs" role="tablist" aria-label="${esc(tr("workflow_ui_workflow_checks_panel", "工作流检查面板"))}">
+              <button type="button" role="tab" id="aw-inspector-debug" data-inspector-tab="debug" aria-controls="aw-inspector-panel">${esc(tr("workflow_ui_debug_log", "调试日志"))}</button>
+              <button type="button" role="tab" id="aw-inspector-errors" data-inspector-tab="errors" aria-controls="aw-inspector-panel">${esc(tr("workflow_ui_errors", "错误列表"))}</button>
+              <button type="button" role="tab" id="aw-inspector-variables" data-inspector-tab="variables" aria-controls="aw-inspector-panel">${esc(tr("workflow_ui_variables", "变量列表"))}</button>
+            </div><span data-count></span>${iconButton("panel-toggle", tr("workflow_ui_toggle_inspector", "折叠或展开检查面板"), "layout-bottombar", 'aria-expanded="true" aria-controls="aw-inspector-panel"')}</div><div class="aw-inspector-panel" id="aw-inspector-panel" role="tabpanel" tabindex="-1"></div></section></div>`);
           editor = { draft, root: node, registry, membership, plans: state.bundle.prompts, inTool, toolLibrary: state.bundle.tools || [], importing: !!importIssue && importIssue.importing !== false, undo: [], redo: [], selected: "root-gap", rows: [], collapsed: new Set(), cursor: null, insertion: null, panel: "errors", panelClosed: false, diagnostics: null, signal: controller.signal, siteIssues: [], runtimeSites: new Map(), originalId: !importIssue && original?.id, epoch: state.bundle.epoch,
+            searches: { debug: { open: false, query: "" }, errors: { open: false, query: "" }, variables: { open: false, query: "" } },
             savedRequests: original && !importIssue ? new Map([...flow.walk(original.steps)].map(item => [item.id, requestFingerprint(item)])) : null };
           paintEditor(editor); bindEditor(state, editor, controller.signal);
         },
-        actions: [...(inTool ? [{ id: "test-tool", label: toolTestLabel() }] : []), { id: "cancel", label: tr("common_cancel", "取消") }, { id: "save", label: tr("common_save", "保存"), primary: true }],
+        actions: [{ id: "cancel", label: tr("common_cancel", "取消") }, { id: "save", label: tr("common_save", "保存"), primary: true }],
         onAction: async (action, node) => {
-          if (action === "test-tool") {
-            try { await testToolDialog(state, tools.forStorage(draft)); }
-            catch (error) { reportFailure(error, null, editor); }
-            return false;
-          }
           if (action !== "save") return true;
+          editor.saveIssue = null;
           try {
+            if (!inTool && [...flow.walk(draft.steps)].some(node => node.action === "ai-call")) {
+              editor.registry = await state.ctx.storage.getAi();
+              if (controller.signal.aborted) return false;
+            }
+            editor.diagnostics = null;
+            const errors = editorDiagnostics(editor).filter(issue => issue.severity !== "warning");
+            if (errors.length) { await showSaveIssues(state, editor, errors); return false; }
             const workflow = tools.forStorage(draft);
             if (inTool) return await saveToolDefinition(state, model.validateTool(workflow));
             flow.validate(workflow);
-            if ([...flow.walk(workflow.steps)].some(node => node.action === "ai-call")) {
-              editor.registry = await state.ctx.storage.getAi();
-              if (controller.signal.aborted) return false;
-              editor.diagnostics = null;
-            }
-            const [issue] = [...promptIssues(workflow, editor.plans, editor.registry), ...toolIssues(workflow, editor.toolLibrary)];
-            if (issue) { locateError(editor, issue); return false; }
             const next = flow.clone(state.bundle), index = next.workflows.findIndex(item => item.id === workflow.id);
             if (editor.importing) {
               workflow.id = flow.numericId("wf-", next.workflows); workflow.revision = 1;
               next.workflows.push(workflow);
             } else if (index < 0) next.workflows.push(workflow); else next.workflows[index] = workflow;
+            if (!await reconcileTriggerParameters(state, next, workflow, legacy)) return false;
             await save(state, next); return true;
-          } catch (error) { reportFailure(error, null, editor); return false; }
+          } catch (error) {
+            if (error.code !== "WORKFLOW_CONFIG_INVALID") view().reportFailure(error, null);
+            if (!controller.signal.aborted) {
+              editor.saveIssue = error;
+              await showSaveIssues(state, editor, [error]);
+            }
+            return false;
+          }
         },
       });
       if (importIssue && editor?.root.isConnected) {
@@ -1284,12 +1937,26 @@
     } finally { editor?.closeMenu?.(); controller.abort(); }
   }
   function locateError(editor, error) {
-    editor.panel = "errors"; editor.panelClosed = false;
+    openInspectorErrors(editor);
     if (error.nodeId) revealNode(editor, error.nodeId); else paintInspector(editor);
-    editor.root.querySelector("[data-editor-error]").textContent = editor.diagnostics.some(item => item.nodeId === error.nodeId && item.message === error.message) ? "" : view().errorCaption(error);
+    editor.root.querySelector("[data-editor-error]").textContent = inspectorIssues(editor).some(item => item.nodeId === error.nodeId && item.message === error.message) ? "" : view().errorCaption(error);
+  }
+  async function showSaveIssues(state, editor, errors) {
+    openInspectorErrors(editor);
+    const lines = tools.lines(editor.draft);
+    if (lines.has(errors[0].nodeId)) revealNode(editor, errors[0].nodeId);
+    else paintInspector(editor);
+    const messages = errors.map(error => {
+      const line = lines.get(error.nodeId)?.number, message = view().validationCaption(error);
+      return line ? tr("workflow_format_line", "第 $count$ 行", { count: line }) + " · " + message : message;
+    });
+    await view().saveFailureNotice(state.shadow, messages);
+    if (!editor.signal.aborted && editor.root.isConnected)
+      editor.root.querySelector(".aw-inspector-panel").focus({ preventScroll: true });
   }
   async function editIssue(state, editor, issue, openConfig = false) {
     revealNode(editor, issue.nodeId);
+    if (issue.pairing) { focusSelection(editor); return; }
     const row = editor.rows.find(row => row.key === issue.nodeId);
     if (row && (openConfig || row.node.action === "ai-call" && issue.field)) {
       await editNode(state, editor, row, issue);
@@ -1313,15 +1980,21 @@
       editor.panel = tab.dataset.inspectorTab; editor.panelClosed = false; paintInspector(editor);
     }, { signal });
     node.addEventListener("keydown", event => {
-      if (!event.defaultPrevented && !event.isComposing && event.target.hasAttribute("data-variable-search") && event.key === "Escape") {
-        event.preventDefault(); event.stopPropagation();
-        editor.variableSearchOpen = false; editor.variableQuery = "";
-        paintInspector(editor); node.querySelector('[data-aw="variable-search"]').focus();
-        return;
+      if (!event.defaultPrevented && !event.isComposing && event.key === "Escape") {
+        const search = event.target.closest("[data-inspector-search]");
+        if (search && editor.searches[search.dataset.inspectorSearch].open) {
+          event.preventDefault(); event.stopPropagation();
+          setInspectorSearch(editor, search, false);
+          return;
+        }
       }
       const tab = event.target.closest("[data-inspector-tab]");
       if (tab && ["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) {
-        event.preventDefault(); const target = node.querySelector(`[data-inspector-tab="${event.key === "Home" ? "errors" : event.key === "End" ? "variables" : editor.panel === "errors" ? "variables" : "errors"}"]`); target.click(); target.focus(); return;
+        event.preventDefault();
+        const tabs = [...node.querySelectorAll("[data-inspector-tab]")], index = tabs.indexOf(tab);
+        const next = event.key === "Home" ? 0 : event.key === "End" ? tabs.length - 1 :
+          (index + (event.key === "ArrowRight" ? 1 : -1) + tabs.length) % tabs.length;
+        tabs[next].click(); tabs[next].focus(); return;
       }
       if (event.defaultPrevented || event.isComposing || event.target.closest("input,textarea,select,[contenteditable=true]")) return;
       const key = event.key.toLowerCase(), modifier = event.ctrlKey || event.metaKey;
@@ -1331,19 +2004,23 @@
         if (row && element) { const rect = element.getBoundingClientRect(); openContextMenu(state, editor, row, { x: rect.left + 70, y: rect.bottom }); } return;
       }
       if (!action || event.target.closest(".aw-context-menu")) return;
-      event.preventDefault(); event.stopPropagation(); void editorCommand(state, editor, action).catch(error => reportFailure(error, null, editor));
+      const focusedRow = action === "node-delete" ? editor.rows[Number(event.target.closest(".aw-line")?.dataset.row)] : undefined;
+      event.preventDefault(); event.stopPropagation(); void editorCommand(state, editor, action, focusedRow).catch(error => reportFailure(error, null, editor));
     }, { signal });
     canvas.addEventListener("contextmenu", event => {
       const row = editor.rows[Number(event.target.closest("[data-row]")?.dataset.row)]; if (!row || row.marker === "insert") return;
       event.preventDefault(); event.stopPropagation(); openContextMenu(state, editor, row, { x: event.clientX, y: event.clientY });
     }, { signal });
     node.addEventListener("input", event => {
-      if (event.target.hasAttribute("data-variable-search")) {
-        editor.variableQuery = event.target.value; filterVariables(editor);
+      if (event.target.matches(".aw-inspector-search")) {
+        const pane = event.target.closest("[data-inspector-search]").dataset.inspectorSearch;
+        editor.searches[pane].query = event.target.value;
+        filterInspector(editor, pane);
       }
       if (event.target.hasAttribute("data-name")) {
         const name = event.target.value, validityChanged = !!name.trim() !== !!editor.draft.name.trim();
         editor.draft.name = name;
+        editor.saveIssue = null;
         if (validityChanged) { editor.diagnostics = null; paintEditor(editor); }
         else paintInspector(editor);
       }
@@ -1378,7 +2055,7 @@
       }
       if (event.key === "Enter") {
         const item = insertion.candidates[insertion.active];
-        if (item) void addInstruction(state, editor, item.id).catch(error => reportFailure(error, null, editor));
+        if (item) void insertInstruction(state, editor, item.id).catch(error => reportFailure(error, null));
       } else if (count) {
         insertion.active = event.key === "Home" ? 0 : event.key === "End" ? count - 1 : (insertion.active + (event.key === "ArrowUp" ? -1 : 1) + count) % count;
         renderPicker(editor);
@@ -1400,9 +2077,26 @@
       if (editor.insertion && control && !["insert", "select-gap", "insert-cancel", "composition"].includes(control.dataset.aw)) closeInsertion(editor);
       event.stopPropagation();
       void (async () => {
-        if (event.target.closest("[data-instruction]")) return addInstruction(state, editor, event.target.closest("[data-instruction]").dataset.instruction);
+        if (event.target.closest("[data-instruction]")) return insertInstruction(state, editor, event.target.closest("[data-instruction]").dataset.instruction);
         const action = control.dataset.aw;
-        if (action === "tool-settings") return editToolInputs(state, editor);
+        if (action === "editor-run") return runEditorDraft(state, editor);
+        if (action === "log-expand") return showDebugLog(state, editor, control);
+        if (action === "log-clear") {
+          const run = editor.run;
+          const search = control.parentElement.querySelector("[data-inspector-search]");
+          search.querySelector(editor.searches.debug.open ? "input" : "button").focus({ preventScroll: true });
+          run.entries.length = 0;
+          if (run.matches) run.matches.length = 0;
+          filterInspector(editor, "debug");
+          return;
+        }
+        if (action === "log-prev" || action === "log-next") {
+          const run = editor.run, last = Math.ceil(debugResults(editor).length / debugPageSize) - 1;
+          const next = (run.logPage ?? last) + (action === "log-prev" ? -1 : 1);
+          run.logPage = next === last ? undefined : next;
+          debugEntries(editor);
+          return;
+        }
         if (action === "composition") return editComposition(state, editor, insertionCursor);
         if (action === "collapse") { editor.collapsed.has(row.node.id) ? editor.collapsed.delete(row.node.id) : editor.collapsed.add(row.node.id); paintEditor(editor); }
         else if (action === "expand-all" || action === "collapse-all") {
@@ -1427,18 +2121,18 @@
           const [registry, membership] = await Promise.all([state.ctx.storage.getAi(), state.ctx.storage.getMembership()]);
           if (signal.aborted) return;
           editor.registry = registry; editor.membership = membership; editor.diagnostics = null;
+          editor.insertionIssue = null; editor.saveIssue = null;
           await checkEditorSites(editor, true);
           if (signal.aborted) return;
-          editor.panel = "errors"; editor.panelClosed = false;
+          openInspectorErrors(editor);
           const [firstIssue] = editorDiagnostics(editor);
           if (firstIssue) revealNode(editor, firstIssue.nodeId); else paintEditor(editor);
           editor.status.textContent = diagnosticSummary(editor.diagnostics) || tr("workflow_ui_validation_passed", "校验通过");
         }
         else if (action === "variables") { editor.panel = "variables"; editor.panelClosed = false; paintInspector(editor); }
-        else if (action === "variable-search") {
-          editor.variableSearchOpen = !editor.variableSearchOpen; editor.variableQuery = "";
-          paintInspector(editor);
-          node.querySelector(editor.variableSearchOpen ? "[data-variable-search]" : '[data-aw="variable-search"]').focus();
+        else if (action === "inspector-search") {
+          const search = control.closest("[data-inspector-search]");
+          setInspectorSearch(editor, search, !editor.searches[search.dataset.inspectorSearch].open);
         }
         else if (action === "panel-toggle") { editor.panelClosed = !editor.panelClosed; paintInspector(editor); }
         else if (action === "site-authorize") {
@@ -1451,8 +2145,8 @@
             }
           } finally { control.disabled = false; }
         }
-        else if (action === "error-locate") await editIssue(state, editor, editor.diagnostics[Number(control.dataset.error)]);
-        else if (action === "variable-locate") revealNode(editor, [...tools.lines(editor.draft)].find(([, item]) => item.number === Number(control.dataset.line))[0]);
+        else if (action === "error-locate") await editIssue(state, editor, inspectorIssues(editor)[Number(control.dataset.error)]);
+        else if (action === "instruction-locate") revealNode(editor, control.dataset.nodeId);
         else if (["variable-new", "variable-edit", "variable-delete"].includes(action)) await variableAction(state, editor, action, control.closest("[data-variable-id]")?.dataset.variableId);
         else if (action === "select-gap" || action === "insert") openInsertion(editor, row, control.dataset.position === "before");
         else if (action === "insert-cancel") closeInsertion(editor);
@@ -1468,7 +2162,7 @@
         return;
       }
       if (isFold(row)) return;
-      if (row?.node && !row.marker?.startsWith("end-") && !["insert", "else", "finally"].includes(row.marker)) void editNode(state, editor, row).then(() => paintEditor(editor)).catch(error => reportFailure(error, null, editor));
+      if (row?.node && !row.placeholder && !isEnd(row) && !["insert", "else", "finally"].includes(row.marker)) void editNode(state, editor, row).then(() => paintEditor(editor)).catch(error => reportFailure(error, null, editor));
     };
     canvas.addEventListener("dblclick", edit, { signal });
     canvas.addEventListener("keydown", event => {
@@ -1491,8 +2185,8 @@
           const preceding = list[index - 1], path = [...listPath, index - 1, ...(preceding.kind === "if" ? ["branches", 0, "steps"] : ["body"])];
           editor.collapsed.delete(preceding.id); destination = { path, index: flow.pathGet(editor.draft, path).length };
         } else if (event.key === "ArrowLeft" && listPath.length > 1) {
-          const parent = editor.rows.filter(item => !item.marker && item.node.kind !== "action" && item.path.length < row.path.length && item.path.every((key, index) => row.path[index] === key)).at(-1);
-          if (parent) destination = { path: parent.listPath, index: parent.index + 1 };
+          const parentPath = owningBlockPath(listPath);
+          destination = { path: parentPath.slice(0, -1), index: Number(parentPath.at(-1)) + 1 };
         }
         if (destination) { moveNode(editor, row, destination); editor.root.querySelector(`[data-key="${CSS.escape(row.node.id)}"] .aw-handle`)?.focus(); }
       }
@@ -1622,13 +2316,13 @@
     node.addEventListener("pointerup", event => {
       if (!drag || drag.pointer !== event.pointerId) return;
       if (drag.active) { drag.x = event.clientX; drag.y = event.clientY; updateTarget(); }
-      const current = drag, cursor = drag.target?.cursor;
+      const current = drag, cursor = drag.target?.cursor, rowKey = drag.target?.element.dataset.key;
       clear();
       if (!cursor) return;
       if (current.palette) {
         const key = current.palette.dataset.instruction;
-        const result = key ? addInstruction(state, editor, key, cursor) : editComposition(state, editor, cursor);
-        void result.catch(error => reportFailure(error, null, editor));
+        if (key) void insertInstruction(state, editor, key, { ...cursor, rowKey }).catch(error => reportFailure(error, null));
+        else void editComposition(state, editor, cursor).catch(error => reportFailure(error, null, editor));
         return;
       }
       try { moveNode(editor, current.row, cursor); editor.root.querySelector(`[data-key="${CSS.escape(current.row.node.id)}"] .aw-handle`)?.focus({ preventScroll: true }); }
@@ -1643,6 +2337,7 @@
     signal.addEventListener("abort", clear, { once: true });
   }
   async function variableAction(state, editor, action, id) {
+    if (flow.entryParameters(editor.draft).some(parameter => parameter.variableId === id)) return editEntryParameters(state, editor);
     const next = flow.clone(editor.draft), selected = next.variables.find(item => item.id === id);
     if (action === "variable-delete") {
       if (!await confirm(state, tr("workflow_ui_delete_variable", "删除变量"), tr("workflow_format_delete_var", "将删除“$name$”。引用该变量的指令需要重新选择变量，修正前不能保存工作流。", { name: selected.name }))) return;
@@ -1655,6 +2350,7 @@
     for (const [path, entry] of Object.entries(entries)) {
       const name = entry.name, old = workspace.variables.find(item => item.id === entry.id);
       if (!name || !old || name === old.name) continue;
+      if (flow.entryParameters(workspace).some(parameter => parameter.variableId === old.id)) continue;
       const uses = tools.uses(workspace, old.id).filter(use => use.nodeId !== working.id || use.role !== "write" || use.key !== path);
       let global = true;
       if (uses.length) {
@@ -1674,24 +2370,28 @@
     }
     return { clean, resolved };
   }
-  async function testValues(state, workflow, node) {
+  const parameterSample = type => flow.literal(({ number: 0, boolean: false, list: [], object: {}, result: {} })[type] ?? "");
+  async function testValues(state, workflow, nodes, { includeVariables = true, confirmNetwork = false } = {}) {
     const ids = new Set(); let needsInput = false, needsTrigger = false;
-    for (const value of flow.nodeReferences(node)) {
-      if (value.source === "variable") ids.add(value.id);
+    for (const node of nodes) for (const value of flow.nodeReferences(node)) {
+      if (includeVariables && value.source === "variable") ids.add(value.id);
       if (value.source === "input") needsInput = true;
       if (value.source === "meta" && (!value.path.length || ["triggerName", "triggerType"].includes(value.path[0]))) needsTrigger = true;
     }
-    if (!ids.size && !needsInput && !needsTrigger) return { input: {}, variables: {} };
+    const parameters = includeVariables ? [] : workflow.inputParameters ?? [];
+    if (!ids.size && !needsInput && !needsTrigger && !confirmNetwork && !parameters.length) return { input: {}, variables: {} };
     const sample = { input: flow.literal({}), meta: { triggerName: tr("workflow_ui_test_action", "指令试运行"), triggerType: "manual" }, values: [...ids].map(id => {
       const variable = workflow.variables.find(item => item.id === id), type = variable.type;
-      return { id, name: variable.name, type, value: flow.literal(({ number: 0, boolean: false, list: [], object: {}, result: {} })[type] ?? "") };
-    }) }, scope = { variables: [], literalOnly: true };
+      return { id, name: variable.name, type, value: parameterSample(type) };
+    }), parameters: parameters.map(item => ({ ...item, value: parameterSample(item.type) })) }, scope = { variables: [], literalOnly: true };
     let container, result = null;
     const triggerTypes = [["manual", triggerModes.manual], ...Object.entries(gameEvents), ["schedule", triggerModes.schedule]];
-    const render = () => formHtml(container, `<div class="aw aw-form"><div class="aw-grid">
+    const render = () => formHtml(container, `<div class="aw aw-form">
+      ${confirmNetwork ? `<p>${esc(tr("workflow_script_network_preview", "脚本可能发送真实 HTTP 请求并修改目标站点的数据。"))}</p>` : ""}<div class="aw-grid">
       ${needsTrigger ? parameterProp(tr("workflow_ui_sample_trigger_name", "触发器名称样例"), "meta.triggerName", sample.meta.triggerName) +
         parameterProp(tr("workflow_ui_sample_trigger_type", "触发类型样例"), "meta.triggerType", sample.meta.triggerType, triggerTypes) : ""}
       ${needsInput ? valueField(tr("workflow_ui_sample_trigger_input", "触发器输入样例"), sample.input, "input", scope, [], "object") : ""}
+      ${sample.parameters.map((item, index) => valueField(item.name, item.value, `parameters.${index}.value`, scope, [], item.type)).join("")}
       ${sample.values.map((item, index) => valueField(item.name + tr("workflow_ui_sample", "样例"), item.value, `values.${index}.value`, scope, [], item.type === "result" ? "object" : item.type)).join("")}
       </div><div class="aw-error" role="alert"></div></div>`);
     const answer = await state.ctx.dialog(state.shadow, { title: tr("workflow_ui_test_input", "试运行输入"), className: "aw-param-dialog", form: true,
@@ -1702,8 +2402,10 @@
         try {
           collect(container, sample, scope);
           if (needsTrigger && !sample.meta.triggerName.trim()) throw new Error(tr("workflow_ui_enter_a_sample_trigger_name", "请填写触发器名称样例"));
-          result = { input: needsInput ? flow.read(sample.input, flow.state()) : {}, variables: Object.fromEntries(sample.values.map(item => [item.id, flow.read(item.value, flow.state())])),
-            ...(needsTrigger ? { meta: sample.meta } : {}) };
+          const input = needsInput ? flow.read(sample.input, flow.state()) : Object.fromEntries(sample.parameters.map(item => [item.variableId, flow.read(item.value, flow.state())]));
+          if (!includeVariables) model.workflowArguments(workflow, input);
+          result = { input, variables: Object.fromEntries(sample.values.map(item => [item.id, flow.read(item.value, flow.state())])),
+            ...(needsTrigger ? { meta: sample.meta } : {}), ...(confirmNetwork ? { confirmNetwork: true } : {}) };
           const checked = flow.state({}, {}, workflow);
           for (const [id, value] of Object.entries(result.variables)) flow.write(checked, id, value);
           return true;
@@ -1712,7 +2414,8 @@
     });
     return answer === "run" ? result : null;
   }
-  async function editNode(state, editor, row, issue = null) {
+  async function editNode(state, editor, row, issue = null, insertionOwner = null) {
+    if (tools.isEntryRow(row.node)) return editEntryParameters(state, editor, { inserting: !!insertionOwner });
     const prop = parameterProp;
     const workspace = flow.clone(editor.draft), working = flow.pathGet(workspace, row.path);
     const values = root.STWorkflowValues, emptyInput = JSON.stringify(values.comparable(flow.literal("")));
@@ -1745,15 +2448,22 @@
       return container.querySelector('[data-prompt-rebind="' + CSS.escape(error.parameter) + '"]') ||
         field?.querySelector("[data-value-text]") || field?.querySelector("[data-variable-toggle]");
     }
-    function validatePromptInputs() {
+    function markParameterInsertionError(error) {
+      if (!insertionOwner || insertionOwner.signal.aborted) return;
+      noteInsertionIssue(insertionOwner, error, instructions.key(row));
+      paintInspector(insertionOwner);
+    }
+    function validatePromptInputs(saving = false) {
       const inputs = Object.fromEntries(promptMapping(working).map(item => [item.key, item.value]));
       const [error] = tools.promptDiagnostics({ ...working, inputs }, editor.plans, editor.registry);
       if (!error) return true;
       if (parameterTab !== "general") { parameterTab = "general"; render(); }
       const control = promptErrorControl(error);
       const userParameter = root.STPromptPlans.userParameter(selectedPrompt(working));
-      container.querySelector(".aw-error").textContent = !working.promptId && error.field === "promptId" ? tr("workflow_ui_select_a_prompt_template", "请选择提示词模板")
+      const message = !working.promptId && error.field === "promptId" ? tr("workflow_ui_select_a_prompt_template", "请选择提示词模板")
         : !editor.importing && error.field === "inputs" && error.parameter === userParameter ? tr("workflow_ui_enter_a_user_prompt", "请填写用户提示词") : view().errorCaption(error);
+      container.querySelector(".aw-error").textContent = message;
+      if (saving) markParameterInsertionError({ message });
       control?.setAttribute("aria-invalid", "true");
       control?.focus();
       return false;
@@ -1821,6 +2531,7 @@
           content += flow.actionFields(working).map(field => valueField(toolLabels[field.key] ? tr(toolLabels[field.key], field.label) : instructions.schemaLabel(field.label), working[field.key], field.key, workspace,
             instructions.schemaChoices(field.choices || []), key === "set" ? working.valueType : field.type, false, [], field.selectLiteralType)).join("");
         }
+        if (key === "log") content += prop(tr("workflow_ui_log_level", "日志级别"), "level", working.level, instructions.schemaChoices(Object.entries(model.NOTICE_TYPES)));
         if (["raise", "log"].includes(key)) content += valueField(key === "log" ? tr("workflow_ui_log_message", "日志内容") : tr("workflow_ui_error_message_or_variable", "异常消息或异常变量"), working.value, "value", workspace, [], "any", true);
         if (key === "tool-return") content += valueField(tr("workflow_output_tool_call", "工具结果"), working.value, "value", workspace, [], "any", true);
         if (key === "wait") content += valueField(tr("workflow_ui_wait_duration_seconds", "等待秒数"), working.seconds, "seconds", workspace, [], "number");
@@ -1836,7 +2547,6 @@
               </div>
             </div>`;
         }
-        if (key === "log") content += prop(tr("workflow_ui_log_level", "日志级别"), "level", working.level, instructions.schemaChoices(Object.entries(model.NOTICE_TYPES)));
         if (key === "comment") content += `<label>${esc(tr("store_titleCustomName_noteTab", "备注"))}<textarea data-prop="text">${esc(working.text)}</textarea></label>`;
         if (key === "ai-call") {
           content += aiServiceAndPrompt(editor, working);
@@ -1968,7 +2678,7 @@
         target.code = module.scriptParts(source, clean);
       }
       if (editor.originalVariableIds) { const used = JSON.stringify(clean.steps); clean.variables = clean.variables.filter(item => editor.originalVariableIds.has(item.id) || used.includes('"' + item.id + '"')); }
-      const loopDepth = editor.rows.filter(parent => !parent.marker && flow.loops.has(parent.node.kind) && parent.path.length < row.path.length && parent.path.every((key, index) => key === row.path[index])).length;
+      const loopDepth = tools.loopDepth(clean, row.path);
       flow.validate(clean, { target, loopDepth });
       return { clean, target };
     }
@@ -2018,7 +2728,7 @@
           ].join("\n"));
           return;
         }
-        samples = await testValues(state, clean, trial);
+        samples = await testValues(state, clean, [trial]);
         const networkScript = samples && trial.action === "script" && !editor.inTool &&
           (await import(root.chrome.runtime.getURL("settings/pages/workflow-code.js"))).scriptNetwork(trial.code).used;
         if (samples && (http || networkScript)) {
@@ -2176,14 +2886,22 @@
         if (action !== "save") return true;
         try {
           collectAll();
-          if (working.action === "ai-call" && !validatePromptInputs()) return false;
+          if (working.action === "ai-call" && !validatePromptInputs(true)) return false;
           const current = working.action === "ai-call" ? { ...working, mapping: promptMapping(working).filter(item => !isOriginalInput(item)) } : working;
           await root.STWorkflowValues.compile(current, workspace);
           const named = await resolveOutputNames(state, container, workspace, working); if (!named) return false;
           const { clean } = await prepared(named);
           snapshot(editor); Object.assign(editor.draft, clean); return true;
         }
-        catch (error) { reportFailure(error, node.querySelector(".aw-error")); return false; }
+        catch (error) {
+          const target = node.querySelector(".aw-error");
+          if (insertionOwner) {
+            if (error.code !== "WORKFLOW_CONFIG_INVALID") view().reportFailure(error, null);
+            target.textContent = view().validationCaption(error);
+            markParameterInsertionError(error);
+          } else reportFailure(error, target);
+          return false;
+        }
       },
     }); } finally { lifetime.abort(); codeEditor?.destroy(); await stopPreview(); }
   }
@@ -2197,13 +2915,14 @@
   }
 
   function triggerEventFields(type) {
-    const common = [[["id"], tr("workflow_ui_event_id", "事件 ID")], [["type"], tr("workflow_ui_event_type", "事件类型")]];
-    if (gameEvent(type)) return [
-      ...common, [["game"], tr("workflow_ui_current_game", "本次游戏")], [["game", "official"], instructions.schemaLabel("Steam 原名")], [["game", "appid"], "AppID"], [["appid"], tr("workflow_ui_event_appid", "事件 AppID")],
-      ...(type === "installed" ? [[["phase"], tr("workflow_ui_installation_stage", "安装阶段")]] : []),
-    ];
-    if (type === "schedule") return [...common, [["scheduledAt"], tr("workflow_ui_scheduled_time", "计划时间")], [["at"], tr("workflow_ui_actual_trigger_time", "实际触发时间")], [["unconfirmed"], tr("workflow_ui_account_not_confirmed", "账号未确认")]];
-    return [];
+    const labels = {
+      id: tr("workflow_ui_event_id", "事件 ID"), type: tr("workflow_ui_event_type", "事件类型"),
+      game: tr("workflow_ui_current_game", "本次游戏"), "game.official": instructions.schemaLabel("Steam 原名"), "game.appid": "AppID",
+      appid: tr("workflow_ui_event_appid", "事件 AppID"), phase: tr("workflow_ui_installation_stage", "安装阶段"),
+      scheduledAt: tr("workflow_ui_scheduled_time", "计划时间"), at: tr("workflow_ui_actual_trigger_time", "实际触发时间"),
+      unconfirmed: tr("workflow_ui_account_not_confirmed", "账号未确认"),
+    };
+    return model.triggerEventPaths(type).map(path => [path, labels[path.join(".")]]);
   }
 
   const rangeChoices = () => instructions.schemaChoices(model.RANGES);
@@ -2326,58 +3045,6 @@
     return answer === "save" ? result : null;
   }
 
-  function checkTriggerInput(item, type, keys, savedManual = false) {
-    const { key, value } = item;
-    if (!key || ["__proto__", "constructor", "prototype"].includes(key)) return tr("workflow_ui_enter_a_valid_workflow_input_name", "请填写有效的工作流输入名。");
-    const fields = triggerEventFields(type);
-    for (const ref of flow.references(value)) {
-      const available = type === "manual"
-        ? savedManual && (!ref.path.length || keys.has(ref.path[0]))
-        : !ref.path.length || fields.some(([path]) => path.length === ref.path.length && path.every((name, index) => name === ref.path[index]));
-      if (ref.source !== "input" || !available)
-        return tr("workflow_format_source_unavailable", "输入「$name$」的来源「本次事件.$path$」在当前触发方式中不可用。", { name: key, path: ref.path.join(".") });
-    }
-    return "";
-  }
-
-  async function editTriggerInput(state, trigger, index) {
-    const original = trigger.mapping[index], item = original ? flow.clone(original) : { key: "", value: flow.literal("") };
-    const fields = triggerEventFields(trigger.event.type);
-    const workspace = { variables: [], triggerInput: true, compactTypes: true, eventFields: fields };
-    const workflow = state.bundle.workflows.find(row => row.id === trigger.workflowId);
-    const names = workflow ? root.STWorkflowValues.inputNames(workflow) : [];
-    const otherKeys = new Set(trigger.mapping.filter((_, row) => row !== index).map(entry => entry.key));
-    const lifetime = new AbortController();
-    let container;
-    function render() {
-      formHtml(container, `<div class="aw aw-trigger-form aw-trigger-child"><div class="aw-grid">
-        <label>${esc(tr("workflow_ui_workflow_input_name", "工作流输入名"))}<input data-prop="key" value="${esc(item.key)}"${names.length ? ' list="aw-trigger-input-names"' : ""}></label>
-        ${names.length ? `<datalist id="aw-trigger-input-names">${names.map(name => `<option value="${esc(name)}"></option>`).join("")}</datalist>` : ""}
-        ${valueField(tr("workflow_ui_incoming_data_label", "传入的数据"), item.value, "value", workspace)}
-        </div><div class="aw-error" role="alert"></div></div>`);
-    }
-    const answer = await state.ctx.dialog(state.shadow, {
-      title: original ? tr("workflow_ui_edit_input", "编辑输入") : tr("workflow_ui_add_input", "添加输入"), className: "aw-param-dialog", form: true,
-      initial: node => node.querySelector('[data-prop="key"]'),
-      render(node) {
-        container = node; render();
-        root.STWorkflowValues.bind(node, item, workspace, { dialog: state.ctx.dialog, shadow: state.shadow, render, signal: lifetime.signal });
-      },
-      actions: [{ id: "cancel", label: tr("common_cancel", "取消") }, { id: "save", label: tr("common_confirm", "确定"), primary: true }],
-      onAction(action, node) {
-        if (action !== "save") return true;
-        try {
-          collect(node, item, workspace); item.key = item.key.trim();
-          const error = otherKeys.has(item.key) ? tr("workflow_ui_this_input_name_already_exists", "工作流输入名已存在。") :
-            checkTriggerInput(item, trigger.event.type, new Set([...otherKeys, item.key]), !!original);
-          if (error) { node.querySelector(".aw-error").textContent = error; return false; }
-          flow.validateValue(item.value, new Set(), false);
-          return true;
-        } catch (error) { reportFailure(error, node.querySelector(".aw-error")); return false; }
-      },
-    }).finally(() => lifetime.abort());
-    return answer === "save" ? item : null;
-  }
   function localDateTime(at) {
     const value = new Date(at), pad = n => String(n).padStart(2, "0");
     return calendar.dateKey(value) + "T" + pad(value.getHours()) + ":" + pad(value.getMinutes());
@@ -2448,12 +3115,6 @@
     const workday = /^(\d{1,2})\s+(\d{1,2})\s+\*\s+\*\s+1-5$/.exec(timing.expression.trim());
     return workday ? tr("workflow_format_workdays", "周一至周五 $time$", { time: workday[2].padStart(2, "0") + ":" + workday[1].padStart(2, "0") }) : tr("workflow_ui_advanced_schedule", "高级日程");
   }
-  function needsGame(workflow) {
-    // 首条无条件读取决定是否必须绑定游戏，其余读取仍由流程分支决定。
-    const first = workflow.steps.find(node => !node.disabled && node.action !== "comment");
-    return first?.action === "receive" && [...flow.references(first.value)].some(ref => ref.source === "input" && ref.path[0] === "game");
-  }
-
   async function editTrigger(state, original = null) {
     const clock = original?.enabled && original.event.type === "schedule" && original.event.timing.mode === "minute"
       ? await view().rpc("schedule-clock", { triggerId: original.id, revision: original.revision }) : null;
@@ -2464,7 +3125,9 @@
       draft.event.endLocal = localDateTime(draft.event.endsAt);
       delete draft.event.endsAt;
     }
-    const eventDrafts = new Map(), timingDrafts = new Map(), hiddenScheduleOptions = new Map();
+    const eventDrafts = new Map(), timingDrafts = new Map(), hiddenScheduleOptions = new Map(), workflowMappings = new Map();
+    const workspace = { variables: [], triggerInput: true, compactTypes: true, eventFields: [] }, lifetime = new AbortController();
+    const currentWorkflow = () => state.bundle.workflows.find(item => item.id === draft.workflowId);
     const workflowChoices = state.bundle.workflows.map(item => [item.id, item.name]);
     let container, enabled, saveButton, initial, editingChild = false;
     let lastGameEvent = gameEvent(draft.event.type) ? draft.event.type : "added";
@@ -2491,7 +3154,7 @@
     }
 
     function readDraft() {
-      collect(container, draft, {});
+      collect(container, draft, workspace);
       draft.enabled = enabled?.checked ?? draft.enabled;
       draft.busy = container.querySelector("[data-trigger-queue]").checked ? "queue" : "ignore";
       const limit = container.querySelector("[data-trigger-limit]").valueAsNumber;
@@ -2540,7 +3203,7 @@
         if (type === "installed") event.phase = "completed";
         if (type === "schedule") event.timing = flow.clone(scheduleDefaults.minute);
         const peer = gameEvent(type) ? eventDrafts.get(type === "added" ? "installed" : "added") : null;
-        const mapping = peer ? flow.clone(peer.mapping) : gameEvent(type) ? [{ key: "game", value: flow.reference("input", "", ["game"]) }] : [];
+        const mapping = peer ? flow.clone(peer.mapping) : [];
         next = { event, conditions: peer ? flow.clone(peer.conditions) : model.group(), mapping };
       }
       Object.assign(draft, next);
@@ -2563,22 +3226,27 @@
     }
 
     function inputSection() {
-      const workspace = { variables: [], triggerInput: true, eventFields: triggerEventFields(draft.event.type) };
-      const keys = new Set(draft.mapping.map(item => item.key));
-      const rows = draft.mapping.map((item, index) => {
-        const unavailable = checkTriggerInput(item, draft.event.type, keys, original?.event.type === "manual");
-        const label = item.key === "game" ? tr("workflow_ui_game_game", "游戏（game）") : item.key;
-        const summary = label + " ← " + valueText(item.value, workspace) + (unavailable ? tr("workflow_ui_update_source", "（来源需调整）") : "");
-        const attrs = `data-index="${index}"`;
-        return `<div class="aw-trigger-summary">${button("mapping-edit", summary, `class="aw-trigger-summary-edit" ${attrs} aria-label="${esc(tr("workflow_format_input_edit", "编辑输入 $name$", { name: label }))}"`)}
-          ${iconButton("mapping-delete", tr("workflow_format_input_remove", "移除输入 $name$", { name: label }), "trash", attrs)}</div>`;
+      const workflow = currentWorkflow();
+      if (!workflow) return "";
+      const description = workflow.description ? `<p class="aw-entry-description">${esc(workflow.description)}</p>` : "";
+      if (!workflow.inputParameters) return description + `<p class="aw-note">${esc(tr("workflow_parameter_upgrade_required", "请先在工作流中更新「触发器传参」。"))}</p>`;
+      if (!workflow.inputParameters.length && !description) return "";
+      const rows = workflow.inputParameters.map(({ name, type, variableId }) => {
+        const index = draft.mapping.findIndex(item => item.key === variableId), item = draft.mapping[index];
+        const attrs = `data-key="${esc(variableId)}"`;
+        if (!item) return `<div class="aw-trigger-parameter"><span>${esc(name)}</span>
+          ${button("binding-add", tr("workflow_parameter_bind_source", "设置来源"), attrs)}<span></span></div>`;
+        const issue = model.triggerParameterIssue({ name, type }, item.value, draft.event.type, false);
+        return `<div class="aw-trigger-parameter">${valueField(name, item.value, `mapping.${index}.value`, workspace, [], type, false, [], type === "any")}
+          ${iconButton("binding-remove", tr("workflow_format_input_remove", "移除输入 $name$", { name }), "x", attrs)}
+          ${issue ? `<small class="aw-error">${esc(view().errorCaption(issue))}</small>` : ""}</div>`;
       }).join("");
-      return `<section class="aw-section"><div class="aw-trigger-summary"><h4>${esc(tr("workflow_ui_workflow_inputs", "传入工作流"))}</h4>${button("mapping-add", tr("workflow_ui_add_input", "添加输入"), "", "plus")}</div>
-        ${rows ? `<div class="aw-trigger-list">${rows}</div>` : ""}</section>`;
+      return `<section class="aw-section"><h4>${esc(tr("workflow_parameter_binding", "触发传参"))}</h4>${description}${rows}</section>`;
     }
 
     function render() {
       const { event } = draft, mode = triggerMode(event.type), moreOpen = container.querySelector(".aw-trigger-more")?.open;
+      workspace.eventFields = triggerEventFields(event.type);
       const choices = [["", workflowChoices.length ? tr("workflow_ui_select_a_workflow", "请选择工作流") : tr("workflow_ui_create_a_workflow_first", "请先新建工作流"), true], ...workflowChoices];
       if (draft.workflowId && !workflowChoices.some(([key]) => key === draft.workflowId)) choices.splice(1, 0, [draft.workflowId, tr("workflow_ui_deleted", "已删除：") + draft.workflowId]);
       const radios = (name, legend, entries, selected) => `<fieldset class="aw-trigger-options"><legend>${legend}</legend>
@@ -2619,13 +3287,26 @@
         updateSave();
       },
       render(node) {
-        container = node; render(); readDraft(); initial = signature();
+        container = node; render();
+        root.STWorkflowValues.bind(node, draft, workspace, { dialog: state.ctx.dialog, shadow: state.shadow, render, signal: lifetime.signal });
+        readDraft(); initial = signature();
         node.addEventListener("input", event => {
           updateSave();
           if (clock || event.target.hasAttribute("data-schedule-value")) previewSchedule();
         });
         node.addEventListener("change", event => {
           const control = event.target;
+          if (control.dataset.prop === "workflowId") {
+            try {
+              const previous = draft.workflowId;
+              readDraft();
+              workflowMappings.set(previous, draft.mapping);
+              draft.mapping = workflowMappings.get(draft.workflowId) || [];
+              eventDrafts.clear();
+              render();
+            } catch (error) { showFailure(error); }
+            return;
+          }
           const mode = control.hasAttribute("data-trigger-mode"), game = control.hasAttribute("data-trigger-event");
           const frequency = control.hasAttribute("data-trigger-frequency"), toggle = control.dataset.scheduleToggle;
           if (!mode && !game && !frequency && !toggle) {
@@ -2667,14 +3348,17 @@
           void (async () => {
             readDraft();
             let focus = '[data-aw="' + action + '"]';
-            if (["mapping-add", "mapping-edit"].includes(action)) {
-              editingChild = true;
-              const item = await editTriggerInput(state, draft, index);
-              if (!item) return;
-              if (action === "mapping-edit") { draft.mapping[index] = item; focus += `[data-index="${index}"]`; }
-              else draft.mapping.push(item);
-            } else if (action === "mapping-delete") {
-              draft.mapping.splice(index, 1); focus = '[data-aw="mapping-add"]';
+            if (action === "binding-add" || action === "binding-remove") {
+              const { key } = control.dataset;
+              const parameter = currentWorkflow()?.inputParameters?.find(item => item.variableId === key);
+              if (!parameter) return;
+              if (action === "binding-add") {
+                focus = `[data-value="mapping.${draft.mapping.length}.value"] :is([data-value-text],[data-variable-toggle],[data-field-action])`;
+                draft.mapping.push({ key, value: parameterSample(parameter.type) });
+              } else {
+                draft.mapping = draft.mapping.filter(item => item.key !== key);
+                focus = `[data-aw="binding-add"][data-key="${CSS.escape(key)}"]`;
+              }
             } else if (["condition-add", "condition-edit", "condition-replace"].includes(action)) {
               editingChild = true;
               const items = filterLeaves(draft.conditions);
@@ -2711,23 +3395,21 @@
           trigger.name = trigger.name.trim();
           const workflow = state.bundle.workflows.find(item => item.id === trigger.workflowId);
           if (!trigger.name || !workflow) { showError(tr("workflow_ui_enter_a_trigger_name_and_choose_a_workflow", "请填写触发器名称并选择工作流。")); return false; }
-          const keys = new Set(mapping.map(item => item.key));
-          const inputError = keys.size !== mapping.length ? tr("workflow_ui_workflow_input_names_must_be_unique", "工作流输入名不能重复。") :
-            mapping.map(item => checkTriggerInput(item, trigger.event.type, keys, original?.event.type === "manual")).find(Boolean);
-          if (inputError) { showError(inputError); return false; }
+          if (!workflow.inputParameters) {
+            showError(tr("workflow_parameter_upgrade_required", "请先在工作流中更新「触发器传参」。")); return false;
+          }
+          trigger.inputs = Object.fromEntries(mapping.map(item => [item.key, item.value]));
+          const issue = model.inputBindingIssue(workflow, trigger.inputs, trigger.event.type, { allowMissing: !trigger.enabled });
+          if (issue) { showError(view().errorCaption(issue)); return false; }
           const fields = triggerConditionFields(trigger.event.type);
           const unavailable = [...model.conditionFields(trigger.conditions)].find(field => !fields.includes(field));
           if (unavailable) { showError(tr("workflow_format_filter_unavailable", "筛选「$name$」不适用于当前触发方式。", { name: triggerFieldName(unavailable) }), triggerMode(trigger.event.type) !== "automatic"); return false; }
           model.validateCondition(trigger.conditions, { allowBlank: !trigger.enabled });
           if (original && signature() === initial) return true;
-          trigger.inputs = Object.fromEntries(mapping.map(item => [item.key, item.value]));
           if (trigger.event.type === "schedule") {
             trigger.event = scheduleEvent(trigger.event);
             const changed = !original?.enabled || JSON.stringify(trigger.event) !== JSON.stringify(original.event);
             validateSchedule(trigger.event, trigger.enabled && changed);
-            if (!keys.has("game") && needsGame(workflow)) {
-              showError(tr("workflow_ui_this_workflow_requires_a_game_input_add_game_data_or_select_", "所选工作流需要「游戏」输入，请添加游戏数据或选择另一个工作流。")); return false;
-            }
           }
           const next = flow.clone(state.bundle), index = next.triggers.findIndex(item => item.id === trigger.id);
           if (index < 0) next.triggers.push(trigger); else next.triggers[index] = trigger;
@@ -2738,15 +3420,28 @@
           return false;
         }
       },
-    });
+    }).finally(() => lifetime.abort());
   }
   async function runManual(state, trigger) {
     if (!trigger.enabled) throw new Error(tr("workflow_ui_enable_the_manual_trigger_first", "请先启用手动触发器"));
     const workspace = { variables: [], literalOnly: true, compactTypes: true };
-    const values = Object.entries(trigger.inputs).map(([key, value]) => ({ key, value: Object.hasOwn(value, "literal") ? flow.clone(value) : flow.literal("") }));
+    const workflow = state.bundle.workflows.find(item => item.id === trigger.workflowId);
+    const parameters = workflow?.inputParameters;
+    const values = parameters ? parameters.map(({ name, type, variableId: key }) => {
+      const binding = flow.activeValue(trigger.inputs[key]);
+      return { key, name, type, value: binding && Object.hasOwn(binding, "literal") ? flow.clone(binding) : parameterSample(type) };
+    }) : Object.entries(trigger.inputs).map(([key, value]) => ({ key, name: key, type: "any", value: Object.hasOwn(value, "literal") ? flow.clone(value) : flow.literal("") }));
+    const gameFilter = parameters && [...model.conditionFields(trigger.conditions)].some(field => !["logged_in", "has_family"].includes(field));
     const lifetime = new AbortController();
-    let container;
-    const render = () => html(container, `<div class="aw aw-form">${values.length ? values.map((item, index) => valueField(item.key, item.value, "values." + index + ".value", workspace)).join("") : `<span class="aw-note">${esc(tr("workflow_ui_no_inputs_configured_for_this_trigger", "此触发器未配置输入"))}</span>`}<div class="aw-error" role="alert"></div></div>`);
+    let container, filterAppIdText = "";
+    const render = () => {
+      filterAppIdText = container.querySelector("[data-filter-app-id]")?.value ?? filterAppIdText;
+      formHtml(container, `<div class="aw aw-form">
+        ${values.length ? values.map((item, index) => valueField(item.name, item.value, "values." + index + ".value", workspace, [], item.type)).join("") :
+          gameFilter ? "" : `<span class="aw-note">${esc(tr("workflow_ui_no_inputs_configured_for_this_trigger", "此触发器未配置输入"))}</span>`}
+        ${gameFilter ? `<label>${esc(tr("workflow_parameter_filter_app_id", "用于筛选的 AppID"))}<input type="number" min="1" step="1" data-filter-app-id value="${esc(filterAppIdText)}"></label>` : ""}
+        <div class="aw-error" role="alert"></div></div>`);
+    };
     const object = { values };
     await state.ctx.dialog(state.shadow, { title: tr("workflow_ui_run", "运行") + " · " + trigger.name, className: "aw-param-dialog", form: true,
       render: node => { container = node; render(); root.STWorkflowValues.bind(node, object, workspace, { dialog: state.ctx.dialog, shadow: state.shadow, render, signal: lifetime.signal }); node.addEventListener("change", event => {
@@ -2758,7 +3453,10 @@
         try {
           collect(node, object, workspace);
           const inputs = Object.fromEntries(values.map(item => [item.key, flow.read(item.value, flow.state())]));
-          const result = await view().rpc("manual-run", { triggerId: trigger.id, inputs });
+          const filterAppId = gameFilter ? node.querySelector("[data-filter-app-id]").valueAsNumber : undefined;
+          if (gameFilter && !root.STAI.isToolAppId(filterAppId)) throw new TypeError(tr("workflow_parameter_filter_app_id_invalid", "请填写有效的筛选 AppID。"));
+          if (workflow) model.workflowArguments(workflow, inputs);
+          const result = await view().rpc("manual-run", { triggerId: trigger.id, inputs, ...(gameFilter && { filterAppId }) });
           if (!result.matched) throw new Error(tr("workflow_ui_trigger_conditions_were_not_met_the_workflow_did_not_start", "未满足触发条件，未启动工作流"));
           state.tab = "history"; await history(state); return true;
         } catch (error) { reportFailure(error, node.querySelector(".aw-error")); return false; }
@@ -2803,13 +3501,12 @@
       return workflow.name + " · " + tr("workflow_format_line", "第 $count$ 行", { count: line });
     });
   }
-  const definitionKey = tool => JSON.stringify({ ...tool, revision: 0, executionId: "", name: "" });
   async function saveToolDefinition(state, tool, confirmed = false) {
     const next = flow.clone(state.bundle);
     next.tools ??= [];
     const index = next.tools.findIndex(item => item.id === tool.id);
     const current = next.tools[index];
-    const refs = current && definitionKey(current) !== definitionKey(tool) ? toolReferences(next, tool.id) : [];
+    const refs = current && model.workflowDefinitionKey(current) !== model.workflowDefinitionKey(tool) ? toolReferences(next, tool.id) : [];
     if (!confirmed && refs.length) {
       const choice = await state.ctx.dialog(state.shadow, {
         title: tr("workflow_tool_update", "更新工具"),
@@ -3048,9 +3745,13 @@
       if (!item.enabled) {
         const workflow = next.workflows.find(row => row.id === item.workflowId);
         if (!workflow) throw new Error(tr("workflow_ui_the_referenced_workflow_was_deleted_select_another_workflow", "引用的工作流已删除，请重新选择工作流"));
-        if (item.event.type === "schedule") {
-          validateSchedule(item.event, true);
-          if (!Object.hasOwn(item.inputs, "game") && needsGame(workflow)) throw new Error(tr("workflow_ui_this_workflow_requires_game_input_configure_the_trigger_firs", "所选工作流需要「游戏」输入，请先配置触发器"));
+        if (item.event.type === "schedule") validateSchedule(item.event, true);
+        const issue = model.inputBindingIssue(workflow, item.inputs, item.event.type);
+        if (issue) throw issue;
+        if (!workflow.inputParameters && item.event.type === "schedule" && !Object.hasOwn(item.inputs, "game")) {
+          const first = workflow.steps.find(node => !node.disabled && node.action !== "comment");
+          if (first?.action === "receive" && [...flow.references(first.value)].some(ref => ref.source === "input" && ref.path[0] === "game"))
+            throw new Error(tr("workflow_ui_this_workflow_requires_game_input_configure_the_trigger_firs", "所选工作流需要「游戏」输入，请先配置触发器"));
         }
       }
       item.enabled = !item.enabled;

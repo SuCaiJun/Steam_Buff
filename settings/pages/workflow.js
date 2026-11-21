@@ -62,7 +62,7 @@
     pathGet(obj, keys.join("."))[key] = value;
   }
   const previews = new Map();
-  function preview(request) {
+  function preview(request, onLog) {
     const port = root.chrome.runtime.connect({ name: model.PREVIEW_CHANNEL });
     const completion = new Promise((resolve, reject) => {
       const finish = (error, result) => {
@@ -70,7 +70,10 @@
         port.onMessage.removeListener(message); port.onDisconnect.removeListener(disconnect); port.disconnect();
         error ? reject(error) : resolve(result);
       };
-      const message = result => finish(null, result);
+      const message = result => {
+        if (result.kind === "preview-log") { onLog?.(result.entries); return; }
+        finish(null, result);
+      };
       const disconnect = () => finish(new Error(root.chrome.runtime.lastError?.message || tr("workflow_ui_test_run_disconnected", "试运行连接已断开")));
       port.onMessage.addListener(message); port.onDisconnect.addListener(disconnect);
       port.postMessage(request);
@@ -82,9 +85,9 @@
     });
     return completion;
   }
-  async function rpc(action, value = {}) {
+  async function rpc(action, value = {}, onLog) {
     if (action === "cancel-instruction-test") return previews.get(value.id)?.() ?? false;
-    const result = ["test-instruction", "test-tool"].includes(action) ? await preview({ ...value, action }) : await root.STMessageBus.request(
+    const result = ["test-instruction", "test-tool", "test-workflow"].includes(action) ? await preview({ ...value, action }, onLog) : await root.STMessageBus.request(
       { type: model.ROUTE, action, ...value },
       { timeoutMs: 120000, logFailures: false },
     );
@@ -101,13 +104,21 @@
     if (error.code === "WORKFLOW_PROMPT_REFERENCES_CHANGED") return tr("workflow_prompt_delete_references_changed", error.message);
     return error.messageKey ? tr(error.messageKey, error.message, error.messageParams) : error.message;
   }
+  function validationCaption(error) {
+    return error.name === "SyntaxError" ? tr("workflow_ui_invalid_json_check_the_advanced_settings", "JSON 格式无效，请检查高级配置") : errorCaption(error);
+  }
+  function saveFailureNotice(shadow, messages) {
+    return root.STSettingsDialogs.notice(shadow, {
+      title: tr("common_saveFailed", "保存失败"), message: messages.join("\n"),
+    });
+  }
   function reportFailure(error, node) {
     if (error.name === "SyntaxError") root.STLoggerSchema.markJsonError(error);
     log.error("workflow-edit-failed", "提示词或自动化操作失败", { error });
     if (!node?.isConnected) return;
     void root.STSettingsDialogs.notice(node.getRootNode(), {
       title: tr("common_operationFailed", "操作失败"),
-      message: error.name === "SyntaxError" ? tr("workflow_ui_invalid_json_check_the_advanced_settings", "JSON 格式无效，请检查高级配置") : errorCaption(error),
+      message: validationCaption(error),
     });
   }
   function iconButton(action, label, icon, attrs = "") {
@@ -156,7 +167,32 @@
     const previewSamples = new Map();
     const flow = root.STWorkflow, values = root.STWorkflowValues;
     let previewGeneration = 0;
+    let checkedOnSave = false;
     const initial = JSON.stringify(draft);
+
+    function validateForSave() {
+      prompts.validate(draft, protocol);
+      if (draft.mode === "basic" && !draft.basic.user.trim())
+        throw new TypeError(tr("workflow_ui_enter_a_user_prompt", "请填写用户提示词"));
+    }
+    function promptErrorList(error) {
+      const list = node.querySelector("[data-prompt-errors]");
+      list.hidden = !error;
+      list.querySelector("li").textContent = error ? validationCaption(error) : "";
+      return list;
+    }
+    function refreshPromptErrors() {
+      if (!checkedOnSave) return;
+      try { validateForSave(); }
+      catch (error) { promptErrorList(error); return; }
+      promptErrorList(null);
+    }
+    async function blockedSave(error) {
+      const list = promptErrorList(error);
+      await saveFailureNotice(state.shadow, [validationCaption(error)]);
+      if (list.isConnected) list.focus();
+      return false;
+    }
 
     function promptText(label, path, value, advanced = false) {
       const id = "wf-text-" + path.replaceAll(".", "-");
@@ -212,7 +248,11 @@
         </div>
         <div class="wf-error" role="alert"></div>
         <pre class="wf-pre" data-preview hidden></pre>
+        <section class="wf-validation" data-prompt-errors role="region" aria-label="${esc(tr("workflow_ui_errors", "错误列表"))}" tabindex="-1" hidden>
+          <h4>${esc(tr("workflow_ui_errors", "错误列表"))}</h4><ul class="wf-error" aria-live="polite"><li></li></ul>
+        </section>
       </div>`);
+      refreshPromptErrors();
     }
     async function sampleValues(names) {
       if (!names.length) return {};
@@ -276,7 +316,7 @@
             serviceId = control.value;
             previewGeneration++;
             node.querySelector("[data-preview]").hidden = true;
-          }
+          } else if (control.dataset.edit) refreshPromptErrors();
         });
         node.addEventListener("click", (event) => {
           const field = event.target.closest(".wf-prompt-field");
@@ -342,8 +382,11 @@
       actions: [{ id: "cancel", label: tr("common_cancel", "取消") }, { id: "save", label: tr("common_save", "保存"), primary: true }],
       onAction: async (action) => {
         if (action !== "save") return true;
+        checkedOnSave = true;
+        try { validateForSave(); }
+        catch (error) { return blockedSave(error); }
+        promptErrorList(null);
         try {
-          prompts.validate(draft, protocol);
           const next = model.clone(state.bundle);
           const index = next.prompts.findIndex((plan) => plan.id === draft.id);
           if (index < 0) next.prompts.push(draft);
@@ -351,8 +394,8 @@
           await save(state, next);
           return true;
         } catch (error) {
-          reportFailure(error, node.querySelector(".wf-error"));
-          return false;
+          reportFailure(error, null);
+          return blockedSave(error);
         }
       },
     });
@@ -483,7 +526,7 @@
       } catch (error) { html(node, '<div class="wf-error" role="alert"></div>'); reportFailure(error, node.firstElementChild); }
     }
   }
-  root.STWorkflowView = Object.freeze({ mount, mountTaskBindings, taskBindingsHtml, promptsHtml, promptAction, style, rpc, serviceChoices, promptChoices, fillBindingSelect, syncBindingNote, esc, html, reportFailure, errorCaption });
+  root.STWorkflowView = Object.freeze({ mount, mountTaskBindings, taskBindingsHtml, promptsHtml, promptAction, style, rpc, serviceChoices, promptChoices, fillBindingSelect, syncBindingNote, esc, html, reportFailure, errorCaption, validationCaption, saveFailureNotice });
   root.STSettingsPages.register({ id: "automation", get name() { return tr("settings_page_automation_name", "自动化"); }, order: 5, style, hideHeader: true, html: () => `<div data-workflow="automation" role="region" aria-label="${esc(tr("settings_page_automation_name", "自动化"))}">${esc(tr("workflow_ui_loading", "正在读取…"))}</div>`, onOpen: mount });
 
 })(globalThis);

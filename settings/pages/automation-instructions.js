@@ -16,14 +16,17 @@
     "数据处理": "database", "条件判断": "sitemap", "循环": "repeat", "AI": "brain", "Steam 操作": "device-gamepad-2",
     "网络": "link", "消息": "messages", "等待与控制": "player-pause", "脚本": "terminal-2", "其他": "category",
   });
-  const otherCategories = Object.freeze({ "异常处理": "shield-exclamation", "折叠": "layout-list", "日志与备注": "notebook" });
+  const otherCategories = Object.freeze({ "日志与备注": "notebook", "折叠": "layout-list", "异常处理": "shield-exclamation" });
   const groups = Object.freeze({
     "输入与变量": "variable", "列表操作": "list", "字典操作": "braces", "文本操作": "typography",
     "JSON 转换": "file-code", "日期时间": "calendar", "CSV 转换": "file-type-csv", "Base64 编解码": "binary",
     "游戏名称": "tag", "收藏分组": "folders", "家庭库": "users-group", "游戏成就": "trophy",
     "应用与状态": "apps", "内容与支持": "list-details", "评价与时间": "chart-bar",
   });
-  const definitions = [...flow.catalog, { id: "fold-start", name: "折叠开始", category: "折叠" },
+  const definitions = [...flow.catalog,
+    { id: "trigger-parameters", name: "触发器传参", category: "数据处理", group: "输入与变量" },
+    { id: "ai-parameters", name: "AI传参", category: "数据处理", group: "输入与变量" },
+    { id: "fold-start", name: "折叠开始", category: "折叠" },
     { id: "fold-end", name: "折叠结束", category: "折叠" }];
   const byId = Object.fromEntries(definitions.map(item => [item.id, item]));
   const commands = [
@@ -34,7 +37,7 @@
     "base64-encode", "base64-decode",
     "csv-parse", "csv-stringify",
     "json", "json-stringify",
-    "set", "receive", "get", "convert", "calculate", "random",
+    "trigger-parameters", "ai-parameters", "set", "get", "convert", "calculate", "random",
     "list", "append", "list-get", "list-set", "list-insert", "list-filter-condition", "list-filter", "list-field",
     "list-sort", "list-unique", "list-merge", "list-length", "list-index", "list-slice", "list-chunk",
     "list-intersection", "list-reverse", "list-shuffle", "list-remove", "list-clear",
@@ -78,7 +81,7 @@
     "date-now": "calendar-clock", "date-diff": "hourglass", "date-parts": "calendar",
     "date-to-timestamp": "clock-up", "date-format": "calendar-event",
     "date-from-timestamp": "clock-down", "date-add": "calendar-plus", "date-parse": "calendar-search",
-    random: "dice", get: "file-search", receive: "download", convert: "switch-horizontal",
+    random: "dice", get: "file-search", receive: "download", "trigger-parameters": "download", "ai-parameters": "download", convert: "switch-horizontal",
     set: "variable", calculate: "calculator", "text-pad": "text-wrap", "text-extract": "regex",
     "text-case": "letter-case", "text-length": "ruler-measure", "text-slice": "slice",
     "text-join": "arrows-join", "text-trim": "scissors", "text-pinyin": "language",
@@ -409,7 +412,7 @@
   const schemaLabel = label => Object.hasOwn(schemaKeys, label) ? tr(schemaKeys[label], label) : label;
   const schemaChoices = rows => rows.map(([value, label]) => [value, schemaLabel(label)]);
   const name = id => tr("workflow.command." + id + ".name", byId[id].name);
-  const hint = id => tr("workflow.command." + id + ".hint", hints[id]);
+  const hint = id => tr("workflow.command." + id + ".hint", hints[id] || byId[id].name);
   const key = row => ["", "else-if"].includes(row.marker || "") && row.node.kind === "if" ? (row.marker ? "else-if" : "if") + (flow.multiple(row.node.branches[row.branch || 0].condition) ? "-many" : "") : row.marker || (row.node.action === "notify" && row.node.messageType === "interactive" ? "interactive" : flow.type(row.node));
   const iconAsset = name => root.chrome.runtime.getURL("images/tabler/" + name + ".svg");
   function iconName(id) {
@@ -451,8 +454,8 @@
       const parts = [...value(item.left), " ", schemaLabel(flow.operations[item.op])];
       if (!flow.unary.has(item.op)) {
         const right = flow.activeValue(item.right);
-        const label = Object.hasOwn(right, "literal") && choices(workflow, item.left).find(([id]) => id === right.literal)?.[1];
-        parts.push(" ", ...(label ? [token(label)] : value(item.right)));
+        const label = Object.hasOwn(right, "literal") && (right.display || choices(workflow, item.left).find(([id]) => id === right.literal)?.[1]);
+        parts.push(" ", ...(label ? [{ value: label, fragment: true }] : value(item.right)));
       }
       return parts;
     }

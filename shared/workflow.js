@@ -124,6 +124,9 @@
     exists: "已赋值", missing: "未赋值", regex: "正则匹配" });
   const unary = new Set(["empty", "notEmpty", "exists", "missing", "isTrue", "isFalse"]);
   const type = node => node.kind === "action" ? node.action : node.kind;
+  const endMarker = node => node.kind === "if" ? "end-if" : node.kind === "try" ? "end-try" : "end-loop";
+  const parameterVariableType = type => ({ string: "text", integer: "number", appId: "number", array: "list" })[type] || type;
+  const entryParameters = workflow => (isToolId(workflow?.id) ? workflow.parameters : workflow?.inputParameters) ?? [];
   const pathGet = (object, path) => path.reduce((value, key) => value[key], object);
   function numericId(prefix, items = []) {
     const occupied = new Set(items.map(item => item.id));
@@ -197,6 +200,30 @@
       return { list, markers: layout.markers };
     });
   }
+  function entryRowLayout(workflow, folds) {
+    const entry = workflow.entryRow;
+    if (entry === undefined) return null;
+    const invalid = () => configurationError("传参指令位置无效", "workflow_parameter_position");
+    if (!entry || !Array.isArray(entry.path) || !Number.isSafeInteger(entry.index) || entry.index < 0 ||
+        (entry.note !== undefined && typeof entry.note !== "string")) throw invalid();
+    let list;
+    const key = JSON.stringify(entry.path);
+    visitSequences(workflow.steps, ["steps"], (steps, path) => {
+      if (JSON.stringify(path) === key) list = steps;
+    });
+    const markers = folds.find(fold => fold.list === list)?.markers.length ?? 0;
+    if (!list || entry.index > list.length + markers) throw invalid();
+    return { list, index: entry.index, note: entry.note };
+  }
+  function entryPositionError() {
+    return configurationError("传参指令必须放在第 1 行", "workflow_parameter_first");
+  }
+  /** 已保存的位置必须位于根流程首行，常规参数声明默认使用该位置 */
+  function validateEntryPosition(workflow) {
+    const entry = workflow?.entryRow;
+    if (entry !== undefined && !(entry?.index === 0 && entry.path?.length === 1 && entry.path[0] === "steps"))
+      throw entryPositionError();
+  }
   function createNode(key, workflow, text = (_key, fallback) => fallback) {
     const id = numericId("step-", [...walk(workflow.steps)]);
     if (key === "if" || key === "if-many") return { id, kind: "if", branches: [{ condition: key === "if-many" ? { op: "all", children: [comparison()] } : comparison(), steps: [] }], otherwise: null };
@@ -235,7 +262,11 @@
       const outputName = definition.outputName
         ? text("workflow.output." + key, definition.outputName)
         : text("workflow.format.result_var", command + "结果", { command });
-      Object.assign(node, Object.fromEntries(definition.fields.map(field => [field.key, field.key === "game" ? reference("input", "", ["game"]) : literal(clone(field.value))])), {
+      const fields = definition.fields.map(field => {
+        if (field.key !== "game") return [field.key, literal(clone(field.value))];
+        return [field.key, workflow.inputParameters ? literal(0) : reference("input", "", ["game"])];
+      });
+      Object.assign(node, Object.fromEntries(fields), {
         output: variable(workflow, outputName, definition.outputType),
       });
       if (key === "family-refresh") node.requestTimeoutSeconds = 12;
@@ -317,7 +348,7 @@
     }
   }
   /** 配置只有结构树；结束行、缩进和行号均为编辑器投影 */
-  function validate(workflow, { target = null, loopDepth = 0, assigned = [] } = {}) {
+  function validate(workflow, { target = null, loopDepth = 0, assigned = [], structureOnly = false } = {}) {
     if (!workflow || !validId(workflow.id) || typeof workflow.name !== "string" || !workflow.name.trim() ||
       !Number.isSafeInteger(workflow.revision) || workflow.revision < 1 || !Array.isArray(workflow.variables) || !Array.isArray(workflow.steps))
       throw configurationError("工作流结构无效", "workflow_error_workflow");
@@ -327,6 +358,22 @@
       if (!validId(item.id) || vars.has(item.id) || typeof item.name !== "string" || !item.name.trim() || labels.has(item.name) ||
         !["any", "text", "number", "boolean", "list", "object", "result"].includes(item.type)) throw configurationError("变量 ID、名称或类型无效", "workflow_error_variable");
       vars.add(item.id); labels.add(item.name);
+    }
+    if (workflow.description !== undefined && typeof workflow.description !== "string")
+      throw configurationError("描述格式无效", "workflow_parameter_description_invalid");
+    if (workflow.inputParameters !== undefined && (!Array.isArray(workflow.inputParameters) || inTool))
+      throw configurationError("触发器参数列表无效", "workflow_parameter_invalid");
+    const parameterIds = new Set(), parameterNames = new Set();
+    for (const parameter of entryParameters(workflow)) {
+      if (inTool && !parameter?.variableId) continue;
+      const variable = workflow.variables.find(item => item.id === parameter?.variableId);
+      if (!parameter || typeof parameter.name !== "string" || !parameter.name.trim() ||
+          ["__proto__", "constructor", "prototype"].includes(parameter.name) || parameterNames.has(parameter.name) ||
+          parameterIds.has(parameter.variableId) || !variable || (!inTool && variable.name !== parameter.name) ||
+          (!inTool && !["any", "text", "number", "boolean", "list", "object"].includes(parameter.type)) ||
+          variable.type !== parameterVariableType(parameter.type))
+        throw configurationError("参数名称、类型或变量定义不一致", "workflow_parameter_invalid");
+      parameterIds.add(parameter.variableId); parameterNames.add(parameter.name);
     }
     function output(id, required = false) {
       if ((!id && required) || (id && !vars.has(id))) throw configurationError("请选择保存结果的变量", "workflow_error_output");
@@ -338,8 +385,12 @@
         if (!node || !validId(node.id) || ids.has(node.id) || !Object.hasOwn(names, type(node)) || markers.has(type(node))) throw configurationError("指令 ID 或类型无效", "workflow_error_action");
         ids.add(node.id);
         try {
+          if (!target && (node.draftMissingStart || node.draftMissingEnd))
+            throw configurationError("流程块起止指令不完整", "workflow_draft_incomplete_block");
           if (inTool ? !toolAction(type(node)) : toolOnlyAction(node.action))
             throw configurationError("此处不能使用该指令", "workflow_error_tool_instruction");
+          if (workflow.inputParameters && node.action === "receive")
+            throw configurationError("请用「触发器传参」声明变量，再替换旧的「接收输入」指令", "workflow_parameter_replace_receive");
           if (node.disabled !== undefined && typeof node.disabled !== "boolean") throw configurationError("指令禁用状态无效", "workflow_error_disabled");
           if (node.kind === "if" && (node.endDisabled !== undefined && typeof node.endDisabled !== "boolean" || !!node.disabled !== !!node.endDisabled)) throw configurationError("IF 与 End IF 的启用状态必须一致，请分别设置这两行", "workflow_error_if_enabled");
           if (node.kind === "if") {
@@ -364,6 +415,11 @@
             if (required.some(key => !Object.hasOwn(node, key))) throw configurationError("指令缺少必填输入", "workflow_error_action_input");
             if (["break", "continue"].includes(node.action) && !depth) throw configurationError("该指令只能放在循环内", "workflow_error_loop");
             for (const key of new Set([...required, "game", "source", "body"])) if (Object.hasOwn(node, key)) validateValue(node[key], vars);
+            if (workflow.inputParameters && required.includes("game")) {
+              const value = activeValue(node.game);
+              if (Object.hasOwn(value, "literal") && !gameAppId(value.literal))
+                throw configurationError("请选择游戏或有效的 AppID", "workflow_error_game_input");
+            }
             output(node.output);
             if (definitions[node.action]) {
               output(node.output, true);
@@ -459,13 +515,18 @@
       }
     }
     sequence(target ? [target] : workflow.steps, loopDepth);
-    if (!target && workflow.folds !== undefined) foldLayout(workflow, ids);
+    if (!target) {
+      entryRowLayout(workflow, foldLayout(workflow, ids));
+      if (!structureOnly) validateEntryPosition(workflow);
+    }
     const available = scopes(workflow, assigned);
     for (const node of walk(target ? [target] : workflow.steps, true)) {
       if (target && node !== target) continue;
       const ready = available.get(node.id);
       if (!ready) throw Object.assign(configurationError("当前指令不属于工作流", "workflow_error_not_in_flow"), { nodeId: node.id });
       for (const ref of nodeReferences(node)) {
+        if (workflow.inputParameters && ref.source === "input")
+          throw Object.assign(configurationError("请改用「触发器传参」声明的变量", "workflow_parameter_legacy_reference"), { nodeId: node.id });
         if (inTool && (ref.source === "meta" || ref.source === "input" && ref.path.length &&
           !workflow.parameters?.some(parameter => parameter.name === ref.path[0])))
           throw Object.assign(configurationError("请选择已声明的工具输入", "workflow_error_tool_input"), { nodeId: node.id });
@@ -478,15 +539,20 @@
     return workflow;
   }
   /** 返回活动值中的引用；隐藏模式是草稿，不参与执行位置校验或求值 */
-  function* references(value) {
+  function* references(value, includeInactive = false) {
+    if (includeInactive && value?.mode) {
+      yield* references(value.text, true);
+      yield* references(value.code, true);
+      return;
+    }
     value = activeValue(value);
     if (!value || Object.hasOwn(value, "literal")) return;
     if (value.source) yield value;
-    else for (const part of value.template || value.expression || []) if (typeof part !== "string") yield* references(part);
+    else for (const part of value.template || value.expression || []) if (typeof part !== "string") yield* references(part, includeInactive);
   }
-  function* nodeReferences(node) {
-    for (const [, value] of inputs(node)) yield* references(value);
-    for (const value of conditionInputs(node)) yield* references(value);
+  function* nodeReferences(node, includeInactive = false) {
+    for (const [, value] of inputs(node)) yield* references(value, includeInactive);
+    for (const value of conditionInputs(node)) yield* references(value, includeInactive);
   }
   /** 指令公开输出的成员目录；只描述真实返回字段，不给动态值补造结果包装 */
   function outputFields(node, slot = "output") {
@@ -569,10 +635,15 @@
       }
       return ready;
     }
-    sequence(workflow.steps || [], new Map(assigned.map(id => [id, []])));
+    const parameters = entryParameters(workflow).map(item => item.variableId).filter(Boolean);
+    sequence(workflow.steps || [], new Map([...parameters, ...assigned].map(id => [id, []])));
     return result;
   }
   function missing(label) { return Object.assign(new Error("数据未赋值：" + label), { code: "WORKFLOW_VALUE_UNSET" }); }
+  function gameAppId(value) {
+    const appid = typeof value === "number" ? value : value?.appid;
+    return Number.isSafeInteger(appid) && appid > 0 ? appid : null;
+  }
   function read(value, state, optional = false) {
     value = activeValue(value);
     if (value.expression) {
@@ -698,8 +769,16 @@
     if (condition.op === "regex") return regex(String(right), [String(left)]);
     return data.compareValues(condition.op, left, right);
   }
-  function state(input = {}, meta = {}, workflow = null) { return { input: clone(input), meta: clone(meta), vars: {},
-    types: workflow ? Object.fromEntries(workflow.variables.map(item => [item.id, item.type])) : {}, stack: [{ kind: "sequence", path: ["steps"], index: 0 }], done: false }; }
+  function state(input = {}, meta = {}, workflow = null) {
+    const current = { input: clone(input), meta: clone(meta), vars: {},
+      types: workflow ? Object.fromEntries(workflow.variables.map(item => [item.id, item.type])) : {},
+      stack: [{ kind: "sequence", path: ["steps"], index: 0 }], done: false };
+    for (const { name, variableId } of entryParameters(workflow)) {
+      const key = workflow.inputParameters ? variableId : name;
+      if (variableId && Object.hasOwn(input, key)) write(current, variableId, input[key]);
+    }
+    return current;
+  }
   const currentNode = (workflow, state) => { const frame = state.stack.at(-1); return frame?.kind === "sequence" ? pathGet(workflow, frame.path)[frame.index] : null; };
   const sequenceFrame = path => ({ kind: "sequence", path, index: 0 });
   function restore(frame, state) {
@@ -877,7 +956,9 @@
     const starts = [], pairs = new Map();
     for (const [index, node] of list.entries()) {
       if (node.kind !== "fold") continue;
-      if (node.edge === "start") starts.push(index);
+      if (node.edge === "start") {
+        if (!node.draftUnpaired) starts.push(index);
+      }
       else if (starts.length) {
         const start = starts.pop();
         pairs.set(start, index); pairs.set(index, start);
@@ -893,7 +974,8 @@
         const node = list[index];
         const own = [...path, index];
         if (node.kind === "fold") {
-          const partner = pairs.get(index), start = node.edge === "start";
+          if (node.draftRemoved) continue;
+          const pairedIndex = pairs.get(index), partner = list[pairedIndex]?.draftRemoved ? undefined : pairedIndex, start = node.edge === "start";
           if (!start && partner !== undefined && levels.at(-1) === index) { levels.pop(); depth--; }
           out.push({ node, path: own, listPath: path, index, depth, partner, marker: "fold-" + node.edge, key: node.id });
           if (start && partner !== undefined) {
@@ -902,7 +984,8 @@
           }
           continue;
         }
-        out.push({ node, path: own, listPath: path, index, depth, marker: "", key: node.id });
+        if (!node.draftMissingStart || node.draftMissingEnd)
+          out.push({ node, path: own, listPath: path, index, depth, marker: "", key: node.id, ...(node.draftMissingStart ? { placeholder: true } : {}) });
         if (node.kind === "action") continue;
         if (!collapsed.has(node.id)) {
           if (node.kind === "if") {
@@ -926,7 +1009,8 @@
             }
           }
         }
-        out.push({ node, path: own, depth, marker: node.kind === "if" ? "end-if" : node.kind === "try" ? "end-try" : "end-loop", key: node.id + ":end" });
+        if (!node.draftMissingEnd)
+          out.push({ node, path: own, depth, marker: endMarker(node), key: node.id + ":end" });
       }
     }
     sequence(workflow.steps, ["steps"], 0);
@@ -937,5 +1021,5 @@
   root.STWorkflow = Object.freeze({ catalog: Object.freeze(catalog), definitions, actionFields, effects, failable, previewable, names: Object.freeze(names), loops, markers, operations, clone, literal, constant, reference, isToolId, isProviderToolId, toolAction, toolOnlyAction, toolIds,
     httpMethods, httpMaxTimeout, hasHttpBody, httpUrl, staticHttpOrigin, instructionPermission, permissionNotice, permissionDenial,
     numericId, variable, condition, comparison, multiple, unary, inputs, conditionInputs, inputValue, activeValue, references, nodeReferences, scopes, outputFields, evaluateValues, type, walk, createNode, validate, validateValue, validateCondition, read, write, matches, state, next, local, failed,
-    complete, currentNode, raise, transfer, rows, foldPairs, foldLayout, visitSequences, pathGet, errorData, errorObject });
+    complete, currentNode, raise, transfer, rows, endMarker, foldPairs, foldLayout, entryRowLayout, entryPositionError, validateEntryPosition, visitSequences, pathGet, errorData, errorObject, parameterVariableType, entryParameters, gameAppId });
 })(globalThis);

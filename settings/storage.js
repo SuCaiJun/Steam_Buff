@@ -1115,7 +1115,7 @@
   async function getWorkflow() {
     const model = globalThis.STAutomation;
     const data = await get([model.KEY], { strict: true });
-    return Object.hasOwn(data, model.KEY) ? model.normalize(data[model.KEY]) : model.empty();
+    return Object.hasOwn(data, model.KEY) ? model.normalize(data[model.KEY], undefined, { structureOnly: true }) : model.empty();
   }
 
   /** 2.2.2 的下载开关独立于工作流配置 */
@@ -1196,7 +1196,7 @@
   }
 
   async function setWorkflow(values, diagnostics = {}) {
-    const next = globalThis.STAutomation.normalize(values);
+    const next = globalThis.STAutomation.normalize(values, undefined, { structureOnly: diagnostics.replaceWorkflow !== true });
     const confirmation = diagnostics.promptDeletion === undefined ? {} : { promptDeletion: diagnostics.promptDeletion };
     if (globalThis.STBackgroundAutomation)
       return globalThis.STBackgroundAutomation.saveConfig(next, {

@@ -49,7 +49,7 @@
   function text(value, workflow, code = false) {
     value = flow.activeValue(value);
     if (Object.hasOwn(value, "literal")) return !code && value.display ? value.display : typeof value.literal === "string" ? value.literal : JSON.stringify(value.literal);
-    if (value.expression) return value.expression.map(part => typeof part === "string" ? part : refText(part, workflow, true)).join("");
+    if (value.expression) return value.expression.map(part => typeof part === "string" ? part : refText(part, workflow, code)).join("");
     if (value.template) return value.template.map(part => typeof part === "string" ? part : "{{" + text(part, workflow) + "}}").join("");
     return refText(value, workflow, code);
   }
@@ -60,9 +60,15 @@
     if (active.source) return [{ value: refText(active, workflow), reference: true }];
     if (active.template) return active.template.flatMap(part => {
       if (typeof part === "string") return [{ value: part }];
-      return part.expression ? [{ value: text(part, workflow), reference: true }] : summaryParts(part, workflow);
+      if (part.expression) return [{ value: text(part, workflow), reference: true }];
+      if (part.display) return [{ value: part.display, fragment: true }];
+      return summaryParts(part, workflow);
     });
-    if (active.expression) return active.expression.flatMap(part => typeof part === "string" ? [{ value: part }] : summaryParts(part, workflow));
+    if (active.expression) {
+      // 文本模式只有一个表达式片段时，编辑器直接保存该片段
+      if (value.mode === "text") return [{ value: text(active, workflow), reference: true }];
+      return active.expression.flatMap(part => typeof part === "string" ? [{ value: part }] : summaryParts(part, workflow));
+    }
     const label = choices.find(([id]) => id === active.literal)?.[1];
     const shown = label ?? (typeof active.literal === "boolean" ? active.literal ? tr("workflow_ui_true", "真") : tr("workflow_ui_false", "假") : text(active, workflow));
     return shown ? [{ value: shown }] : [tr("workflow_ui_empty_text", "空文本")];
@@ -277,19 +283,20 @@
         codeModule = module;
         if (context.signal.aborted || !host.isConnected || bindings.get(container) !== context) return;
         const saved = JSON.parse(element.dataset.json), active = flow.activeValue(saved), suggestions = JSON.parse(element.dataset.suggestions);
+        const mode = element.dataset.mode;
         const named = Object.hasOwn(active, "literal") && (active.display || suggestions.find(([id]) => id === active.literal)?.[1]);
         host.textContent = "";
         let originalFragment;
-        const editor = module.mountValue(host, { value: named && element.dataset.mode === "text" ? { template: [active] } : active,
-          mode: element.dataset.mode, label: element.dataset.label, multiline: element.dataset.multiline === "true",
-          format: item => Object.hasOwn(item, "literal") ? item.display || suggestions.find(([id]) => id === item.literal)?.[1] || text(item, context.workflow, true) : text(item, context.workflow, !context.workflow.triggerInput),
+        const editor = module.mountValue(host, { value: named && mode === "text" ? { template: [active] } : active,
+          mode, label: element.dataset.label, multiline: element.dataset.multiline === "true",
+          format: item => Object.hasOwn(item, "literal") ? item.display || suggestions.find(([id]) => id === item.literal)?.[1] || text(item, context.workflow, true) : text(item, context.workflow, mode === "expression"),
           change: value => {
             const next = originalFragment && JSON.stringify(value) === originalFragment ? active : value;
             storeValue(element, context.object, next);
             container.dispatchEvent(new Event("input", { bubbles: true }));
           },
           typing: () => { if (!context.suppress && !context.composing) context.autocomplete(element); }, fail: context.fail });
-        if (element.dataset.mode === "text" && active.template) {
+        if (mode === "text" && active.template) {
           // 撤销后，同一个显示片段可能仍需要旧模板的文本转换语义
           const displayed = editor.value();
           if (!displayed.template) originalFragment = JSON.stringify(displayed);
@@ -369,10 +376,12 @@
           children: children(fields.filter(([path]) => path[0] !== "game")) });
       } else if (!output && !workflow.literalOnly && !scriptControl(input)) {
         const inTool = flow.isToolId(workflow.id);
-        const fields = inTool ? workflow.parameters.map(parameter => [parameter.name, parameter.description]) : inputNames(workflow).map(key => [key, tr("workflow_ui_member", "成员")]);
-        rows.push({ key: "input", name: inTool ? tr("workflow_tool_inputs", "工具输入") : tr("workflow_ui_trigger_input", "触发输入"),
-          detail: tr("seed_variable_input", "输入数据"), group: tr("workflow_ui_run_context", "运行上下文"), value: flow.reference("input"),
-          children: fields.map(([key, detail]) => ({ key: "input." + key, name: key, detail, value: flow.reference("input", "", [key]) })) });
+        if (!workflow.inputParameters && (!inTool || workflow.parameters.some(parameter => !parameter.variableId))) {
+          const fields = inTool ? workflow.parameters.map(parameter => [parameter.name, parameter.description]) : inputNames(workflow).map(key => [key, tr("workflow_ui_member", "成员")]);
+          rows.push({ key: "input", name: inTool ? tr("workflow_tool_inputs", "工具输入") : tr("workflow_ui_trigger_input", "触发输入"),
+            detail: tr("seed_variable_input", "输入数据"), group: tr("workflow_ui_run_context", "运行上下文"), value: flow.reference("input"),
+            children: fields.map(([key, detail]) => ({ key: "input." + key, name: key, detail, value: flow.reference("input", "", [key]) })) });
+        }
         if (!inTool) rows.push({ key: "meta", name: tr("workflow_ui_run_information", "运行信息"), detail: tr("workflow_ui_current_run", "本次运行"), group: tr("workflow_ui_run_context", "运行上下文"), value: flow.reference("meta"),
           children: Object.entries(metaFields).map(([key, name]) => ({ key: "meta." + key, name: key, detail: name, value: flow.reference("meta", "", [key]) })) });
       }
