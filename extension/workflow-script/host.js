@@ -74,6 +74,18 @@
       return;
     }
     const result = event.data;
+    if (result.kind === "http") {
+      if (!active.has(result.id)) return;
+      try {
+        globalThis.STWorkflowData.json(result.request);
+        port.postMessage(result);
+      } catch (error) {
+        frame.contentWindow.postMessage({ channel: "workflow-script", action: "http-result", id: result.id,
+          result: { requestId: result.request?.requestId, ok: false, error: { message: error.message, code: "WORKFLOW_HTTP_FAILED" } } }, "*");
+      }
+      return;
+    }
+    if (!active.has(result.id)) return;
     active.delete(result.id); status();
     if (result.ok) {
       try { globalThis.STWorkflowData.json(result.value); }

@@ -239,7 +239,7 @@
         output: variable(workflow, outputName, definition.outputType),
       });
       if (key === "family-refresh") node.requestTimeoutSeconds = 12;
-      if (key === http.id) Object.assign(node, { method: "GET", origin: "", requestTimeoutSeconds: httpMaxTimeout });
+      if (key === http.id) Object.assign(node, { method: "GET", requestTimeoutSeconds: httpMaxTimeout });
       if (key === aiTool.id) node.toolMode = "request";
       if (key === toolQuery.id) node.provider = root.STAI.CHAT_TOOLS[0].id;
       return node;
@@ -381,7 +381,8 @@
               const known = staticHttpOrigin(node.url), url = activeValue(node.url);
               if (!["any", "object"].includes(workflow.variables.find(item => item.id === node.output).type)) throw configurationError("HTTP 响应需要保存到字典或任意数据变量", "workflow_error_http_output");
               if (Object.hasOwn(url, "literal") && !known) throw configurationError("请输入有效的 HTTP 或 HTTPS URL", "workflow_error_http_url");
-              if (!node.origin || node.origin !== httpUrl(node.origin)?.origin || known && known !== node.origin) throw configurationError("请选择与 URL 一致的请求站点", "workflow_error_http_origin");
+              if (inTool && (!node.origin || node.origin !== httpUrl(node.origin)?.origin || known && known !== node.origin))
+                throw configurationError("请为工具 URL 提供明确的请求站点", "workflow_error_http_origin");
               if (!httpMethods.includes(node.method) || !Number.isSafeInteger(node.requestTimeoutSeconds) || node.requestTimeoutSeconds < 1 || node.requestTimeoutSeconds > httpMaxTimeout) throw configurationError(`请选择 HTTP 方法，并将超时设置为 1–${httpMaxTimeout} 秒`, "workflow_error_http_method", { max: httpMaxTimeout });
               if (inTool) {
                 const headers = activeValue(node.headers);
@@ -710,7 +711,7 @@
   function pop(state) { const frame = state.stack.pop(); if (frame?.kind === "loop") restore(frame, state); return frame; }
   function errorData(error) {
     const value = {};
-    for (const key of ["name", "message", "stack", "code", "nodeId", "field", "saved", "conflicts", "toolId", "toolNodeId"]) if (error[key] !== undefined) value[key] = clone(error[key]);
+    for (const key of ["name", "message", "stack", "code", "nodeId", "field", "saved", "conflicts", "toolId", "toolNodeId", "origin"]) if (error[key] !== undefined) value[key] = clone(error[key]);
     if (error.cause) value.cause = errorData(error.cause);
     return value;
   }

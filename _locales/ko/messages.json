@@ -8552,16 +8552,16 @@
     "message": "최근 30일"
   },
   "aiPermissionHttp_title": {
-    "message": "Steam Buff - HTTP 요청 권한"
+    "message": "Steam Buff – 도메인 권한"
   },
   "aiPermissionHttp_section": {
-    "message": "HTTP 요청 권한"
+    "message": "도메인 권한"
   },
   "aiPermissionHttp_heading": {
-    "message": "워크플로의 사이트 접근 허용"
+    "message": "확장 프로그램의 사이트 접근 승인"
   },
   "aiPermissionHttp_description": {
-    "message": "HTTP 요청을 실행하려면 Steam Buff에 다음 사이트의 접근 권한이 필요합니다."
+    "message": "승인 후 Steam Buff에서 아래 사이트에 접근할 수 있습니다."
   },
   "settings_ai_serviceName": {
     "message": "서비스 이름"
@@ -11058,7 +11058,7 @@
     "message": "다른 창에서 응답을 생성 중입니다."
   },
   "ai_chat_permission": {
-    "message": "타사 서비스 설정에서 AI 게이트웨이 접근을 허용하세요."
+    "message": "자동화 → 도메인 권한에서 현재 AI 게이트웨이를 승인하세요."
   },
   "ai_chat_config": {
     "message": "AI 서비스를 사용할 수 없습니다. 설정을 확인하세요."
@@ -11101,6 +11101,50 @@
   },
   "workflow_ui_triggers": {
     "message": "트리거"
+  },
+  "workflow_site_permissions": {
+    "message": "도메인 권한"
+  },
+  "workflow_site_grants": {
+    "message": "승인된 사이트"
+  },
+  "workflow_site_add": {
+    "message": "도메인 추가"
+  },
+  "workflow_site_remove": {
+    "message": "권한 취소"
+  },
+  "workflow_site_empty": {
+    "message": "승인된 사이트 없음"
+  },
+  "workflow_site_loading": {
+    "message": "사이트 권한 불러오는 중…"
+  },
+  "workflow_site_domain": {
+    "message": "도메인"
+  },
+  "workflow_site_not_granted": {
+    "message": "미승인"
+  },
+  "workflow_click_authorize": {
+    "message": "승인하기"
+  },
+  "workflow_site_remove_prompt": {
+    "message": "$site$ 권한을 취소하면 이 사이트를 사용하는 AI 서비스와 워크플로에 영향을 줍니다.",
+    "placeholders": {
+      "site": {
+        "content": "$1"
+      }
+    }
+  },
+  "workflow_script_network_preview": {
+    "message": "이 스크립트는 실제 HTTP 요청을 보내 대상 사이트의 데이터를 변경할 수 있습니다."
+  },
+  "workflow_ui_http_request": {
+    "message": "HTTP 요청"
+  },
+  "workflow_script_preview_uncertain": {
+    "message": "테스트가 중지되었습니다. 이미 보낸 쓰기 요청의 결과는 확인되지 않았습니다."
   },
   "workflow_ui_run_history": {
     "message": "실행 기록"

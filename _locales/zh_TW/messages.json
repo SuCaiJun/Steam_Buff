@@ -8552,16 +8552,16 @@
     "message": "近30日"
   },
   "aiPermissionHttp_title": {
-    "message": "Steam Buff - HTTP 請求授權"
+    "message": "Steam Buff - 網域授權"
   },
   "aiPermissionHttp_section": {
-    "message": "HTTP 請求授權"
+    "message": "網域授權"
   },
   "aiPermissionHttp_heading": {
-    "message": "允許工作流訪問站點"
+    "message": "允許擴充功能存取網站"
   },
   "aiPermissionHttp_description": {
-    "message": "Steam Buff 需要訪問以下站點，才能執行 HTTP 請求指令。"
+    "message": "授權後，Steam Buff 可以存取下列網站。"
   },
   "settings_ai_serviceName": {
     "message": "服務名稱"
@@ -11058,7 +11058,7 @@
     "message": "此對話正在另一個視窗生成。"
   },
   "ai_chat_permission": {
-    "message": "請在第三方服務設定中授權目前的 AI 閘道。"
+    "message": "請在「自動化 → 網域授權」中授權目前的 AI 閘道。"
   },
   "ai_chat_config": {
     "message": "目前的 AI 服務無法使用，請檢查設定。"
@@ -11101,6 +11101,50 @@
   },
   "workflow_ui_triggers": {
     "message": "觸發器"
+  },
+  "workflow_site_permissions": {
+    "message": "網域授權"
+  },
+  "workflow_site_grants": {
+    "message": "已授權網站"
+  },
+  "workflow_site_add": {
+    "message": "新增網域"
+  },
+  "workflow_site_remove": {
+    "message": "移除授權"
+  },
+  "workflow_site_empty": {
+    "message": "尚無已授權網站"
+  },
+  "workflow_site_loading": {
+    "message": "正在讀取網站權限…"
+  },
+  "workflow_site_domain": {
+    "message": "網域"
+  },
+  "workflow_site_not_granted": {
+    "message": "未授權"
+  },
+  "workflow_click_authorize": {
+    "message": "點我授權"
+  },
+  "workflow_site_remove_prompt": {
+    "message": "移除 $site$ 的授權後，使用它的 AI 服務與工作流程需要重新授權。",
+    "placeholders": {
+      "site": {
+        "content": "$1"
+      }
+    }
+  },
+  "workflow_script_network_preview": {
+    "message": "指令碼可能傳送實際 HTTP 請求並修改目標網站的資料。"
+  },
+  "workflow_ui_http_request": {
+    "message": "HTTP 請求"
+  },
+  "workflow_script_preview_uncertain": {
+    "message": "試執行已停止，已送出的寫入請求結果待確認"
   },
   "workflow_ui_run_history": {
     "message": "執行記錄"

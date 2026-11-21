@@ -21,7 +21,24 @@
       globalThis.onmessage = null;
       try {
         const { code, inputs, bindings } = event.data;
-        const value = await new AsyncFunction(bindings?.name ?? "inputs", '"use strict";\n' + code)(bindings?.values ?? inputs);
+        const port = event.ports[0], waiting = new Map();
+        let next = 0;
+        if (port) port.onmessage = ({ data }) => {
+          const request = waiting.get(data.requestId);
+          if (!request) return;
+          waiting.delete(data.requestId);
+          if (data.ok) request.resolve(data.value);
+          else request.reject(Object.assign(new Error(data.error.message), data.error));
+        };
+        const http = port && Object.freeze(Object.fromEntries(["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD"].map(method =>
+          [method.toLowerCase(), (url, options) => new Promise((resolve, reject) => {
+            const requestId = ++next;
+            port.postMessage({ requestId, method, url: url instanceof URL ? url.href : url, options });
+            waiting.set(requestId, { resolve, reject });
+          })])));
+        const parameters = [bindings?.name ?? "inputs"], values = [bindings?.values ?? inputs];
+        if (http) { parameters.push("http"); values.push(http); }
+        const value = await new AsyncFunction(...parameters, '"use strict";\n' + code)(...values);
         send({ ok: true, value });
       } catch (error) {
         send({ ok: false, error: { name: error?.name || "Error", message: error?.message || String(error), stack: error?.stack, field: error?.field } });
@@ -33,13 +50,18 @@
     if (!job) return;
     jobs.delete(id);
     clearTimeout(job.timer);
+    job.network?.close();
     job.worker.terminate();
     URL.revokeObjectURL(job.url);
   }
   window.addEventListener("message", event => {
     if (event.source !== parent || event.data?.channel !== "workflow-script") return;
-    const { id, action, code, inputs, bindings, seconds } = event.data;
+    const { id, action, code, inputs, bindings, seconds, network } = event.data;
     if (action === "cancel") { stop(id); return; }
+    if (action === "http-result") {
+      jobs.get(id)?.network?.postMessage(event.data.result);
+      return;
+    }
     if (action !== "run" || jobs.has(id)) return;
     const reply = result => {
       stop(id);
@@ -49,12 +71,24 @@
     try {
       const url = URL.createObjectURL(new Blob(["(" + workerMain.toString() + ")()"], { type: "text/javascript" }));
       const worker = new Worker(url);
-      jobs.set(id, { worker, url, timer: setTimeout(() => reply({ ok: false,
+      const channel = network ? new MessageChannel() : null;
+      jobs.set(id, { worker, url, network: channel?.port1, timer: setTimeout(() => reply({ ok: false,
         error: { name: "TimeoutError", message: `脚本执行超过 ${seconds} 秒`, code: "WORKFLOW_SCRIPT_TIMEOUT" } }), seconds * 1000) });
-      worker.onmessage = message => reply(message.data);
+      worker.onmessage = ({ data }) => {
+        if (data?.ok === true) reply({ ok: true, value: data.value });
+        else {
+          const { name, message, stack, field } = data?.error || {};
+          reply({ ok: false, error: { name, message, stack, field } });
+        }
+      };
       worker.onerror = error => { error.preventDefault(); reply({ ok: false,
         error: { name: "Error", message: error.message, stack: `${error.filename}:${error.lineno}:${error.colno}` } }); };
-      worker.postMessage({ code, inputs, bindings });
+      if (channel) channel.port1.onmessage = ({ data }) => {
+        parent.postMessage({ channel: "workflow-script", kind: "http", id,
+          request: { requestId: data.requestId, method: data.method, url: data.url,
+            ...(data.options !== undefined && { options: data.options }) } }, "*");
+      };
+      worker.postMessage({ code, inputs, bindings }, channel ? [channel.port2] : []);
     } catch (error) {
       reply({ ok: false, error: { name: error.name, message: error.message, stack: error.stack, code: "WORKFLOW_SCRIPT_HOST_ERROR" } });
     }

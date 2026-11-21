@@ -125,7 +125,7 @@
       CHAT_CONTEXT_LIMIT: ["ai_chat_context_limit", "对话上下文过长，请新建对话。"],
       CHAT_BUSY: ["ai_chat_busy", "此对话正在另一个窗口生成。"],
       CHAT_CHANGED: ["ai_chat_changed", "此对话已更新，请查看最新记录后重新发送。"],
-      AI_HOST_PERMISSION_REQUIRED: ["ai_chat_permission", "请在第三方服务设置中授权当前 AI 网关。"],
+      AI_HOST_PERMISSION_REQUIRED: ["ai_chat_permission", "请在自动化的域名授权中授权当前 AI 网关。"],
       AI_CONFIG_UNAVAILABLE: ["ai_chat_config", "当前 AI 服务不可用，请检查设置。"],
       PROVIDER_CONFIG_MISSING: ["ai_chat_itad_key", "请先在第三方服务中配置 ITAD API Key。"],
       PROVIDER_DISABLED: ["ai_chat_itad_key", "请先在第三方服务中配置 ITAD API Key。"],

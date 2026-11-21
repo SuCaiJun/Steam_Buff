@@ -36,6 +36,7 @@
   }
   function forStorage(draft) {
     const workflow = flow.clone(draft), folds = [];
+    const inTool = flow.isToolId(workflow.id);
     flow.visitSequences(workflow.steps, ["steps"], (list, path) => {
       checkFolds(list);
       const steps = [], markers = [];
@@ -44,7 +45,10 @@
           const marker = { id: node.id, edge: node.edge, index: steps.length };
           if (node.edge === "start") marker.name = node.name;
           markers.push(marker);
-        } else steps.push(node);
+        } else {
+          if (!inTool && node.action === "http-request") delete node.origin;
+          steps.push(node);
+        }
       }
       if (markers.length) {
         list.length = 0;

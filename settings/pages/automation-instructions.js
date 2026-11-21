@@ -484,7 +484,11 @@
     if (id === "set") return [tr("workflow_ui_set", "将 "), variable(node.output), tr("workflow_ui_to", " 设为 "), ...value(node.value), "（", root.STWorkflowTools.typeNames[node.valueType || "any"], "）"];
     if (id === "list" || id === "record" || id === "json") return [id === "json" ? tr("workflow_ui_parse", "解析 ") : tr("workflow_ui_create", "创建 "), ...value(node.value), ...output(node.output)];
     if (id === "get") return [tr("workflow_ui_from", "从 "), ...value(node.value), tr("workflow_ui_read", " 读取 "), ...value(node.key), ...output(node.output)];
-    if (id === "http-request") return [tr("workflow_ui_to_label", "向 "), token(node.origin || tr("workflow_ui_site_required", "待填站点")), tr("workflow_ui_send_label", " 发送 "), token(node.method), tr("workflow_ui_request", " 请求"), ...output(node.output)];
+    if (id === "http-request") {
+      const origin = flow.staticHttpOrigin(node.url);
+      return [...(origin ? [tr("workflow_ui_to_label", "向 "), token(origin), tr("workflow_ui_send_label", " 发送 ")] : []),
+        token(node.method), tr("workflow_ui_request", " 请求"), ...output(node.output)];
+    }
     if (id === "tool-call") {
       const tool = editor.toolLibrary?.find(item => item.id === node.toolId);
       return [tool && node.toolMode === "registered" ? token(tool.name) : hint(id), ...output(node.output)];

@@ -36,13 +36,12 @@
     ).join("")}</select></label>`;
     return note ? `<div>${control}<small id="${esc(noteId)}" class="ai-binding-note">${esc(note)}</small></div>` : control;
   }
-  const style = root.STComponents.css.compose(root.STComponents.css.button([".wf button", ".wf-editor button"]), root.STComponents.css.button(".wf .wf-primary", { variant:"primary", density:"compact" }), root.STComponents.css.button(".wf .wf-icon", { variant:"ghost", density:"compact" }), root.STComponents.css.field([".wf input:not([type=checkbox])", ".wf select", ".wf-editor input:not([type=checkbox])", ".wf-editor select", ".wf-editor textarea"]),
-    `.wf,.wf-editor{display:grid;gap:16px;min-width:0;color:var(--st-color-text-primary)}
-    .wf [hidden],.wf-editor [hidden]{display:none}.wf label,.wf-editor label{display:grid;gap:6px;font-size:var(--st-font-size-body-small);min-width:0}
-    .wf input,.wf select,.wf-editor input,.wf-editor select,.wf-editor textarea{box-sizing:border-box;width:100%;min-width:0}.wf-editor input[type=checkbox]{width:auto}
-    .wf-toolbar,.wf-row,.wf-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.wf-toolbar>h3,.wf-row>strong{margin:0;flex:1}.wf-toolbar{justify-content:space-between}
-    .wf-row{padding:12px;border:1px solid var(--st-color-border-light);border-radius:var(--st-radius-md)}
-    .wf-row small,.wf-muted{color:var(--st-color-text-secondary)}.wf-row[data-disabled=true]{opacity:.65}
+  const style = root.STComponents.css.compose(root.STComponents.css.button(".wf-editor button"), root.STComponents.css.field([".wf-editor input:not([type=checkbox])", ".wf-editor select", ".wf-editor textarea"]),
+    `.wf-editor{display:grid;gap:16px;min-width:0;color:var(--st-color-text-primary)}
+    .wf-editor [hidden]{display:none}.wf-editor label{display:grid;gap:6px;font-size:var(--st-font-size-body-small);min-width:0}
+    .wf-editor input,.wf-editor select,.wf-editor textarea{box-sizing:border-box;width:100%;min-width:0}.wf-editor input[type=checkbox]{width:auto}
+    .wf-toolbar,.wf-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.wf-toolbar{justify-content:space-between}
+    [aria-labelledby="aw-tab-prompts"] .aw-card[data-disabled=true]{opacity:.65}
     .wf-editor-dialog{width:min(900px,calc(100vw - 64px));max-width:100%}.wf-editor-dialog .settings-dialog-message{max-height:68vh;overflow:auto;white-space:normal}.wf-editor textarea{height:auto;min-height:170px;padding:12px;resize:vertical;font-family:monospace;line-height:1.6}
     .wf-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.wf-wide{grid-column:1/-1}.wf-segment{display:flex;gap:4px}.wf-segment button[aria-pressed=true]{color:var(--st-color-primary);border-color:var(--st-color-primary);background:var(--st-color-primary-surface)}
     .wf-prompt-field{display:grid;gap:6px;min-width:0}
@@ -55,7 +54,7 @@
     .wf-token-group+.wf-token-group{margin-top:12px}.wf-token-group h4{margin:0 0 6px;color:var(--st-color-text-secondary);font-size:var(--st-font-size-caption);font-weight:var(--st-font-weight-medium)}
     .wf-token-group>div{display:flex;flex-wrap:wrap;gap:4px}
     @media(max-width:680px){.wf-token-tools .wf-token-quick{display:none}.wf-prompt-head{gap:4px}}
-    .wf-error{color:var(--st-color-danger-text);white-space:pre-wrap}.wf-pre{white-space:pre-wrap;overflow-wrap:anywhere;max-height:50vh;overflow:auto;font-family:monospace}.wf-error:empty{display:none}.wf .wf-icon{display:inline-grid;place-items:center;width:32px;height:32px;padding:0;color:var(--st-color-text-secondary)}.wf-icon>.aw-command-icon{width:16px;height:16px}.wf-rule-actions{display:flex;gap:4px}.wf-toggle[aria-pressed=true]{color:var(--st-color-success)}.wf-prompt-copy{min-width:0;overflow-wrap:anywhere}@media(max-width:680px){.wf-grid{grid-template-columns:1fr}}`, root.STAutomationEditor.style);
+    .wf-error{color:var(--st-color-danger-text);white-space:pre-wrap}.wf-pre{white-space:pre-wrap;overflow-wrap:anywhere;max-height:50vh;overflow:auto;font-family:monospace}.wf-error:empty{display:none}@media(max-width:680px){.wf-grid{grid-template-columns:1fr}}`, root.STAutomationEditor.style);
   const pathGet = (obj, path) => path ? path.split(".").reduce((value, key) => value[key], obj) : obj;
   function pathSet(obj, path, value) {
     const keys = path.split("."),
@@ -65,7 +64,7 @@
   const previews = new Map();
   function preview(request) {
     const port = root.chrome.runtime.connect({ name: model.PREVIEW_CHANNEL });
-    return new Promise((resolve, reject) => {
+    const completion = new Promise((resolve, reject) => {
       const finish = (error, result) => {
         previews.delete(request.id);
         port.onMessage.removeListener(message); port.onDisconnect.removeListener(disconnect); port.disconnect();
@@ -73,13 +72,18 @@
       };
       const message = result => finish(null, result);
       const disconnect = () => finish(new Error(root.chrome.runtime.lastError?.message || tr("workflow_ui_test_run_disconnected", "试运行连接已断开")));
-      previews.set(request.id, () => finish(null, { success: true, value: { cancelled: true } }));
       port.onMessage.addListener(message); port.onDisconnect.addListener(disconnect);
       port.postMessage(request);
     });
+    previews.set(request.id, () => {
+      port.postMessage({ action: "cancel-instruction-test", id: request.id });
+      return completion.then(result => result.errorCode === "WORKFLOW_HTTP_UNCERTAIN" ?
+        { uncertain: true } : result.value ?? false);
+    });
+    return completion;
   }
   async function rpc(action, value = {}) {
-    if (action === "cancel-instruction-test") { const cancel = previews.get(value.id); cancel?.(); return !!cancel; }
+    if (action === "cancel-instruction-test") return previews.get(value.id)?.() ?? false;
     const result = ["test-instruction", "test-tool"].includes(action) ? await preview({ ...value, action }) : await root.STMessageBus.request(
       { type: model.ROUTE, action, ...value },
       { timeoutMs: 120000, logFailures: false },
@@ -87,6 +91,7 @@
     if (result?.success !== true) {
       const error = new Error(result?.error || tr("workflow_ui_automation_action_failed", "自动化操作失败"));
       if (result?.errorCode) error.code = result.errorCode;
+      if (error.code === "WORKFLOW_HTTP_PERMISSION_REQUIRED" && result?.origin) error.origin = result.origin;
       throw error;
     }
     return result.value;
@@ -105,8 +110,8 @@
       message: error.name === "SyntaxError" ? tr("workflow_ui_invalid_json_check_the_advanced_settings", "JSON 格式无效，请检查高级配置") : errorCaption(error),
     });
   }
-  function iconButton(action, label, icon, attrs = "", extra = "") {
-    return button(action, root.STWorkflowInstructions.icon(icon), `class="wf-icon ${extra}" title="${esc(label)}" aria-label="${esc(label)}" ${attrs}`);
+  function iconButton(action, label, icon, attrs = "") {
+    return button(action, root.STWorkflowInstructions.icon(icon), `class="aw-icon" title="${esc(label)}" aria-label="${esc(label)}" ${attrs}`);
   }
   function promptChoices(plans, selected) {
     const choices = plans.map(plan => [plan.id, plan.name + (plan.enabled ? "" : tr("workflow_ui_disabled", "（已停用）"))]);
@@ -442,10 +447,16 @@
   }
   /** 提示词与自动化宿主使用同一配置快照，保存后只刷新当前页签 */
   function promptsHtml(bundle) {
-    const rows = bundle.prompts.map(plan => `<div class="wf-row" data-id="${esc(plan.id)}" data-disabled="${!plan.enabled}">
-      <strong class="wf-prompt-copy">${esc(plan.name)}<br><small>${plan.mode === "basic" ? tr("store_titleCustomName_baseTab", "基础") : tr("workflow_ui_advanced", "高级")}</small></strong>
-      <div class="wf-rule-actions">${iconButton("prompt-toggle", (plan.enabled ? tr("common_disable", "停用") + " " : tr("common_enable", "启用") + " ") + plan.name, plan.enabled ? "circle-check" : "circle-off", `aria-pressed="${plan.enabled}"`, "wf-toggle")}${iconButton("prompt-edit", tr("store_titleCustomName_edit", "编辑") + " " + plan.name, "pencil")}${iconButton("prompt-delete", tr("common_delete", "删除") + " " + plan.name, "trash")}</div></div>`).join("");
-    return `<div class="wf"><div class="wf-toolbar"><span>${esc(tr("workflow_format_prompts", "$count$ 个提示词", { count: bundle.prompts.length }))}</span>${button("prompt-new", tr("workflow_ui_new_prompt", "新建提示词"), 'class="wf-primary"')}</div>${rows}<div class="wf-error" role="alert"></div></div>`;
+    const rows = bundle.prompts.map(plan => `<div class="aw-card" data-id="${esc(plan.id)}" data-disabled="${!plan.enabled}">
+      <div><strong>${esc(plan.name)}</strong><small>${esc(plan.mode === "basic" ? tr("store_titleCustomName_baseTab", "基础") : tr("workflow_ui_advanced", "高级"))}</small></div>
+      <div class="aw-tools">
+        ${iconButton("prompt-toggle", (plan.enabled ? tr("common_disable", "停用") : tr("common_enable", "启用")) + " " + plan.name, plan.enabled ? "circle-check" : "circle-off", `aria-pressed="${plan.enabled}"`)}
+        ${iconButton("prompt-edit", tr("store_titleCustomName_edit", "编辑") + " " + plan.name, "pencil")}
+        ${iconButton("prompt-delete", tr("common_delete", "删除") + " " + plan.name, "trash")}
+      </div></div>`).join("");
+    const create = root.STWorkflowInstructions.icon("plus") + `<span class="aw-button-label">${esc(tr("workflow_ui_new_prompt", "新建提示词"))}</span>`;
+    return `<div class="aw-toolbar"><span>${esc(tr("workflow_format_prompts", "$count$ 个提示词", { count: bundle.prompts.length }))}</span>${button("prompt-new", create, 'class="aw-primary"')}</div>
+      <div class="aw-list">${rows}</div>`;
   }
   async function promptAction(state, control) {
     const name = control.dataset.wf, id = control.closest("[data-id]")?.dataset.id;

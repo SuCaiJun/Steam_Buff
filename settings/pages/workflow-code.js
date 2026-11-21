@@ -245,6 +245,51 @@ export function scriptReference(ref, workflow) {
   return `变量[${JSON.stringify(name)}]` + ref.path.map(key => typeof key === "string" && /^[\p{ID_Start}_$][\p{ID_Continue}$]*$/u.test(key) ? "." + key : `[${JSON.stringify(key)}]`).join("");
 }
 
+/** 静态读取可确定的 HTTP 调用，不执行脚本或猜测动态地址 */
+export function scriptNetwork(parts) {
+  const source = parts.map(part => typeof part === "string" ? part : "_value").join("");
+  const doc = "async function script() {\n" + source + "\n}";
+  const cursor = javascriptLanguage.parser.parse(doc).cursor();
+  const origins = new Set();
+  let used = false;
+  do {
+    if (cursor.name === "VariableName" && doc.slice(cursor.from, cursor.to) === "http") used = true;
+    if (cursor.name !== "CallExpression") continue;
+    const call = cursor.node, member = call.getChild("MemberExpression");
+    if (member && /^http\s*\.\s*(?:get|post|put|patch|delete|head)$/.test(doc.slice(member.from, member.to))) {
+      const argument = call.getChild("ArgList")?.firstChild?.nextSibling;
+      const origin = literalSite(doc, argument);
+      if (origin) origins.add(origin);
+    }
+  } while (cursor.next());
+  return { used, origins: [...origins] };
+}
+
+function literalSite(source, node, prefixOnly = false) {
+  if (node?.name === "BinaryExpression" && source.slice(node.firstChild.to, node.lastChild.from).trim() === "+")
+    return literalSite(source, node.firstChild, true);
+  if (node?.name === "NewExpression") {
+    const name = node.getChild("VariableName"), args = node.getChild("ArgList");
+    if (!name || source.slice(name.from, name.to) !== "URL") return "";
+    const first = args?.firstChild?.nextSibling;
+    const absolute = literalSite(source, first);
+    if (absolute) return absolute;
+    if (first?.name === "String" && /^\/(?![\/\\])/.test(source.slice(first.from + 1, first.to - 1)))
+      return literalSite(source, first.nextSibling?.nextSibling);
+  }
+  if (!["String", "TemplateString"].includes(node?.name)) return "";
+  const value = source.slice(node.from + 1, node.to - 1), dynamic = node.name === "TemplateString" && value.includes("${");
+  const prefix = dynamic ? value.split("${", 1)[0] : value;
+  if (prefix.includes("\\") || (dynamic || prefixOnly) && !/^https?:\/\/[^/?#]+[/?#]/i.test(prefix)) return "";
+  return globalThis.STWorkflow.httpUrl(prefix)?.origin || "";
+}
+
+export function requestSite(parts) {
+  const doc = "(" + parts.map(part => typeof part === "string" ? part : "_value").join("") + ")";
+  const node = javascriptLanguage.parser.parse(doc).topNode.firstChild?.firstChild;
+  return literalSite(doc, node?.firstChild?.nextSibling);
+}
+
 /** 按 JavaScript 语法识别读取，字符串和注释原样保存，变量使用现有的引用 ID */
 export function scriptParts(source, workflow) {
   const prefix = "async function workflowScript() {\n", doc = prefix + source + "\n}";
@@ -297,8 +342,10 @@ export function mount(parent, { value, change, workflow }) {
     }, { dark: true }),
   ] }) });
   return Object.freeze({
-    insert(text, { from, to } = view.state.selection.main) {
-      view.dispatch({ changes: { from, to, insert: text }, selection: { anchor: from + text.length }, userEvent: "input.complete" });
+    insert(text, { from, to } = view.state.selection.main, pick = "") {
+      const offset = pick ? text.indexOf(pick) : -1;
+      const anchor = from + (offset < 0 ? text.length : offset);
+      view.dispatch({ changes: { from, to, insert: text }, selection: { anchor, head: anchor + (offset < 0 ? 0 : pick.length) }, userEvent: "input.complete" });
       view.focus();
     },
     insertReference(ref, selected) { this.insert(scriptReference(ref, workflow), selected); },

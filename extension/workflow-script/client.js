@@ -24,7 +24,33 @@
     const job = pending.get(id);
     if (!job) return;
     pending.delete(id);
+    job.networkController?.abort();
     error ? job.reject(error) : job.resolve(value);
+  }
+  async function requestHttp(port, id, job, request) {
+    const { requestId } = request;
+    if (!Number.isSafeInteger(requestId) || requestId <= job.lastRequest) return;
+    job.lastRequest = requestId;
+    let result;
+    try {
+      if (job.httpBusy || job.attempts >= 3) throw Object.assign(new Error("脚本 HTTP 请求超出执行预算"), { code: "WORKFLOW_HTTP_FAILED" });
+      job.httpBusy = true;
+      job.attempts++;
+      try {
+        const seconds = (job.httpDeadline - performance.now()) / 1000;
+        if (seconds <= 0) throw Object.assign(new Error("脚本请求已超过执行时限"), { code: "WORKFLOW_HTTP_TIMEOUT" });
+        result = { ok: true, value: await job.network(request, seconds, job.networkController.signal) };
+      } finally { job.httpBusy = false; }
+    } catch (error) {
+      if (error.code === "WORKFLOW_HTTP_PERMISSION_REQUIRED" || error.code === "WORKFLOW_HTTP_UNCERTAIN") {
+        // 站点待授权和已出站但结果不明的写请求由后台结束，脚本无法伪造此状态
+        port.postMessage({ action: "cancel", id });
+        settle(id, error);
+        return;
+      }
+      result = { ok: false, error: { name: error.name, message: error.message, code: error.code } };
+    }
+    if (pending.get(id) === job) port.postMessage({ action: "http-result", id, result: { requestId, ...result } });
   }
   function connect(next) {
     if (next.name !== "steam-buff-workflow-script") return;
@@ -34,7 +60,12 @@
     port = next;
     next.onMessage.addListener(result => {
       if (result.kind === "running") return;
-      if (!pending.has(result.id)) return;
+      const job = pending.get(result.id);
+      if (!job) return;
+      if (result.kind === "http") {
+        if (job.network) void requestHttp(next, result.id, job, result.request).catch(error => settle(result.id, error));
+        return;
+      }
       if (typeof result.ok !== "boolean" || !result.ok && typeof result.error?.message !== "string") { settle(result.id, hostError("脚本执行环境返回了无效结果")); return; }
       if (result.ok === true) settle(result.id, null, result.value);
       else {
@@ -80,16 +111,20 @@
     });
   }
   /** 只供后台指令和已授权的设置试运行调用；输入/输出为 JSON 数据，取消后不提交迟到结果 */
-  async function run({ id, code, inputs, bindings, reading, seconds = 10, signal }) {
+  async function run({ id, code, inputs, bindings, reading, seconds = 10, signal, network }) {
     if (pending.has(id)) throw hostError("脚本运行标识重复");
     if (signal?.aborted) throw signal.reason;
     let resolve, reject;
     const result = new Promise((yes, no) => { resolve = yes; reject = no; });
-    pending.set(id, { resolve, reject });
+    const job = { resolve, reject, ...(network ? { network, networkController: new AbortController(), lastRequest: 0, attempts: 0 } : {}) };
+    pending.set(id, job);
     const cancel = () => { port?.postMessage({ action: "cancel", id }); settle(id, signal.reason); };
     signal?.addEventListener("abort", cancel, { once: true });
     const prepare = ensure().then(() => {
-      if (pending.has(id)) port.postMessage(reading ? { action: "reading", id, reading } : { action: "run", id, code, ...(bindings ? { bindings } : { inputs }), seconds });
+      if (pending.has(id)) {
+        job.httpDeadline = performance.now() + seconds * 1000;
+        port.postMessage(reading ? { action: "reading", id, reading } : { action: "run", id, code, ...(bindings ? { bindings } : { inputs }), seconds, ...(network ? { network: true } : {}) });
+      }
     }, error => { settle(id, error); });
     try { const [, value] = await Promise.all([prepare, result]); return value; }
     finally { signal?.removeEventListener("abort", cancel); await release(); }

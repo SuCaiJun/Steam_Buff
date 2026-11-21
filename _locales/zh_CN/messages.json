@@ -8552,16 +8552,16 @@
     "message": "近30日"
   },
   "aiPermissionHttp_title": {
-    "message": "Steam Buff - HTTP 请求授权"
+    "message": "Steam Buff - 域名授权"
   },
   "aiPermissionHttp_section": {
-    "message": "HTTP 请求授权"
+    "message": "域名授权"
   },
   "aiPermissionHttp_heading": {
-    "message": "允许工作流访问站点"
+    "message": "允许扩展访问站点"
   },
   "aiPermissionHttp_description": {
-    "message": "Steam Buff 需要访问以下站点，才能运行 HTTP 请求指令。"
+    "message": "授权后，Steam Buff 可以访问以下站点。"
   },
   "settings_ai_serviceName": {
     "message": "服务名称"
@@ -11058,7 +11058,7 @@
     "message": "此对话正在另一个窗口生成。"
   },
   "ai_chat_permission": {
-    "message": "请在第三方服务设置中授权当前 AI 网关。"
+    "message": "请在「自动化 → 域名授权」中授权当前 AI 网关。"
   },
   "ai_chat_config": {
     "message": "当前 AI 服务不可用，请检查设置。"
@@ -11101,6 +11101,50 @@
   },
   "workflow_ui_triggers": {
     "message": "触发器"
+  },
+  "workflow_site_permissions": {
+    "message": "域名授权"
+  },
+  "workflow_site_grants": {
+    "message": "已授权站点"
+  },
+  "workflow_site_add": {
+    "message": "新增域名"
+  },
+  "workflow_site_remove": {
+    "message": "移除授权"
+  },
+  "workflow_site_empty": {
+    "message": "暂无已授权站点"
+  },
+  "workflow_site_loading": {
+    "message": "正在读取站点权限…"
+  },
+  "workflow_site_domain": {
+    "message": "域名"
+  },
+  "workflow_site_not_granted": {
+    "message": "未授权"
+  },
+  "workflow_click_authorize": {
+    "message": "点我授权"
+  },
+  "workflow_site_remove_prompt": {
+    "message": "移除 $site$ 的授权后，使用它的 AI 服务和工作流需要重新授权。",
+    "placeholders": {
+      "site": {
+        "content": "$1"
+      }
+    }
+  },
+  "workflow_script_network_preview": {
+    "message": "脚本可能发送真实 HTTP 请求并修改目标站点的数据。"
+  },
+  "workflow_ui_http_request": {
+    "message": "HTTP 请求"
+  },
+  "workflow_script_preview_uncertain": {
+    "message": "试运行已停止，已发送的写请求结果待核实"
   },
   "workflow_ui_run_history": {
     "message": "运行记录"

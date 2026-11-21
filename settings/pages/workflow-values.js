@@ -376,6 +376,14 @@
         if (!inTool) rows.push({ key: "meta", name: tr("workflow_ui_run_information", "运行信息"), detail: tr("workflow_ui_current_run", "本次运行"), group: tr("workflow_ui_run_context", "运行上下文"), value: flow.reference("meta"),
           children: Object.entries(metaFields).map(([key, name]) => ({ key: "meta." + key, name: key, detail: name, value: flow.reference("meta", "", [key]) })) });
       }
+      if (!output && scriptControl(input) && !flow.isToolId(workflow.id)) {
+        for (const method of flow.httpMethods) {
+          const body = flow.hasHttpBody(method) ? ", { body: {} }" : "";
+          const code = "await http." + method.toLowerCase() + "(/* URL */" + body + ")";
+          rows.push({ key: "http:" + method, name: method, detail: code, group: tr("workflow_ui_http_request", "HTTP 请求"),
+            value: flow.literal(code), code, children: [] });
+        }
+      }
       return rows;
     }
     function paint(query = "") {
@@ -437,7 +445,10 @@
       const control = input, element = control.closest("[data-value]"), editor = element && editors.get(element), range = selected.range || insertion;
       close(); context.suppress = true;
       try {
-        if (scriptControl(control)) scriptEditor().insertReference(selected.value, range);
+        if (scriptControl(control)) {
+          if (selected.code) scriptEditor().insert(selected.code, range, "/* URL */");
+          else scriptEditor().insertReference(selected.value, range);
+        }
         else if (control.hasAttribute("data-output")) { control.value = selected.name; control.dispatchEvent(new Event("change", { bubbles: true })); control.focus(); }
         else if (editor) { editor.insert(selected.value, selected.constant ? selected.name : "", range); editor.contentDOM.dispatchEvent(new Event("change", { bubbles: true })); }
         else { collect(container, object, workflow); storeValue(element, object, selected.value); redraw(); container.dispatchEvent(new Event("input", { bubbles: true })); }

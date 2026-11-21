@@ -50,7 +50,8 @@
   }
   function nodeOf(job) { return job.workflow && job.flow ? flow.currentNode(job.workflow, job.flow) : null; }
   const execution = job => job.toolRun || job;
-  const hasUnconfirmedRequest = job => job.status === "committing" || job.status === "running-script" && nodeOf(execution(job))?.action === "http-request";
+  const hasUnconfirmedRequest = job => job.status === "committing" || job.status === "running-script" &&
+    (job.scriptHttpPending || nodeOf(execution(job))?.action === "http-request");
   async function persistFlow(job, expectedStep, seconds = null) {
     return store.change(job.id, current => {
       if (current.finalized || current.status !== "queued" || current.step !== expectedStep) return null;
@@ -367,6 +368,10 @@
       if (current.finalized) return null;
       if (status === "completed") checkRunTime(current);
       if (checkpoint && current.step === checkpoint.expectedStep) { current.flow = copy(checkpoint.job.flow); current.step = checkpoint.job.step; }
+      if (current.scriptHttpPending && ["expired", "cancelled"].includes(status)) {
+        status = "uncertain";
+        error = httpError("HTTP 写请求已发送，结果待核实", "WORKFLOW_HTTP_UNCERTAIN", error);
+      }
       if (error) current.exception = flow.errorData(error);
       return finalState(current, status, error);
     });
@@ -876,7 +881,7 @@
       return saveResult(job, node, result);
     } finally { if (requests.get(job.id) === controller) requests.delete(job.id); }
   }
-  function runScriptOrReading(node, state, id, signal) {
+  function runScriptOrReading(node, state, id, signal, network) {
     if (node.action === "script") {
       const bindings = { name: "__workflowValues_" + crypto.randomUUID().replaceAll("-", ""), values: [] }, slots = new Map();
       const code = node.code.map(part => {
@@ -888,7 +893,7 @@
         }
         return `${bindings.name}[${slots.get(key)}]`;
       }).join("");
-      return root.STWorkflowScript.run({ id, code, bindings, seconds: node.seconds, signal });
+      return root.STWorkflowScript.run({ id, code, bindings, seconds: node.seconds, signal, ...(network && { network }) });
     }
     const data = root.STWorkflowData, definition = data.byId[node.action];
     const args = Object.fromEntries(definition.fields.map(field => [field.key, flow.read(node[field.key], state)]));
@@ -902,8 +907,131 @@
     return (await chrome.storage.local.get(key))[key] || {};
   }
 
+  async function requireHttpSite(url, signal) {
+    signal.throwIfAborted();
+    const pattern = root.STAI.hostPermissionPattern(url.origin);
+    const granted = await chrome.permissions.contains({ origins: [pattern] });
+    signal.throwIfAborted();
+    if (!granted) throw Object.assign(httpError("请在域名授权或错误列表中授权 " + url.origin,
+      "WORKFLOW_HTTP_PERMISSION_REQUIRED"), { origin: url.origin });
+  }
+
+  const siteIssueKey = (workflowId, nodeId) => "st.automation.site-issue." + workflowId + "." + nodeId;
+  async function rememberSiteIssue(job, error) {
+    if (!["WORKFLOW_HTTP_PERMISSION_REQUIRED", "AI_HOST_PERMISSION_REQUIRED"].includes(error.code) || !flow.httpUrl(error.origin)) return;
+    const node = nodeOf(job);
+    if (!node) return;
+    const current = await root.STSettings.storage.getWorkflow();
+    if (current.epoch !== job.epoch || !current.workflows.some(item => item.id === job.workflow.id && item.revision === job.workflow.revision)) return;
+    await chrome.storage.session.set({ [siteIssueKey(job.workflow.id, node.id)]: {
+      epoch: job.epoch, revision: job.workflow.revision, origin: error.origin,
+    } });
+  }
+
+  async function recentSiteIssues(workflow) {
+    if (!workflow || !/^wf-\d+$/.test(workflow.id) || !Number.isSafeInteger(workflow.revision) ||
+      !Array.isArray(workflow.nodes) || !workflow.nodes.every(id => typeof id === "string" && /^[a-zA-Z][a-zA-Z0-9_-]*$/.test(id))) return [];
+    const keys = workflow.nodes.map(id => siteIssueKey(workflow.id, id));
+    const values = await chrome.storage.session.get(keys);
+    return keys.flatMap((key, index) => values[key]?.epoch === workflow.epoch && values[key]?.revision === workflow.revision ?
+      [[workflow.nodes[index], values[key].origin]] : []);
+  }
+
+  /** Chrome 权限为唯一来源；站点清单只暴露可撤销权限，检查同时覆盖生效的固定权限 */
+  async function sitePermissions(hosts = [], workflow) {
+    const manifest = chrome.runtime.getManifest();
+    const fixed = new Set([...(manifest.host_permissions || []), ...(manifest.content_scripts || []).flatMap(entry => entry.matches)]);
+    const { origins = [] } = await chrome.permissions.getAll();
+    const removable = origins.filter(pattern => /^(https?|\*):\/\//.test(pattern) && !fixed.has(pattern)).sort();
+    if (!Array.isArray(hosts)) throw new TypeError("站点清单无效");
+    const recent = await recentSiteIssues(workflow);
+    const patterns = [...new Set([...hosts, ...recent.map(([, origin]) => origin)]
+      .map(host => flow.httpUrl(host)).filter(Boolean).map(url => root.STAI.hostPermissionPattern(url.origin)))];
+    const checked = await Promise.all(patterns.map(async pattern => [pattern.slice(0, -2),
+      await chrome.permissions.contains({ origins: [pattern] })]));
+    return { removable, checked, recent };
+  }
+
+  async function httpText(response, maxBytes) {
+    if (!maxBytes) return response.text();
+    if (!response.body) return "";
+    const reader = response.body.getReader(), decoder = new TextDecoder();
+    let bytes = 0, text = "";
+    try {
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) return text + decoder.decode();
+        bytes += value.byteLength;
+        if (bytes > maxBytes) {
+          await reader.cancel();
+          throw httpError("脚本 HTTP 响应超过 2 MiB");
+        }
+        text += decoder.decode(value, { stream: true });
+      }
+    } finally { reader.releaseLock(); }
+  }
+
+  async function sendHttp(url, method, headers, body, seconds, signal, maxBytes, checkpoint) {
+    let dispatched = false, acknowledged = false;
+    try {
+      return await root.STNetworkRequest.run(seconds * 1000, async requestSignal => {
+        if (checkpoint) await checkpoint(true);
+        requestSignal.throwIfAborted();
+        dispatched = true;
+        const response = await root.fetch(url.href, { method, headers, body, credentials: "omit", redirect: "manual", signal: requestSignal });
+        acknowledged = true;
+        if (checkpoint) await checkpoint(false);
+        if (response.type === "opaqueredirect" || [301, 302, 303, 307, 308].includes(response.status)) throw httpError("请求地址发生重定向，请填写最终 URL");
+        return { status: response.status, ok: response.ok, headers: Object.fromEntries(response.headers), body: await httpText(response, maxBytes) };
+      }, signal);
+    } catch (error) {
+      if (checkpoint && !dispatched) await checkpoint(false);
+      if (signal.aborted) throw signal.reason;
+      if (dispatched && !acknowledged && checkpoint && (error.name === "TimeoutError" || error instanceof TypeError))
+        throw httpError("HTTP 写请求已发送，结果待核实", "WORKFLOW_HTTP_UNCERTAIN", error);
+      if (error.name === "TimeoutError") throw httpError(`HTTP 请求超过 ${seconds} 秒`, "WORKFLOW_HTTP_TIMEOUT", error);
+      if (error instanceof TypeError) throw httpError("HTTP 请求或响应读取失败", "WORKFLOW_HTTP_FAILED", error);
+      throw error;
+    }
+  }
+
+  async function scriptHttp({ url: address, method, options = {} }, seconds, signal, checkpoint, confirmed = true) {
+    const url = flow.httpUrl(address);
+    if (!url || !flow.httpMethods.includes(method) || !options || typeof options !== "object" || Array.isArray(options) ||
+      Object.keys(options).some(key => key !== "body" && key !== "headers"))
+      throw httpError("脚本 HTTP 地址、方法或参数无效");
+    const writes = flow.hasHttpBody(method);
+    if (!writes && Object.hasOwn(options, "body")) throw httpError("GET 和 HEAD 不支持请求体");
+    const headers = httpHeaders(options.headers ?? {});
+    const body = requestBody(options.body, headers);
+    await requireHttpSite(url, signal);
+    if (!confirmed) throw httpError("请确认试运行将发送真实 HTTP 请求");
+    return sendHttp(url, method, headers, body, Math.min(seconds, flow.httpMaxTimeout), signal, 2 * 1024 * 1024, writes ? checkpoint : null);
+  }
+
+  function httpHeaders(values) {
+    if (!values || typeof values !== "object" || Array.isArray(values)) throw httpError("请求头需要使用字典");
+    const headers = new Headers();
+    for (const [name, value] of Object.entries(values)) {
+      if (typeof value !== "string") throw httpError("请求头的值需要使用文本");
+      try { headers.append(name, value); }
+      catch (error) {
+        if (!(error instanceof TypeError)) throw error;
+        throw httpError("请求头名称或值无效");
+      }
+    }
+    return headers;
+  }
+
+  function requestBody(value, headers) {
+    if (value === undefined || typeof value === "string") return value || undefined;
+    root.STWorkflowData.json(value);
+    if (!headers.has("content-type")) headers.set("content-type", "application/json");
+    return JSON.stringify(value);
+  }
+
   /** 正式运行和试运行使用相同的站点校验，且超时覆盖响应体读取 */
-  async function runHttp(node, state, signal, tool = null) {
+  async function runHttp(node, state, signal, tool = null, checkpoint) {
     const active = flow.activeValue(node.url);
     const address = tool && active.template ? active.template.map(part => {
       if (typeof part === "string") return part;
@@ -912,33 +1040,10 @@
     }).join("") : flow.read(node.url, state);
     const url = flow.httpUrl(address);
     if (!url) throw httpError("请输入有效的 HTTP 或 HTTPS URL");
-    if (url.origin !== node.origin) throw httpError("实际 URL 与已配置的请求站点不一致");
-    const headerValues = flow.read(node.headers, state);
-    if (!headerValues || typeof headerValues !== "object" || Array.isArray(headerValues)) throw httpError("请求头需要使用字典");
-    const headers = new Headers();
-    for (const [name, value] of Object.entries(headerValues)) {
-      if (typeof value !== "string") throw httpError("请求头的值需要使用文本");
-      try { headers.append(name, value); }
-      catch (error) {
-        if (!(error instanceof TypeError)) throw error;
-        // 原生异常可能包含用户填写的鉴权值
-        throw httpError("请求头名称或值无效");
-      }
-    }
-    let body;
-    if (flow.hasHttpBody(node.method)) {
-      const value = flow.read(node.body, state);
-      if (typeof value === "string") body = value || undefined;
-      else {
-        body = JSON.stringify(value);
-        if (!headers.has("content-type")) headers.set("content-type", "application/json");
-      }
-    }
-    signal.throwIfAborted();
-    const pattern = root.STAI.hostPermissionPattern(url.origin);
-    const granted = await chrome.permissions.contains({ origins: [pattern] });
-    signal.throwIfAborted();
-    if (!granted) throw httpError(`请在 HTTP 请求指令中授权站点 ${url.origin}`, "WORKFLOW_HTTP_PERMISSION_REQUIRED");
+    if (tool && url.origin !== node.origin) throw httpError("实际 URL 与工具请求站点不一致");
+    const headers = httpHeaders(flow.read(node.headers, state));
+    const body = flow.hasHttpBody(node.method) ? requestBody(flow.read(node.body, state), headers) : undefined;
+    await requireHttpSite(url, signal);
     if (tool && node.keyHeader) {
       const saved = (await toolCredentials())[toolKey(tool, node)];
       if (!saved || saved.origin !== node.origin || saved.header !== node.keyHeader)
@@ -946,18 +1051,8 @@
       headers.set(node.keyHeader, saved.value);
     }
 
-    try {
-      return await root.STNetworkRequest.run(node.requestTimeoutSeconds * 1000, async requestSignal => {
-        const response = await root.fetch(url.href, { method: node.method, headers, body, credentials: "omit", redirect: "manual", signal: requestSignal });
-        if (response.type === "opaqueredirect" || [301, 302, 303, 307, 308].includes(response.status)) throw httpError("请求地址发生重定向，请填写最终 URL");
-        return { status: response.status, ok: response.ok, headers: Object.fromEntries(response.headers), body: await response.text() };
-      }, signal);
-    } catch (error) {
-      if (signal.aborted) throw signal.reason;
-      if (error.name === "TimeoutError") throw httpError(`HTTP 请求超过 ${node.requestTimeoutSeconds} 秒`, "WORKFLOW_HTTP_TIMEOUT", error);
-      if (error instanceof TypeError) throw httpError("HTTP 请求或响应读取失败");
-      throw error;
-    }
+    return sendHttp(url, node.method, headers, body, node.requestTimeoutSeconds, signal, null,
+      flow.hasHttpBody(node.method) ? checkpoint : null);
   }
 
   async function requireWorkflowPermission(node) {
@@ -971,8 +1066,8 @@
   }
 
   const isToolQuery = node => node.action === "query-provider-data";
-  async function runQuery(node, state, signal, tool) {
-    if (!isToolQuery(node)) return runHttp(node, state, signal, tool);
+  async function runQuery(node, state, signal, tool, checkpoint) {
+    if (!isToolQuery(node)) return runHttp(node, state, signal, tool, checkpoint);
     try {
       const appId = flow.read(node.appId, state);
       return await services.aiTool(node.provider, { appId }, signal);
@@ -1005,8 +1100,23 @@
         const bundle = await guard(current);
         if (frame) guardTool(bundle, frame);
       }
-      const value = await (query ? runQuery(node, state, controller.signal, frame?.workflow) : runScriptOrReading(node, state, job.id, controller.signal));
+      const network = !frame && node.action === "script" ? async (request, seconds, signal) => {
+        await guard(current);
+        await requireWorkflowPermission(node);
+        const checkpoint = async active => {
+          const checkpointed = await store.change(job.id, entry => {
+            if (entry.finalized || entry.status !== "running-script" || nodeOf(execution(entry))?.id !== node.id) return null;
+            if (active) entry.scriptHttpPending = true; else delete entry.scriptHttpPending;
+            return entry;
+          });
+          if (active && !checkpointed) throw httpError("脚本执行已结束");
+        };
+        return scriptHttp(request, seconds, signal, checkpoint);
+      } : undefined;
+      const value = await (query ? runQuery(node, state, controller.signal, frame?.workflow) : runScriptOrReading(node, state, job.id, controller.signal, network));
       controller.signal.throwIfAborted();
+      if (network && (await store.get(job.id)).scriptHttpPending)
+        throw httpError("HTTP 写请求已发送，结果待核实", "WORKFLOW_HTTP_UNCERTAIN");
       const bundle = await guard(current);
       if (frame) {
         guardTool(bundle, frame);
@@ -1205,8 +1315,9 @@
             }
           } catch (error) {
             if ([RUN_TIMEOUT, "AUTOMATION_EXPIRED", "ACCOUNT_CHANGED", "ACCOUNT_UNCONFIRMED"].includes(error.code)) throw error;
+            await rememberSiteIssue(job, error);
             let current = await store.get(jobId);
-            if (current.finalized) throw error;
+            if (current.finalized || current.scriptHttpPending || error.code === "WORKFLOW_HTTP_UNCERTAIN") throw error;
             if (current.status === "committing") {
               if (!error.actionResult && error.code !== "ACTION_WRITE_CONFLICT") throw error;
               current = await store.change(jobId, entry => {
@@ -1256,7 +1367,8 @@
         const current = await store.get(jobId);
         if (current && expiredRun(current) && await expireTimedJob(jobId, Date.now())) return;
         if (current && !finalStates.has(current.status)) await reportFailure(jobId,
-          ["AUTOMATION_EXPIRED", "ACCOUNT_CHANGED"].includes(error.code) ? "expired" : current.status === "committing" ? "uncertain" : "failed", error, null,
+          ["AUTOMATION_EXPIRED", "ACCOUNT_CHANGED"].includes(error.code) ? "expired" :
+            current.status === "committing" || current.scriptHttpPending || error.code === "WORKFLOW_HTTP_UNCERTAIN" ? "uncertain" : "failed", error, null,
           job ? { job, expectedStep: base } : null);
       } finally { await arm(); }
     })();
@@ -1732,6 +1844,15 @@
   }
   async function execute(request, sender) {
     if (request.action === "settings-ready") return ready({ retry: request.retry === true });
+    if (request.action === "site-permissions") return sitePermissions(request.hosts, request.workflow);
+    if (request.action === "remove-site-permission") {
+      const { removable } = await sitePermissions();
+      if (!removable.includes(request.pattern)) throw new Error("该站点授权已移除或属于扩展固定权限");
+      if (!await chrome.permissions.remove({ origins: [request.pattern] })) throw new Error("未能移除站点授权");
+      const result = await sitePermissions();
+      if (result.removable.includes(request.pattern)) throw new Error("浏览器仍保留该站点授权");
+      return result;
+    }
     // 恢复可以调用 Steam。握手只等配置读完，以免握手与恢复互相等待
     await (request.action === "native-ready" ? initialization : startup);
     if (request.action === "schedule-clock") {
@@ -1779,15 +1900,18 @@
       flow.validate(workflow, { assigned: Object.keys(request.variables || {}) });
       const meta = request.meta || { triggerName: "指令试运行", triggerType: "manual" };
       if (typeof meta.triggerName !== "string" || !meta.triggerName.trim() || !model.isTriggerType(meta.triggerType)) throw new TypeError("试运行的触发器样例无效");
-      const state = await workflowState(workflow, request.input || {}, meta.triggerName.trim(), meta.triggerType, [node]);
-      for (const [id, value] of Object.entries(request.variables || {})) {
-        if (!workflow.variables.some(item => item.id === id)) throw new TypeError("试运行变量不属于当前工作流");
-        flow.write(state, id, value);
-      }
       const begin = performance.now(), controller = new AbortController();
       previews.set(previewKey, controller);
+      let writePending = false;
+      const checkpoint = active => { writePending = active; };
       const evaluate = data => root.STWorkflowScript.run({ id: "preview-expression-" + previewKey, ...data, seconds: 10, signal: controller.signal });
       try {
+        const state = await workflowState(workflow, request.input || {}, meta.triggerName.trim(), meta.triggerType, [node]);
+        controller.signal.throwIfAborted();
+        for (const [id, value] of Object.entries(request.variables || {})) {
+          if (!workflow.variables.some(item => item.id === id)) throw new TypeError("试运行变量不属于当前工作流");
+          flow.write(state, id, value);
+        }
         if (node.action === "script" || node.action === "http-request") await requireWorkflowPermission(node);
         controller.signal.throwIfAborted();
         let output;
@@ -1816,20 +1940,24 @@
               if (!accounts.current(binding)) throw new Error("Steam 账号已切换，请重试");
               flow.complete(workflow, state, node, output);
             } else if (node.action === "http-request" || isToolQuery(node)) {
-              output = await runQuery(node, state, controller.signal, flow.isToolId(workflow.id) ? workflow : null);
+              output = await runQuery(node, state, controller.signal, flow.isToolId(workflow.id) ? workflow : null, checkpoint);
               flow.complete(workflow, state, node, output);
             } else if (node.action === "script" || root.STWorkflowData.readingActions.includes(node.action)) {
-              output = await runScriptOrReading(node, state, "preview-" + previewKey, controller.signal);
+              const network = !flow.isToolId(workflow.id) && node.action === "script" ?
+                (http, seconds, signal) => scriptHttp(http, seconds, signal, checkpoint, request.confirmNetwork === true) : undefined;
+              output = await runScriptOrReading(node, state, "preview-" + previewKey, controller.signal, network);
+              if (writePending) throw httpError("HTTP 写请求已发送，结果待核实", "WORKFLOW_HTTP_UNCERTAIN");
               flow.complete(workflow, state, node, output);
             } else { flow.local(workflow, state, node); output = state.vars[node.output]; }
           }
           controller.signal.throwIfAborted();
         } catch (error) {
-          if (controller.signal.aborted) throw controller.signal.reason;
+          if (controller.signal.aborted || error.code === "WORKFLOW_HTTP_UNCERTAIN") throw error;
+          if (writePending) throw httpError("HTTP 写请求已发送，结果待核实", "WORKFLOW_HTTP_UNCERTAIN", error);
           if (node.kind === "if" || node.action === "ai-call" || !flow.failed(workflow, state, node, error)) throw error;
         }
         return { value: output ?? null, variables: state.vars, failures: state.failures || [], milliseconds: performance.now() - begin };
-      } catch (error) { if (controller.signal.aborted) return { cancelled: true }; throw error; }
+      } catch (error) { if (controller.signal.aborted) return { cancelled: true, ...(writePending && { uncertain: true }) }; throw error; }
       finally { previews.delete(previewKey); }
     }
     if (["save-ai-services", "save-translate", "apply-ai-settings"].includes(request.action))
@@ -1918,10 +2046,14 @@
     }
     const owner = await identity();
     if (request.action === "stop-run") {
-      const job = await store.get(request.id);
-      if (!job || (job.owner && job.owner !== owner)) throw new Error("当前账号不能停止此运行");
-      if (job.status === "committing") throw new Error("操作已提交，不能保证撤销，请等待实际结果");
-      await finish(job.id, "cancelled"); await arm(); await pump(); return { stopped: true };
+      const stopped = await store.change(request.id, job => {
+        if (job.owner && job.owner !== owner) throw new Error("当前账号不能停止此运行");
+        if (job.status === "committing" || job.scriptHttpPending) throw new Error("操作已提交，不能保证撤销，请等待实际结果");
+        return finalState(job, "cancelled");
+      });
+      if (stopped) await finishEffects(stopped);
+      else if (!await store.get(request.id)) throw new Error("当前账号不能停止此运行");
+      await arm(); await pump(); return { stopped: true };
     }
     throw new TypeError("自动化操作无效");
   }

@@ -8552,16 +8552,16 @@
     "message": "Last 30 days"
   },
   "aiPermissionHttp_title": {
-    "message": "Steam Buff – HTTP request permission"
+    "message": "Steam Buff – Site permissions"
   },
   "aiPermissionHttp_section": {
-    "message": "HTTP request permission"
+    "message": "Site permissions"
   },
   "aiPermissionHttp_heading": {
-    "message": "Allow the workflow to access this site"
+    "message": "Allow the extension to access this site"
   },
   "aiPermissionHttp_description": {
-    "message": "Steam Buff needs access to this site to run the HTTP request."
+    "message": "Steam Buff can access the site below once authorized."
   },
   "settings_ai_serviceName": {
     "message": "Service name"
@@ -11058,7 +11058,7 @@
     "message": "Another window is generating a response in this chat."
   },
   "ai_chat_permission": {
-    "message": "Grant access to this AI gateway in Third-party Services."
+    "message": "Authorize the current AI gateway under Automation → Site permissions."
   },
   "ai_chat_config": {
     "message": "This AI service is unavailable. Check its settings."
@@ -11101,6 +11101,50 @@
   },
   "workflow_ui_triggers": {
     "message": "Triggers"
+  },
+  "workflow_site_permissions": {
+    "message": "Site permissions"
+  },
+  "workflow_site_grants": {
+    "message": "Authorized sites"
+  },
+  "workflow_site_add": {
+    "message": "Add domain"
+  },
+  "workflow_site_remove": {
+    "message": "Revoke access"
+  },
+  "workflow_site_empty": {
+    "message": "No authorized sites"
+  },
+  "workflow_site_loading": {
+    "message": "Loading site permissions…"
+  },
+  "workflow_site_domain": {
+    "message": "Domain"
+  },
+  "workflow_site_not_granted": {
+    "message": "Not authorized"
+  },
+  "workflow_click_authorize": {
+    "message": "Authorize"
+  },
+  "workflow_site_remove_prompt": {
+    "message": "Revoking access to $site$ affects AI services and workflows that use it.",
+    "placeholders": {
+      "site": {
+        "content": "$1"
+      }
+    }
+  },
+  "workflow_script_network_preview": {
+    "message": "This script can send HTTP requests and change data on target sites."
+  },
+  "workflow_ui_http_request": {
+    "message": "HTTP requests"
+  },
+  "workflow_script_preview_uncertain": {
+    "message": "Test stopped. The result of the submitted write request is unconfirmed."
   },
   "workflow_ui_run_history": {
     "message": "Run history"

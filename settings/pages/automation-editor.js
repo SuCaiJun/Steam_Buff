@@ -32,7 +32,7 @@
     cron: { mode: "cron", expression: "" },
   };
   const weekdays = () => [[1, tr("workflow_ui_mon", "周一")], [2, tr("workflow_ui_tue", "周二")], [3, tr("workflow_ui_wed", "周三")], [4, tr("workflow_ui_thu", "周四")], [5, tr("workflow_ui_fri", "周五")], [6, tr("workflow_ui_sat", "周六")], [0, tr("workflow_ui_sun", "周日")]];
-  const tabs = () => [["workflows", tr("workflow_ui_workflows", "工作流")], ["prompts", tr("workflow_ui_prompts", "提示词")], ["tools", tr("ai_chat_tools", "工具")], ["triggers", tr("workflow_ui_triggers", "触发器")], ["history", tr("workflow_ui_run_history", "运行记录")]];
+  const tabs = () => [["workflows", tr("workflow_ui_workflows", "工作流")], ["prompts", tr("workflow_ui_prompts", "提示词")], ["tools", tr("ai_chat_tools", "工具")], ["triggers", tr("workflow_ui_triggers", "触发器")], ["site-permissions", tr("workflow_site_permissions", "域名授权")], ["history", tr("workflow_ui_run_history", "运行记录")]];
   const variableTypes = { get any() { return tr("workflow_ui_any_type", "任意数据"); }, get text() { return tr("steam_independentName_bulk_text", "文本"); }, get number() { return tr("steam_independentName_bulk_number", "数字"); }, get boolean() { return tr("workflow_ui_boolean", "布尔值"); }, get list() { return tr("seed_variable_list", "列表"); }, get object() { return tr("seed_variable_record", "字典"); }, get result() { return tr("workflow_ui_action_result", "指令结果"); } };
   const style = css.compose(
     css.button(".aw button:where(:not([data-st-combo-toggle])):where(:not([data-st-combo-option]))", { density: "compact" }), css.button(".aw button.aw-primary", { variant: "primary", density: "compact" }),
@@ -48,7 +48,7 @@
     .aw-page-heading{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:16px}.aw-page-heading .page-title{margin:0}.aw-tabs{display:flex;gap:8px;flex-wrap:nowrap;overflow-x:auto;border-bottom:1px solid var(--st-dialog-divider);margin-bottom:16px;scrollbar-width:thin}
     .aw .aw-tabs [role=tab]{position:relative;flex:none;padding:8px 12px;min-height:40px;border:0;border-radius:0;background:transparent;box-shadow:none;color:var(--st-color-text-secondary);font-size:var(--st-font-size-body-small);font-weight:var(--st-font-weight-medium);white-space:nowrap;transition:color var(--st-motion-fast)}
     .aw .aw-tabs [role=tab]:hover{background:transparent;color:var(--st-color-text-primary)}.aw .aw-tabs [role=tab]:focus-visible{outline:2px solid var(--st-color-steam-blue);outline-offset:-4px;box-shadow:none}.aw .aw-tabs [role=tab][aria-selected=true]{color:var(--st-color-steam-blue)}.aw-tabs [aria-selected=true]::after{content:"";position:absolute;inset:auto 12px 0;border-block-end:2px solid currentColor}
-    .aw-list{display:grid;gap:8px}.aw-card{display:flex;align-items:center;gap:12px;padding:12px;border:1px solid var(--st-dialog-border);border-radius:var(--st-radius-md);background:var(--st-color-surface-subtle)}.aw-card>div:first-child{flex:1;min-width:0}.aw-card strong,.aw-card small{display:block;overflow-wrap:anywhere}.aw-card small{margin-top:4px;color:var(--st-color-text-secondary)}.aw-icon{display:inline-grid;place-items:center;width:28px;height:28px;padding:0!important;flex:none}.aw-icon[data-aw]>.aw-command-icon{width:16px;height:16px}.aw-icon[aria-pressed=true]{color:var(--st-color-success)}
+    .aw-list{display:grid;gap:8px}.aw-card{display:flex;align-items:center;gap:12px;padding:12px;border:1px solid var(--st-dialog-border);border-radius:var(--st-radius-md);background:var(--st-color-surface-subtle)}.aw-card>div:first-child{flex:1;min-width:0}.aw-card strong,.aw-card small{display:block;overflow-wrap:anywhere}.aw-card small{margin-top:4px;color:var(--st-color-text-secondary)}.aw-icon{display:inline-grid;place-items:center;width:28px;height:28px;padding:0!important;flex:none}.aw-icon>.aw-command-icon{width:16px;height:16px}.aw-icon[aria-pressed=true]{color:var(--st-color-success)}
     .aw-empty{padding:32px 16px;text-align:center;color:var(--st-color-text-secondary);border:1px dashed var(--st-dialog-border);border-radius:var(--st-radius-md)}.aw-error{color:var(--st-color-danger-text);white-space:pre-wrap;overflow-wrap:anywhere;margin-top:8px}.aw-error:empty{display:none}.aw-note{color:var(--st-color-text-secondary);font-size:var(--st-font-size-caption)}
     .aw-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.aw-wide{grid-column:1/-1}.aw-form{display:grid;gap:16px}.aw-section{display:grid;gap:10px;padding-top:12px;border-top:1px solid var(--st-dialog-divider)}.aw-section h4{margin:0;font-size:var(--st-font-size-body-small);font-weight:var(--st-font-weight-medium)}
     .aw-value{display:grid;gap:6px;min-width:0}.aw-condition-group{display:grid;gap:8px;padding-inline-start:12px;border-inline-start:1px solid var(--st-dialog-divider)}.aw-condition{display:grid;grid-template-columns:minmax(0,1fr) 108px minmax(0,1fr) 28px;gap:8px;align-items:start}.aw-button-row{display:grid;grid-template-columns:minmax(0,1fr) 108px 28px;gap:8px;align-items:end}
@@ -94,8 +94,10 @@
     .aw-palette details[data-group]{margin-inline-start:8px}.aw-palette details[data-group]>summary{font-weight:var(--st-font-weight-regular);font-size:var(--st-font-size-caption)}
     .aw-param-dialog{width:min(680px,calc(100vw - 32px))!important}.aw-param-dialog .settings-dialog-header{min-height:88px;height:auto;padding-block:16px!important}.aw-param-dialog .settings-dialog-message{padding:0 20px 20px!important;max-height:calc(100dvh - 200px);overflow:auto;white-space:normal}.aw-param-dialog .aw-form{gap:0}.aw-param-dialog .aw-param-tabs{margin:0 0 20px;gap:16px;flex-shrink:0}.aw-param-dialog .aw-param-tabs [role=tab]{padding-inline:0}.aw-param-dialog .aw-param-tabs [aria-selected=true]::after{inset-inline:0}.aw-param-dialog [role=tabpanel]{display:grid;gap:24px}.aw-param-dialog .aw-section{gap:16px}.aw-param-dialog .aw-section+.aw-section{border-top:1px solid var(--st-dialog-divider);padding-top:20px}.aw-param-dialog .aw-grid{grid-template-columns:minmax(0,1fr);gap:16px}.aw-param-dialog .aw-section>label,.aw-param-dialog .aw-grid>label,.aw-param-dialog .aw-output-field{display:grid;grid-template-columns:112px minmax(0,1fr);gap:16px;align-items:center}.aw-param-dialog .aw-value{gap:16px}.aw-param-dialog .aw-section h4{font-size:var(--st-font-size-body-small);margin:0 0 4px}.aw-param-dialog [data-dialog-action=test]{margin-inline-end:auto}
     .aw-param-dialog .aw-single-condition{grid-template-columns:minmax(0,1fr);border:0;padding:0}.aw-param-dialog .aw-condition-fields>label select{max-width:none}.aw-code-section{display:grid;gap:8px}.aw-code-toolbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.aw-code-toolbar>span{margin-inline-end:auto}.aw-code-editor{height:280px;min-width:0;border:1px solid var(--st-dialog-border);border-radius:var(--st-control-radius);overflow:hidden;display:grid;grid-template-columns:minmax(0,1fr) auto}.aw-code-editor>[data-code]{min-width:0;min-height:0}.aw .aw-code-editor>[data-script-reference]{align-self:start;height:32px;border-radius:var(--st-control-radius)}.aw-code-editor:focus-within{border-color:var(--st-color-steam-blue);box-shadow:var(--st-control-focus-shadow)}.aw-code-expanded{width:calc(100vw - 32px)!important}.aw-code-expanded .aw-code-editor{height:48vh}.aw-test-result{margin-top:16px;padding-top:16px;border-top:1px solid var(--st-dialog-divider);white-space:pre-wrap;overflow-wrap:anywhere;font-family:monospace;max-height:200px;overflow:auto}.aw-param-dialog [hidden]{display:none!important}
-    .aw-http-permission{display:flex;align-items:center;justify-content:space-between;gap:8px;color:var(--st-dialog-muted-color);font-size:var(--st-font-size-body-small)}.aw-http-permission:has([data-http-status]:empty){display:none}.aw-http-permission>span{overflow-wrap:anywhere}
     .aw-inspector .aw-table-link:has(.aw-diagnostic-warning){color:var(--st-dialog-text-color)}.aw-diagnostic-warning{color:var(--st-color-warning);margin-inline-end:4px}
+    .aw-inspector [data-diagnostics] tbody tr:is(:hover,:has(:focus-visible)){background-color:var(--st-color-surface-subtle-hover)}
+    .aw-inspector [data-diagnostics] button,.aw-inspector [data-diagnostics] button:is(:hover,:focus-visible){border:0;border-radius:0;background:transparent;box-shadow:none}
+    .aw-inspector [data-diagnostics] button:focus-visible{text-decoration:underline;text-underline-offset:.2em}
     @media(max-width:600px){.aw-param-dialog .aw-section>label,.aw-param-dialog .aw-grid>label,.aw-param-dialog .aw-output-field,.aw-param-dialog .aw-value{grid-template-columns:minmax(0,1fr);gap:8px}}
     .aw-param-dialog:has(.aw-trigger-form) .settings-dialog-header{min-height:0}
     .aw-trigger-form{display:grid;gap:16px;padding-top:20px}
@@ -480,6 +482,7 @@
   }
   function paintEditor(editor) {
     editor.cancelDrag?.();
+    checkEditorSites(editor);
     const { root: node, draft } = editor, canvas = node.querySelector(".aw-canvas"), scroll = canvas.scrollTop;
     const focused = node.getRootNode().activeElement, activeRow = focused?.closest?.("[data-key]"), activeAction = focused?.dataset.aw;
     const oldPicker = node.querySelector(".aw-command-picker");
@@ -681,22 +684,123 @@
     empty.textContent = editor.draft.variables.length ? tr("workflow_ui_no_matching_variables", "没有匹配的变量") : tr("workflow_ui_no_variables_yet", "暂无变量");
     empty.hidden = matches > 0;
   }
+  function permissionMessage(action, fields) {
+    return root.STMessageBus.request({ type: "AI_GATEWAY_PERMISSION_" + action, purpose: "workflow-http", ...fields }, { timeoutMs: 10000, logFailures: false }).then(result => {
+      if (result?.success !== true) throw new Error(result?.error || tr("workflow_ui_site_authorization_failed", "站点授权操作失败"));
+      return result;
+    });
+  }
+  async function authorizeSite(origin, closeSignal) {
+    if (root.location.protocol === "chrome-extension:" && root.chrome.permissions?.request) {
+      return root.chrome.permissions.request({ origins: [root.STAI.hostPermissionPattern(origin)] });
+    }
+    const requestId = root.STLoggerFactory.createRequestId();
+    const signal = AbortSignal.any([...(closeSignal ? [closeSignal] : []), AbortSignal.timeout(300000)]);
+    let settle, opened = false;
+    const result = new Promise(resolve => { settle = resolve; });
+    const stop = () => settle(null);
+    const subscription = root.STMessageBus.listen("AI_GATEWAY_PERMISSION_RESULT", (message, _sender, respond) => {
+      if (message.requestId !== requestId) return false;
+      respond({ success: true, received: true });
+      settle(message);
+      return false;
+    }, { owner: "settings-workflow", key: requestId });
+    try {
+      if (!subscription) throw new Error(tr("workflow_ui_this_page_cannot_receive_the_authorization_result", "当前页面无法接收站点授权结果"));
+      signal.addEventListener("abort", stop, { once: true });
+      const operation = await permissionMessage("OPEN", { host: origin, requestId });
+      opened = operation.opened === true;
+      if (!opened) throw new Error(tr("workflow_ui_could_not_open_the_authorization_page", "无法打开站点授权页"));
+      const outcome = await result;
+      if (closeSignal?.aborted) return false;
+      if (!outcome) throw new Error(tr("workflow_ui_authorization_timed_out_try_again", "等待站点授权超时，请重新操作"));
+      return outcome.granted === true;
+    } finally {
+      signal.removeEventListener("abort", stop);
+      subscription?.dispose();
+      if (opened && signal.aborted) await permissionMessage("CANCEL", { requestId });
+    }
+  }
+
   function diagnosticSummary(entries) {
     const warnings = entries.filter(entry => entry.severity === "warning").length, errors = entries.length - warnings;
     return [errors && tr("workflow_format_errors", "$count$ 个错误", { count: errors }), warnings && tr("workflow_format_warnings", "$count$ 个警告", { count: warnings })].filter(Boolean).join(" · ");
   }
+  function siteIssueRow(entry, lines, name) {
+    const numbers = entry.nodeIds.map(id => lines.get(id)?.number).filter(Number.isInteger).sort((a, b) => a - b);
+    const caption = numbers.length ? tr("workflow_format_line", "第 $count$ 行", { count: numbers.join("、") }) : "";
+    return `<tr><td>${esc(entry.origin)} ${esc(tr("workflow_site_not_granted", "未授权"))}${button("site-authorize",
+      "[" + tr("workflow_click_authorize", "点我授权") + "]", `class="aw-variable-name" data-origin="${esc(entry.origin)}"`)}${caption ? `　·　${esc(caption)}` : ""}</td><td>${esc(name)}</td><td></td></tr>`;
+  }
+  const requestFingerprint = node => JSON.stringify([node.action, node.url, node.code, node.serviceId]);
+  function rememberSiteIssue(editor, node, error) {
+    if (error.code !== "WORKFLOW_HTTP_PERMISSION_REQUIRED" && error.code !== "AI_HOST_PERMISSION_REQUIRED") return;
+    const url = flow.httpUrl(error.origin);
+    if (!url) return;
+    editor.runtimeSites.set(node.id, { origin: url.origin, fingerprint: requestFingerprint(node) });
+    editor.panel = "errors"; editor.panelClosed = false;
+    checkEditorSites(editor, true);
+  }
+  function checkEditorSites(editor, refresh = false) {
+    const nodes = [...flow.walk(editor.draft.steps, true)].filter(node => ["http-request", "script", "ai-call"].includes(node.action));
+    const inputs = nodes.map(node => {
+      if (node.action === "script") return editor.inTool ? [] : [node.id, "script", node.code];
+      if (node.action === "http-request") return [node.id, "http", flow.activeValue(node.url), editor.inTool ? node.origin : null];
+      return [node.id, "ai", root.STAI.findService(editor.registry, node.serviceId)?.host];
+    });
+    const key = JSON.stringify([inputs, [...editor.runtimeSites]]);
+    if (!refresh && key === editor.siteKey) return;
+    editor.siteKey = key;
+    const sequence = (editor.siteSequence || 0) + 1;
+    editor.siteSequence = sequence;
+    return (async () => {
+      const groups = new Map();
+      const add = (nodeId, origin) => {
+        if (!origin) return;
+        const site = root.STAI.hostPermissionPattern(origin).slice(0, -2);
+        if (!site) return;
+        if (!groups.has(site)) groups.set(site, new Set());
+        groups.get(site).add(nodeId);
+      };
+      const needsCode = inputs.some(([, kind, value]) => kind === "script" || kind === "http" && value?.expression);
+      const code = needsCode ? await import(root.chrome.runtime.getURL("settings/pages/workflow-code.js")) : null;
+      for (const [nodeId, kind, value, toolOrigin] of inputs) {
+        if (kind === "script") for (const origin of code.scriptNetwork(value).origins) add(nodeId, origin);
+        if (kind === "http") add(nodeId, flow.staticHttpOrigin(value) || toolOrigin || (value?.expression && code.requestSite(value.expression)));
+        if (kind === "ai") add(nodeId, flow.httpUrl(value)?.origin);
+      }
+      for (const [nodeId, site] of editor.runtimeSites) if (nodes.some(node => node.id === nodeId && requestFingerprint(node) === site.fingerprint)) add(nodeId, site.origin);
+      const unchanged = nodes.filter(node => editor.savedRequests?.get(node.id) === requestFingerprint(node)).map(node => node.id);
+      const workflow = !editor.inTool && editor.originalId && unchanged.length ?
+        { id: editor.originalId, epoch: editor.epoch, revision: editor.draft.revision, nodes: unchanged } : null;
+      const { checked, recent } = groups.size || workflow ? await view().rpc("site-permissions", { hosts: [...groups.keys()], workflow }) : { checked: [], recent: [] };
+      for (const [nodeId, origin] of recent) add(nodeId, origin);
+      if (sequence !== editor.siteSequence || editor.signal.aborted || !editor.root.isConnected) return;
+      editor.siteIssues = checked.filter(([, granted]) => !granted).map(([origin]) => {
+        const nodeIds = [...groups.get(origin)];
+        return { origin, nodeIds, nodeId: nodeIds[0], severity: "warning", message: origin + " " + tr("workflow_site_not_granted", "未授权") };
+      });
+      editor.diagnostics = null;
+      paintInspector(editor);
+    })().catch(error => {
+      if (!editor.signal.aborted && editor.root.isConnected && sequence === editor.siteSequence) {
+        editor.siteKey = null;
+        reportFailure(error, null, editor);
+      }
+    });
+  }
   function editorDiagnostics(editor) {
     return editor.diagnostics ??= [...tools.diagnostics(editor.draft), ...promptIssues(editor.draft, editor.plans, editor.registry),
-      ...toolIssues(editor.draft, editor.toolLibrary), ...tools.permissionWarnings(tools.lines(editor.draft), editor.membership)];
+      ...toolIssues(editor.draft, editor.toolLibrary), ...tools.permissionWarnings(tools.lines(editor.draft), editor.membership), ...editor.siteIssues];
   }
   function paintInspector(editor) {
     const { root: node, draft } = editor;
     const lines = tools.lines(draft), variable = editor.panel === "variables", references = variable ? tools.index(draft) : null;
-    const entries = editorDiagnostics(editor), summary = diagnosticSummary(entries);
+    const entries = editorDiagnostics(editor);
     node.querySelector("[data-count]").textContent = tr("workflow_format_action_variables", "$actions$ 条指令 · $count$ 个变量", { actions: [...flow.walk(draft.steps)].filter(step => step.kind !== "fold").length, count: draft.variables.length });
     for (const tab of node.querySelectorAll("[data-inspector-tab]")) {
       const selected = tab.dataset.inspectorTab === editor.panel; tab.setAttribute("aria-selected", String(selected)); tab.tabIndex = selected ? 0 : -1;
-      tab.textContent = tab.dataset.inspectorTab === "errors" ? tr("workflow_ui_errors", "错误列表") + (summary ? " · " + summary : "") : tr("workflow_ui_variables", "变量列表") + " · " + draft.variables.length;
+      tab.textContent = tab.dataset.inspectorTab === "errors" ? tr("workflow_ui_errors", "错误列表") + (entries.length ? "·" + entries.length : "") : tr("workflow_ui_variables", "变量列表") + "·" + draft.variables.length;
     }
     const panel = node.querySelector(".aw-inspector-panel"); panel.hidden = editor.panelClosed;
     panel.setAttribute("aria-labelledby", "aw-inspector-" + editor.panel);
@@ -709,7 +813,7 @@
       const uses = [...new Set((references.get(item.id) || []).map(use => lines.get(use.nodeId)?.number))].filter(number => number !== undefined);
       return `<tr data-variable-id="${esc(item.id)}"><td><button type="button" class="aw-variable-name" data-aw="variable-edit">${esc(item.name)}</button></td><td>${esc(tools.typeNames[item.type])}</td><td>${uses.length ? uses.map(number => `<button type="button" class="aw-variable-name" data-aw="variable-locate" data-line="${number}" aria-label="${esc(tr("workflow_format_locate", "定位第 $count$ 行", { count: number }))}">${number}</button>`).join("、") : "—"}</td><td>${iconButton("variable-delete", tr("workflow_ui_delete_variable", "删除变量") + " " + item.name, "trash")}</td></tr>`;
     }).join("")}</tbody></table>${empty(tr("workflow_ui_no_variables_yet", "暂无变量"))}`
-      : `<table><thead><tr><th scope="col">${esc(tr("workflow_ui_errors_and_warnings", "错误与警告"))}</th><th scope="col">${esc(tr("workflow_ui_workflows", "工作流"))}</th><th scope="col">${esc(tr("workflow_ui_line", "行号"))}</th></tr></thead><tbody>${entries.map((entry, index) => `<tr><td><button type="button" class="aw-table-link" data-aw="error-locate" data-error="${index}">${entry.severity === "warning" ? `<span class="aw-diagnostic-warning">${esc(tr("messageCenter_level_warning", "警告"))}</span> ` : ""}${esc(view().errorCaption(entry))}</button></td><td>${esc(draft.name)}</td><td>${lines.get(entry.nodeId)?.number || "—"}</td></tr>`).join("")}</tbody></table>${entries.length ? "" : empty(tr("workflow_ui_no_errors", "暂无错误"))}<div class="aw-error" data-editor-error role="alert"></div>`);
+      : `<table data-diagnostics><thead><tr><th scope="col">${esc(tr("workflow_ui_errors_and_warnings", "错误与警告"))}</th><th scope="col">${esc(tr("workflow_ui_workflows", "工作流"))}</th><th scope="col">${esc(tr("workflow_ui_line", "行号"))}</th></tr></thead><tbody>${entries.map((entry, index) => entry.origin ? siteIssueRow(entry, lines, draft.name) : `<tr><td><button type="button" class="aw-table-link" data-aw="error-locate" data-error="${index}">${entry.severity === "warning" ? `<span class="aw-diagnostic-warning">${esc(tr("messageCenter_level_warning", "警告"))}</span> ` : ""}${esc(view().errorCaption(entry))}</button></td><td>${esc(draft.name)}</td><td>${lines.get(entry.nodeId)?.number || "—"}</td></tr>`).join("")}</tbody></table>${entries.length ? "" : empty(tr("workflow_ui_no_errors", "暂无错误"))}<div class="aw-error" data-editor-error role="alert"></div>`);
     if (variable) filterVariables(editor);
   }
   function revealNode(editor, id) {
@@ -1141,7 +1245,8 @@
             ${palette(inTool)}
             </aside><div class="aw-canvas" role="listbox" aria-label="${esc(tr("workflow_ui_workflow_actions", "工作流指令"))}" aria-multiselectable="false"></div></div>
             <section class="aw-inspector" aria-label="${esc(tr("workflow_ui_workflow_checks", "工作流检查"))}"><div class="aw-inspector-head"><div class="aw-tabs" role="tablist" aria-label="${esc(tr("workflow_ui_workflow_checks_panel", "工作流检查面板"))}"><button type="button" role="tab" id="aw-inspector-errors" data-inspector-tab="errors" aria-controls="aw-inspector-panel">${esc(tr("workflow_ui_errors", "错误列表"))}</button><button type="button" role="tab" id="aw-inspector-variables" data-inspector-tab="variables" aria-controls="aw-inspector-panel">${esc(tr("workflow_ui_variables", "变量列表"))}</button></div><span data-count></span>${iconButton("panel-toggle", tr("workflow_ui_toggle_inspector", "折叠或展开检查面板"), "layout-bottombar", 'aria-expanded="true" aria-controls="aw-inspector-panel"')}</div><div class="aw-inspector-panel" id="aw-inspector-panel" role="tabpanel"></div></section></div>`);
-          editor = { draft, root: node, registry, membership, plans: state.bundle.prompts, inTool, toolLibrary: state.bundle.tools || [], importing: !!importIssue && importIssue.importing !== false, undo: [], redo: [], selected: "root-gap", rows: [], collapsed: new Set(), cursor: null, insertion: null, panel: "errors", panelClosed: false, diagnostics: null };
+          editor = { draft, root: node, registry, membership, plans: state.bundle.prompts, inTool, toolLibrary: state.bundle.tools || [], importing: !!importIssue && importIssue.importing !== false, undo: [], redo: [], selected: "root-gap", rows: [], collapsed: new Set(), cursor: null, insertion: null, panel: "errors", panelClosed: false, diagnostics: null, signal: controller.signal, siteIssues: [], runtimeSites: new Map(), originalId: !importIssue && original?.id, epoch: state.bundle.epoch,
+            savedRequests: original && !importIssue ? new Map([...flow.walk(original.steps)].map(item => [item.id, requestFingerprint(item)])) : null };
           paintEditor(editor); bindEditor(state, editor, controller.signal);
         },
         actions: [...(inTool ? [{ id: "test-tool", label: toolTestLabel() }] : []), { id: "cancel", label: tr("common_cancel", "取消") }, { id: "save", label: tr("common_save", "保存"), primary: true }],
@@ -1322,6 +1427,8 @@
           const [registry, membership] = await Promise.all([state.ctx.storage.getAi(), state.ctx.storage.getMembership()]);
           if (signal.aborted) return;
           editor.registry = registry; editor.membership = membership; editor.diagnostics = null;
+          await checkEditorSites(editor, true);
+          if (signal.aborted) return;
           editor.panel = "errors"; editor.panelClosed = false;
           const [firstIssue] = editorDiagnostics(editor);
           if (firstIssue) revealNode(editor, firstIssue.nodeId); else paintEditor(editor);
@@ -1334,6 +1441,16 @@
           node.querySelector(editor.variableSearchOpen ? "[data-variable-search]" : '[data-aw="variable-search"]').focus();
         }
         else if (action === "panel-toggle") { editor.panelClosed = !editor.panelClosed; paintInspector(editor); }
+        else if (action === "site-authorize") {
+          control.disabled = true;
+          try {
+            if (await authorizeSite(control.dataset.origin, signal)) {
+              await checkEditorSites(editor, true);
+              if (!signal.aborted && !control.isConnected)
+                node.querySelector('[data-inspector-tab="errors"]').focus();
+            }
+          } finally { control.disabled = false; }
+        }
         else if (action === "error-locate") await editIssue(state, editor, editor.diagnostics[Number(control.dataset.error)]);
         else if (action === "variable-locate") revealNode(editor, [...tools.lines(editor.draft)].find(([, item]) => item.number === Number(control.dataset.line))[0]);
         else if (["variable-new", "variable-edit", "variable-delete"].includes(action)) await variableAction(state, editor, action, control.closest("[data-variable-id]")?.dataset.variableId);
@@ -1610,8 +1727,7 @@
     let container, branch = row.branch || 0, parameterTab = issue?.field === "toolIds" ? "advanced" : "general", codeEditor = null, renderEpoch = 0, previewId = null, previewText = "";
     let preparingPreview = false;
     const lifetime = new AbortController(), dataDefinition = flow.definitions[working.action];
-    const http = working.action === "http-request", permissions = new Map();
-    let authorizing = "", permissionTimer = 0;
+    const http = working.action === "http-request";
     working.onError ||= "throw";
     const initialValue = flow.activeValue(working.value);
     if (working.action === "set") working.valueType ||= Object.hasOwn(initialValue, "literal") ? ({ string: "text", number: "number", boolean: "boolean", list: "list", object: "object" }[Array.isArray(initialValue.literal) ? "list" : typeof initialValue.literal] || "any") : "any";
@@ -1663,85 +1779,6 @@
         extra.map(([index, item]) => '<div data-prompt-extra>' + valueField(item.key, item.value, "mapping." + index + ".value", workspace) + '</div>').join("") + '</section>';
       return fields;
     }
-    function requestSite(node) {
-      const inferred = flow.staticHttpOrigin(node.url);
-      if (inferred) return inferred;
-      if (Object.hasOwn(flow.activeValue(node.url), "literal")) return "";
-      const explicit = flow.httpUrl(node.origin);
-      return explicit && explicit.href === explicit.origin + "/" ? explicit.origin : "";
-    }
-    function permissionMessage(action, fields) {
-      return root.STMessageBus.request({ type: "AI_GATEWAY_PERMISSION_" + action, purpose: "workflow-http", ...fields }, { timeoutMs: 10000, logFailures: false }).then(result => {
-        if (result?.success !== true) throw new Error(result?.error || tr("workflow_ui_site_authorization_failed", "站点授权操作失败"));
-        return result;
-      });
-    }
-    function paintHttpSite() {
-      const status = container.querySelector("[data-http-status]");
-      if (!status || lifetime.signal.aborted) return;
-      const field = container.querySelector('[data-prop="origin"]');
-      field.closest("[data-http-site]").hidden = !!flow.staticHttpOrigin(working.url) || Object.hasOwn(flow.activeValue(working.url), "literal");
-      const origin = requestSite({ url: working.url, origin: field.value });
-      const button = container.querySelector("[data-http-authorize]");
-      const permission = permissions.get(origin);
-      button.hidden = !origin || permission === true;
-      button.disabled = !!authorizing || permission === "checking";
-      status.textContent = !origin ? "" : origin + " · " + (permission === true ? tr("workflow_ui_authorized", "已授权") : permission === false ? tr("workflow_ui_awaiting_authorization", "待授权") : tr("workflow_ui_checking_authorization", "检查授权中…"));
-      root.clearTimeout(permissionTimer);
-      if (!origin || permissions.has(origin)) return;
-      button.disabled = true;
-      permissionTimer = root.setTimeout(() => {
-        permissions.set(origin, "checking");
-        void permissionMessage("CHECK", { host: origin }).then(result => {
-          permissions.set(origin, result.granted === true);
-          paintHttpSite();
-        }).catch(error => {
-          permissions.set(origin, false);
-          if (!lifetime.signal.aborted) { paintHttpSite(); reportFailure(error, container.querySelector(".aw-error")); }
-        });
-      }, 300);
-    }
-    async function authorizeHttpSite(origin) {
-      if (!origin || authorizing) return;
-      authorizing = origin; paintHttpSite();
-      if (root.location.protocol === "chrome-extension:" && root.chrome.permissions?.request) {
-        try {
-          const granted = await root.chrome.permissions.request({ origins: [root.STAI.hostPermissionPattern(origin)] });
-          permissions.set(origin, granted === true);
-          if (!granted) throw new Error(tr("workflow_ui_site_not_authorized", "站点未授权"));
-        } finally { authorizing = ""; paintHttpSite(); }
-        return;
-      }
-      const requestId = root.STLoggerFactory.createRequestId();
-      const signal = AbortSignal.any([lifetime.signal, AbortSignal.timeout(300000)]);
-      let settle, opened = false;
-      const result = new Promise(resolve => { settle = resolve; });
-      const stop = () => settle(null);
-      const subscription = root.STMessageBus.listen("AI_GATEWAY_PERMISSION_RESULT", (message, _sender, respond) => {
-        if (message.requestId !== requestId) return false;
-        respond({ success: true, received: true });
-        settle(message);
-        return false;
-      }, { owner: "settings-workflow", key: requestId });
-      try {
-        if (!subscription) throw new Error(tr("workflow_ui_this_page_cannot_receive_the_authorization_result", "当前页面无法接收站点授权结果"));
-        signal.addEventListener("abort", stop, { once: true });
-        const operation = await permissionMessage("OPEN", { host: origin, requestId });
-        opened = operation.opened === true;
-        if (!opened) throw new Error(tr("workflow_ui_could_not_open_the_authorization_page", "无法打开站点授权页"));
-        const outcome = await result;
-        if (lifetime.signal.aborted) return;
-        if (!outcome) throw new Error(tr("workflow_ui_authorization_timed_out_try_again", "等待站点授权超时，请重新操作"));
-        permissions.set(origin, outcome.granted === true);
-        if (!outcome.granted) throw new Error(outcome.error || tr("workflow_ui_site_not_authorized", "站点未授权"));
-      } finally {
-        signal.removeEventListener("abort", stop);
-        subscription?.dispose();
-        authorizing = "";
-        paintHttpSite();
-        if (opened && signal.aborted) await permissionMessage("CANCEL", { requestId });
-      }
-    }
     function render() {
       codeEditor?.destroy(); codeEditor = null;
       const epoch = ++renderEpoch;
@@ -1762,7 +1799,6 @@
         if (http) {
           content += prop(tr("workflow_ui_method", "方法"), "method", working.method, (editor.inTool ? ["GET"] : flow.httpMethods).map(method => [method, method]));
           content += valueField("URL", working.url, "url", workspace, [], "text");
-          content += `<div data-http-site>${prop(tr("workflow_ui_request_site", "请求站点"), "origin", working.origin)}</div><div class="aw-http-permission"><span role="status" data-http-status></span><button type="button" data-http-authorize hidden>${esc(tr("workflow_ui_authorize_site", "授权站点"))}</button></div>`;
           if (editor.inTool) content += prop(tr("workflow_tool_key_header", "密钥请求头"), "keyHeader", working.keyHeader);
           else content += valueField(tr("workflow_ui_request_headers", "请求头"), working.headers, "headers", workspace, [], "object");
           if (flow.hasHttpBody(working.method)) content += valueField(tr("workflow_ui_request_body", "请求体"), working.body ?? flow.literal(""), "body", workspace, [], "any", true);
@@ -1836,7 +1872,6 @@
       formHtml(container, `<div class="aw aw-form"><div class="aw-tabs aw-param-tabs" role="tablist" aria-label="${esc(tr("workflow_ui_action_parameters", "指令参数"))}">${paramTabs.map(([id, label]) => `<button type="button" role="tab" data-parameter-tab="${id}" aria-selected="${id === parameterTab}" tabindex="${id === parameterTab ? 0 : -1}">${label}</button>`).join("")}</div><div role="tabpanel" aria-label="${paramTabs.find(([id]) => id === parameterTab)?.[1]}">${content ? `<div class="aw-section">${parameterTab === "general" ? `<h4>${esc(tr("workflow_ui_action_inputs", "指令输入"))}</h4>` : ""}${content}</div>` : ""}${output ? `<div class="aw-section"><h4>${esc(tr("workflow_ui_action_outputs", "指令输出"))}</h4>${output}</div>` : ""}</div><div class="aw-test-result" data-test-result role="status" hidden></div><div class="aw-error" role="alert"></div></div>`);
       if (promptError) container.querySelector(".aw-error").textContent = promptError;
       if (previewText) { const result = container.querySelector("[data-test-result]"); result.hidden = false; result.textContent = previewText; }
-      if (http && parameterTab === "general") paintHttpSite();
       if (parameterTab === "general" && working.action === "script") {
         const target = container.querySelector("[data-code]");
         void import(root.chrome.runtime.getURL("settings/pages/workflow-code.js")).then(module => {
@@ -1916,7 +1951,8 @@
       }
       if (target.action === "tool-call" && target.toolMode !== "registered") delete target.toolId;
       if (http) {
-        target.origin = requestSite(target);
+        if (editor.inTool) target.origin = flow.staticHttpOrigin(target.url) || target.origin || "";
+        else delete target.origin;
         if (!flow.hasHttpBody(target.method)) delete target.body;
         if (editor.inTool) {
           target.keyHeader = target.keyHeader?.trim();
@@ -1945,13 +1981,15 @@
     }
     async function stopPreview() {
       const id = previewId; if (!id) return;
-      previewId = null; showPreview(tr("workflow_ui_test_stopped", "试运行已停止"));
-      await view().rpc("cancel-instruction-test", { id });
+      previewId = null;
+      const result = await view().rpc("cancel-instruction-test", { id });
+      if (!previewId && !lifetime.signal.aborted) showPreview(result?.uncertain ?
+        tr("workflow_script_preview_uncertain", "试运行已停止，已发送的写请求结果待核实") : tr("workflow_ui_test_stopped", "试运行已停止"));
     }
     async function runPreview() {
       if (previewId) return stopPreview();
       if (preparingPreview) return;
-      let clean, trial, samples;
+      let clean, trial, samples, confirmNetwork = false;
       preparingPreview = true;
       try {
         const permission = flow.instructionPermission(working.action);
@@ -1981,30 +2019,32 @@
           return;
         }
         samples = await testValues(state, clean, trial);
-        if (samples && http) {
+        const networkScript = samples && trial.action === "script" && !editor.inTool &&
+          (await import(root.chrome.runtime.getURL("settings/pages/workflow-code.js"))).scriptNetwork(trial.code).used;
+        if (samples && (http || networkScript)) {
           const answer = await state.ctx.dialog(state.shadow, { title: tr("workflow_ui_send_test_request", "发送测试请求"), className: "aw-automation-dialog",
-            message: `${trial.method} ${trial.origin}\n${tr("workflow_ui_this_sends_a_real_request_to_this_site", "本次操作会向该站点发送真实请求。")}`,
+            message: networkScript ? tr("workflow_script_network_preview", "脚本可能发送真实 HTTP 请求并修改目标站点的数据。") :
+              [trial.method + " " + (flow.staticHttpOrigin(trial.url) || ""), tr("workflow_ui_this_sends_a_real_request_to_this_site", "本次操作会向该站点发送真实请求。")].join("\n"),
             actions: [{ id: "cancel", label: tr("common_cancel", "取消") }, { id: "send", label: tr("workflow_ui_send_request", "发送请求"), primary: true }],
           });
           if (answer !== "send") samples = null;
+          else confirmNetwork = true;
         }
       } finally { preparingPreview = false; }
       if (!samples || lifetime.signal.aborted) return;
       const id = root.crypto.randomUUID(); previewId = id; showPreview(tr("workflow_ui_running", "正在运行…"));
       try {
-        const result = await view().rpc("test-instruction", { id, workflow: { ...clean, steps: [trial] }, ...samples });
+        const result = await view().rpc("test-instruction", { id, workflow: { ...clean, steps: [trial] }, confirmNetwork, ...samples });
         if (previewId !== id || lifetime.signal.aborted) return;
         previewId = null;
         if (result.cancelled) { showPreview(tr("workflow_ui_test_stopped", "试运行已停止")); return; }
-        if (http && result.failures.some(failure => failure.code === "WORKFLOW_HTTP_PERMISSION_REQUIRED")) {
-          permissions.delete(trial.origin); paintHttpSite();
-        }
+        for (const failure of result.failures) rememberSiteIssue(editor, trial, failure.error || failure);
         const status = result.failures.length ? tr("workflow_ui_failed_continued_as_configured", "失败，已按配置继续") : trial.action === "ai-call" ? tr("workflow_ui_request_preview_not_sent", "请求预览 · 未发送") : tr("workflow_ui_run_completed", "运行完成");
         showPreview(`${status} · ${Math.round(result.milliseconds)} ms\n${JSON.stringify(result.failures.length ? result.failures : result.value, null, 2)}`);
       } catch (error) {
         if (previewId !== id || lifetime.signal.aborted) return;
         previewId = null;
-        if (http) { permissions.delete(trial.origin); paintHttpSite(); }
+        rememberSiteIssue(editor, trial, error);
         showPreview(tr("workflow_ui_run_failed", "运行失败") + "\n" + view().errorCaption(error));
       }
     }
@@ -2042,7 +2082,6 @@
         }
         root.STWorkflowValues.bind(node, working, workspace, { dialog: state.ctx.dialog, shadow: state.shadow, render, scriptEditor: () => codeEditor, signal: lifetime.signal });
         node.addEventListener("input", event => {
-          if (http) paintHttpSite();
           if (event.target.matches("[data-tool-search]")) {
             searchToolChoices(node, event.target.value);
             return;
@@ -2068,7 +2107,6 @@
             if (previewId) void stopPreview().catch(error => reportFailure(error, node.querySelector(".aw-error")));
             collectAll();
             if (http && event.target.matches('[data-prop="method"]') || event.target.matches('[data-prop="toolMode"]')) { render(); return; }
-            if (http) paintHttpSite();
             if (event.target.matches('[data-prop="valueType"]') && Object.hasOwn(flow.activeValue(working.value), "literal")) {
               const type = working.valueType, old = flow.activeValue(working.value).literal;
               if (type !== "any" && !(type === "text" && typeof old === "string" || type === "number" && typeof old === "number" || type === "boolean" && typeof old === "boolean" || type === "list" && Array.isArray(old) || type === "object" && old && typeof old === "object" && !Array.isArray(old))) {
@@ -2111,11 +2149,6 @@
             } catch (error) { reportFailure(error, node.querySelector(".aw-error")); }
             return;
           }
-          if (event.target.closest("[data-http-authorize]")) {
-            const origin = requestSite({ url: working.url, origin: node.querySelector('[data-prop="origin"]').value });
-            void authorizeHttpSite(origin).catch(error => { if (!lifetime.signal.aborted) reportFailure(error, node.querySelector(".aw-error")); });
-            return;
-          }
           if (event.target.closest("[data-code-size]")) { container.closest(".aw-param-dialog").classList.toggle("aw-code-expanded"); return; }
           const control = event.target.closest("[data-aw]"); if (!control) return;
           event.stopPropagation();
@@ -2152,7 +2185,7 @@
         }
         catch (error) { reportFailure(error, node.querySelector(".aw-error")); return false; }
       },
-    }); } finally { lifetime.abort(); root.clearTimeout(permissionTimer); codeEditor?.destroy(); await stopPreview(); }
+    }); } finally { lifetime.abort(); codeEditor?.destroy(); await stopPreview(); }
   }
   const triggerFieldName = field => instructions.schemaLabel(root.STWorkflowFields.labels[field] || root.STWorkflowFields.task[field] || field);
   const gameEvent = type => Object.hasOwn(gameEvents, type);
@@ -2913,13 +2946,75 @@
       (bundle.workflows.length ? `<div class="aw-list">${bundle.workflows.map(workflow => `<div class="aw-card" data-id="${esc(workflow.id)}"><div><strong>${esc(workflow.name)}</strong><small>${esc(tr("workflow_format_action_triggers", "$actions$ 条指令 · $count$ 个触发器引用", { actions: [...flow.walk(workflow.steps)].length, count: bundle.triggers.filter(item => item.workflowId === workflow.id).length }))}</small></div><div class="aw-tools">${iconButton("workflow-edit", tr("store_titleCustomName_edit", "编辑") + " " + workflow.name, "pencil")}${iconButton("workflow-copy", tr("common_copy", "复制") + " " + workflow.name, "copy")}${iconButton("workflow-export", tr("common_export", "导出") + " " + workflow.name, "download")}${iconButton("workflow-delete", tr("common_delete", "删除") + " " + workflow.name, "trash")}</div></div>`).join("")}</div>` : `<div class="aw-empty">${esc(tr("workflow_ui_no_workflows_yet", "暂无工作流"))}</div>`);
     else if (tab === "prompts") content = view().promptsHtml(bundle);
     else if (tab === "tools") content = toolList(bundle);
+    else if (tab === "site-permissions") {
+      content = `<div class="aw-toolbar"><span>${esc(tr("workflow_site_grants", "已授权站点"))}</span>${button("site-add", tr("workflow_site_add", "新增域名"), 'class="aw-primary"', "plus")}</div>` +
+        (state.sites ? state.sites.length ? `<div class="aw-list">${state.sites.map(pattern =>
+          `<div class="aw-card" data-id="${esc(pattern)}"><div><strong>${esc(pattern.replace(/\/\*$/, ""))}</strong></div>${button("site-remove", tr("workflow_site_remove", "移除授权"))}</div>`).join("")}</div>` :
+          `<div class="aw-empty">${esc(tr("workflow_site_empty", "暂无已授权站点"))}</div>` :
+          `<div class="aw-empty" role="status">${esc(tr("workflow_site_loading", "正在读取站点权限…"))}</div>`);
+    }
     else content = `<div class="aw-toolbar"><span>${esc(tr("workflow_ui_run_history", "运行记录"))}</span>${button("history-refresh", tr("common_refresh", "刷新"), state.historyLoading ? "disabled" : "")}</div>` + (state.historyLoading ? `<div class="aw-empty" role="status">${esc(tr("workflow_ui_loading_run_history", "正在读取运行记录…"))}</div>` :
       `<div class="aw-list">${state.jobs.map(job => `<div class="aw-card" data-id="${esc(job.id)}"><div><strong>${esc(job.workflowName)}</strong><small>${esc(job.triggerName)} · ${esc(new Date(job.createdAt).toLocaleString(root.STI18n.intlLocale()))} · ${esc(runStatus(job))}</small></div>${button("job", tr("messageCenter_view", "查看"))}</div>`).join("")}</div>${state.next ? button("history-more", tr("workflow_ui_load_more", "加载更多")) : !state.jobs.length ? `<div class="aw-empty">${esc(tr("workflow_ui_no_runs_yet", "暂无运行记录"))}</div>` : ""}`);
     html(panel, content); panel.tabIndex = panel.querySelector("button,input,select,textarea") ? -1 : 0;
   }
+  async function loadSites(state) {
+    const { removable } = await view().rpc("site-permissions");
+    state.sites = removable;
+    if (state.tab === "site-permissions") renderPage(state);
+  }
+  async function addSite(state) {
+    const lifetime = new AbortController();
+    try {
+      await state.ctx.dialog(state.shadow, {
+        title: tr("workflow_site_add", "新增域名"), form: true, native: true,
+        render: node => formHtml(node, `<div class="aw aw-form"><label>${esc(tr("workflow_site_domain", "域名"))}<input data-domain type="text" autocapitalize="off" spellcheck="false"></label><div class="aw-error" role="alert"></div></div>`),
+        actions: [{ id: "cancel", label: tr("common_cancel", "取消") }, { id: "authorize", label: tr("workflow_click_authorize", "点我授权"), primary: true }],
+        async onAction(action, node) {
+          if (action !== "authorize") return true;
+          const value = node.querySelector("[data-domain]").value.trim();
+          const address = value && /^[a-z][a-z\d+.-]*:\/\//i.test(value) ? value : "https://" + value;
+          const url = flow.httpUrl(address);
+          if (!url) {
+            node.querySelector(".aw-error").textContent = tr("workflow_error_http_url", "请输入有效的 HTTP 或 HTTPS URL");
+            return false;
+          }
+          try {
+            if (!await authorizeSite(url.origin, lifetime.signal)) {
+              node.querySelector(".aw-error").textContent = tr("workflow_site_not_granted", "未授权");
+              return false;
+            }
+            await loadSites(state);
+            return true;
+          } catch (error) { reportFailure(error, node.querySelector(".aw-error")); return false; }
+        },
+      });
+    } finally { lifetime.abort(); }
+  }
   async function pageAction(state, control) {
     const action = control.dataset.aw, id = control.closest("[data-id]")?.dataset.id;
-    if (action === "tab") { if (state.tab === control.dataset.tab) return; state.tab = control.dataset.tab; if (state.tab === "history") await history(state); else renderPage(state); return; }
+    if (action === "tab") {
+      if (state.tab === control.dataset.tab) return;
+      state.tab = control.dataset.tab;
+      if (state.tab === "history") await history(state);
+      else {
+        renderPage(state);
+        if (state.tab === "site-permissions") await loadSites(state);
+      }
+      return;
+    }
+    if (action === "site-add") return addSite(state);
+    if (action === "site-remove") {
+      const answer = await state.ctx.dialog(state.shadow, { title: tr("workflow_site_remove", "移除授权"), native: true,
+        message: tr("workflow_site_remove_prompt", "移除 $site$ 的授权后，使用它的 AI 服务和工作流需要重新授权。", { site: id.replace(/\/\*$/, "") }),
+        actions: [{ id: "cancel", label: tr("common_cancel", "取消") },
+          { id: "remove", label: tr("workflow_site_remove", "移除授权"), primary: true, danger: true }] });
+      if (answer === "remove") {
+        const result = await view().rpc("remove-site-permission", { pattern: id });
+        state.sites = result.removable;
+        if (state.tab === "site-permissions") renderPage(state);
+      }
+      return;
+    }
     if (action.startsWith("tool-")) return toolPageAction(state, action, id);
     if (action === "reset") {
       const answer = await state.ctx.dialog(state.shadow, { title: tr("workflow_ui_restore_default_prompts_and_automation", "恢复提示词与自动化初始化"), className: "aw-automation-dialog", native: true,

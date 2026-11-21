@@ -8552,16 +8552,16 @@
     "message": "過去30日"
   },
   "aiPermissionHttp_title": {
-    "message": "Steam Buff - HTTP リクエストの許可"
+    "message": "Steam Buff – ドメイン権限"
   },
   "aiPermissionHttp_section": {
-    "message": "HTTP リクエストの許可"
+    "message": "ドメイン権限"
   },
   "aiPermissionHttp_heading": {
-    "message": "ワークフローにサイトへのアクセスを許可"
+    "message": "拡張機能にサイトへのアクセスを許可"
   },
   "aiPermissionHttp_description": {
-    "message": "HTTP リクエストを実行するには、次のサイトへのアクセス許可が必要です。"
+    "message": "許可すると Steam Buff は以下のサイトにアクセスできます。"
   },
   "settings_ai_serviceName": {
     "message": "サービス名"
@@ -11058,7 +11058,7 @@
     "message": "別のウィンドウで応答を生成中です。"
   },
   "ai_chat_permission": {
-    "message": "サードパーティーサービスの設定で AI ゲートウェイへのアクセスを許可してください。"
+    "message": "「自動化 → ドメイン権限」で現在の AI ゲートウェイを許可してください。"
   },
   "ai_chat_config": {
     "message": "この AI サービスを利用できません。設定を確認してください。"
@@ -11101,6 +11101,50 @@
   },
   "workflow_ui_triggers": {
     "message": "トリガー"
+  },
+  "workflow_site_permissions": {
+    "message": "ドメイン権限"
+  },
+  "workflow_site_grants": {
+    "message": "許可済みサイト"
+  },
+  "workflow_site_add": {
+    "message": "ドメインを追加"
+  },
+  "workflow_site_remove": {
+    "message": "権限を取り消す"
+  },
+  "workflow_site_empty": {
+    "message": "許可済みサイトはありません"
+  },
+  "workflow_site_loading": {
+    "message": "サイトの権限を読み込み中…"
+  },
+  "workflow_site_domain": {
+    "message": "ドメイン"
+  },
+  "workflow_site_not_granted": {
+    "message": "未許可"
+  },
+  "workflow_click_authorize": {
+    "message": "許可する"
+  },
+  "workflow_site_remove_prompt": {
+    "message": "$site$ の権限を取り消すと、このサイトを使う AI サービスとワークフローに影響します。",
+    "placeholders": {
+      "site": {
+        "content": "$1"
+      }
+    }
+  },
+  "workflow_script_network_preview": {
+    "message": "このスクリプトは実際の HTTP リクエストを送信し、対象サイトのデータを変更する場合があります。"
+  },
+  "workflow_ui_http_request": {
+    "message": "HTTP リクエスト"
+  },
+  "workflow_script_preview_uncertain": {
+    "message": "テストを停止しました。送信済みの書き込みリクエストの結果は未確認です。"
   },
   "workflow_ui_run_history": {
     "message": "実行履歴"

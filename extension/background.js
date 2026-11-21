@@ -2784,8 +2784,8 @@
         if (toolReader) configureToolThinking(next.body, url);
         if (!(await hasAiGatewayPermission(url.toString())))
           throw Object.assign(
-            new Error("未获得当前 AI 网关的访问权限，请在设置中心重新保存 AI 配置并允许访问"),
-            { code: "AI_HOST_PERMISSION_REQUIRED" },
+            new Error("请在「自动化 → 域名授权」中授权当前 AI 网关"),
+            { code: "AI_HOST_PERMISSION_REQUIRED", origin: url.origin },
           );
         return listModels
           ? fetchAiModels(next, timeoutMs, request.signal)
@@ -3214,7 +3214,7 @@
       sender?.id !== chrome.runtime.id ||
       !(isSettingsSender(sender) || isSteamRuntimeSender(sender) || onboardingAiSave) ||
       (nativeActions.includes(request.action) && !isSteamRuntimeSender(sender)) ||
-      (["test-instruction", "test-tool", "tool-credential", "cancel-instruction-test"].includes(request.action) && !isSettingsSender(sender))
+      (["test-instruction", "test-tool", "tool-credential", "cancel-instruction-test", "site-permissions", "remove-site-permission"].includes(request.action) && !isSettingsSender(sender))
     )
       throw new Error("自动化请求来源无效");
     try {
@@ -3238,6 +3238,7 @@
         success: false,
         error: error.name === "SyntaxError" ? "JSON 格式无效，请检查高级配置" : error.message,
         ...(error.code ? { errorCode: error.code } : {}),
+        ...(error.code === "WORKFLOW_HTTP_PERMISSION_REQUIRED" && error.origin ? { origin: error.origin } : {}),
       });
     }
   }
@@ -3253,6 +3254,10 @@
       if (id && !done) void automationRoute({ action: "cancel-instruction-test", id }, sender, () => {});
     });
     port.onMessage.addListener(request => {
+      if (id && !done && request?.action === "cancel-instruction-test" && request.id === id) {
+        void automationRoute({ action: "cancel-instruction-test", id }, sender, () => {});
+        return;
+      }
       if (id !== null || typeof request?.id !== "string" || !request.id) { port.disconnect(); return; }
       const action = request.action ?? "test-instruction";
       if (!["test-instruction", "test-tool"].includes(action)) { port.disconnect(); return; }
@@ -4139,7 +4144,8 @@
       return runAiLimited(service.aiConcurrency, async () => {
         signal.throwIfAborted();
         if (!await hasAiGatewayPermission(url.href))
-          throw Object.assign(new Error("请在第三方服务设置中授权当前 AI 网关"), { code: "AI_HOST_PERMISSION_REQUIRED" });
+          throw Object.assign(new Error("请在「自动化 → 域名授权」中授权当前 AI 网关"),
+            { code: "AI_HOST_PERMISSION_REQUIRED", origin: url.origin });
         return fetchPreparedAi(next, url.href, AI_FETCH_TIMEOUT_MAX_MS, signal, chat);
       }, signal);
     },
