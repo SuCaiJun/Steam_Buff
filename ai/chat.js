@@ -19,6 +19,7 @@
   const name = STConfig.aiChatName;
   const toolPreferenceKey = STConfig.aiChatToolPreferenceKey;
   const toolPreferenceStorage = { owner: "settings:ai-chat", reason: "chat-tool-preference" };
+  const STREAM_PREVIEW_MS = 100;
   const toolOptions = new Map();
   const markdown = window.markdownit({ html: false, linkify: false });
   const markdownTags = new Set([
@@ -140,40 +141,71 @@
       !url.username && !url.password ? url.href : null;
   }
 
-  /** 根据解析 token 创建明确允许的节点。原文、图片替代文字和代码只写成文本。 */
-  function appendMarkdown(root, tokens) {
+  /** 根据解析 token 更新允许的节点，保留仍匹配的文本、链接和滚动容器。 */
+  function renderMarkdown(root, tokens) {
     let parent = root;
-    for (const token of tokens) {
-      if (token.hidden) continue;
-      if (token.type === "inline") {
-        appendMarkdown(parent, token.children);
-      } else if (["text", "text_special", "image"].includes(token.type)) {
-        parent.append(token.content);
-      } else if (token.type === "softbreak" || token.type === "hardbreak") {
-        parent.append(document.createElement("br"));
-      } else if (token.type === "code_inline") {
-        const code = document.createElement("code");
-        code.textContent = token.content;
-        parent.append(code);
-      } else if (token.type === "fence" || token.type === "code_block") {
-        const pre = document.createElement("pre");
-        const code = document.createElement("code");
-        code.textContent = token.content;
-        pre.append(code);
-        parent.append(pre);
-      } else if (markdownTags.has(token.tag)) {
-        if (token.nesting === -1) {
-          parent = parent.parentNode;
-          continue;
-        }
-        const href = token.tag === "a" ? markdownLink(token.attrGet("href")) : null;
-        const node = document.createElement(token.tag === "a" && !href ? "span" : token.tag);
-        if (href) STConfig.externalNavigation.applyToLink(node, href);
-        if (token.tag === "ol" && token.attrGet("start") !== null) node.start = Number(token.attrGet("start"));
-        parent.append(node);
-        if (token.nesting === 1) parent = node;
+    let next = parent.firstChild;
+
+    function place(tag) {
+      const current = next;
+      next = current?.nextSibling ?? null;
+      if (current && (tag ? current.localName === tag : current.nodeType === Node.TEXT_NODE)) return current;
+      const node = tag ? document.createElement(tag) : document.createTextNode("");
+      if (current) current.replaceWith(node);
+      else parent.append(node);
+      return node;
+    }
+
+    function trimChildren() {
+      while (next) {
+        const child = next;
+        next = child.nextSibling;
+        child.remove();
       }
     }
+
+    function render(list) {
+      for (const token of list) {
+        if (token.hidden) continue;
+        if (token.type === "inline") {
+          render(token.children);
+        } else if (["text", "text_special", "image"].includes(token.type)) {
+          const node = place();
+          if (node.data !== token.content) node.data = token.content;
+        } else if (token.type === "softbreak" || token.type === "hardbreak") {
+          place("br");
+        } else if (token.type === "code_inline") {
+          const code = place("code");
+          if (code.textContent !== token.content) code.textContent = token.content;
+        } else if (token.type === "fence" || token.type === "code_block") {
+          const pre = place("pre");
+          const code = pre.firstElementChild ?? pre.appendChild(document.createElement("code"));
+          if (code.textContent !== token.content) code.textContent = token.content;
+        } else if (markdownTags.has(token.tag)) {
+          if (token.nesting === -1) {
+            trimChildren();
+            next = parent.nextSibling;
+            parent = parent.parentNode;
+            continue;
+          }
+          const href = token.tag === "a" ? markdownLink(token.attrGet("href")) : null;
+          const node = place(token.tag === "a" && !href ? "span" : token.tag);
+          if (href && node.getAttribute("href") !== STConfig.externalNavigation.resolve(href).href)
+            STConfig.externalNavigation.applyToLink(node, href);
+          if (token.tag === "ol") {
+            const start = token.attrGet("start");
+            if (start === null) node.removeAttribute("start");
+            else if (node.start !== Number(start)) node.start = Number(start);
+          }
+          if (token.nesting === 1) {
+            parent = node;
+            next = node.firstChild;
+          }
+        }
+      }
+    }
+    render(tokens);
+    trimChildren();
   }
 
   function messageFrame(role) {
@@ -203,8 +235,54 @@
   function replyText(parent, value, before = null) {
     const prose = document.createElement("div");
     prose.className = "message-markdown";
-    appendMarkdown(prose, markdown.parse(value, {}));
+    renderMarkdown(prose, markdown.parse(value, {}));
     parent.insertBefore(prose, before);
+  }
+
+  function previewTokens(source) {
+    const env = {};
+    const tokens = markdown.parse(source, env);
+    const index = tokens.findLastIndex(token => token.type === "inline");
+    if (index < 0 || tokens.slice(index + 1).some(token => token.nesting >= 0) || /\n[ \t]*\n[ \t]*$/.test(source))
+      return tokens;
+
+    const tail = tokens[index];
+    if (tokens[index - 1]?.type === "paragraph_open") {
+      const lines = tail.content.split("\n");
+      const last = lines.at(-1).trim();
+      const hasPendingDivider = lines.at(-2)?.includes("|") && /^[|:\s-]+$/.test(last);
+      // 表头在分隔线到达前会被解析为普通段落。只暂缓还可能属于表格的末尾行。
+      if (hasPendingDivider || last.startsWith("|") || (last.indexOf("|") > 0 && last.endsWith("|"))) {
+        const ready = lines.slice(0, hasPendingDivider ? -2 : -1).join("\n");
+        if (!ready) {
+          tokens.splice(index - 1, 3);
+          return tokens;
+        }
+        tail.content = ready;
+        tail.children = markdown.parseInline(ready, env)[0].children;
+        return tokens;
+      }
+    }
+
+    const last = tail.children.at(-1);
+    if (last?.type === "text" || last?.type === "em_close") {
+      const emphasis = /(?<![\\`*])(\*{1,3})(?=\S|$)([^*\n]*?)(\*{0,2})$/.exec(tail.content);
+      if (emphasis && emphasis[3].length < emphasis[1].length && (last.type === "text" || emphasis[3])) {
+        const prefix = tail.content.slice(0, emphasis.index);
+        const atBoundary = !/[\p{L}\p{N}\p{M}]$/u.test(prefix);
+        const boldAfterHan = emphasis[1].length > 1 && /\p{Script=Han}$/u.test(prefix);
+        if (atBoundary || boldAfterHan) {
+          tail.children = markdown.parseInline(prefix + emphasis[2], env)[0].children;
+          return tokens;
+        }
+      }
+    }
+    const link = last?.type === "text" && /(?<!\\)\[([^\[\]\n]*)\]\([^\n)]*$/.exec(tail.content);
+    if (link) {
+      const ready = tail.content.slice(0, link.index) + link[1];
+      tail.children = markdown.parseInline(ready, env)[0].children;
+    }
+    return tokens;
   }
 
   function sourceLink(source, label) {
@@ -308,9 +386,39 @@
     const summary = document.createElement("summary");
     const body = document.createElement("div");
     body.className = "reply-process-body";
+    let animation;
+    let closing = false;
+
+    function settle(nextOpen) {
+      details.open = nextOpen;
+      animation?.cancel();
+      animation = null;
+      closing = false;
+      body.inert = false;
+    }
+
+    summary.addEventListener("click", event => {
+      event.preventDefault();
+      const nextOpen = closing || !details.open;
+      const start = details.getBoundingClientRect();
+      settle(nextOpen);
+      const end = details.getBoundingClientRect();
+      // 保留详情到收起结束，让内容随边框逐步裁切。
+      details.open = true;
+      closing = !nextOpen;
+      body.inert = closing;
+      const box = ({ width, height }) => ({ width: `${width}px`, height: `${height}px`, overflow: "clip" });
+      const transition = details.animate([box(start), box(end)], {
+        id: "reply-process-resize", duration: 200, easing: "ease-out", fill: "both",
+      });
+      animation = transition;
+      transition.onfinish = () => {
+        if (animation === transition) settle(nextOpen);
+      };
+    });
     details.append(summary, body);
     content.insertBefore(details, before);
-    return { details, summary, body };
+    return { details, summary, body, close: () => settle(false) };
   }
 
   function labelProcess(process, calls) {
@@ -587,41 +695,50 @@
     const sources = [];
     let process;
     let calls = 0;
-    let frame = 0;
+    let previewTimer = 0;
     let liveText;
-    let buffer = "";
+    let liveSource = "";
+    let previewSource = "";
 
     function renderText() {
-      if (!buffer) return;
+      if (liveSource === previewSource) return;
       if (!liveText) {
         liveText = document.createElement("div");
-        liveText.className = "reply-stream";
-        liveText.append(document.createTextNode(""));
+        liveText.className = "message-markdown reply-stream";
         notice.before(liveText);
       }
-      liveText.firstChild.appendData(buffer);
-      buffer = "";
+      renderMarkdown(liveText, previewTokens(liveSource));
+      previewSource = liveSource;
     }
 
-    function finishText(value = liveText?.textContent, parent = content) {
-      if (liveText) { liveText.remove(); liveText = null; }
-      if (value?.trim()) replyText(parent, value, parent === content ? notice : null);
+    function finishText(value = liveSource, parent = content) {
+      const prose = liveText;
+      liveText = null;
+      liveSource = previewSource = "";
+      if (!value?.trim()) {
+        prose?.remove();
+      } else if (prose) {
+        renderMarkdown(prose, markdown.parse(value, {}));
+        prose.classList.remove("reply-stream");
+        if (parent !== content) parent.append(prose);
+      } else {
+        replyText(parent, value, parent === content ? notice : null);
+      }
     }
 
-    function flush() {
-      frame = 0;
+    function flush(preview = true) {
+      previewTimer = 0;
       const follow = transcript.scrollHeight - transcript.clientHeight - transcript.scrollTop < 40;
       for (const update of updates) {
         if (update.type === "delta") {
-          buffer += update.text;
+          liveSource += update.text;
           if (notice.textContent) notice.textContent = "";
           continue;
         }
         const { index, step } = update;
         const previous = step && tools.get(index);
         if (!previous) {
-          renderText();
-          if (step || liveText?.textContent.trim()) {
+          if (step || liveSource.trim()) {
             process ??= replyProcess(content, liveText ?? notice, true);
             finishText(undefined, process.body);
             if (step && step.state !== "blocked") calls += 1;
@@ -643,7 +760,7 @@
           : step.state === "done" ? waiting : "";
       }
       updates.length = 0;
-      renderText();
+      if (preview) renderText();
       if (follow) transcript.scrollTop = transcript.scrollHeight;
     }
 
@@ -651,12 +768,12 @@
       row,
       progress(update) {
         updates.push(update);
-        if (!frame) frame = requestAnimationFrame(flush);
+        if (!previewTimer) previewTimer = setTimeout(flush, STREAM_PREVIEW_MS);
       },
       finish(answer, error) {
         const follow = transcript.scrollHeight - transcript.clientHeight - transcript.scrollTop < 40;
-        if (frame) cancelAnimationFrame(frame);
-        flush();
+        if (previewTimer) clearTimeout(previewTimer);
+        flush(false);
         notice.removeAttribute("data-phase");
         finishText(answer?.content);
         if (error) {
@@ -669,7 +786,7 @@
           failed(error, notice);
         } else {
           notice.remove();
-          if (process && !process.details.contains(document.activeElement)) process.details.open = false;
+          if (process && !process.details.contains(document.activeElement)) process.close();
         }
         appendSources(content, answer?.sources ?? sources);
         if (follow) transcript.scrollTop = transcript.scrollHeight;

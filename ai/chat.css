@@ -40,7 +40,6 @@ button[type=submit] { background: var(--st-color-primary-surface); color: var(--
 :is(.desktop-chat, .web-chat) .reply-card:has(> .reply-process) {
   min-inline-size: clamp(0px, calc(100vw - 104px), 270px);
 }
-.reply-stream { white-space: pre-wrap; }
 .reply-status { margin: 0; color: var(--st-dialog-muted-color); font-size: 13px; }
 .reply-status:empty { display: none; }
 .reply-status[data-phase="tool"] {
@@ -69,6 +68,22 @@ button[type=submit] { background: var(--st-color-primary-surface); color: var(--
   --process-tint: color-mix(in srgb, var(--st-color-text-secondary) 5%, transparent);
   --process-line: color-mix(in srgb, var(--st-color-text-secondary) 19%, transparent);
   --process-hover: color-mix(in srgb, var(--st-color-text-secondary) 9%, transparent);
+  --process-outline: color-mix(in srgb, var(--st-color-text-secondary) 45%, transparent);
+  justify-self: start;
+  inline-size: fit-content;
+  max-inline-size: 100%;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  transition: border-color 120ms ease, background-color 120ms ease;
+}
+.reply-process:hover {
+  border-color: var(--process-outline);
+  background: var(--process-hover);
+}
+.reply-process[open] {
+  inline-size: 100%;
+  border-color: var(--process-outline);
+  background: var(--process-tint);
 }
 .reply-tool {
   border: 1px solid var(--process-line);
@@ -92,8 +107,6 @@ button[type=submit] { background: var(--st-color-primary-surface); color: var(--
   max-inline-size: 100%;
   min-block-size: 30px;
   padding: 4px 8px;
-  border: 1px solid transparent;
-  background: var(--process-tint);
   font-weight: 500;
 }
 :is(.reply-process, .reply-tool) > summary::-webkit-details-marker { display: none; }
@@ -108,20 +121,12 @@ button[type=submit] { background: var(--st-color-primary-surface); color: var(--
 }
 :is(.reply-process, .reply-tool)[open] > summary::before { transform: rotate(135deg); }
 .reply-process[open] > summary { color: var(--st-color-primary-soft-text); }
-.reply-process > summary:hover {
-  border-color: color-mix(in srgb, var(--st-color-text-secondary) 45%, transparent);
-  background: var(--process-hover);
-}
 .reply-tool > summary:hover { background: var(--process-tint); }
-@media (prefers-reduced-motion: no-preference) {
-  .reply-process > summary { transition: background-color 120ms ease, border-color 120ms ease; }
-}
 .reply-process-body {
   display: grid;
   gap: 8px;
-  margin-block-start: 8px;
-  margin-inline-start: 9px;
-  padding-inline-start: 10px;
+  margin: 2px 8px 8px 9px;
+  padding: 4px 0 2px 10px;
   border-inline-start: 1px dotted var(--process-line);
   color: var(--st-color-text-secondary);
 }
@@ -149,13 +154,8 @@ button[type=submit] { background: var(--st-color-primary-surface); color: var(--
   color: var(--st-dialog-muted-color);
   font-size: 12px;
 }
-.sources a {
-  padding: 2px 6px;
-  border-radius: 4px;
-  background: var(--st-dialog-surface-inset);
-  text-decoration: none;
-}
-.sources a:hover { text-decoration: underline; }
+.sources a { text-decoration: none; }
+.sources a:is(:hover, :focus-visible) { text-decoration: underline; }
 a { color: var(--st-color-primary-soft-text); }
 #status { margin: 0; color: var(--st-color-text-secondary); }
 #status:empty { display: none; }
