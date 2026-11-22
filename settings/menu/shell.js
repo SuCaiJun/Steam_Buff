@@ -239,9 +239,16 @@
       if (cat.kind === "review-filter") {
         return panels.review().html(cat);
       }
+      if (cat.kind === "ai-services") {
+        return panels.ai().html() + `
+          <section class="settings-card section-card ai-entry-card">
+            <h3 class="section-header"><span class="title">${esc(tr("settings_ai_entry_section", "对话入口"))}</span></h3>
+            ${itemListHtml(cat, items.filter(item => item.id !== "ai"))}
+          </section>`;
+      }
       if (cat.kind === "third-party-services") {
         const classifier = items.find((item) => item.id === "purchase-history-classifier");
-        return panels.ai().html() + panels.thirdPartyServices().html(cat) + `
+        return panels.thirdPartyServices().html(cat) + `
           <details class="settings-card section-card classifier-settings-card">
             <summary class="section-header settings-fold-title">
               <span class="dot"></span><span class="title">${esc(tr("settings.thirdParty.title", "第三方服务"))}</span>

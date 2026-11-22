@@ -214,16 +214,16 @@
     "message": "translate.jsを利用したウェブページ翻訳の設定です。"
   },
   "settings_category_ai_name": {
-    "message": "AIサービス"
+    "message": "AI サービス"
   },
   "settings_category_ai_desc": {
-    "message": "モデルゲートウェイ、モデル、APIキーを設定します。"
+    "message": "AI 接続とチャットの入口を管理します。"
   },
   "settings_category_third_party_services_name": {
     "message": "サードパーティサービス"
   },
   "settings_category_third_party_services_desc": {
-    "message": "AI 接続と外部データサービスを管理します。"
+    "message": "外部データサービスを管理します。"
   },
   "settings_category_third_party_name": {
     "message": "サードパーティ連携"
@@ -11091,6 +11091,45 @@
   "workflow_command_tool_return_hint": {
     "message": "データを返してツールの実行を終了します"
   },
+  "settings_ai_module_section": {
+    "message": "モジュール設定"
+  },
+  "settings_ai_services_section": {
+    "message": "サービス一覧"
+  },
+  "settings_ai_entry_section": {
+    "message": "チャットの入口"
+  },
+  "ai_chat_assistant": {
+    "message": "AI アシスタント"
+  },
+  "ai_chat_setup_service": {
+    "message": "「拡張機能の設定 → AI サービス」で利用できるサービスを設定してください。"
+  },
+  "ai_chat_new_session": {
+    "message": "会話を作成"
+  },
+  "ai_chat_switch_session": {
+    "message": "会話を切り替え"
+  },
+  "ai_chat_suggest_coop": {
+    "message": "2人協力プレイにおすすめのSteamゲームは？"
+  },
+  "ai_chat_suggest_price": {
+    "message": "ゲームが過去最安値かどうか、どう調べる？"
+  },
+  "ai_chat_suggest_players": {
+    "message": "Steamゲームの同時接続数はどこで見られる？"
+  },
+  "ai_chat_untitled": {
+    "message": "新しい会話"
+  },
+  "ai_chat_window_minimize": {
+    "message": "最小化"
+  },
+  "ai_chat_window_maximize_restore": {
+    "message": "最大化または元に戻す"
+  },
   "ai_chat_new": {
     "message": "新しいチャット"
   },
@@ -11146,7 +11185,7 @@
     "message": "別のウィンドウで応答を生成中です。"
   },
   "ai_chat_permission": {
-    "message": "「自動化 → ドメイン権限」で現在の AI ゲートウェイを許可してください。"
+    "message": "「AI サービス」で現在のサービスを編集して保存し、ゲートウェイを許可してください。"
   },
   "ai_chat_config": {
     "message": "この AI サービスを利用できません。設定を確認してください。"
@@ -11163,8 +11202,61 @@
   "ai_chat_waiting": {
     "message": "生成中…"
   },
-  "ai_chat_querying": {
-    "message": "データを取得中…"
+  "ai_chat_tool_running": {
+    "message": "検索中"
+  },
+  "ai_chat_tool_done": {
+    "message": "完了"
+  },
+  "ai_chat_tool_blocked": {
+    "message": "未実行"
+  },
+  "ai_chat_tool_stopped": {
+    "message": "停止済み"
+  },
+  "ai_chat_tool_call": {
+    "message": "ツール呼び出し"
+  },
+  "ai_chat_view_process": {
+    "message": "処理を表示"
+  },
+  "ai_chat_tool_call_count": {
+    "message": "ツール呼び出し $count$ 回",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "ai_chat_tool_started": {
+    "message": "開始時刻"
+  },
+  "ai_chat_tool_result": {
+    "message": "結果"
+  },
+  "ai_chat_tool_region": {
+    "message": "地域"
+  },
+  "ai_chat_tool_current_price": {
+    "message": "現在の価格"
+  },
+  "ai_chat_tool_low": {
+    "message": "過去最安値"
+  },
+  "ai_chat_tool_low_at": {
+    "message": "最安値の記録日時"
+  },
+  "ai_chat_tool_data_at": {
+    "message": "データ日時"
+  },
+  "ai_chat_references": {
+    "message": "参考資料"
+  },
+  "ai_chat_tool_not_allowed": {
+    "message": "アシスタントが無効なツールの使用を要求しました。"
+  },
+  "ai_chat_tool_invalid": {
+    "message": "ツールのリクエスト引数が無効です。"
   },
   "ai_chat_open_failed": {
     "message": "Steam AI チャットを開けませんでした。もう一度お試しください。"
@@ -12817,16 +12909,16 @@
     "message": "クライアント拡張でプロンプトを選択し直してください。"
   },
   "achievementManager_aiDisabled": {
-    "message": "外部サービスで AI を有効にしてください。"
+    "message": "「AI サービス」で AI モジュールを有効にしてください。"
   },
   "achievementManager_serviceUnavailable": {
     "message": "クライアント拡張で利用可能な AI サービスを選択してください。"
   },
   "achievementManager_defaultMissing": {
-    "message": "外部サービスで既定の AI サービスを設定してください。"
+    "message": "「AI サービス」で既定のサービスを設定してください。"
   },
   "achievementManager_connectionMissing": {
-    "message": "外部サービスで AI の接続設定を完了してください。"
+    "message": "「AI サービス」で接続設定を完了してください。"
   },
   "achievementManager_baseGame": {
     "message": "本編"

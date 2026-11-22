@@ -217,13 +217,13 @@
     "message": "AI 서비스"
   },
   "settings_category_ai_desc": {
-    "message": "모델 게이트웨이, 모델 및 API 키를 설정합니다."
+    "message": "AI 연결과 대화 진입점을 관리합니다."
   },
   "settings_category_third_party_services_name": {
     "message": "서드파티 서비스"
   },
   "settings_category_third_party_services_desc": {
-    "message": "AI 연결과 서드 파티 데이터 서비스를 관리합니다."
+    "message": "서드 파티 데이터 서비스를 관리합니다."
   },
   "settings_category_third_party_name": {
     "message": "서드파티 통합"
@@ -11091,6 +11091,45 @@
   "workflow_command_tool_return_hint": {
     "message": "데이터를 반환하고 도구 실행을 종료합니다"
   },
+  "settings_ai_module_section": {
+    "message": "모듈 설정"
+  },
+  "settings_ai_services_section": {
+    "message": "서비스 목록"
+  },
+  "settings_ai_entry_section": {
+    "message": "대화 진입점"
+  },
+  "ai_chat_assistant": {
+    "message": "AI 도우미"
+  },
+  "ai_chat_setup_service": {
+    "message": "확장 프로그램 설정 → AI 서비스에서 사용할 서비스를 설정하세요."
+  },
+  "ai_chat_new_session": {
+    "message": "대화 만들기"
+  },
+  "ai_chat_switch_session": {
+    "message": "대화 전환"
+  },
+  "ai_chat_suggest_coop": {
+    "message": "2인 협동 플레이에 좋은 Steam 게임을 추천해 줘"
+  },
+  "ai_chat_suggest_price": {
+    "message": "게임이 역대 최저가인지 어떻게 알 수 있어?"
+  },
+  "ai_chat_suggest_players": {
+    "message": "Steam 게임의 동시 접속자 수는 어디서 볼 수 있어?"
+  },
+  "ai_chat_untitled": {
+    "message": "새 대화"
+  },
+  "ai_chat_window_minimize": {
+    "message": "최소화"
+  },
+  "ai_chat_window_maximize_restore": {
+    "message": "최대화 또는 복원"
+  },
   "ai_chat_new": {
     "message": "새 대화"
   },
@@ -11146,7 +11185,7 @@
     "message": "다른 창에서 응답을 생성 중입니다."
   },
   "ai_chat_permission": {
-    "message": "자동화 → 도메인 권한에서 현재 AI 게이트웨이를 승인하세요."
+    "message": "「AI 서비스」에서 현재 서비스를 편집하고 저장하여 게이트웨이를 허용하세요."
   },
   "ai_chat_config": {
     "message": "AI 서비스를 사용할 수 없습니다. 설정을 확인하세요."
@@ -11163,8 +11202,61 @@
   "ai_chat_waiting": {
     "message": "생성 중…"
   },
-  "ai_chat_querying": {
-    "message": "데이터 조회 중…"
+  "ai_chat_tool_running": {
+    "message": "조회 중"
+  },
+  "ai_chat_tool_done": {
+    "message": "완료"
+  },
+  "ai_chat_tool_blocked": {
+    "message": "미실행"
+  },
+  "ai_chat_tool_stopped": {
+    "message": "중지됨"
+  },
+  "ai_chat_tool_call": {
+    "message": "도구 호출"
+  },
+  "ai_chat_view_process": {
+    "message": "진행 과정 보기"
+  },
+  "ai_chat_tool_call_count": {
+    "message": "도구 호출 $count$회",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "ai_chat_tool_started": {
+    "message": "시작 시간"
+  },
+  "ai_chat_tool_result": {
+    "message": "결과"
+  },
+  "ai_chat_tool_region": {
+    "message": "지역"
+  },
+  "ai_chat_tool_current_price": {
+    "message": "현재 가격"
+  },
+  "ai_chat_tool_low": {
+    "message": "역대 최저가"
+  },
+  "ai_chat_tool_low_at": {
+    "message": "최저가 기록 시간"
+  },
+  "ai_chat_tool_data_at": {
+    "message": "데이터 시간"
+  },
+  "ai_chat_references": {
+    "message": "참고 자료"
+  },
+  "ai_chat_tool_not_allowed": {
+    "message": "어시스턴트가 꺼진 도구를 요청했습니다."
+  },
+  "ai_chat_tool_invalid": {
+    "message": "도구 요청의 매개변수가 잘못되었습니다."
   },
   "ai_chat_open_failed": {
     "message": "Steam AI 대화 창을 열지 못했습니다. 다시 시도하세요."
@@ -12817,16 +12909,16 @@
     "message": "클라이언트 개선에서 프롬프트를 다시 선택하세요."
   },
   "achievementManager_aiDisabled": {
-    "message": "서드 파티 서비스에서 AI를 활성화하세요."
+    "message": "「AI 서비스」에서 AI 모듈을 활성화하세요."
   },
   "achievementManager_serviceUnavailable": {
     "message": "클라이언트 개선에서 사용 가능한 AI 서비스를 선택하세요."
   },
   "achievementManager_defaultMissing": {
-    "message": "서드 파티 서비스에서 기본 AI 서비스를 설정하세요."
+    "message": "「AI 서비스」에서 기본 서비스를 설정하세요."
   },
   "achievementManager_connectionMissing": {
-    "message": "서드 파티 서비스에서 AI 연결 설정을 완료하세요."
+    "message": "「AI 서비스」에서 연결 설정을 완료하세요."
   },
   "achievementManager_baseGame": {
     "message": "기본 게임"

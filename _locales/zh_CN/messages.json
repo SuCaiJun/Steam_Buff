@@ -214,16 +214,16 @@
     "message": "网页翻译设置，基于translate.js实现。"
   },
   "settings_category_ai_name": {
-    "message": "AI服务"
+    "message": "AI 服务"
   },
   "settings_category_ai_desc": {
-    "message": "大模型网关、模型和密钥配置。"
+    "message": "管理 AI 连接和对话入口。"
   },
   "settings_category_third_party_services_name": {
     "message": "第三方服务"
   },
   "settings_category_third_party_services_desc": {
-    "message": "管理 AI 连接和第三方数据服务。"
+    "message": "管理第三方数据服务。"
   },
   "settings_category_third_party_name": {
     "message": "第三方相关"
@@ -11091,6 +11091,45 @@
   "workflow_command_tool_return_hint": {
     "message": "返回数据并结束工具执行"
   },
+  "settings_ai_module_section": {
+    "message": "模块设置"
+  },
+  "settings_ai_services_section": {
+    "message": "服务列表"
+  },
+  "settings_ai_entry_section": {
+    "message": "对话入口"
+  },
+  "ai_chat_assistant": {
+    "message": "AI 助手"
+  },
+  "ai_chat_setup_service": {
+    "message": "请前往「扩展设置 → AI 服务」配置可用的服务。"
+  },
+  "ai_chat_new_session": {
+    "message": "新建会话"
+  },
+  "ai_chat_switch_session": {
+    "message": "切换会话"
+  },
+  "ai_chat_suggest_coop": {
+    "message": "推荐几款适合双人联机的 Steam 游戏"
+  },
+  "ai_chat_suggest_price": {
+    "message": "怎么判断一款游戏现在是不是史低？"
+  },
+  "ai_chat_suggest_players": {
+    "message": "Steam 游戏的在线人数在哪里看？"
+  },
+  "ai_chat_untitled": {
+    "message": "新会话"
+  },
+  "ai_chat_window_minimize": {
+    "message": "最小化"
+  },
+  "ai_chat_window_maximize_restore": {
+    "message": "最大化或还原"
+  },
   "ai_chat_new": {
     "message": "新建对话"
   },
@@ -11119,7 +11158,7 @@
     "message": "你"
   },
   "ai_chat_current": {
-    "message": "当前对话"
+    "message": "当前会话"
   },
   "ai_chat_select_service": {
     "message": "选择 AI 服务"
@@ -11146,7 +11185,7 @@
     "message": "此对话正在另一个窗口生成。"
   },
   "ai_chat_permission": {
-    "message": "请在「自动化 → 域名授权」中授权当前 AI 网关。"
+    "message": "请在「AI 服务」中编辑并保存当前服务，以授权 AI 网关。"
   },
   "ai_chat_config": {
     "message": "当前 AI 服务不可用，请检查设置。"
@@ -11163,8 +11202,61 @@
   "ai_chat_waiting": {
     "message": "正在生成…"
   },
-  "ai_chat_querying": {
-    "message": "正在查询资料…"
+  "ai_chat_tool_running": {
+    "message": "查询中"
+  },
+  "ai_chat_tool_done": {
+    "message": "已完成"
+  },
+  "ai_chat_tool_blocked": {
+    "message": "未执行"
+  },
+  "ai_chat_tool_stopped": {
+    "message": "已停止"
+  },
+  "ai_chat_tool_call": {
+    "message": "工具调用"
+  },
+  "ai_chat_view_process": {
+    "message": "查看过程"
+  },
+  "ai_chat_tool_call_count": {
+    "message": "$count$ 次工具调用",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "ai_chat_tool_started": {
+    "message": "开始时间"
+  },
+  "ai_chat_tool_result": {
+    "message": "结果"
+  },
+  "ai_chat_tool_region": {
+    "message": "地区"
+  },
+  "ai_chat_tool_current_price": {
+    "message": "当前价格"
+  },
+  "ai_chat_tool_low": {
+    "message": "历史最低价"
+  },
+  "ai_chat_tool_low_at": {
+    "message": "史低记录时间"
+  },
+  "ai_chat_tool_data_at": {
+    "message": "数据时间"
+  },
+  "ai_chat_references": {
+    "message": "参考资料"
+  },
+  "ai_chat_tool_not_allowed": {
+    "message": "蒸汽机请求了未启用的工具。"
+  },
+  "ai_chat_tool_invalid": {
+    "message": "工具请求参数无效。"
   },
   "ai_chat_open_failed": {
     "message": "无法打开 Steam AI 对话窗口，请重试。"
@@ -12817,16 +12909,16 @@
     "message": "请在客户端增强中重新选择提示词方案"
   },
   "achievementManager_aiDisabled": {
-    "message": "请在第三方服务中启用 AI 模块"
+    "message": "请在「AI 服务」中启用 AI 模块"
   },
   "achievementManager_serviceUnavailable": {
     "message": "请在客户端增强中选择可用的 AI 服务"
   },
   "achievementManager_defaultMissing": {
-    "message": "请在第三方服务中配置默认 AI 服务"
+    "message": "请在「AI 服务」中配置默认服务"
   },
   "achievementManager_connectionMissing": {
-    "message": "请在第三方服务中补全 AI 连接配置"
+    "message": "请在「AI 服务」中补全连接配置"
   },
   "achievementManager_baseGame": {
     "message": "基础游戏"

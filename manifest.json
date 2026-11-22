@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "__MSG_extName__",
-  "version": "2.2.48",
+  "version": "2.2.57",
   "description": "__MSG_extDescription__",
   "default_locale": "zh_CN",
   "author": "Ricky",
@@ -238,7 +238,7 @@
   ],
   "web_accessible_resources": [
     {
-      "resources": ["ai/chat.html"],
+      "resources": ["ai/chat.html", "images/ai/avatar.png"],
       "matches": ["https://store.steampowered.com/*", "https://steamcommunity.com/*", "https://steamloopback.host/*"]
     },
     {
@@ -333,6 +333,9 @@
         "steam/shared/native-window.js",
         "steam/shared/ai-chat.js",
         "ai/chat-launcher.js",
+        "images/tabler/square-minus.svg",
+        "images/tabler/arrows-diagonal.svg",
+        "images/tabler/x.svg",
         "steam/shared/name-batch.js",
         "shared/workflow-fields.js",
         "shared/workflow-data.js",

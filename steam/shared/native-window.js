@@ -10,10 +10,13 @@
  */
 (() => {
   "use strict";
-  // 使用已验证的 Notifications Menu Popup 契约；调用者提供内容、尺寸和定位规则。
+  // 从已注册的 Notifications Menu 获取通用 Popup 构造器
+  const WINDOW_HIDDEN = 2;
+  const WINDOW_RESIZABLE = 16;
   /**
    * 每个宿主最多管理一个窗口。params(kind) 提供标题、modal 与 dimensions；geometry(state)
    * 提供相对入口窗口的 x/y/width/height。follow 仅用于需要持续跟随的消息菜单。
+   * standalone 使用 Steam 可缩放窗口及 minWidth/minHeight，默认沿用菜单窗口参数。
    * mainPopup 只在属性入口中选择已注册的 Steam 主 Popup，入口 Popup 仍负责焦点恢复。
    * resizable 配合 canResize 启用八方向手柄，onBoundsChanged 仅在操作完成后回传尺寸。
    * resize(width,height) 为恢复布局调整当前窗口大小，不改变窗口位置或自行保存配置。
@@ -300,9 +303,11 @@
         if (state.closed || disposed || active !== state) return;
         const spec = options.params(kind);
         const params = {
-          title: spec.title, eCreationFlags: config.flags | 2,
+          title: spec.title, eCreationFlags: (options.standalone ? WINDOW_RESIZABLE : config.flags) | WINDOW_HIDDEN,
           target_browser: config.browser, window_opener_id: config.openerId,
-          body_class: config.bodyClass, bModal: spec.modal, dimensions: spec.dimensions,
+          body_class: options.standalone ? "fullheight" : config.bodyClass,
+          bModal: spec.modal, dimensions: spec.dimensions,
+          minWidth: spec.minWidth, minHeight: spec.minHeight,
         };
         state.item = new config.Popup(`${options.id}_${kind}_${config.openerId}`, params, target => { void mount(target).catch(fail); });
         state.item.m_callbacks = {

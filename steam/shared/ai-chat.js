@@ -21,14 +21,83 @@
   }
   if (api.aiChat) { register(); return; }
   const log = window.STLoggerFactory.createLogger("steam", "ai-chat");
-  const name = "Steam Buff AI";
+  const name = window.STConfig.aiChatName;
+  const layout = window.STConfig.aiChatWindowLayout;
   const users = new Set();
+  const MIN_WIDTH = 400;
+  const MIN_HEIGHT = 400;
   let popup = null;
 
   function geometry() {
-    const width = Math.max(320, Math.min(700, innerWidth - 36));
-    const height = Math.max(340, Math.min(670, innerHeight - 48));
+    const width = Math.max(MIN_WIDTH, Math.min(740, innerWidth - 36));
+    const height = Math.max(MIN_HEIGHT, Math.min(650, innerHeight - 48));
     return { x: Math.round((innerWidth - width) / 2), y: Math.round((innerHeight - height) / 2), width, height };
+  }
+
+  function titleBar(doc, close) {
+    const bar = doc.createElement("header");
+    bar.className = "st-ai-chat-titlebar";
+    const brand = doc.createElement("div");
+    brand.className = "st-ai-chat-window-brand";
+    const avatar = doc.createElement("img");
+    avatar.alt = "";
+    avatar.draggable = false;
+    avatar.src = api.path.url("images/ai/avatar.png");
+    const heading = doc.createElement("h1");
+    heading.textContent = name;
+    brand.append(avatar, heading);
+    const drag = doc.createElement("div");
+    drag.className = "st-ai-chat-window-drag";
+    const controls = doc.createElement("div");
+    controls.className = "st-ai-chat-window-controls";
+    const native = () => bar.ownerDocument.defaultView.SteamClient.Window;
+    const actions = [
+      ["square-minus", "ai_chat_window_minimize", "最小化", () => native().Minimize()],
+      ["arrows-diagonal", "ai_chat_window_maximize_restore", "最大化或还原", () => native().ToggleMaximize()],
+      ["x", "common_close", "关闭", close],
+    ];
+    for (const [icon, key, fallback, action] of actions) {
+      const button = doc.createElement("button");
+      button.type = "button";
+      button.className = "st-ai-chat-window-" + icon;
+      button.title = window.STI18n.text(key, fallback);
+      button.setAttribute("aria-label", button.title);
+      button.addEventListener("click", action);
+      controls.append(button);
+    }
+    bar.append(brand, drag, controls);
+    return bar;
+  }
+
+  function windowCss() {
+    const icon = file => `url("${api.path.url("images/tabler/" + file + ".svg")}")`;
+    const { titleHeight, brandWidth, controlsWidth, minDragWidth, sessionWidth } = layout;
+    return `
+      html, body, #popup_target, .st-ai-chat-native { height: 100%; margin: 0; overflow: hidden; }
+      .st-ai-chat-native { position: relative; display: flex; flex-direction: column; color: var(--st-dialog-text-color);
+        background: var(--st-dialog-surface); font: 14px/1.4 system-ui, sans-serif; }
+      .st-ai-chat-titlebar { position: absolute; inset: 0 0 auto; height: ${titleHeight}px; z-index: 1;
+        display: grid; align-items: center; user-select: none; pointer-events: none; -webkit-app-region: no-drag;
+        grid-template-columns: ${brandWidth}px min(${sessionWidth}px, calc(100% - ${brandWidth + minDragWidth + controlsWidth}px)) 1fr ${controlsWidth}px; }
+      .st-ai-chat-window-brand, .st-ai-chat-window-drag {
+        align-self: stretch; pointer-events: auto; -webkit-app-region: drag; }
+      .st-ai-chat-window-brand { display: flex; align-items: center; gap: 7px; padding-inline: 12px 6px; }
+      .st-ai-chat-window-brand img { width: 20px; height: 20px; border-radius: 4px; }
+      .st-ai-chat-window-brand h1 { margin: 0; color: var(--st-dialog-title-color); font-size: 14px; font-weight: 650; white-space: nowrap; }
+      .st-ai-chat-window-drag { grid-column: 3; }
+      .st-ai-chat-window-controls { grid-column: 4; display: flex; pointer-events: auto; -webkit-app-region: no-drag; }
+      .st-ai-chat-window-controls button { display: grid; place-items: center; width: 36px; height: 32px;
+        background: transparent; color: var(--st-dialog-muted-color); border: 0;
+        border-radius: var(--st-control-radius); cursor: pointer; }
+      .st-ai-chat-window-controls button:hover { background: var(--st-dialog-secondary-bg-hover); color: var(--st-dialog-title-color); }
+      .st-ai-chat-window-controls button:focus-visible { outline: 2px solid var(--st-color-primary); outline-offset: -2px; }
+      .st-ai-chat-window-controls button::before { content: ""; width: 16px; height: 16px;
+        background: currentColor; mask: var(--st-ai-window-icon) center / contain no-repeat; }
+      .st-ai-chat-window-square-minus { --st-ai-window-icon: ${icon("square-minus")}; }
+      .st-ai-chat-window-arrows-diagonal { --st-ai-window-icon: ${icon("arrows-diagonal")}; }
+      .st-ai-chat-window-x { --st-ai-window-icon: ${icon("x")}; }
+      .st-ai-chat-native iframe { display: block; flex: 1; width: 100%; min-height: 0; border: 0; }
+    `;
   }
 
   function show(trigger) {
@@ -40,33 +109,37 @@
     target.className = "st-ai-chat-native";
     target.tabIndex = -1;
     const appId = Number(/^\/library\/app\/(\d+)$/.exec(api.ctx.route())?.[1]);
-    const view = window.STAIChatLauncher.frame(document, api.path.url("ai/chat.html"), appId);
-    const exit = document.createElement("button");
-    exit.type = "button";
-    exit.setAttribute("aria-label", window.STI18n.text("common_close", "关闭"));
-    exit.textContent = "×";
+    const url = new URL(api.path.url("ai/chat.html"));
+    url.searchParams.set("layout", "desktop");
+    url.searchParams.set("titlebar", "hosted");
+    const view = window.STAIChatLauncher.frame(document, url, appId);
     const close = () => popup.close("close", true);
-    exit.addEventListener("click", close);
-    target.append(exit, view);
-    let unbind;
+    target.append(titleBar(document, close), view);
+    let unbind, unbindAvatar;
     popup = api.nativeWindow.create({
-      id: "SteamBuffAIChat", trigger, log, follow: false,
+      id: "SteamBuffAIChat", trigger, log, follow: false, standalone: true,
       onClosed() {
         unbind?.();
+        unbindAvatar?.();
         if (trigger.isConnected) trigger.focus({ preventScroll: true });
       },
       reportFailure(error) {
         log.error("chat-window-failed", "Steam AI 对话窗口操作失败", { error });
       },
       onEscape: () => false,
-      css: () => "html,body,#popup_target,.st-ai-chat-native{height:100%;margin:0;overflow:hidden;background:var(--st-dialog-surface)}.st-ai-chat-native{display:flex;flex-direction:column}.st-ai-chat-native>button{align-self:flex-end;border:0;background:none;padding:4px 12px;font:18px/1.3 system-ui;color:var(--st-color-text-primary);cursor:pointer}.st-ai-chat-native iframe{width:100%;min-height:0;flex:1;border:0}",
+      css: windowCss,
       geometry,
       params() {
         const { x, y, width, height } = geometry();
-        return { title: name, modal: false, dimensions: { width, height, left: screenX + x, top: screenY + y } };
+        return { title: name, modal: false, minWidth: MIN_WIDTH, minHeight: MIN_HEIGHT,
+          dimensions: { width, height, left: screenX + x, top: screenY + y } };
       },
     });
-    return popup.open("chat", target, () => { unbind = window.STAIChatLauncher.bindClose(view, close); });
+    return popup.open("chat", target, () => {
+      unbind = window.STAIChatLauncher.bindClose(view, close);
+      unbindAvatar = window.STAIChatLauncher.bindAvatar(view,
+        () => window.opener?.g_FriendsUIApp?.FriendStore?.self?.persona?.avatar_url_medium);
+    });
   }
 
   function failOpen(error, trigger) {
@@ -80,8 +153,11 @@
   }
 
   function launch(doc, parent, variant, before) {
+    const avatar = variant === "main" ? mainAvatar(doc) : {};
     const entry = window.STAIChatLauncher.mount({
       doc, parent, variant,
+      avatarSrc: api.path.url("images/ai/avatar.png"),
+      ...avatar,
       open: button => {
         void Promise.resolve().then(() => show(button)).catch(error => failOpen(error, button)).catch(error => {
           log.error("chat-feedback-failed", "Steam AI 对话提示失败", { error });
@@ -91,6 +167,16 @@
     window.STTheme.applyCssVariables(entry.host);
     if (before) before.before(entry.host);
     return entry;
+  }
+
+  function mainAvatar(doc) {
+    const key = "st.ai.chat.main-top";
+    const storage = doc.defaultView.localStorage;
+    const value = storage.getItem(key);
+    return {
+      initialTop: value === null ? null : Number(value),
+      saveTop(top) { storage.setItem(key, String(top)); },
+    };
   }
 
   function mountFriends() {

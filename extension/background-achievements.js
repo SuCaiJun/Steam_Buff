@@ -126,10 +126,10 @@
         const service = root.STAI.findService(settings.ai, binding.serviceId);
         const plan = settings.workflow.prompts.find((item) => item.id === binding.promptId);
         if (!plan?.enabled) return { code: "planMissing", message: "请在客户端增强中重新选择提示词方案" };
-        if (!settings.ai.enabled) return { code: "aiDisabled", message: "请在第三方服务中启用 AI 模块" };
+        if (!settings.ai.enabled) return { code: "aiDisabled", message: "请在「AI 服务」中启用 AI 模块" };
         if (!service?.enabled) return { code: "serviceUnavailable", message: "请在客户端增强中选择可用的 AI 服务" };
         if (!service.host || !service.model) return service.id === root.STAI.DEFAULT_SERVICE_ID
-          ? { code: "defaultMissing", message: "请在第三方服务中配置默认 AI 服务" } : { code: "connectionMissing", message: "请在第三方服务中补全 AI 连接配置" };
+          ? { code: "defaultMissing", message: "请在「AI 服务」中配置默认服务" } : { code: "connectionMissing", message: "请在「AI 服务」中补全连接配置" };
         return null;
       };
       const issues = { achievement: unavailable("achievement"), group: unavailable("achievement-group") };

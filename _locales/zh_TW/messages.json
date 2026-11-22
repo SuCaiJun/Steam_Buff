@@ -217,13 +217,13 @@
     "message": "AI 服務"
   },
   "settings_category_ai_desc": {
-    "message": "大型模型閘道、模型和金鑰設定。"
+    "message": "管理 AI 連線和對話入口。"
   },
   "settings_category_third_party_services_name": {
     "message": "第三方服務"
   },
   "settings_category_third_party_services_desc": {
-    "message": "管理 AI 連線和第三方資料服務。"
+    "message": "管理第三方資料服務。"
   },
   "settings_category_third_party_name": {
     "message": "第三方相關"
@@ -11091,6 +11091,45 @@
   "workflow_command_tool_return_hint": {
     "message": "傳回資料並結束工具執行"
   },
+  "settings_ai_module_section": {
+    "message": "模組設定"
+  },
+  "settings_ai_services_section": {
+    "message": "服務清單"
+  },
+  "settings_ai_entry_section": {
+    "message": "對話入口"
+  },
+  "ai_chat_assistant": {
+    "message": "AI 助手"
+  },
+  "ai_chat_setup_service": {
+    "message": "請前往「擴充功能設定 → AI 服務」設定可用的服務。"
+  },
+  "ai_chat_new_session": {
+    "message": "新增對話"
+  },
+  "ai_chat_switch_session": {
+    "message": "切換會話"
+  },
+  "ai_chat_suggest_coop": {
+    "message": "推薦幾款適合雙人連線的 Steam 遊戲"
+  },
+  "ai_chat_suggest_price": {
+    "message": "怎麼判斷一款遊戲現在是不是史低？"
+  },
+  "ai_chat_suggest_players": {
+    "message": "在哪裡可以查看 Steam 遊戲的上線人數？"
+  },
+  "ai_chat_untitled": {
+    "message": "新對話"
+  },
+  "ai_chat_window_minimize": {
+    "message": "最小化"
+  },
+  "ai_chat_window_maximize_restore": {
+    "message": "最大化或還原"
+  },
   "ai_chat_new": {
     "message": "新增對話"
   },
@@ -11119,7 +11158,7 @@
     "message": "你"
   },
   "ai_chat_current": {
-    "message": "目前對話"
+    "message": "目前會話"
   },
   "ai_chat_select_service": {
     "message": "選擇 AI 服務"
@@ -11146,7 +11185,7 @@
     "message": "此對話正在另一個視窗生成。"
   },
   "ai_chat_permission": {
-    "message": "請在「自動化 → 網域授權」中授權目前的 AI 閘道。"
+    "message": "請在「AI 服務」中編輯並儲存目前的服務，以授權 AI 閘道。"
   },
   "ai_chat_config": {
     "message": "目前的 AI 服務無法使用，請檢查設定。"
@@ -11163,8 +11202,61 @@
   "ai_chat_waiting": {
     "message": "正在生成…"
   },
-  "ai_chat_querying": {
-    "message": "正在查詢資料…"
+  "ai_chat_tool_running": {
+    "message": "查詢中"
+  },
+  "ai_chat_tool_done": {
+    "message": "已完成"
+  },
+  "ai_chat_tool_blocked": {
+    "message": "未執行"
+  },
+  "ai_chat_tool_stopped": {
+    "message": "已停止"
+  },
+  "ai_chat_tool_call": {
+    "message": "工具呼叫"
+  },
+  "ai_chat_view_process": {
+    "message": "查看過程"
+  },
+  "ai_chat_tool_call_count": {
+    "message": "$count$ 次工具呼叫",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "ai_chat_tool_started": {
+    "message": "開始時間"
+  },
+  "ai_chat_tool_result": {
+    "message": "結果"
+  },
+  "ai_chat_tool_region": {
+    "message": "地區"
+  },
+  "ai_chat_tool_current_price": {
+    "message": "目前價格"
+  },
+  "ai_chat_tool_low": {
+    "message": "歷史最低價"
+  },
+  "ai_chat_tool_low_at": {
+    "message": "史低記錄時間"
+  },
+  "ai_chat_tool_data_at": {
+    "message": "資料時間"
+  },
+  "ai_chat_references": {
+    "message": "參考資料"
+  },
+  "ai_chat_tool_not_allowed": {
+    "message": "蒸汽機要求使用未啟用的工具。"
+  },
+  "ai_chat_tool_invalid": {
+    "message": "工具請求參數無效。"
   },
   "ai_chat_open_failed": {
     "message": "無法開啟 Steam AI 對話視窗，請再試一次。"
@@ -12817,16 +12909,16 @@
     "message": "請在客戶端增強中重新選擇提示詞方案"
   },
   "achievementManager_aiDisabled": {
-    "message": "請在第三方服務中啟用 AI 模組"
+    "message": "請在「AI 服務」中啟用 AI 模組"
   },
   "achievementManager_serviceUnavailable": {
     "message": "請在客戶端增強中選擇可用的 AI 服務"
   },
   "achievementManager_defaultMissing": {
-    "message": "請在第三方服務中配置預設 AI 服務"
+    "message": "請在「AI 服務」中設定預設服務"
   },
   "achievementManager_connectionMissing": {
-    "message": "請在第三方服務中補全 AI 連線配置"
+    "message": "請在「AI 服務」中補全連線設定"
   },
   "achievementManager_baseGame": {
     "message": "基礎遊戲"

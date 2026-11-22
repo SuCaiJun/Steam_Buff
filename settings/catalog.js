@@ -385,27 +385,6 @@
       desc: "设置中心显示效果和基础偏好。",
       items: Object.freeze([
         {
-          id: "ai-chat-web",
-          name: "网页 AI 对话入口",
-          desc: "在 Steam 商店和社区网页显示 AI 对话入口",
-          area: "settings",
-          enabled: false,
-        },
-        {
-          id: "ai-chat-main",
-          name: "客户端 AI 对话入口",
-          desc: "在 Steam 客户端主窗口右下角显示 AI 对话入口",
-          area: "settings",
-          enabled: false,
-        },
-        {
-          id: "ai-chat-friends",
-          name: "好友列表 AI 对话入口",
-          desc: "在 Steam 客户端好友列表顶部显示本地 AI 对话入口",
-          area: "settings",
-          enabled: false,
-        },
-        {
           id: "settings-startup-animation",
           name: "设置中心启动动画",
           desc: "开启后，设置中心首次打开时播放 Logo 启动动画",
@@ -1065,13 +1044,44 @@
       ]),
     },
     {
+      id: "ai-services",
+      name: "AI 服务",
+      nameKey: "settings.category.ai.name",
+      desc: "管理 AI 连接和对话入口。",
+      descKey: "settings.category.ai.desc",
+      kind: "ai-services",
+      items: Object.freeze([
+        { id: "ai", name: "AI 模块", desc: "控制 AI 请求是否可用。", area: "settings", enabled: false },
+        {
+          id: "ai-chat-web",
+          name: "网页 AI 对话入口",
+          desc: "在 Steam 商店和社区网页显示 AI 对话入口",
+          area: "settings",
+          enabled: false,
+        },
+        {
+          id: "ai-chat-main",
+          name: "客户端 AI 对话入口",
+          desc: "在 Steam 客户端主窗口右下角显示 AI 对话入口",
+          area: "settings",
+          enabled: false,
+        },
+        {
+          id: "ai-chat-friends",
+          name: "好友列表 AI 对话入口",
+          desc: "在 Steam 客户端好友列表顶部显示本地 AI 对话入口",
+          area: "settings",
+          enabled: false,
+        },
+      ]),
+    },
+    {
       id: "third-party-services",
       name: "第三方服务",
-      desc: "管理 AI 连接和第三方数据服务。",
+      desc: "管理第三方数据服务。",
       help: "第三方服务",
       kind: "third-party-services",
       items: Object.freeze([
-        { id: "ai", name: "AI 模块", desc: "控制 AI 请求是否可用。", area: "settings", enabled: false },
         {
           id: "third-party-services",
           name: "第三方服务配置",
@@ -1353,7 +1363,8 @@
 
   function isPanelStorageKey(name) {
     const key = String(name || "");
-    if (key === globalThis.STConfig.updates.settingKey || key === UI_LOCALE_KEY || key === "st.settings.storePriceChart" || key === "st.settings.gameLinks") {
+    if (key === globalThis.STConfig.aiChatToolPreferenceKey || key === globalThis.STConfig.updates.settingKey ||
+        key === UI_LOCALE_KEY || key === "st.settings.storePriceChart" || key === "st.settings.gameLinks") {
       return true;
     }
     if (!key.startsWith("st.settings.") || key.startsWith("st.settings.cloud.") || key.startsWith("st.settings.rail.")) {

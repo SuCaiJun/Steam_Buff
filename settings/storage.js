@@ -1026,6 +1026,39 @@
     return { top, side };
   }
 
+  async function getPanelAi() {
+    const key = globalThis.STConfig.aiChatToolPreferenceKey;
+    const [ai, stored] = await Promise.all([getAi(), get([key], { strict: true })]);
+    return stored[key] === undefined ? ai : { ...ai, chatToolIds: globalThis.STAI.validateChatToolIds(stored[key]) };
+  }
+
+  let chatToolWrite = Promise.resolve();
+  function updateChatTools(transform, diagnostics) {
+    const write = chatToolWrite.then(async () => {
+      const key = globalThis.STConfig.aiChatToolPreferenceKey;
+      const current = (await get([key], { strict: true }))[key];
+      const next = transform(current);
+      // 同值写入没有变更事件，不能留下等待回执的云端写入标记。
+      if (Array.isArray(current) && current.length === next.length && next.every((id, index) => id === current[index])) return true;
+      return put({ [key]: next }, diagnostics);
+    });
+    // 保持队尾可用，原操作仍把失败交给调用方。
+    chatToolWrite = write.then(() => undefined, () => undefined);
+    return write;
+  }
+
+  function setChatToolEnabled(id, enabled) {
+    globalThis.STAI.validateChatToolIds([id]);
+    if (typeof enabled !== "boolean") throw new TypeError("聊天工具启用状态无效");
+    const ids = globalThis.STAI.CHAT_TOOLS.map(tool => tool.id);
+    return updateChatTools(stored => {
+      const selected = new Set(stored === undefined ? ids : globalThis.STAI.validateChatToolIds(stored));
+      if (enabled) selected.add(id);
+      else selected.delete(id);
+      return ids.filter(toolId => selected.has(toolId));
+    });
+  }
+
   async function getPanelSettings(options = {}) {
     await waitForAiSettings();
     const readOptions = { strict: options.strict === true };
@@ -1038,7 +1071,7 @@
       searchSuggestions: getSearchSuggestions(readOptions),
       reviewFilter: getReviewFilter(),
       translate: getTranslate(),
-      ai: getAi(),
+      ai: getPanelAi(),
       thirdPartyServices: getThirdPartyServices(readOptions),
     };
     if (options.workflow === true) sections.workflow = getWorkflow();
@@ -1059,6 +1092,7 @@
     const { ai: aiEnabled, "family-library-owned-marker": familyFeature, ...features } = sections.features || {};
     const ai = sections.ai ?? (typeof aiEnabled === "boolean"
       ? { ...globalThis.STAI.normalizeServices(), enabled: aiEnabled } : undefined);
+    const chatToolIds = ai && Object.hasOwn(ai, "chatToolIds") ? globalThis.STAI.validateChatToolIds(ai.chatToolIds) : undefined;
     const workflow = sections.workflow?.toolLibraryVersion === undefined && sections.workflow
       ? globalThis.STAutomation.normalize(sections.workflow, await templateLanguage(sections.uiLocale ?? await getUiLocale({ strict: true })))
       : sections.workflow;
@@ -1068,6 +1102,7 @@
     }, diagnostics);
     const jobs = {
       features: setAll(features, diagnostics),
+      ...(chatToolIds === undefined ? {} : { ai: updateChatTools(() => chatToolIds, diagnostics) }),
       ...(sections.uiLocale === undefined ? {} : { uiLocale: setUiLocale(sections.uiLocale, diagnostics) }),
       updateCheck: setUpdateCheck(updateCheck, diagnostics),
       gameLinks: setGameLinks(sections.gameLinks, { ...diagnostics, templateLocale: sections.uiLocale }),
@@ -1079,7 +1114,7 @@
       }, diagnostics),
     };
     const results = await Promise.allSettled(Object.values(jobs));
-    const savedSections = ["ai", "translate", "workflow"].filter(id => sections[id] !== undefined);
+    const savedSections = ["ai", "translate", "workflow"].filter(id => sections[id] !== undefined && !Object.hasOwn(jobs, id));
     const failedSections = [], errors = [];
     Object.keys(jobs).forEach((section, index) => {
       const result = results[index];
@@ -1253,6 +1288,7 @@
     getAi,
     getAiFlags,
     waitForAiSettings,
+    setChatToolEnabled,
     setAi,
     writeAiSettings,
     getThirdPartyServices,

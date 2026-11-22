@@ -335,7 +335,7 @@
     }
     if (!preview && !service.enabled) throw Object.assign(new Error("AI 服务「" + service.name + "」已停用"), { code: "AI_CONFIG_UNAVAILABLE" });
     if (!service.model || !service.host) {
-      if (service.id === DEFAULT_SERVICE_ID) throw Object.assign(new Error("请在「第三方服务」配置默认 AI 服务"), { code: "AI_CONFIG_UNAVAILABLE" });
+      if (service.id === DEFAULT_SERVICE_ID) throw Object.assign(new Error("请在设置中心的「AI 服务」中配置默认服务"), { code: "AI_CONFIG_UNAVAILABLE" });
       throw Object.assign(new Error("AI 服务「" + service.name + "」的连接配置不完整"), { code: "AI_CONFIG_UNAVAILABLE" });
     }
     return { ...service, enabled: true, aiConcurrency: settings.aiConcurrency };

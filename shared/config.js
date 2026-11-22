@@ -32,6 +32,8 @@
     steamHelp: "help.steampowered.com",
     steamApi: "api.steampowered.com",
     steamCommunity: "steamcommunity.com",
+    steamAvatarCdn: "avatars.steamstatic.com",
+    steamWebAvatarCdn: "avatars.akamai.steamstatic.com",
     steamCommunityCdn: "community.fastly.steamstatic.com",
     steamSharedCdn: "shared.akamai.steamstatic.com",
     github: "github.com",
@@ -572,6 +574,10 @@
 
   root.STConfig = Object.freeze({
     aiProviders,
+    aiChatName: "蒸汽机",
+    // Steam Popup 的拖动区域与隔离页的会话控件必须共享同一组尺寸。
+    aiChatWindowLayout: Object.freeze({ titleHeight: 44, brandWidth: 94, controlsWidth: 112, minDragWidth: 44, sessionWidth: 284 }),
+    aiChatToolPreferenceKey: "st.ai.chat.tool-ids",
     hosts,
     urls,
     vendors,

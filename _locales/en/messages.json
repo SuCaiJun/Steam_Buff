@@ -214,16 +214,16 @@
     "message": "Webpage translation settings powered by translate.js."
   },
   "settings_category_ai_name": {
-    "message": "AI Service"
+    "message": "AI Services"
   },
   "settings_category_ai_desc": {
-    "message": "Model gateway, model, and API key configuration."
+    "message": "Manage AI connections and chat entry points."
   },
   "settings_category_third_party_services_name": {
     "message": "Third-Party Services"
   },
   "settings_category_third_party_services_desc": {
-    "message": "Manage AI connections and third-party data services."
+    "message": "Manage third-party data services."
   },
   "settings_category_third_party_name": {
     "message": "Third-Party Integrations"
@@ -11091,6 +11091,45 @@
   "workflow_command_tool_return_hint": {
     "message": "Return data and finish the tool run"
   },
+  "settings_ai_module_section": {
+    "message": "Module settings"
+  },
+  "settings_ai_services_section": {
+    "message": "Service list"
+  },
+  "settings_ai_entry_section": {
+    "message": "Chat entry points"
+  },
+  "ai_chat_assistant": {
+    "message": "AI assistant"
+  },
+  "ai_chat_setup_service": {
+    "message": "Set up an available service in Extension Settings → AI Services."
+  },
+  "ai_chat_new_session": {
+    "message": "New conversation"
+  },
+  "ai_chat_switch_session": {
+    "message": "Switch conversation"
+  },
+  "ai_chat_suggest_coop": {
+    "message": "Recommend Steam games for two-player co-op"
+  },
+  "ai_chat_suggest_price": {
+    "message": "How can I tell if a game is at its lowest price?"
+  },
+  "ai_chat_suggest_players": {
+    "message": "Where can I see a Steam game's player count?"
+  },
+  "ai_chat_untitled": {
+    "message": "New conversation"
+  },
+  "ai_chat_window_minimize": {
+    "message": "Minimize"
+  },
+  "ai_chat_window_maximize_restore": {
+    "message": "Maximize or restore"
+  },
   "ai_chat_new": {
     "message": "New chat"
   },
@@ -11146,7 +11185,7 @@
     "message": "Another window is generating a response in this chat."
   },
   "ai_chat_permission": {
-    "message": "Authorize the current AI gateway under Automation → Site permissions."
+    "message": "Edit and save the current service under AI Services to authorize its gateway."
   },
   "ai_chat_config": {
     "message": "This AI service is unavailable. Check its settings."
@@ -11163,8 +11202,61 @@
   "ai_chat_waiting": {
     "message": "Generating…"
   },
-  "ai_chat_querying": {
-    "message": "Looking up data…"
+  "ai_chat_tool_running": {
+    "message": "Looking up"
+  },
+  "ai_chat_tool_done": {
+    "message": "Complete"
+  },
+  "ai_chat_tool_blocked": {
+    "message": "Not run"
+  },
+  "ai_chat_tool_stopped": {
+    "message": "Stopped"
+  },
+  "ai_chat_tool_call": {
+    "message": "Tool call"
+  },
+  "ai_chat_view_process": {
+    "message": "View activity"
+  },
+  "ai_chat_tool_call_count": {
+    "message": "Tool calls: $count$",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "ai_chat_tool_started": {
+    "message": "Started at"
+  },
+  "ai_chat_tool_result": {
+    "message": "Result"
+  },
+  "ai_chat_tool_region": {
+    "message": "Region"
+  },
+  "ai_chat_tool_current_price": {
+    "message": "Current price"
+  },
+  "ai_chat_tool_low": {
+    "message": "Historical low"
+  },
+  "ai_chat_tool_low_at": {
+    "message": "Low recorded at"
+  },
+  "ai_chat_tool_data_at": {
+    "message": "Data timestamp"
+  },
+  "ai_chat_references": {
+    "message": "Sources"
+  },
+  "ai_chat_tool_not_allowed": {
+    "message": "The assistant requested a tool that is turned off."
+  },
+  "ai_chat_tool_invalid": {
+    "message": "The tool request has invalid parameters."
   },
   "ai_chat_open_failed": {
     "message": "Could not open the Steam AI chat window. Try again."
@@ -12817,16 +12909,16 @@
     "message": "Choose a prompt again under Client enhancements."
   },
   "achievementManager_aiDisabled": {
-    "message": "Enable AI under Third-party services."
+    "message": "Enable the AI module under AI Services."
   },
   "achievementManager_serviceUnavailable": {
     "message": "Choose an available AI service under Client enhancements."
   },
   "achievementManager_defaultMissing": {
-    "message": "Configure the default AI service under Third-party services."
+    "message": "Configure the default service under AI Services."
   },
   "achievementManager_connectionMissing": {
-    "message": "Complete the AI connection settings under Third-party services."
+    "message": "Complete the connection settings under AI Services."
   },
   "achievementManager_baseGame": {
     "message": "Base game"

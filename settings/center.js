@@ -11,6 +11,7 @@
   window.addEventListener(STI18n.CHANGE_EVENT, applyLocale);
   const root = document.documentElement;
   if (!root?.dataset) return;
-  if(new URL(location.href).searchParams.get("category")==="automation")root.dataset.steamBuffOpenCat="automation";
+  const category = new URL(location.href).searchParams.get("category");
+  if (category === "automation" || category === "ai-services") root.dataset.steamBuffOpenCat = category;
   root.dataset.steamBuffOpenRequested = String(Date.now());
 })();

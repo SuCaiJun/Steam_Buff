@@ -1486,7 +1486,24 @@
 
         .ai-settings-card {
           position: relative;
+          display: grid;
+          gap: 12px;
+          margin-block-end: 12px;
         }
+        .ai-settings-card > .section-card { margin: 0; }
+        .ai-service-section { justify-content: space-between; }
+        .ai-service-section.section-header, .ai-entry-card .section-header { padding: 8px 14px; }
+        .ai-service-section h3, .ai-entry-card h3 { margin: 0; }
+        .ai-settings-card .settings-row { min-height: 44px; padding: 6px 14px; }
+        .ai-settings-card > .section-card > .form-footer { padding: 8px 14px; }
+        .ai-settings-card .ai-service-row { padding: 8px 14px; }
+        .ai-settings-card .ai-service-copy { gap: 2px; }
+        .ai-settings-card input[type="number"] { width: 88px; }
+        .ai-settings-card .form-switch:focus-within { outline: 2px solid var(--st-color-steam-blue); outline-offset: 2px; }
+        .content-swap[data-active="ai-services"] > .page-subtitle { display: none; }
+        .ai-entry-card > .feature-list { margin: 0; gap: 0; }
+        .ai-entry-card > .feature-list > .feature { border: 0; border-radius: 0; padding: 6px 14px; }
+        .ai-entry-card > .feature-list > .feature + .feature { border-block-start: 1px solid var(--st-dialog-divider); }
         .classifier-settings-card > .feature {
           margin: 12px 16px;
         }

@@ -386,20 +386,32 @@
           </div>
         </div>`;
       }).join("");
-      const enabled = `<input type="checkbox" class="settings-check" data-ai-global="enabled" ${conf.enabled ? "checked" : ""}>`;
+      const enabled = `<span class="switch form-switch${conf.enabled ? " checked" : ""}">
+        <input type="checkbox" role="switch" class="switch-input" data-ai-global="enabled" ${conf.enabled ? "checked" : ""}>
+        <span class="knob" aria-hidden="true"></span>
+      </span>`;
       const concurrency = `<input class="settings-control" type="number" min="1" max="10" data-ai-global="aiConcurrency" value="${conf.aiConcurrency}">`;
-      return `<div class="settings-grid">${row(uiText("settings.ai.module", "AI 模块"), enabled)}${row(uiText("settings_field_ai_aiConcurrency_label", "AI 并发上限"), concurrency)}</div>
-      <div class="settings-actions form-footer">${button("save-global", uiText("common.saveSettings", "保存设置"))}${button("new", uiText("settings.ai.add", "＋ 添加 AI 服务"), true)}</div>
-      <div class="ai-service-list">${rows}</div>`;
+      return `<section class="settings-card section-card">
+        <header class="section-header ai-service-section">
+          <h3 class="title">${esc(uiText("settings_ai_module_section", "模块设置"))}</h3>
+        </header>
+        <div class="settings-grid">${row(uiText("settings.ai.module", "AI 模块"), enabled)}${row(uiText("settings_field_ai_aiConcurrency_label", "AI 并发上限"), concurrency)}</div>
+        <footer class="form-footer">${button("save-global", uiText("common.saveSettings", "保存设置"))}</footer>
+      </section>
+      <section class="settings-card section-card">
+        <header class="section-header ai-service-section">
+          <h3 class="title">${esc(uiText("settings_ai_services_section", "服务列表"))}</h3>
+          ${button("new", uiText("settings.ai.add", "＋ 添加 AI 服务"), true)}
+        </header>
+        <div class="ai-service-list">${rows}</div>
+      </section>`;
     }
 
     function content() {
-      if (!conf) return `<summary class="section-header settings-fold-title"><span class="dot"></span><span class="title">${esc(uiText("onboarding_aiServices", "AI 服务"))}</span>
-        <span class="hint">${esc(uiText("settings.ai.loadFailed", "读取失败"))}</span></summary>
-        <p class="settings-card-note" role="alert">${esc(uiText("settings.ai.loadFailedBody", "AI 服务配置读取失败，原配置已保留。"))}</p>`;
-      return `<summary class="section-header settings-fold-title"><span class="dot"></span><span class="title">${esc(uiText("onboarding_aiServices", "AI 服务"))}</span>
-        <span class="hint">${conf.enabled ? uiText("common_enabled", "已启用") : uiText("onboarding_off", "已关闭")} · ${esc(uiText("settings.ai.serviceCount", "$count$ 个服务", { count: conf.services.length }))}</span></summary>
-      ${servicesHtml()}
+      if (!conf) return `<section class="settings-card">
+        <p class="settings-card-note" role="alert">${esc(uiText("settings.ai.loadFailedBody", "AI 服务配置读取失败，原配置已保留。"))}</p>
+      </section>`;
+      return `${servicesHtml()}
 
       <div class="ai-permission-wait" data-ai-permission-wait role="status" aria-label="${esc(uiText("settings_ai_permissionWaiting", "等待浏览器授权"))}" hidden>
         <span class="ai-permission-spinner" aria-hidden="true"></span>
@@ -407,7 +419,7 @@
     }
 
     function html() {
-      return `<div class="settings-form"><details class="settings-card section-card ai-settings-card" data-ai-card>${content()}</details></div>`;
+      return `<div class="settings-form ai-settings-card" data-ai-card>${content()}</div>`;
     }
 
     function render(shadow, focus) {
@@ -416,7 +428,9 @@
       const enabled = card.querySelector('[data-ai-global="enabled"]').checked;
       const concurrency = card.querySelector('[data-ai-global="aiConcurrency"]').value;
       root.STDomUtils.setTrustedHTML(card, root.STDomUtils.trustedHTML(content(), "settings-ai-services"));
-      card.querySelector('[data-ai-global="enabled"]').checked = enabled;
+      const toggle = card.querySelector('[data-ai-global="enabled"]');
+      toggle.checked = enabled;
+      toggle.closest(".form-switch").classList.toggle("checked", enabled);
       card.querySelector('[data-ai-global="aiConcurrency"]').value = concurrency;
       if (focus) card.querySelector(focus)?.focus();
     }
