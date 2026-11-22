@@ -11109,6 +11109,12 @@
   "ai_chat_new_session": {
     "message": "New conversation"
   },
+  "ai_chat_search_history": {
+    "message": "Search conversation titles"
+  },
+  "ai_chat_history_no_matches": {
+    "message": "No matching conversations"
+  },
   "ai_chat_switch_session": {
     "message": "Switch conversation"
   },

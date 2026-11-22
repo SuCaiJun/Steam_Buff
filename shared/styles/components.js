@@ -11,7 +11,155 @@
 ((root) => {
   'use strict';
 
-  const COMPONENT_VERSION = 'steam-buff-components-v3';
+  const searchComboCss = `
+  .st-search-combo__control {
+    position: relative;
+    min-width: 0;
+  }
+
+  .st-search-combo__control input:not(.settings-control) {
+    width: 100%;
+    min-width: 0;
+    height: 34px;
+    border: 1px solid var(--st-color-border-normal);
+    border-radius: var(--st-radius-sm);
+    background: var(--st-color-surface-control);
+    color: var(--st-color-text-primary);
+    padding: 0 34px 0 10px;
+    box-sizing: border-box;
+  }
+
+  .st-search-combo__control input:not(.settings-control):focus {
+    border-color: var(--st-color-primary);
+    outline: none;
+    box-shadow: 0 0 0 1px var(--st-color-primary-alpha-35);
+  }
+
+  .st-search-combo {
+    position: relative;
+    min-width: 0;
+  }
+
+  .st-search-combo__toggle {
+    position: absolute;
+    inset-block: 1px;
+    inset-inline-end: 1px;
+    width: 32px;
+    border: 0;
+    border-radius: 0 var(--st-radius-sm) var(--st-radius-sm) 0;
+    background: transparent;
+    cursor: pointer;
+  }
+
+  .st-search-combo__toggle::before {
+    content: "";
+    position: absolute;
+    top: 11px;
+    left: 11px;
+    width: 7px;
+    height: 7px;
+    border-right: 2px solid var(--st-color-text-muted);
+    border-bottom: 2px solid var(--st-color-text-muted);
+    transform: rotate(45deg);
+    transition: transform var(--st-motion-fast, .15s ease);
+  }
+
+  .st-search-combo.is-open .st-search-combo__toggle::before {
+    top: 14px;
+    transform: rotate(225deg);
+  }
+
+  .st-search-combo__toggle:hover::before,
+  .st-search-combo__toggle:focus-visible::before {
+    border-color: var(--st-color-text-primary);
+  }
+
+  .st-search-combo__toggle:focus-visible {
+    outline: 1px solid var(--st-color-primary);
+    outline-offset: -2px;
+  }
+
+  .st-search-combo__options {
+    position: absolute;
+    z-index: var(--st-z-index-dropdown);
+    top: calc(100% + 4px);
+    right: 0;
+    left: 0;
+    border: 1px solid var(--st-color-border-hover);
+    border-radius: var(--st-radius-sm);
+    background: var(--st-color-bg-input);
+    box-shadow: var(--st-shadow-panel-menu);
+    box-sizing: border-box;
+    max-height: 330px;
+    overflow-y: auto;
+    padding: 4px;
+    scrollbar-width: thin;
+    scrollbar-color: var(--st-color-white-alpha-10) transparent;
+  }
+
+  .st-search-combo__options[popover] {
+    position: fixed;
+    inset: auto;
+    margin: 0;
+    color: var(--st-color-text-secondary);
+  }
+
+  .st-search-combo__options::-webkit-scrollbar {
+    width: 6px;
+  }
+
+  .st-search-combo__options::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .st-search-combo__options::-webkit-scrollbar-thumb {
+    border-radius: 3px;
+    background: var(--st-color-white-alpha-10);
+  }
+
+  .st-search-combo__options::-webkit-scrollbar-thumb:hover {
+    background: var(--st-color-steam-blue-alpha-50);
+  }
+
+  .st-search-combo__options[hidden],
+  .st-search-combo__option[hidden],
+  .st-search-combo__empty[hidden] {
+    display: none;
+  }
+
+  .st-search-combo__option {
+    display: block;
+    width: 100%;
+    min-height: 32px;
+    border: 0;
+    border-radius: 3px;
+    background: transparent;
+    color: var(--st-color-text-secondary);
+    padding: 6px 10px;
+    overflow: hidden;
+    text-align: left;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    cursor: pointer;
+  }
+
+  .st-search-combo__option:hover,
+  .st-search-combo__option:focus-visible,
+  .st-search-combo__option[aria-selected="true"] {
+    background: var(--st-color-primary-surface-hover);
+    color: var(--st-color-text-primary);
+    outline: none;
+  }
+
+  .st-search-combo__empty {
+    min-height: 32px;
+    color: var(--st-color-text-muted);
+    padding: 7px 10px;
+    box-sizing: border-box;
+  }
+  `;
+
+  const COMPONENT_VERSION = 'steam-buff-components-v4';
 
   if (root.STComponents?.version === COMPONENT_VERSION) {
     return;
@@ -902,6 +1050,7 @@
     appendContent,
     bindLabel,
     refreshLabels,
+    searchComboCss,
     createStyledElement,
     ensureStyle,
     css,

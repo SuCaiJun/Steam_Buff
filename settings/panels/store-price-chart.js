@@ -202,7 +202,7 @@
 
     function combo(kind, items, options = {}) {
       const label = options.ariaLabel;
-      return root.STSettingsFields.searchComboHtml(items, {
+      return root.STSearchCombo.searchComboHtml(items, {
         id: "st-price-chart-" + kind,
         label,
         value: options.value,
@@ -409,7 +409,7 @@
     function handleComboEvent(event, shadow) {
       if (event.type !== "click" && !event.target.closest("[data-st-combo]")) return false;
       const panel = shadow.querySelector("[data-store-price-chart-panel]");
-      return !!panel && root.STSettingsFields.handleSearchCombo(event, panel, (input, value) => {
+      return !!panel && root.STSearchCombo.handleSearchCombo(event, panel, (input, value) => {
         if (input.id === "st-price-chart-main-country") selectMainCountry(shadow, value);
       });
     }

@@ -155,7 +155,7 @@
   function launch(doc, parent, variant, before) {
     const avatar = variant === "main" ? mainAvatar(doc) : {};
     const entry = window.STAIChatLauncher.mount({
-      doc, parent, variant,
+      doc, parent, before, variant,
       avatarSrc: api.path.url("images/ai/avatar.png"),
       ...avatar,
       open: button => {
@@ -165,7 +165,6 @@
       },
     });
     window.STTheme.applyCssVariables(entry.host);
-    if (before) before.before(entry.host);
     return entry;
   }
 
@@ -213,7 +212,15 @@
         if (!wrapper?.matches(".FriendsListContent")) return false;
         const list = wrapper.querySelector(":scope > .friendlistListContainer");
         if (!list) return false;
-        entry = launch(doc, wrapper, "friends", list);
+        const backdrop = win.getComputedStyle(list).background;
+        // 原生列表顶部的渐隐层也在滚动容器之前，助手行应位于渐隐层上方。
+        entry = launch(doc, wrapper, "friends", wrapper.firstChild);
+        entry.host.style.background = backdrop;
+        entry.host.style.backgroundAttachment = "fixed";
+        const style = doc.createElement("style");
+        style.textContent = ".FriendsListContent > .st-ai-chat-friends ~ .friendlistListContainer{background-attachment:fixed}";
+        // 两块背景按同一视口坐标绘制。卸载助手行时，该样式随宿主一同移除。
+        entry.host.append(style);
         stopWaiting();
         return true;
       }

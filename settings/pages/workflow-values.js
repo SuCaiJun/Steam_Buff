@@ -31,8 +31,8 @@
   const get = (object, path) => flow.pathGet(object, paths(path));
   function set(object, path, value) { const parts = paths(path), name = parts.pop(); flow.pathGet(object, parts)[name] = value; }
   const options = (entries, selected) => (!entries.some(([value]) => String(value) === String(selected)) ? `<option value="${esc(selected)}" selected hidden>${esc(selected)}</option>` : "") + entries.map(([value, label]) => `<option value="${esc(value)}" ${String(value) === String(selected) ? "selected" : ""}>${esc(label)}</option>`).join("");
-  const fixed = (...args) => root.STSettingsFields.fixedComboHtml(...args);
-  const controlValue = input => root.STSettingsFields.controlValue(input);
+  const fixed = (...args) => root.STSearchCombo.fixedComboHtml(...args);
+  const controlValue = input => root.STSearchCombo.controlValue(input);
   const refText = (value, workflow, code = false) => {
     if (!code && workflow.triggerInput && value.source === "input") {
       const entry = workflow.eventFields.find(([path]) => path.length === value.path.length && path.every((key, index) => key === value.path[index]));
@@ -229,7 +229,7 @@
     const answer = await dialog(shadow, { title: object ? tr("workflow_ui_edit_dictionary", "编辑字典") : tr("workflow_ui_edit_list", "编辑列表"), className: "aw-collection-dialog", form: true,
       render: node => {
         container = node; render();
-        root.STSettingsFields.bindSearchCombos(node, lifetime.signal);
+        root.STSearchCombo.bindSearchCombos(node, lifetime.signal);
         node.addEventListener("change", event => {
           if (!event.target.hasAttribute("data-entry-type")) return;
           try { readRows(); const entry = rows[Number(event.target.closest("[data-entry]").dataset.entry)]; entry.type = controlValue(event.target); entry.value = defaults(entry.type); render(); }
@@ -331,7 +331,7 @@
     bindings.set(container, context);
     outerSignal?.addEventListener("abort", context.dispose, { once: true });
     container.closest("dialog")?.addEventListener("close", context.dispose, { once: true, signal });
-    if (!workflow.triggerInput) root.STSettingsFields.bindSearchCombos(container, signal);
+    if (!workflow.triggerInput) root.STSearchCombo.bindSearchCombos(container, signal);
     function redraw() { close(); render(); refresh(container); }
     function close() {
       const popup = picker, control = input;

@@ -302,32 +302,12 @@ fieldset { position: absolute; inset-inline-start: 0; inset-block-end: 42px; min
   border-block-end: 1px solid var(--st-dialog-border);
 }
 .chat-session, .web-chat #web-actions { display: flex; align-items: center; gap: 6px; }
-.chat-history { position: relative; }
+.chat-history { position: relative; min-inline-size: 0; }
 .web-chat .chat-history { flex: 0 1 264px; }
 .chat-history #history {
-  appearance: none;
   block-size: var(--chat-control-size);
-  padding-block: 0;
-  padding-inline: 12px 32px;
-  background: var(--st-dialog-surface-inset);
-  color: var(--st-dialog-title-color);
   font-size: 13px;
-  line-height: normal;
   text-overflow: ellipsis;
-  cursor: pointer;
-}
-.chat-history #history:hover:not(:disabled) { border-color: var(--st-dialog-border-hover); }
-.chat-history::after {
-  content: "";
-  position: absolute;
-  inset-inline-end: 10px;
-  inset-block: 0;
-  margin-block: auto;
-  width: 16px;
-  height: 16px;
-  pointer-events: none;
-  background: var(--st-dialog-muted-color);
-  mask: url("../images/tabler/chevron-down.svg") center / contain no-repeat;
 }
 :is(.chat-session #new, .web-chat #web-actions button, .web-chat #settings) {
   box-sizing: border-box;

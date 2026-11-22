@@ -2633,7 +2633,7 @@
 
   function renderAiModelControl() {
     const slot = $("#ai-model-control");
-    const fields = globalThis.STSettingsFields;
+    const fields = globalThis.STSearchCombo;
     const options = state.ai.detectedModels ?? aiProvider(state.ai.provider).models;
     if (options !== renderedAiModelOptions) {
       fields.closeSearchCombo(slot);
@@ -2647,7 +2647,7 @@
       });
       globalThis.STDomUtils.setTrustedHTML(slot, globalThis.STDomUtils.trustedHTML(html, "onboarding-ai-model-control"));
       const input = $("#ai-model");
-      input.classList.add("setup-control");
+      input.classList.add("setup-control", "settings-control");
       input.spellcheck = false;
       renderedAiModelOptions = options;
     }
@@ -2703,7 +2703,7 @@
     [provider, host, model, modelToggle, keyMode, key, keyName, temperature, concurrency, modelsButton, testButton].forEach((node) => {
       setControlDisabled(node, aiLocked, aiBusy);
     });
-    if (aiLocked || activeStep().id !== "ai") globalThis.STSettingsFields.closeSearchCombo(fields);
+    if (aiLocked || activeStep().id !== "ai") globalThis.STSearchCombo.closeSearchCombo(fields);
     if (aiModelDetection) modelsButton.setAttribute("aria-busy", "true");
     else modelsButton.removeAttribute("aria-busy");
     modelsButton.textContent = aiModelDetection ? t("settings.ai.detectingModels", "正在检测模型…") : t("settings.ai.detectModels", "检测模型");
@@ -3042,7 +3042,6 @@
     if (["ai-host", "ai-model", "ai-key", "ai-key-name", "ai-temperature", "ai-concurrency"].includes(target.id)) {
       if (controlsBusy()) return;
       if (target.id === "ai-temperature") aiTemperatureBeforePreset = null;
-      if (target.id === "ai-model") globalThis.STSettingsFields.handleSearchCombo(event, $("#ai-surface"));
       updateAiDraft();
     }
   });
@@ -3085,6 +3084,7 @@
     await navigateCommittedPage(result.page, "history");
   });
 
-  globalThis.STSettingsFields.bindSearchCombos($("#onboarding-main"), undefined, updateAiDraft, document);
+  globalThis.STComponents.ensureStyle("st-onboarding-search-combo", globalThis.STComponents.searchComboCss);
+  globalThis.STSearchCombo.bindSearchCombos($("#onboarding-main"), undefined, updateAiDraft, document);
   loadFlow();
 })();

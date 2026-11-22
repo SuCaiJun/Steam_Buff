@@ -11109,6 +11109,12 @@
   "ai_chat_new_session": {
     "message": "新建会话"
   },
+  "ai_chat_search_history": {
+    "message": "搜索会话标题"
+  },
+  "ai_chat_history_no_matches": {
+    "message": "没有匹配的会话"
+  },
   "ai_chat_switch_session": {
     "message": "切换会话"
   },

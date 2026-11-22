@@ -78,8 +78,8 @@
     .aw .aw-insert-control{position:absolute;left:calc(var(--aw-gutter) - 10px);bottom:-10px;z-index:var(--st-z-index-dropdown);display:grid;place-items:center;width:20px;height:20px;min-height:20px;padding:0;border:1px solid var(--st-color-border-hover);border-radius:50%;background:var(--st-dialog-surface);color:var(--st-color-steam-blue);font-size:16px;opacity:0;pointer-events:none}.aw .aw-insert-control[data-position=before]{top:-10px;bottom:auto}.aw-line:hover>.aw-insert-control,.aw-insert-control:focus-visible{opacity:1;pointer-events:auto}.aw .aw-insert-control:hover,.aw .aw-insert-control:focus-visible{background:var(--st-color-primary);color:var(--st-color-white)}
     .aw-line:has(>.aw-insert-control:hover)::after,.aw-canvas [data-drop]::after{content:"";position:absolute;inset-inline:var(--aw-gutter) 0;inset-block-end:-1px;height:1px;background:var(--st-color-steam-blue);pointer-events:none}.aw-line:has(>[data-position=before]:hover)::after,.aw-canvas [data-drop=before]::after{inset-block: -1px auto}
     .aw-gap{position:relative}
-    .aw-insert-row{display:flex;gap:8px;align-items:center;min-height:48px;position:relative;padding:6px 8px 6px calc(var(--aw-gutter) + 12px + var(--aw-depth,0)*var(--aw-indent));border-block:1px solid var(--st-color-border-primary)}.aw-insert-row>input{flex:1}.aw-handle{cursor:grab!important;touch-action:none;user-select:none;-webkit-user-select:none}.aw-canvas.aw-grabbing,.aw-canvas.aw-grabbing *{cursor:grabbing!important}
-    .aw.aw-command-picker{position:fixed;inset:auto;left:var(--aw-picker-left);top:var(--aw-picker-top);margin:0;width:var(--aw-picker-width);max-height:var(--aw-picker-height);padding:4px;overflow:auto;overscroll-behavior:contain;scrollbar-width:thin;background:var(--st-dialog-surface-raised);color:var(--st-dialog-text-color);border:1px solid var(--st-dialog-border-hover);border-radius:var(--st-radius-sm);box-shadow:var(--st-shadow-tooltip)}.aw-command-picker:not(:popover-open){display:none}.aw .aw-candidate{display:flex;align-items:center;justify-content:flex-start;gap:10px;width:100%;height:auto;min-height:48px;padding:8px;text-align:start;background:transparent;border-color:transparent;color:var(--st-dialog-text-color);white-space:normal}.aw-candidate[aria-selected=true],.aw-candidate:hover{background:var(--st-color-primary-surface);border-color:var(--st-color-border-primary)}.aw-candidate>span:last-child{display:grid;gap:3px;min-width:0}.aw-candidate small{font-size:var(--st-font-size-caption);color:var(--st-color-text-muted)}.aw-picker-empty{padding:16px;color:var(--st-color-text-secondary)}
+    .aw-insert-row{display:flex;gap:8px;align-items:center;min-height:48px;position:relative;padding:6px 8px 6px calc(var(--aw-gutter) + 12px + var(--aw-depth,0)*var(--aw-indent));border-block:1px solid var(--st-color-border-primary)}.aw-insert-row>.st-search-combo{flex:1}.aw-handle{cursor:grab!important;touch-action:none;user-select:none;-webkit-user-select:none}.aw-canvas.aw-grabbing,.aw-canvas.aw-grabbing *{cursor:grabbing!important}
+    .aw .aw-candidate{display:flex;align-items:center;justify-content:flex-start;gap:10px;min-height:48px;padding:8px;white-space:normal}.aw-candidate>span:last-child{display:grid;gap:3px;min-width:0}.aw-candidate small{font-size:var(--st-font-size-caption);color:var(--st-color-text-muted)}
     .aw-inspector{border-top:1px solid var(--st-dialog-divider);min-height:0}.aw-inspector-head{display:flex;align-items:center;gap:12px;padding:0 12px}.aw-inspector-head .aw-tabs{margin:0;border:0;gap:0}.aw-inspector-head>[data-count]{margin-inline-start:auto;color:var(--st-color-text-muted);font-size:var(--st-font-size-caption)}.aw-inspector-panel{height:min(192px,25vh);box-sizing:border-box;overflow:auto;border-top:1px solid var(--st-dialog-divider);scrollbar-width:thin;padding:0 12px}.aw-inspector table{width:100%;border-collapse:collapse;text-align:start;font-size:var(--st-font-size-caption)}.aw-inspector th{font-weight:400;color:var(--st-color-text-muted);position:sticky;top:0;background:var(--st-dialog-surface);z-index:1}.aw-inspector th,.aw-inspector td{padding:7px 8px;border-bottom:1px solid var(--st-dialog-divider);text-align:start}.aw-inspector .aw-table-link{border:0;background:transparent;text-align:start;color:var(--st-color-danger-text);padding:0;min-height:24px;white-space:normal}.aw-inspector .aw-tools{justify-content:flex-end}.aw-inspector .aw-variable-name{color:var(--st-color-steam-blue);background:transparent;border:0;padding:0;min-height:24px}.aw-inspector .aw-error{margin:6px 8px}.aw-line .aw-content{grid-column:3}.aw-context-menu{position:fixed;inset:auto;margin:0;padding:5px;min-width:238px;max-width:calc(100vw - 24px);max-height:calc(100vh - 24px);overflow:auto;border:1px solid var(--st-dialog-border);border-radius:var(--st-radius-md);background:var(--st-dialog-surface);box-shadow:var(--st-shadow-lg)}.aw .aw-context-item{display:flex;align-items:center;gap:10px;width:100%;height:34px;padding:6px 10px;border:0;border-radius:var(--st-radius-sm);background:transparent;text-align:start}.aw-context-item .aw-command-icon{width:17px;height:17px}.aw-instruction-disabled .aw-line-copy,.aw-instruction-disabled .aw-node-icon{opacity:.45}.aw-instruction-disabled .aw-line-copy strong{text-decoration:line-through}.aw-context-item kbd{margin-inline-start:auto;color:var(--st-color-text-muted);font:inherit;font-size:var(--st-font-size-caption)}.aw .aw-context-item:hover,.aw .aw-context-item:focus-visible{background:var(--st-color-surface-subtle-hover)}.aw .aw-context-item.aw-context-danger{color:var(--st-color-danger-text)}.aw-context-menu hr{border:0;border-top:1px solid var(--st-dialog-divider);margin:4px 6px}.aw-editor-status{min-width:0;margin-inline-end:auto;overflow-wrap:anywhere;font-size:var(--st-font-size-caption);color:var(--st-color-text-secondary)}
     .aw-param-dialog .aw-section:first-child{border-top:0;padding-top:0}.aw-param-dialog .aw input:not([type=checkbox]),.aw-param-dialog .aw select{height:var(--st-control-height-regular);font-size:var(--st-font-size-body-small)}.aw-param-dialog .aw textarea{font-size:var(--st-font-size-body-small)}.aw-param-dialog .aw-value{grid-template-columns:112px minmax(0,1fr);align-items:start}.aw-param-dialog .aw-value>span{padding-top:8px}.aw-param-dialog .aw-condition{grid-template-columns:minmax(0,1fr) 28px;gap:12px;padding:12px 0;border-bottom:1px solid var(--st-dialog-divider)}.aw-condition-fields{display:grid;gap:12px;min-width:0}.aw-param-dialog .aw-condition-fields>label{grid-template-columns:112px minmax(0,1fr);align-items:center;gap:16px}.aw-param-dialog .aw-condition-fields>label select{max-width:200px}.aw-param-dialog .aw-condition-group{padding-inline-start:0;border:0;gap:12px}.aw-param-dialog .aw-condition-group .aw-condition-group{padding-inline-start:16px;border-inline-start:1px solid var(--st-dialog-divider)}
     .aw-pre{white-space:pre-wrap;overflow-wrap:anywhere;max-height:45vh;overflow:auto;font-family:monospace}.aw-hint{color:var(--st-color-text-secondary);font-size:var(--st-font-size-caption)}
@@ -271,7 +271,7 @@
   const options = (rows, value) => rows.map(([id, label, disabled]) => `<option value="${esc(id)}" ${String(id) === String(value) ? "selected" : ""} ${disabled ? "disabled" : ""}>${esc(label)}</option>`).join("");
   const prop = (label, path, value, rows = null, kind = "text") => `<label>${esc(label)}${rows ? `<select data-prop="${path}">${options(rows, value)}</select>` : `<input data-prop="${path}" type="${kind}" value="${esc(value)}">`}</label>`;
   const parameterProp = (label, path, value, rows, kind) => rows
-    ? `<label><span>${esc(label)}</span>${root.STSettingsFields.fixedComboHtml(label, "data-prop", path, rows, value)}</label>`
+    ? `<label><span>${esc(label)}</span>${root.STSearchCombo.fixedComboHtml(label, "data-prop", path, rows, value)}</label>`
     : prop(label, path, value, null, kind);
   const get = (object, path) => flow.pathGet(object, path.split("."));
   function set(object, path, value) { const keys = path.split("."), key = keys.pop(); flow.pathGet(object, keys)[key] = value; }
@@ -422,7 +422,7 @@
     return state.ctx.dialog(state.shadow, { title: selected ? tr("workflow_ui_edit_variable", "编辑变量") : tr("workflow_ui_new_variable", "新建变量"), className: "aw-automation-dialog", form: true,
       render: node => {
         html(node, `<div class="aw aw-form">${prop(tr("workflow_ui_variable_name", "变量名称"), "name", draft.name)}${parameterProp(tr("common_type", "类型"), "type", draft.type, [["any", tr("workflow_ui_any_type", "任意数据")], ["text", tr("steam_independentName_bulk_text", "文本")], ["number", tr("steam_independentName_bulk_number", "数字")], ["boolean", tr("workflow_ui_boolean", "布尔值")], ["list", tr("seed_variable_list", "列表")], ["object", tr("seed_variable_record", "字典")], ["result", tr("workflow_ui_action_result", "指令结果")]])}<div class="aw-error" role="alert"></div></div>`);
-        root.STSettingsFields.bindSearchCombos(node, lifetime.signal);
+        root.STSearchCombo.bindSearchCombos(node, lifetime.signal);
       },
       actions: [{ id: "cancel", label: tr("common_cancel", "取消") }, { id: "save", label: tr("common_confirm", "确定"), primary: true }],
       onAction: (action, node) => {
@@ -576,8 +576,7 @@
     (editor.root.querySelector(`[data-key="${CSS.escape(editor.selected)}"]`) || editor.root.querySelector(`.aw-gap[data-row="${index}"] button`))?.focus({ preventScroll: true });
   }
   function closeInsertion(editor, repaint = true) {
-    const picker = editor.root.querySelector(".aw-command-picker");
-    if (picker?.matches(":popover-open")) picker.hidePopover();
+    root.STSearchCombo.closeSearchCombo(editor.root);
     editor.insertion = null; editor.cursor = null;
     if (repaint) {
       paintEditor(editor);
@@ -589,22 +588,12 @@
     editor.cursor = cursor; editor.selected = row.key;
     const inside = !before && (row.marker === "else-if" || row.marker === "else" || row.marker === "catch" || row.marker === "finally" || canFold(row));
     if (inside) editor.collapsed.delete(row.node.id);
-    editor.insertion = { key: row.key, before, depth: row.depth + (inside ? 1 : 0), query: "", active: 0 };
+    editor.insertion = { key: row.key, before, depth: row.depth + (inside ? 1 : 0), query: "" };
     paintEditor(editor);
-    editor.root.querySelector("[data-insert-search]").focus({ preventScroll: true });
-    editor.root.querySelector(".aw-insert-row").scrollIntoView({ block: "nearest" });
-    renderPicker(editor);
-  }
-  function positionPicker(editor) {
-    const input = editor.root.querySelector("[data-insert-search]"), picker = editor.root.querySelector(".aw-command-picker");
-    if (!input || !picker?.matches(":popover-open")) return;
-    const rect = input.getBoundingClientRect(), doc = input.ownerDocument.documentElement;
-    const width = Math.min(440, Math.max(rect.width, 300), doc.clientWidth - 32), below = doc.clientHeight - rect.bottom - 12, above = rect.top - 12;
-    const height = Math.min(320, Math.max(below, above)), top = below >= Math.min(240, height) ? rect.bottom + 4 : Math.max(8, rect.top - Math.min(picker.scrollHeight, height) - 4);
-    picker.style.setProperty("--aw-picker-left", Math.max(8, Math.min(rect.left, doc.clientWidth - width - 8)) + "px");
-    picker.style.setProperty("--aw-picker-top", top + "px");
-    picker.style.setProperty("--aw-picker-width", width + "px");
-    picker.style.setProperty("--aw-picker-height", Math.max(80, height) + "px");
+    const insertionRow = editor.root.querySelector(".aw-insert-row");
+    insertionRow.querySelector("#aw-command-search").focus({ preventScroll: true });
+    insertionRow.scrollIntoView({ block: "nearest" });
+    root.STSearchCombo.openSearchCombo(insertionRow);
   }
   function pickerCatalog(inTool) {
     const catalog = editorCatalog(inTool), quick = new Set(["log", "comment"]);
@@ -613,26 +602,25 @@
     commands.splice(index < 0 ? 0 : index, 0, ...catalog.filter(item => quick.has(item.id)));
     return commands;
   }
-  function renderPicker(editor) {
-    const insertion = editor.insertion; if (!insertion) return;
-    const input = editor.root.querySelector("[data-insert-search]"), picker = editor.root.querySelector(".aw-command-picker");
-    const query = insertion.query.trim().toLocaleLowerCase();
-    insertion.candidates = pickerCatalog(editor.inTool).filter(item => [instructions.name(item.id), instructions.schemaLabel(item.category), instructions.schemaLabel(item.group), instructions.hint(item.id), item.id].join(" ").toLocaleLowerCase().includes(query));
-    insertion.active = Math.min(insertion.active, Math.max(0, insertion.candidates.length - 1));
-    html(picker, insertion.candidates.map((item, index) => `<button type="button" class="aw-candidate" id="aw-candidate-${item.id}" role="option" tabindex="-1" aria-selected="${index === insertion.active}" data-instruction="${item.id}">${commandIcon(item.id)}<span><span>${esc(instructions.name(item.id))}${nameBadge(item.id)}</span><small>${esc(instructions.schemaLabel(item.category))} · ${esc(instructions.hint(item.id))}</small></span></button>`).join("") || `<div class="aw-picker-empty" role="status">${esc(tr("workflow_ui_no_matching_actions", "没有匹配的指令"))}</div>`);
-    if (insertion.candidates.length) input.setAttribute("aria-activedescendant", "aw-candidate-" + insertion.candidates[insertion.active].id);
-    else input.removeAttribute("aria-activedescendant");
-    if (!picker.matches(":popover-open")) picker.showPopover();
-    positionPicker(editor);
-    picker.querySelector('[aria-selected="true"]')?.scrollIntoView({ block: "nearest" });
+  function commandComboHtml(editor) {
+    const items = pickerCatalog(editor.inTool).map(item => {
+      const label = instructions.name(item.id), category = instructions.schemaLabel(item.category), hint = instructions.hint(item.id);
+      return { value: item.id, label, category, hint, search: [label, category, instructions.schemaLabel(item.group), hint, item.id].join(" ") };
+    });
+    return root.STSearchCombo.searchComboHtml(items, {
+      id: "aw-command-search", label: tr("workflow_ui_insert_action", "插入指令"), listLabel: tr("workflow_ui_available_actions", "可插入的指令"),
+      text: editor.insertion.query, placeholder: tr("workflow_ui_type_or_select_an_action", "输入或选择指令"),
+      emptyLabel: tr("workflow_ui_no_matching_actions", "没有匹配的指令"), modal: true, action: true,
+      listClass: "aw aw-command-picker", optionClass: "aw-candidate",
+      renderOption: item => root.STDomUtils.trustedHTML(`${commandIcon(item.value)}<span><span>${esc(item.label)}${nameBadge(item.value)}</span><small>${esc(item.category)} · ${esc(item.hint)}</small></span>`, "workflow-command-option"),
+    });
   }
   function paintEditor(editor) {
     editor.cancelDrag?.();
     checkEditorSites(editor);
     const { root: node, draft } = editor, canvas = node.querySelector(".aw-canvas"), scroll = canvas.scrollTop;
     const focused = node.getRootNode().activeElement, activeRow = focused?.closest?.("[data-key]"), activeAction = focused?.dataset.aw;
-    const oldPicker = node.querySelector(".aw-command-picker");
-    if (oldPicker?.matches(":popover-open")) oldPicker.hidePopover();
+    root.STSearchCombo.closeSearchCombo(node);
     const previousIndex = editor.rows.findIndex(row => row.key === editor.selected);
     const rowErrors = new Map();
     for (const error of editorDiagnostics(editor)) {
@@ -654,7 +642,7 @@
         else canCollapse = true;
       }
     }
-    const insertRow = () => `<div class="aw-insert-row" data-insert-row style="--aw-depth:${editor.insertion.depth}"><input type="search" data-insert-search role="combobox" aria-label="${esc(tr("workflow_ui_insert_action", "插入指令"))}" aria-autocomplete="list" aria-controls="aw-command-options" aria-expanded="true" autocomplete="off" placeholder="${esc(tr("workflow_ui_type_or_select_an_action", "输入或选择指令"))}" value="${esc(editor.insertion.query)}">${iconButton("insert-cancel", tr("workflow_ui_cancel_insertion", "取消插入"), "x")}<div class="aw aw-command-picker" id="aw-command-options" role="listbox" aria-label="${esc(tr("workflow_ui_available_actions", "可插入的指令"))}" popover="manual"></div></div>`;
+    const insertRow = () => `<div class="aw-insert-row" data-insert-row style="--aw-depth:${editor.insertion.depth}">${commandComboHtml(editor)}${iconButton("insert-cancel", tr("workflow_ui_cancel_insertion", "取消插入"), "x")}</div>`;
     html(canvas, editor.rows.map((row, index) => {
       const inserting = editor.insertion?.key === row.key;
       if (row.marker === "insert") {
@@ -2011,6 +1999,12 @@
       const row = editor.rows[Number(event.target.closest("[data-row]")?.dataset.row)]; if (!row || row.marker === "insert") return;
       event.preventDefault(); event.stopPropagation(); openContextMenu(state, editor, row, { x: event.clientX, y: event.clientY });
     }, { signal });
+    function handleCommandSearch(event) {
+      const row = event.target.closest("[data-insert-row]");
+      return row && root.STSearchCombo.handleSearchCombo(event, row, (_input, id) => {
+        void insertInstruction(state, editor, id).catch(error => reportFailure(error, null, editor));
+      }, () => closeInsertion(editor));
+    }
     node.addEventListener("input", event => {
       if (event.target.matches(".aw-inspector-search")) {
         const pane = event.target.closest("[data-inspector-search]").dataset.inspectorSearch;
@@ -2042,28 +2036,20 @@
         }
         if (!query) editor.paletteOpen = null;
       }
-      if (event.target.hasAttribute("data-insert-search")) { editor.insertion.query = event.target.value; editor.insertion.active = 0; renderPicker(editor); }
+      if (event.target.id === "aw-command-search") {
+        editor.insertion.query = event.target.value;
+        handleCommandSearch(event);
+      }
     }, { signal });
-    node.addEventListener("pointerdown", event => { if (event.target.closest(".aw-candidate")) event.preventDefault(); }, { signal });
+    node.addEventListener("pointerdown", handleCommandSearch, { signal });
     node.addEventListener("keydown", event => {
-      if (!event.target.hasAttribute("data-insert-search") || event.isComposing || event.ctrlKey || event.altKey || event.metaKey) return;
-      if (!["ArrowUp", "ArrowDown", "Home", "End", "Enter", "Escape"].includes(event.key)) return;
-      event.preventDefault(); event.stopPropagation();
-      const insertion = editor.insertion, count = insertion.candidates.length;
-      if (event.key === "Escape") {
-        closeInsertion(editor); return;
-      }
-      if (event.key === "Enter") {
-        const item = insertion.candidates[insertion.active];
-        if (item) void insertInstruction(state, editor, item.id).catch(error => reportFailure(error, null));
-      } else if (count) {
-        insertion.active = event.key === "Home" ? 0 : event.key === "End" ? count - 1 : (insertion.active + (event.key === "ArrowUp" ? -1 : 1) + count) % count;
-        renderPicker(editor);
-      }
+      if (handleCommandSearch(event)) event.stopPropagation();
     }, { signal });
-    canvas.addEventListener("scroll", () => positionPicker(editor), { passive: true, signal });
-    root.addEventListener("resize", () => positionPicker(editor), { signal });
+    const repositionCommandSearch = event => root.STSearchCombo.repositionSearchCombo(canvas, event);
+    canvas.addEventListener("scroll", repositionCommandSearch, { passive: true, signal });
+    root.addEventListener("resize", repositionCommandSearch, { signal });
     node.addEventListener("click", event => {
+      if (handleCommandSearch(event)) { event.stopPropagation(); return; }
       const row = editor.rows[Number(event.target.closest("[data-row]")?.dataset.row)], control = event.target.closest("[data-aw]");
       if (row && !event.target.closest(".aw-insert-row")) {
         const inserting = !!editor.insertion;
@@ -2483,7 +2469,7 @@
         if (!extra.length || flow.activeValue(value).literal !== "") return field;
         const caption = tr("workflow_prompt_use_existing", "将已有输入用于「$name$」", { name });
         const options = [["", tr("common_select", "请选择"), true], ...extra.map(([, item]) => [item.key, item.key])];
-        return field + '<label><span>' + esc(caption) + '</span>' + root.STSettingsFields.fixedComboHtml(caption, "data-prompt-rebind", name, options, "") + '</label>';
+        return field + '<label><span>' + esc(caption) + '</span>' + root.STSearchCombo.fixedComboHtml(caption, "data-prompt-rebind", name, options, "") + '</label>';
       }).join("");
       if (extra.length) fields += '<section class="aw-section"><h4>' + esc(tr("workflow_prompt_unmatched_inputs", "保留的原输入")) + '</h4>' +
         extra.map(([index, item]) => '<div data-prompt-extra>' + valueField(item.key, item.value, "mapping." + index + ".value", workspace) + '</div>').join("") + '</section>';
@@ -2834,7 +2820,7 @@
             }
             if (event.target.hasAttribute("data-prompt-rebind")) {
               const targetName = event.target.dataset.promptRebind;
-              const sourceName = root.STSettingsFields.controlValue(event.target);
+              const sourceName = root.STSearchCombo.controlValue(event.target);
               const original = working.mapping.find(item => item.key === sourceName);
               const target = working.mapping.find(item => item.key === targetName);
               target.value = original.value;
@@ -2962,7 +2948,7 @@
   }
 
   async function editTriggerFilter(state, type, original, replaced = null) {
-    const { searchComboHtml, handleSearchCombo } = root.STSettingsFields;
+    const { searchComboHtml, bindSearchCombos } = root.STSearchCombo;
     const comboLife = new AbortController();
     const fields = triggerConditionFields(type);
     if (original && !fields.includes(original.field)) fields.unshift(original.field);
@@ -3004,9 +2990,7 @@
       initial: node => node.querySelector('[data-prop="field"]'),
       render(node) {
         container = node; render();
-        const handleCombo = event => handleSearchCombo(event, node);
-        for (const name of ["click", "input", "keydown", "focusout", "scroll"]) node.addEventListener(name, handleCombo);
-        node.ownerDocument.defaultView.addEventListener("resize", handleCombo, { signal: comboLife.signal });
+        bindSearchCombos(node, comboLife.signal, undefined, node, { closeOnMove: true });
         node.addEventListener("change", event => {
           const control = event.target;
           if (control.dataset.prop === "field") { current = start(control.value); render(); }

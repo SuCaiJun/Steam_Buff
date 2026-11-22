@@ -1143,8 +1143,14 @@ button:focus-visible {
   gap: var(--st-spacing-sm);
 }
 
-#ai-model-control .st-search-combo__control {
-  position: relative;
+#ai-model-control {
+  --st-color-border-hover: var(--ob-line);
+  --st-color-bg-input: var(--ob-bg);
+  --st-color-text-secondary: var(--ob-text);
+  --st-color-text-muted: var(--ob-text-soft);
+  --st-color-text-primary: var(--ob-primary);
+  --st-color-primary-surface-hover: var(--ob-primary-soft);
+  --st-shadow-panel-menu: var(--st-shadow-tooltip);
 }
 
 #ai-model {
@@ -1152,67 +1158,28 @@ button:focus-visible {
 }
 
 #ai-model-control .st-search-combo__toggle {
-  position: absolute;
-  inset: 4px 4px 4px auto;
-  display: grid;
-  place-items: center;
+  inset-block: 4px;
+  inset-inline-end: 4px;
   width: 34px;
-  border: 0;
   border-radius: var(--st-radius-md);
-  color: var(--ob-text-soft);
-  background: transparent;
-  cursor: pointer;
-}
-
-#ai-model-control .st-search-combo__toggle::after {
-  content: "";
-  width: 16px;
-  height: 16px;
-  background: currentColor;
-  mask: url("../images/tabler/chevron-down.svg") center / contain no-repeat;
 }
 
 #ai-model-control .st-search-combo__toggle:hover:enabled {
-  color: var(--ob-primary);
   background: var(--ob-primary-soft);
 }
 
 #ai-model-options {
-  position: fixed;
-  inset: auto;
-  margin: 0;
   padding: var(--st-spacing-xs);
-  overflow-y: auto;
   overscroll-behavior: contain;
-  border: 1px solid var(--ob-line);
   border-radius: var(--st-radius-md);
-  color: var(--ob-text);
-  background: var(--ob-bg);
-  box-shadow: var(--st-shadow-tooltip);
 }
 
 #ai-model-options .st-search-combo__option,
 #ai-model-options .st-search-combo__empty {
-  width: 100%;
   padding: var(--st-spacing-sm);
   overflow-wrap: anywhere;
-  text-align: start;
   font: inherit;
   font-size: 14px;
-}
-
-#ai-model-options .st-search-combo__option {
-  border: 0;
-  border-radius: var(--st-radius-sm);
-  color: inherit;
-  background: transparent;
-  cursor: pointer;
-}
-
-#ai-model-options .st-search-combo__option:hover,
-#ai-model-options .st-search-combo__option[aria-selected="true"] {
-  color: var(--ob-primary);
-  background: var(--ob-primary-soft);
 }
 
 @media (max-width: 520px) {

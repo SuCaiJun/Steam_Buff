@@ -67,13 +67,16 @@
     };
   }
 
-  function bindPosition(host, button, initialTop, saveTop, bottomInset) {
+  function bindPosition(host, button, initialTop, saveTop, topInset, bottomInset) {
     const owner = host.ownerDocument.defaultView;
     const property = "--st-ai-chat-top";
     let savedTop = Number.isFinite(initialTop) && initialTop >= 0 ? initialTop : null;
     let drag = null, paint = 0, skipClick = false;
     const isOpen = () => button.getAttribute("aria-expanded") === "true";
-    const clampTop = (top, height) => Math.round(Math.max(0, Math.min(top, owner.innerHeight - height - bottomInset)));
+    const clampTop = (top, height) => {
+      const maxTop = Math.max(0, owner.innerHeight - height - bottomInset);
+      return Math.round(Math.min(maxTop, Math.max(topInset, top)));
+    };
     function place(top) {
       if (top === null) host.style.removeProperty(property);
       else host.style.setProperty(property, top + "px");
@@ -149,9 +152,10 @@
 
   /** 挂载一个入口。提供 open 时由调用方拥有窗口，否则入口拥有网页面板 */
   function mount(options) {
-    const { doc, parent, variant, url, appId, open, avatarSrc, initialTop, saveTop } = options;
-    const bottomInset = variant === "main" ? 64 : 0;
-    const defaultBottom = variant === "main" ? bottomInset : 16;
+    const { doc, parent, before = null, variant, url, appId, open, avatarSrc, initialTop, saveTop } = options;
+    const topInset = variant === "main" ? 80 : 0;
+    const bottomInset = variant === "main" ? 52 : 0;
+    const defaultBottom = variant === "main" ? bottomInset : 6;
     const host = doc.createElement("div");
     host.className = "st-ai-chat-" + variant;
     const shadow = host.attachShadow({ mode: "open" });
@@ -160,22 +164,26 @@
       :host{--chat-avatar-size:52px;font:14px/1.4 system-ui,sans-serif;display:block}
       :host(.st-ai-chat-web),:host(.st-ai-chat-main){
         position:fixed;
-        right:0;
+        right:12px;
         z-index:var(--st-z-index-sticky);
-        top:clamp(0px,var(--st-ai-chat-top,calc(100dvh - var(--chat-avatar-size) - ${defaultBottom}px)),max(0px,calc(100dvh - var(--chat-avatar-size) - ${bottomInset}px)));
+        --chat-avatar-max-top:max(0px,calc(100dvh - var(--chat-avatar-size) - ${bottomInset}px));
+        top:clamp(min(${topInset}px,var(--chat-avatar-max-top)),var(--st-ai-chat-top,calc(100dvh - var(--chat-avatar-size) - ${defaultBottom}px)),var(--chat-avatar-max-top));
       }
       :host(.st-ai-chat-web[data-open]),:host([data-dragging]){z-index:var(--st-z-index-max)}
-      :host(.st-ai-chat-friends){padding:2px 6px;flex:none}
+      :host(.st-ai-chat-friends){font:inherit;flex:none;padding-block-start:1px;border-block-end:1px solid rgba(143,143,143,.25)}
       button{pointer-events:auto;cursor:pointer;font:inherit;color:var(--st-color-text-primary);background:var(--st-dialog-surface-raised);border:1px solid var(--st-dialog-border);border-radius:var(--st-control-radius);padding:7px 12px;}
       button:hover{background:var(--st-color-primary-surface-hover);border-color:var(--st-color-primary)}
       button:focus-visible{outline:2px solid var(--st-color-primary);outline-offset:2px}
-      button.friend-entry{width:100%;display:flex;align-items:center;gap:9px;text-align:start;padding:4px 6px;
-        background:transparent;border:0;color:var(--st-color-primary-soft-text)}
-      button.friend-entry:hover{background:var(--st-color-steam-blue-alpha-10)}
+      button.friend-entry{inline-size:100%;min-block-size:42px;box-sizing:border-box;display:flex;align-items:center;
+        gap:6px;text-align:start;padding:2px 0 2px 12px;background:transparent;border:0;border-radius:0;color:#6dcff6}
+      button.friend-entry:hover{background:rgba(36,52,64,.3)}
       button.friend-entry:focus-visible{outline-offset:-2px}
-      .friend-entry img{flex:none;object-fit:cover;border-radius:4px}
-      .friend-caption{display:grid;line-height:1.2}
-      .friend-caption small{color:var(--st-dialog-muted-color);font-size:11px}
+      .friend-entry img{flex:none;box-sizing:border-box;object-fit:cover;margin-inline:2px 4px;
+        border:1px solid #383c43;box-shadow:2px 2px 8px 1px rgba(0,0,0,.3)}
+      .friend-caption{min-inline-size:0;block-size:28px}
+      .friend-caption > span,.friend-caption small{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+      .friend-caption > span{font-size:14px;line-height:16px}
+      .friend-caption small{color:#4c91ac;font-size:12px;line-height:18px;margin-block-start:-1px}
       button.avatar{position:relative;z-index:1;display:grid;place-items:center;width:var(--chat-avatar-size);height:var(--chat-avatar-size);padding:3px;border-radius:50%;box-shadow:var(--st-dialog-panel-shadow)}
       button.avatar img{display:block;width:100%;height:100%;min-width:0;min-height:0;object-fit:cover;border-radius:50%}
       button.avatar{touch-action:none;user-select:none}
@@ -229,7 +237,7 @@
     }
     shadow.append(css, button);
     if (!open) button.setAttribute("aria-expanded", "false");
-    const position = saveTop ? bindPosition(host, button, initialTop, saveTop, bottomInset) : null;
+    const position = saveTop ? bindPosition(host, button, initialTop, saveTop, topInset, bottomInset) : null;
     button.addEventListener("click", event => {
       if (!event.isTrusted || position?.ignoreClick(event)) return;
       if (open) { open(button); return; }
@@ -251,7 +259,7 @@
       button.setAttribute("aria-expanded", "true");
       view.focus();
     });
-    parent.append(host);
+    parent.insertBefore(host, before);
     return Object.freeze({ host, button, dispose() { position?.dispose(); unbind?.(); host.remove(); } });
   }
 

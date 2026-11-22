@@ -11109,6 +11109,12 @@
   "ai_chat_new_session": {
     "message": "新增對話"
   },
+  "ai_chat_search_history": {
+    "message": "搜尋對話標題"
+  },
+  "ai_chat_history_no_matches": {
+    "message": "沒有符合的對話"
+  },
   "ai_chat_switch_session": {
     "message": "切換會話"
   },

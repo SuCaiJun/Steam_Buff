@@ -11109,6 +11109,12 @@
   "ai_chat_new_session": {
     "message": "대화 만들기"
   },
+  "ai_chat_search_history": {
+    "message": "대화 제목 검색"
+  },
+  "ai_chat_history_no_matches": {
+    "message": "일치하는 대화가 없습니다"
+  },
   "ai_chat_switch_session": {
     "message": "대화 전환"
   },

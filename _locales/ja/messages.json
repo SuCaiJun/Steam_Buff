@@ -11109,6 +11109,12 @@
   "ai_chat_new_session": {
     "message": "会話を作成"
   },
+  "ai_chat_search_history": {
+    "message": "会話タイトルを検索"
+  },
+  "ai_chat_history_no_matches": {
+    "message": "一致する会話がありません"
+  },
   "ai_chat_switch_session": {
     "message": "会話を切り替え"
   },

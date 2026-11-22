@@ -12,7 +12,8 @@
   "use strict";
   const byId = id => document.getElementById(id);
   const text = (key, fallback, params) => STI18n.text(key, fallback, params);
-  const history = byId("history"), service = byId("service"), input = byId("message");
+  const service = byId("service"), input = byId("message");
+  let history = byId("history"), historySlot;
   const transcript = byId("transcript"), status = byId("status"), stop = byId("stop");
   const checks = byId("tool-options");
   const send = byId("send"), settings = byId("settings"), create = byId("new");
@@ -102,6 +103,7 @@
     port = opened;
     opened.onMessage.addListener(message => {
       if (message.type === "tool-preference") { finishToolSave(message.sequence, message.saved); return; }
+      if (message.type === "thread-title") { updateThreadTitle(message.id, message.title); return; }
       if (message.sequence !== pending?.sequence) return;
       const { progress, resolve, reject } = pending;
       if (message.type === "delta" || message.type === "tools") return progress?.(message);
@@ -452,7 +454,6 @@
 
   function renderHistory() {
     const titles = new Map(records.map(record => [record.id, record.title]));
-    const options = [];
     if (desktop) {
       const untitled = text("ai_chat_untitled", "新会话");
       for (const [id, draft] of drafts) {
@@ -460,13 +461,34 @@
           titles.set(id, draft.text.trim().split("\n", 1)[0].slice(0, 80) || untitled);
       }
       if (!titles.has(thread.id)) titles.set(thread.id, thread.title || untitled);
-    } else {
-      const current = option("", text("ai_chat_current", "当前会话"));
-      if (web) current.disabled = current.hidden = true;
-      options.push(current);
     }
-    history.replaceChildren(...options, ...Array.from(titles, ([id, title]) => option(id, title)));
-    history.value = titles.has(thread.id) ? thread.id : "";
+    const current = text("ai_chat_current", "当前会话");
+    const id = titles.has(thread.id) ? thread.id : "";
+    if (!historySlot) {
+      history.replaceChildren(option("", current), ...Array.from(titles, ([id, title]) => option(id, title)));
+      history.value = id;
+      return;
+    }
+    const focused = document.activeElement === history;
+    const label = text("ai_chat_switch_session", "切换会话");
+    const html = STSearchCombo.searchComboHtml(Array.from(titles, ([value, label]) => ({ value, label, search: label })), {
+      id: "history", label, value: id, text: titles.get(id) ?? current, expandLabel: label,
+      placeholder: text("ai_chat_search_history", "搜索会话标题"),
+      emptyLabel: text("ai_chat_history_no_matches", "没有匹配的会话"), modal: true, restoreOnClose: true,
+    });
+    STSearchCombo.closeSearchCombo(historySlot);
+    STDomUtils.setTrustedHTML(historySlot, STDomUtils.trustedHTML(html, "ai-chat-search-combo"));
+    history = historySlot.querySelector("#history");
+    if (focused) history.focus({ preventScroll: true });
+  }
+
+  function updateThreadTitle(id, title) {
+    const record = records.find(item => item.id === id);
+    if (!record) return;
+    record.title = title;
+    if (thread?.id === id) thread.title = title;
+    if (historySlot) STSearchCombo.updateSearchComboLabel(history, id, title);
+    else renderHistory();
   }
 
   function renderControls() {
@@ -502,6 +524,11 @@
 
   function busy(value, generating = false) {
     create.disabled = history.disabled = service.disabled = value;
+    if (historySlot) {
+      const toggle = historySlot.querySelector("[data-st-combo-toggle]");
+      if (toggle) toggle.disabled = value;
+      if (value) STSearchCombo.closeSearchCombo(historySlot);
+    }
     input.disabled = value;
     for (const check of toolOptions.values()) check.disabled = value;
     send.disabled = value || !service.value;
@@ -577,9 +604,9 @@
 
   async function switchSession(id) {
     if (pending || !thread || id === thread.id || (desktop && !id)) {
-      if (desktop && thread) history.value = thread.id;
       return;
     }
+    const focused = document.activeElement === history;
     stashDraft();
     busy(true);
     try {
@@ -587,15 +614,18 @@
       const next = draft?.unsaved || (id ? await call("read", { id }) : newThread());
       if (!next) throw new Error("AI chat history record unavailable");
       thread = next;
+      const record = records.find(item => item.id === id);
+      if (record && next.title) record.title = next.title;
       input.value = draft?.text || "";
       status.textContent = "";
     } catch (error) {
-      history.value = desktop || records.some(record => record.id === thread.id) ? thread.id : "";
+      renderHistory();
       busy(false);
       failed(error);
       return;
     }
     render();
+    if (focused) history.focus({ preventScroll: true });
   }
 
   function iconControl(control, label) {
@@ -611,6 +641,11 @@
     header.querySelector("h1").hidden = true;
     historyLabel.classList.add("chat-history");
     historyLabel.querySelector("span").textContent = text("ai_chat_switch_session", "切换会话");
+    historySlot = document.createElement("div");
+    history.replaceWith(historySlot);
+    STComponents.ensureStyle("st-ai-chat-search-combo", STComponents.searchComboCss);
+    const scope = header.closest("main");
+    STSearchCombo.bindSearchCombos(scope, undefined, (_input, id) => { void switchSession(id); });
     const session = document.createElement("div");
     session.className = "chat-session";
     session.append(historyLabel, create);
@@ -635,7 +670,6 @@
   function mountWeb() {
     const actions = byId("web-actions");
     const close = byId("web-close");
-    history.add(option("", text("ai_chat_current", "当前会话")));
     actions.prepend(settings);
     actions.hidden = settings.hidden = false;
     welcome.querySelector("h2").textContent = name;
@@ -880,7 +914,7 @@
     render();
     input.focus();
   });
-  history.addEventListener("change", () => { void switchSession(history.value); });
+  if (!pane) history.addEventListener("change", () => { void switchSession(history.value); });
   checks.addEventListener("change", rememberTools);
   service.addEventListener("change", () => { send.disabled = !service.value; });
   byId("composer").addEventListener("submit", submit);

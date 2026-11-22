@@ -327,7 +327,7 @@
     }
 
     function modelControl(form, models, value, serviceId) {
-      const fields = root.STSettingsFields;
+      const fields = root.STSearchCombo;
       const label = uiText("settings.field.ai.model.label", "模型");
       const slot = form.querySelector("[data-ai-model-control]");
       const html = fields.searchComboHtml(models.map(id => ({ value: id, label: id })), {
@@ -515,7 +515,7 @@
           root.STDomUtils.setTrustedHTML(node, root.STDomUtils.trustedHTML(editorHtml(draft, providers, provider), "settings-ai-services"));
           modelControl(form, provider.models, draft.model, draft.id);
           initial = JSON.stringify(draftValues(node));
-          root.STSettingsFields.bindSearchCombos(node, life.signal);
+          root.STSearchCombo.bindSearchCombos(node, life.signal);
           node.addEventListener("input", event => {
             const field = event.target.dataset.ai;
             if (field === "name") autoName = false;
@@ -526,7 +526,6 @@
               hostOrigin = nextOrigin;
             }
             if (["host", "key", "keyName"].includes(field)) clearDetected();
-            if (field === "model") root.STSettingsFields.handleSearchCombo(event, node);
           });
           node.addEventListener("change", event => {
             const field = event.target.dataset.ai;
