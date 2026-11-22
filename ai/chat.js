@@ -12,13 +12,14 @@
   "use strict";
   const byId = id => document.getElementById(id);
   const text = (key, fallback, params) => STI18n.text(key, fallback, params);
-  const service = byId("service"), input = byId("message");
+  const service = byId("service"), input = byId("message"), composer = byId("composer");
   let history = byId("history"), historySlot;
   const transcript = byId("transcript"), status = byId("status"), stop = byId("stop");
   const checks = byId("tool-options");
   const send = byId("send"), settings = byId("settings"), create = byId("new");
   const name = STConfig.aiChatName;
   const toolPreferenceKey = STConfig.aiChatToolPreferenceKey;
+  const sendShortcutKey = STConfig.aiChatSendShortcutKey;
   const toolPreferenceStorage = { owner: "settings:ai-chat", reason: "chat-tool-preference" };
   const STREAM_PREVIEW_MS = 100;
   const toolOptions = new Map();
@@ -43,6 +44,7 @@
   let toolSave = 0;
   const pendingToolSaves = new Map();
   let toolPreferenceVersion = 0, syncedTools;
+  let sendShortcutChanged = false, sendWithCtrl = true;
   let needsSettings = false;
   let records = [], services = [];
   let failedTurn;
@@ -568,8 +570,18 @@
     for (const [id, check] of toolOptions) check.checked = ids.includes(id);
   }
 
-  function onToolPreferenceChanged(changes, area) {
-    if (area !== "local" || !Object.hasOwn(changes, toolPreferenceKey)) return;
+  function applySendShortcut(value) {
+    sendWithCtrl = value !== "enter";
+    send.setAttribute("aria-keyshortcuts", sendWithCtrl ? "Control+Enter" : "Enter");
+  }
+
+  function onPreferenceChanged(changes, area) {
+    if (area !== "local") return;
+    if (Object.hasOwn(changes, sendShortcutKey)) {
+      sendShortcutChanged = true;
+      applySendShortcut(changes[sendShortcutKey].newValue);
+    }
+    if (!Object.hasOwn(changes, toolPreferenceKey)) return;
     try {
       syncedTools = toolIdsFromStorage(changes[toolPreferenceKey].newValue);
     } catch (error) {
@@ -892,18 +904,19 @@
       checks.append(label);
       toolOptions.set(tool.id, box);
     }
-    chrome.storage.onChanged.addListener(onToolPreferenceChanged);
+    chrome.storage.onChanged.addListener(onPreferenceChanged);
     const version = toolPreferenceVersion;
-    const prefs = await STSettingsBus.rawGet([toolPreferenceKey], { ...toolPreferenceStorage, strict: true });
+    const prefs = await STSettingsBus.rawGet([toolPreferenceKey, sendShortcutKey], { ...toolPreferenceStorage, strict: true });
     if (version === toolPreferenceVersion) applyToolPreference(toolIdsFromStorage(prefs[toolPreferenceKey]));
+    if (!sendShortcutChanged) applySendShortcut(prefs[sendShortcutKey]);
     ({ threads: records, services } = await call("state"));
     thread = records.length ? await call("read", { id: records[0].id }) : newThread();
     render();
     if (web && document.hasFocus() && document.activeElement === document.body) history.focus();
   }
 
-  function requestClose() {
-    if (window.parent !== window) window.parent.postMessage({ type: "st-ai-chat-close" }, "*");
+  function requestClose(event) {
+    window.parent.postMessage({ type: "st-ai-chat-close", escapeAt: performance.timeOrigin + event.timeStamp }, "*");
   }
 
   create.addEventListener("click", () => {
@@ -917,7 +930,13 @@
   if (!pane) history.addEventListener("change", () => { void switchSession(history.value); });
   checks.addEventListener("change", rememberTools);
   service.addEventListener("change", () => { send.disabled = !service.value; });
-  byId("composer").addEventListener("submit", submit);
+  composer.addEventListener("submit", submit);
+  input.addEventListener("keydown", event => {
+    if (event.key !== "Enter" || event.defaultPrevented || event.isComposing || event.keyCode === 229 ||
+        event.shiftKey || event.altKey || event.metaKey || event.ctrlKey !== sendWithCtrl) return;
+    event.preventDefault();
+    if (!event.repeat && !send.disabled && input.value.trim()) composer.requestSubmit(send);
+  });
   stop.addEventListener("click", () => { stop.disabled = true; port?.postMessage({ action: "cancel" }); });
   window.addEventListener("keydown", event => {
     if (event.key !== "Escape" || event.defaultPrevented || event.isComposing || window.parent === window) return;
@@ -925,10 +944,10 @@
     if (tools.open) {
       tools.open = false;
       tools.querySelector("summary").focus();
-    } else requestClose();
+    } else requestClose(event);
   });
   window.addEventListener("pagehide", () => {
-    chrome.storage.onChanged.removeListener(onToolPreferenceChanged);
+    chrome.storage.onChanged.removeListener(onPreferenceChanged);
     avatarPort?.close();
     port?.disconnect();
   }, { once: true });

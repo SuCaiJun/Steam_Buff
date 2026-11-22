@@ -11279,6 +11279,18 @@
   "settings_feature_ai_chat_main_desc": {
     "message": "Steam 기본 창의 오른쪽 아래에 AI 대화 버튼을 표시합니다."
   },
+  "settings_feature_ai_chat_send_shortcut_name": {
+    "message": "전송 단축키"
+  },
+  "settings_feature_ai_chat_send_shortcut_desc": {
+    "message": "웹과 클라이언트에 함께 적용됩니다. Shift+Enter로 줄을 바꿉니다."
+  },
+  "settings_feature_ai_chat_send_shortcut_option_enter": {
+    "message": "Enter"
+  },
+  "settings_feature_ai_chat_send_shortcut_option_ctrl_enter": {
+    "message": "Ctrl+Enter"
+  },
   "settings_feature_ai_chat_friends_name": {
     "message": "친구 목록 AI 대화"
   },

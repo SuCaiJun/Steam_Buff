@@ -13,12 +13,28 @@
   // 从已注册的 Notifications Menu 获取通用 Popup 构造器
   const WINDOW_HIDDEN = 2;
   const WINDOW_RESIZABLE = 16;
+  const resizeHandlesCss = `
+    [data-st-native-gesture] iframe { pointer-events: none; }
+    [data-st-native-resize] { position: absolute; z-index: 20; touch-action: none; -webkit-app-region: no-drag; }
+    [data-st-native-resize="n"], [data-st-native-resize="s"] { left: 12px; right: 12px; height: 6px; cursor: ns-resize; }
+    [data-st-native-resize="n"] { top: 0; }
+    [data-st-native-resize="s"] { bottom: 0; }
+    [data-st-native-resize="w"], [data-st-native-resize="e"] { top: 12px; bottom: 12px; width: 6px; cursor: ew-resize; }
+    [data-st-native-resize="w"] { left: 0; }
+    [data-st-native-resize="e"] { right: 0; }
+    :is([data-st-native-resize="nw"], [data-st-native-resize="ne"], [data-st-native-resize="sw"], [data-st-native-resize="se"]) { width: 12px; height: 12px; }
+    [data-st-native-resize="nw"] { left: 0; top: 0; cursor: nwse-resize; }
+    [data-st-native-resize="ne"] { right: 0; top: 0; cursor: nesw-resize; }
+    [data-st-native-resize="sw"] { left: 0; bottom: 0; cursor: nesw-resize; }
+    [data-st-native-resize="se"] { right: 0; bottom: 0; cursor: nwse-resize; }
+  `;
   /**
    * 每个宿主最多管理一个窗口。params(kind) 提供标题、modal 与 dimensions；geometry(state)
    * 提供相对入口窗口的 x/y/width/height。follow 仅用于需要持续跟随的消息菜单。
    * standalone 使用 Steam 可缩放窗口及 minWidth/minHeight，默认沿用菜单窗口参数。
    * mainPopup 只在属性入口中选择已注册的 Steam 主 Popup，入口 Popup 仍负责焦点恢复。
    * resizable 配合 canResize 启用八方向手柄，onBoundsChanged 仅在操作完成后回传尺寸。
+   * draggable 允许以 data-st-native-drag 标记移动区，canStartGesture(win) 可在首次原生调用前阻止手势。
    * resize(width,height) 为恢复布局调整当前窗口大小，不改变窗口位置或自行保存配置。
    * open 返回挂载、定位完成的 Promise；close/stop 在销毁文档前回收自有 DOM 与订阅。
    */
@@ -126,12 +142,14 @@
       }
     }
 
-    // 缩放以自有窗口的 restore 字符串为原点；不依赖 CEF 未同步更新的 screenX/screenY。
+    // 移动和缩放以自有窗口的 restore 字符串为原点；不依赖 CEF 未同步更新的窗口坐标。
     // 指针移动只改常数个数值，rAF 合并且最多一个原生调用在途；只在松手后保存最终尺寸。
     function attachResize(state) {
       const win = state.win, content = state.content;
       if (typeof win.SteamClient.Window.GetWindowRestoreDetails !== "function") throw new Error(uiText("nativeWindow.resize", "Steam 原生窗口缩放接口不可用"));
       let gesture = null, frame = 0, stopped = false, resetting = false;
+      let lastGesture;
+      const time = event => win.performance.timeOrigin + (event?.timeStamp ?? win.performance.now());
       const handles = ["n", "s", "w", "e", "nw", "ne", "sw", "se"].map(edge => {
         const handle = state.doc.createElement("span");
         handle.dataset.stNativeResize = edge; handle.setAttribute("aria-hidden", "true");
@@ -140,11 +158,30 @@
       function release(g) {
         if (g.target?.hasPointerCapture(g.pointerId)) g.target.releasePointerCapture(g.pointerId);
       }
+      function finishGesture(g) {
+        g.endedAt ??= time();
+        gesture = null;
+        content.removeAttribute("data-st-native-gesture");
+        release(g);
+      }
+      function saveBounds(g) {
+        const bounds = g.applied;
+        if (g.edge && !g.cancelled && bounds && (g.width !== bounds.width || g.height !== bounds.height)) {
+          options.onBoundsChanged?.({ width: bounds.width, height: bounds.height });
+        }
+      }
       async function flush(g) {
         if (stopped || state.closed || gesture !== g || g.running) return;
         g.running = true;
         try {
-          if (g.restore === null) g.restore = await win.SteamClient.Window.GetWindowRestoreDetails();
+          if (g.restore === null) {
+            if (options.canStartGesture && !await options.canStartGesture(win)) {
+              if (gesture === g) finishGesture(g);
+              return;
+            }
+            if (stopped || state.closed || gesture !== g) return;
+            g.restore = await win.SteamClient.Window.GetWindowRestoreDetails();
+          }
           const restore = g.restore;
           if (stopped || state.closed || gesture !== g) return;
           if (typeof restore !== "string") throw new TypeError(uiText("nativeWindow.badPosition", "Steam 窗口位置格式无效"));
@@ -155,8 +192,8 @@
           }
           if (stopped || state.closed || gesture !== g) return;
           if (!g.next && g.ended) {
-            gesture = null;
-            if (!g.cancelled) options.onBoundsChanged?.({ width: g.applied.width, height: g.applied.height });
+            finishGesture(g);
+            saveBounds(g);
           }
         } finally {
           g.running = false;
@@ -169,7 +206,7 @@
           frame = 0;
           void flush(g).catch(error => {
             if (stopped || state.closed) return;
-            gesture = null; release(g); reportFailure(error, "window-resize");
+            finishGesture(g); reportFailure(error, g.edge ? "window-resize" : "window-drag");
           });
         });
       }
@@ -177,35 +214,53 @@
         if (gesture || resetting || stopped || !state.ready || !options.canResize()) return null;
         const g = { target, pointerId: event?.pointerId, startX: event?.screenX, startY: event?.screenY,
           width: win.innerWidth, height: win.innerHeight, restore: null,
-          edge: target?.dataset.stNativeResize, next: null, ended: false };
-        gesture = g;
+          edge: target?.dataset.stNativeResize, next: null, ended: false, startedAt: time(event) };
+        gesture = lastGesture = g;
         return g;
       }
-      function cancel() {
-        const g = gesture;
-        if (!g || g.ended) return false;
+      function cancel(escapeAt) {
+        const fromFrame = Number.isFinite(escapeAt);
+        const g = fromFrame ? lastGesture : gesture;
+        if (!g) return false;
+        if (fromFrame) {
+          // iframe 的 Escape 可能在松手之后才送达，以按键时刻判断它是否属于窗口手势。
+          if (escapeAt < g.startedAt || escapeAt > (g.endedAt ?? Infinity)) return false;
+          if (g !== gesture || g.cancelled) return true;
+        } else if (g.ended) return false;
         g.cancelled = true; g.ended = true;
+        g.endedAt ??= time();
         g.next = { x: 0, y: 0, width: g.width, height: g.height };
         release(g); schedule(g); return true;
       }
       function pointer(event) {
         if (event.type === "pointerdown") {
-          const target = event.target.closest("[data-st-native-resize]");
+          const target = event.target.closest("[data-st-native-resize]") ??
+            (options.draggable ? event.target.closest("[data-st-native-drag]") : null);
           if (!target || event.button !== 0 || !event.isPrimary) return;
           event.preventDefault();
           const g = begin(target, event);
-          if (g) { target.setPointerCapture(event.pointerId); schedule(g); }
+          if (g) {
+            if (options.draggable) {
+              // 跨源聊天 iframe 不能在拖动途中接管指针。
+              content.setAttribute("data-st-native-gesture", "");
+            }
+            target.setPointerCapture(event.pointerId);
+            schedule(g);
+          }
           return;
         }
         const g = gesture;
         if (!g || g.ended || event.pointerId !== g.pointerId) return;
         if (event.type === "pointercancel" || event.type === "lostpointercapture") { cancel(); return; }
         const dx = event.screenX - g.startX, dy = event.screenY - g.startY;
-        const west = g.edge.includes("w"), east = g.edge.includes("e"), north = g.edge.includes("n"), south = g.edge.includes("s");
-        const width = Math.round(Math.max(Math.min(640, win.screen.availWidth), Math.min(win.screen.availWidth, g.width + (west ? -dx : east ? dx : 0))));
-        const height = Math.round(Math.max(Math.min(400, win.screen.availHeight), Math.min(win.screen.availHeight, g.height + (north ? -dy : south ? dy : 0))));
-        g.next = { x: west ? g.width - width : 0, y: north ? g.height - height : 0, width, height };
-        if (event.type === "pointerup") { g.ended = true; release(g); }
+        if (!g.edge) g.next = { x: Math.round(dx), y: Math.round(dy), width: g.width, height: g.height };
+        else {
+          const west = g.edge.includes("w"), east = g.edge.includes("e"), north = g.edge.includes("n"), south = g.edge.includes("s");
+          const width = Math.round(Math.max(Math.min(state.minWidth, win.screen.availWidth), Math.min(win.screen.availWidth, g.width + (west ? -dx : east ? dx : 0))));
+          const height = Math.round(Math.max(Math.min(state.minHeight, win.screen.availHeight), Math.min(win.screen.availHeight, g.height + (north ? -dy : south ? dy : 0))));
+          g.next = { x: west ? g.width - width : 0, y: north ? g.height - height : 0, width, height };
+        }
+        if (event.type === "pointerup") { g.ended = true; g.endedAt = time(event); release(g); }
         schedule(g);
       }
       for (const type of ["pointerdown", "pointermove", "pointerup", "pointercancel", "lostpointercapture"]) content.addEventListener(type, pointer);
@@ -225,9 +280,14 @@
         },
         stop() {
           stopped = true; win.cancelAnimationFrame(frame); frame = 0;
+          content.removeAttribute("data-st-native-gesture");
           const g = gesture; gesture = null; if (g) release(g);
           for (const type of ["pointerdown", "pointermove", "pointerup", "pointercancel", "lostpointercapture"]) content.removeEventListener(type, pointer);
           handles.forEach(handle => handle.remove());
+          if (g?.ended) {
+            try { saveBounds(g); }
+            catch (error) { reportFailure(error, "window-resize"); }
+          }
         },
       };
     }
@@ -283,7 +343,7 @@
         window.STTheme.applyCssVariables(doc.documentElement);
         options.prepareDocument?.(state);
         const sheet = doc.createElement("style");
-        sheet.textContent = options.css(kind);
+        sheet.textContent = options.css(kind) + (options.resizable ? resizeHandlesCss : "");
         doc.head.appendChild(sheet); target.appendChild(content);
         prepareContent(state);
         doc.addEventListener("keydown", state.keydown, true);
@@ -302,6 +362,8 @@
         const config = await waitForContract(state);
         if (state.closed || disposed || active !== state) return;
         const spec = options.params(kind);
+        state.minWidth = spec.minWidth ?? 640;
+        state.minHeight = spec.minHeight ?? 400;
         const params = {
           title: spec.title, eCreationFlags: (options.standalone ? WINDOW_RESIZABLE : config.flags) | WINDOW_HIDDEN,
           target_browser: config.browser, window_opener_id: config.openerId,
@@ -324,6 +386,7 @@
 
     return Object.freeze({
       open, close, layout,
+      cancelGesture(escapeAt) { return active?.resizer?.cancel(escapeAt) ?? false; },
       resize(width, height) {
         if (!active?.ready || !active.resizer) return Promise.reject(new Error("原生窗口尚未就绪"));
         return active.resizer.resize(width, height);

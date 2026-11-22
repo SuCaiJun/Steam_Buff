@@ -11279,6 +11279,18 @@
   "settings_feature_ai_chat_main_desc": {
     "message": "Steam メインウィンドウの右下に AI チャットを表示します。"
   },
+  "settings_feature_ai_chat_send_shortcut_name": {
+    "message": "送信ショートカット"
+  },
+  "settings_feature_ai_chat_send_shortcut_desc": {
+    "message": "ウェブ版とクライアント版で共通です。Shift+Enter で改行します。"
+  },
+  "settings_feature_ai_chat_send_shortcut_option_enter": {
+    "message": "Enter"
+  },
+  "settings_feature_ai_chat_send_shortcut_option_ctrl_enter": {
+    "message": "Ctrl+Enter"
+  },
   "settings_feature_ai_chat_friends_name": {
     "message": "フレンド一覧の AI チャット"
   },

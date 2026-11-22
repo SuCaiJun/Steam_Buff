@@ -578,6 +578,7 @@
     // Steam Popup 的拖动区域与隔离页的会话控件必须共享同一组尺寸。
     aiChatWindowLayout: Object.freeze({ titleHeight: 44, brandWidth: 94, controlsWidth: 112, minDragWidth: 44, sessionWidth: 284 }),
     aiChatToolPreferenceKey: "st.ai.chat.tool-ids",
+    aiChatSendShortcutKey: "st.settings.ai-chat-send-shortcut.value",
     hosts,
     urls,
     vendors,

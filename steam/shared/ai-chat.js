@@ -26,11 +26,13 @@
   const users = new Set();
   const MIN_WIDTH = 400;
   const MIN_HEIGHT = 400;
+  const SIZE_KEY = "st.ai.chat.window-size";
   let popup = null;
 
   function geometry() {
-    const width = Math.max(MIN_WIDTH, Math.min(740, innerWidth - 36));
-    const height = Math.max(MIN_HEIGHT, Math.min(650, innerHeight - 48));
+    const saved = /^(\d+)x(\d+)$/.exec(window.localStorage.getItem(SIZE_KEY) ?? "");
+    const width = Math.min(screen.availWidth, Math.max(MIN_WIDTH, Number(saved?.[1]) || Math.min(740, innerWidth - 36)));
+    const height = Math.min(screen.availHeight, Math.max(MIN_HEIGHT, Number(saved?.[2]) || Math.min(650, innerHeight - 48)));
     return { x: Math.round((innerWidth - width) / 2), y: Math.round((innerHeight - height) / 2), width, height };
   }
 
@@ -39,6 +41,7 @@
     bar.className = "st-ai-chat-titlebar";
     const brand = doc.createElement("div");
     brand.className = "st-ai-chat-window-brand";
+    brand.dataset.stNativeDrag = "";
     const avatar = doc.createElement("img");
     avatar.alt = "";
     avatar.draggable = false;
@@ -48,13 +51,14 @@
     brand.append(avatar, heading);
     const drag = doc.createElement("div");
     drag.className = "st-ai-chat-window-drag";
+    drag.dataset.stNativeDrag = "";
     const controls = doc.createElement("div");
     controls.className = "st-ai-chat-window-controls";
     const native = () => bar.ownerDocument.defaultView.SteamClient.Window;
     const actions = [
-      ["square-minus", "ai_chat_window_minimize", "最小化", () => native().Minimize()],
-      ["arrows-diagonal", "ai_chat_window_maximize_restore", "最大化或还原", () => native().ToggleMaximize()],
-      ["x", "common_close", "关闭", close],
+      ["minimize", "ai_chat_window_minimize", "最小化", () => native().Minimize()],
+      ["maximize", "ai_chat_window_maximize_restore", "最大化或还原", () => native().ToggleMaximize()],
+      ["close", "common_close", "关闭", close],
     ];
     for (const [icon, key, fallback, action] of actions) {
       const button = doc.createElement("button");
@@ -70,7 +74,6 @@
   }
 
   function windowCss() {
-    const icon = file => `url("${api.path.url("images/tabler/" + file + ".svg")}")`;
     const { titleHeight, brandWidth, controlsWidth, minDragWidth, sessionWidth } = layout;
     return `
       html, body, #popup_target, .st-ai-chat-native { height: 100%; margin: 0; overflow: hidden; }
@@ -80,7 +83,7 @@
         display: grid; align-items: center; user-select: none; pointer-events: none; -webkit-app-region: no-drag;
         grid-template-columns: ${brandWidth}px min(${sessionWidth}px, calc(100% - ${brandWidth + minDragWidth + controlsWidth}px)) 1fr ${controlsWidth}px; }
       .st-ai-chat-window-brand, .st-ai-chat-window-drag {
-        align-self: stretch; pointer-events: auto; -webkit-app-region: drag; }
+        align-self: stretch; pointer-events: auto; touch-action: none; -webkit-app-region: no-drag; }
       .st-ai-chat-window-brand { display: flex; align-items: center; gap: 7px; padding-inline: 12px 6px; }
       .st-ai-chat-window-brand img { width: 20px; height: 20px; border-radius: 4px; }
       .st-ai-chat-window-brand h1 { margin: 0; color: var(--st-dialog-title-color); font-size: 14px; font-weight: 650; white-space: nowrap; }
@@ -91,11 +94,11 @@
         border-radius: var(--st-control-radius); cursor: pointer; }
       .st-ai-chat-window-controls button:hover { background: var(--st-dialog-secondary-bg-hover); color: var(--st-dialog-title-color); }
       .st-ai-chat-window-controls button:focus-visible { outline: 2px solid var(--st-color-primary); outline-offset: -2px; }
-      .st-ai-chat-window-controls button::before { content: ""; width: 16px; height: 16px;
-        background: currentColor; mask: var(--st-ai-window-icon) center / contain no-repeat; }
-      .st-ai-chat-window-square-minus { --st-ai-window-icon: ${icon("square-minus")}; }
-      .st-ai-chat-window-arrows-diagonal { --st-ai-window-icon: ${icon("arrows-diagonal")}; }
-      .st-ai-chat-window-x { --st-ai-window-icon: ${icon("x")}; }
+      .st-ai-chat-window-controls button::before { content: ""; box-sizing: border-box; }
+      .st-ai-chat-window-minimize::before { width: 13px; height: 1px; background: currentColor; }
+      .st-ai-chat-window-maximize::before { width: 13px; height: 10px; border: 1px solid currentColor; }
+      .st-ai-chat-window-close::before { width: 16px; height: 16px; background: currentColor;
+        mask: url("${api.path.url("images/tabler/x.svg")}") center / contain no-repeat; }
       .st-ai-chat-native iframe { display: block; flex: 1; width: 100%; min-height: 0; border: 0; }
     `;
   }
@@ -118,6 +121,10 @@
     let unbind, unbindAvatar;
     popup = api.nativeWindow.create({
       id: "SteamBuffAIChat", trigger, log, follow: false, standalone: true,
+      resizable: true, draggable: true,
+      canResize: () => true,
+      canStartGesture: async win => !await win.SteamClient.Window.IsWindowMaximized(),
+      onBoundsChanged({ width, height }) { window.localStorage.setItem(SIZE_KEY, `${width}x${height}`); },
       onClosed() {
         unbind?.();
         unbindAvatar?.();
@@ -136,7 +143,7 @@
       },
     });
     return popup.open("chat", target, () => {
-      unbind = window.STAIChatLauncher.bindClose(view, close);
+      unbind = window.STAIChatLauncher.bindClose(view, escapeAt => { if (!popup.cancelGesture(escapeAt)) close(); });
       unbindAvatar = window.STAIChatLauncher.bindAvatar(view,
         () => window.opener?.g_FriendsUIApp?.FriendStore?.self?.persona?.avatar_url_medium);
     });
@@ -153,11 +160,11 @@
   }
 
   function launch(doc, parent, variant, before) {
-    const avatar = variant === "main" ? mainAvatar(doc) : {};
+    const preferences = variant === "friends" ? friendsGroupState(doc) : mainAvatar(doc);
     const entry = window.STAIChatLauncher.mount({
       doc, parent, before, variant,
       avatarSrc: api.path.url("images/ai/avatar.png"),
-      ...avatar,
+      ...preferences,
       open: button => {
         void Promise.resolve().then(() => show(button)).catch(error => failOpen(error, button)).catch(error => {
           log.error("chat-feedback-failed", "Steam AI 对话提示失败", { error });
@@ -175,6 +182,21 @@
     return {
       initialTop: value === null ? null : Number(value),
       saveTop(top) { storage.setItem(key, String(top)); },
+    };
+  }
+
+  function friendsGroupState(doc) {
+    const key = "st.ai.chat.friends-group-open";
+    const storage = doc.defaultView.localStorage;
+    return {
+      initialGroupOpen: storage.getItem(key) !== "false",
+      saveGroupOpen(open) {
+        try { storage.setItem(key, String(open)); }
+        catch (error) {
+          log.error("chat-friends-group-save-failed", "无法保存 AI 分组展开状态", { error });
+          throw error;
+        }
+      },
     };
   }
 
@@ -211,16 +233,10 @@
         const wrapper = title?.nextElementSibling;
         if (!wrapper?.matches(".FriendsListContent")) return false;
         const list = wrapper.querySelector(":scope > .friendlistListContainer");
-        if (!list) return false;
-        const backdrop = win.getComputedStyle(list).background;
-        // 原生列表顶部的渐隐层也在滚动容器之前，助手行应位于渐隐层上方。
-        entry = launch(doc, wrapper, "friends", wrapper.firstChild);
-        entry.host.style.background = backdrop;
-        entry.host.style.backgroundAttachment = "fixed";
-        const style = doc.createElement("style");
-        style.textContent = ".FriendsListContent > .st-ai-chat-friends ~ .friendlistListContainer{background-attachment:fixed}";
-        // 两块背景按同一视口坐标绘制。卸载助手行时，该样式随宿主一同移除。
-        entry.host.append(style);
+        const content = list?.querySelector(":scope > .listContentContainer");
+        if (!content) return false;
+        // 与会重绘的原生分组保持并列，同用一个滚动容器。
+        entry = launch(doc, list, "friends", content);
         stopWaiting();
         return true;
       }

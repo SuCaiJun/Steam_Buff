@@ -11279,6 +11279,18 @@
   "settings_feature_ai_chat_main_desc": {
     "message": "在 Steam 客户端主窗口右下角显示 AI 对话入口"
   },
+  "settings_feature_ai_chat_send_shortcut_name": {
+    "message": "发送快捷键"
+  },
+  "settings_feature_ai_chat_send_shortcut_desc": {
+    "message": "网页和客户端共用，Shift+Enter 换行。"
+  },
+  "settings_feature_ai_chat_send_shortcut_option_enter": {
+    "message": "Enter"
+  },
+  "settings_feature_ai_chat_send_shortcut_option_ctrl_enter": {
+    "message": "Ctrl+Enter"
+  },
   "settings_feature_ai_chat_friends_name": {
     "message": "好友列表 AI 对话入口"
   },

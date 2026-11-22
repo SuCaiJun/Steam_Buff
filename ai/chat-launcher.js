@@ -30,7 +30,7 @@
     const origin = "chrome-extension://" + new URL(view.src).host;
     const onMessage = event => {
       if (event.source !== view.contentWindow || event.origin !== origin) return;
-      if (event.data?.type === "st-ai-chat-close") close();
+      if (event.data?.type === "st-ai-chat-close") close(event.data.escapeAt);
       if (event.data?.type === "st-ai-chat-ready") ready?.();
     };
     owner.addEventListener("message", onMessage);
@@ -152,7 +152,9 @@
 
   /** 挂载一个入口。提供 open 时由调用方拥有窗口，否则入口拥有网页面板 */
   function mount(options) {
-    const { doc, parent, before = null, variant, url, appId, open, avatarSrc, initialTop, saveTop } = options;
+    const { doc, parent, before = null, variant, url, appId, open, avatarSrc, initialTop, saveTop,
+      initialGroupOpen = true, saveGroupOpen } = options;
+    const friend = variant === "friends";
     const topInset = variant === "main" ? 80 : 0;
     const bottomInset = variant === "main" ? 52 : 0;
     const defaultBottom = variant === "main" ? bottomInset : 6;
@@ -170,7 +172,18 @@
         top:clamp(min(${topInset}px,var(--chat-avatar-max-top)),var(--st-ai-chat-top,calc(100dvh - var(--chat-avatar-size) - ${defaultBottom}px)),var(--chat-avatar-max-top));
       }
       :host(.st-ai-chat-web[data-open]),:host([data-dragging]){z-index:var(--st-z-index-max)}
-      :host(.st-ai-chat-friends){font:inherit;flex:none;padding-block-start:1px;border-block-end:1px solid rgba(143,143,143,.25)}
+      :host(.st-ai-chat-friends){font:inherit;flex:none}
+      details.friend-group{border-block-end:1px solid var(--st-color-border-normal)}
+      .friend-group > summary{display:flex;align-items:center;gap:3px;min-block-size:32px;padding-inline:2px 12px;
+        list-style:none;cursor:pointer;font-size:14px;color:var(--st-color-text-secondary-alt)}
+      .friend-group > summary::-webkit-details-marker{display:none}
+      .friend-group > summary:hover{background:var(--st-color-steam-blue-alpha-05)}
+      .friend-group > summary:focus-visible{outline:2px solid var(--st-color-primary);outline-offset:-2px}
+      .friend-group-icon{flex:none;inline-size:10px;text-align:center;color:var(--st-color-text-muted)}
+      .friend-group-icon::before{content:"+"}
+      .friend-group[open] .friend-group-icon{opacity:0}
+      .friend-group[open] .friend-group-icon::before{content:"−"}
+      .friend-group > summary:hover .friend-group-icon{opacity:1;color:var(--st-color-text-primary)}
       button{pointer-events:auto;cursor:pointer;font:inherit;color:var(--st-color-text-primary);background:var(--st-dialog-surface-raised);border:1px solid var(--st-dialog-border);border-radius:var(--st-control-radius);padding:7px 12px;}
       button:hover{background:var(--st-color-primary-surface-hover);border-color:var(--st-color-primary)}
       button:focus-visible{outline:2px solid var(--st-color-primary);outline-offset:2px}
@@ -194,6 +207,7 @@
       section{pointer-events:auto;position:fixed;inset:0 0 0 auto;width:min(480px,100vw);box-sizing:border-box;display:flex;border-inline-start:1px solid var(--st-dialog-border);background:var(--st-dialog-surface);box-shadow:var(--st-dialog-shadow);overflow:hidden}
       iframe{width:100%;min-width:0;border:0}
       @media (prefers-reduced-motion:no-preference){
+        .friend-group-icon{transition:opacity var(--st-motion-normal)}
         section{animation:st-ai-panel-enter 180ms ease-out}
         @keyframes st-ai-panel-enter{from{transform:translateX(100%)}}
       }
@@ -202,7 +216,6 @@
     button.type = "button";
     button.setAttribute("aria-haspopup", "dialog");
     if (avatarSrc) {
-      const friend = variant === "friends";
       button.className = friend ? "friend-entry" : "avatar";
       const image = doc.createElement("img");
       image.alt = "";
@@ -235,7 +248,28 @@
       button.setAttribute("aria-expanded", "false");
       button.focus({ preventScroll: true });
     }
-    shadow.append(css, button);
+    shadow.append(css);
+    if (friend) {
+      const group = doc.createElement("details");
+      group.className = "friend-group";
+      group.open = initialGroupOpen;
+      const summary = doc.createElement("summary");
+      const icon = doc.createElement("span");
+      icon.className = "friend-group-icon";
+      icon.setAttribute("aria-hidden", "true");
+      summary.append(icon, "AI");
+      // Steam 的好友滚动区会把空格当成搜索输入。
+      group.addEventListener("keydown", event => { if (event.key === " ") event.stopPropagation(); });
+      summary.addEventListener("click", event => {
+        // 在对应的点击中完成保存，关窗无需等待异步 toggle 事件。
+        event.preventDefault();
+        const nextOpen = !group.open;
+        saveGroupOpen?.(nextOpen);
+        group.open = nextOpen;
+      });
+      group.append(summary, button);
+      shadow.append(group);
+    } else shadow.append(button);
     if (!open) button.setAttribute("aria-expanded", "false");
     const position = saveTop ? bindPosition(host, button, initialTop, saveTop, topInset, bottomInset) : null;
     button.addEventListener("click", event => {

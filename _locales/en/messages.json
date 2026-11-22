@@ -11279,6 +11279,18 @@
   "settings_feature_ai_chat_main_desc": {
     "message": "Show the AI chat button in the bottom-right corner of the main Steam window."
   },
+  "settings_feature_ai_chat_send_shortcut_name": {
+    "message": "Send shortcut"
+  },
+  "settings_feature_ai_chat_send_shortcut_desc": {
+    "message": "Shared by web and desktop. Use Shift+Enter for a new line."
+  },
+  "settings_feature_ai_chat_send_shortcut_option_enter": {
+    "message": "Enter"
+  },
+  "settings_feature_ai_chat_send_shortcut_option_ctrl_enter": {
+    "message": "Ctrl+Enter"
+  },
   "settings_feature_ai_chat_friends_name": {
     "message": "AI chat in the friends list"
   },

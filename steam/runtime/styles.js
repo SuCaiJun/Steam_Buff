@@ -762,21 +762,7 @@
         ${NAME_BATCH_SELECTOR} .st-lin-transfer-options { gap: 8px; }
         ${NAME_BATCH_SELECTOR} .st-lin-transfer-dialog .st-lin-filter-actions { flex-wrap: wrap; }
       }
-      ${NAME_BATCH_SELECTOR} [data-st-native-resize] {
-        position: absolute; z-index: 20; touch-action: none; -webkit-app-region: no-drag;
-      }
-      ${NAME_BATCH_SELECTOR} [data-st-native-resize="n"], ${NAME_BATCH_SELECTOR} [data-st-native-resize="s"] { left: 12px; right: 12px; height: 6px; cursor: ns-resize; }
-      ${NAME_BATCH_SELECTOR} [data-st-native-resize="n"] { top: 0; }
-      ${NAME_BATCH_SELECTOR} [data-st-native-resize="s"] { bottom: 0; }
-      ${NAME_BATCH_SELECTOR} [data-st-native-resize="w"], ${NAME_BATCH_SELECTOR} [data-st-native-resize="e"] { top: 12px; bottom: 12px; width: 6px; cursor: ew-resize; }
-      ${NAME_BATCH_SELECTOR} [data-st-native-resize="w"] { left: 0; }
-      ${NAME_BATCH_SELECTOR} [data-st-native-resize="e"] { right: 0; }
-      ${NAME_BATCH_SELECTOR} [data-st-native-resize="nw"], ${NAME_BATCH_SELECTOR} [data-st-native-resize="ne"],
-      ${NAME_BATCH_SELECTOR} [data-st-native-resize="sw"], ${NAME_BATCH_SELECTOR} [data-st-native-resize="se"] { width: 12px; height: 12px; }
-      ${NAME_BATCH_SELECTOR} [data-st-native-resize="nw"] { left: 0; top: 0; cursor: nwse-resize; }
-      ${NAME_BATCH_SELECTOR} [data-st-native-resize="ne"] { right: 0; top: 0; cursor: nesw-resize; }
-      ${NAME_BATCH_SELECTOR} [data-st-native-resize="sw"] { left: 0; bottom: 0; cursor: nesw-resize; }
-      ${NAME_BATCH_SELECTOR} [data-st-native-resize="se"] { right: 0; bottom: 0; cursor: nwse-resize; }      ${NAME_BATCH_SELECTOR} dialog.st-lin-transfer-layer[open] {position:fixed;inset:0;display:grid;place-items:center;width:100%;height:100%;max-width:none;max-height:none;margin:0;border:0;padding:24px;box-sizing:border-box;background:transparent;color:var(--st-color-text-primary);overscroll-behavior:contain;}
+      ${NAME_BATCH_SELECTOR} dialog.st-lin-transfer-layer[open] {position:fixed;inset:0;display:grid;place-items:center;width:100%;height:100%;max-width:none;max-height:none;margin:0;border:0;padding:24px;box-sizing:border-box;background:transparent;color:var(--st-color-text-primary);overscroll-behavior:contain;}
       ${NAME_BATCH_SELECTOR} dialog.st-lin-transfer-layer:not([open]) {display:none;}
       ${NAME_BATCH_SELECTOR} dialog.st-lin-transfer-layer::backdrop {background:var(--st-color-black-alpha-55);overflow:hidden;overscroll-behavior:contain;}
       ${NAME_BATCH_SELECTOR} [data-lin-transfer] [hidden] {display:none !important;}

@@ -1073,6 +1073,18 @@
           area: "settings",
           enabled: false,
         },
+        {
+          id: "ai-chat-send-shortcut",
+          name: "发送快捷键",
+          desc: "网页和客户端共用，Shift+Enter 换行。",
+          area: "settings",
+          control: "mode",
+          default: "ctrl-enter",
+          options: Object.freeze([
+            { value: "enter", label: "Enter" },
+            { value: "ctrl-enter", label: "Ctrl+Enter" },
+          ]),
+        },
       ]),
     },
     {
