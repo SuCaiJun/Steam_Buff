@@ -229,7 +229,7 @@
         const nickname = doc.createElement("span");
         nickname.textContent = title;
         const description = doc.createElement("small");
-        description.textContent = root.STI18n.text("ai_chat_assistant", "AI 助手");
+        description.textContent = root.STI18n.text("ai_chat_assistant", "Steam Buff AI 助手");
         caption.append(nickname, description);
         button.append(caption);
       } else {

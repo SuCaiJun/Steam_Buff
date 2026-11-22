@@ -116,7 +116,7 @@
     url.searchParams.set("layout", "desktop");
     url.searchParams.set("titlebar", "hosted");
     const view = window.STAIChatLauncher.frame(document, url, appId);
-    const close = () => popup.close("close", true);
+    const close = () => popup.close();
     target.append(titleBar(document, close), view);
     let unbind, unbindAvatar;
     popup = api.nativeWindow.create({
@@ -128,12 +128,14 @@
       onClosed() {
         unbind?.();
         unbindAvatar?.();
-        if (trigger.isConnected) trigger.focus({ preventScroll: true });
       },
       reportFailure(error) {
         log.error("chat-window-failed", "Steam AI 对话窗口操作失败", { error });
       },
-      onEscape: () => false,
+      onEscape() {
+        popup.close("escape");
+        return true;
+      },
       css: windowCss,
       geometry,
       params() {
