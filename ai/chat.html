@@ -19,6 +19,8 @@
   <script defer src="../shared/ui/search-combo.js"></script>
   <script defer src="config.js"></script>
   <script defer src="../vendor/markdown-it/markdown-it.min.js"></script>
+  <script defer src="chat-effort-field.js"></script>
+  <script defer src="chat-composer.js"></script>
   <script defer src="chat.js"></script>
 </head>
 <body>
@@ -26,6 +28,14 @@
     <header>
       <h1>蒸汽机</h1>
       <button type="button" id="new" data-text="ai_chat_new">新建对话</button>
+      <details id="tools">
+        <summary aria-controls="chat-tools-panel" data-text="ai_chat_tools">工具</summary>
+        <div id="chat-tools-panel">
+          <div id="tool-options"></div>
+          <p id="tool-empty" data-text="ai_chat_tools_empty" hidden>暂无可用工具</p>
+          <p id="tool-save-status" role="status" hidden></p>
+        </div>
+      </details>
       <div id="web-actions" hidden>
         <button type="button" id="web-close" data-text="common_close">关闭</button>
       </div>
@@ -49,18 +59,90 @@
     <form id="composer">
       <label for="message" data-text="ai_chat_message">消息</label>
       <textarea id="message" rows="3" maxlength="16000" required></textarea>
+      <button type="button" id="composer-mention" class="composer-mention" hidden></button>
+      <div id="composer-attachments" class="composer-attachments" hidden></div>
+      <p id="composer-attachment-status" class="composer-attachment-status" role="status" hidden></p>
       <footer>
-        <details id="tools">
-          <summary data-text="ai_chat_tools">工具</summary>
-          <fieldset><legend data-text="ai_chat_tools">工具</legend><div id="tool-options"></div>
-            <p id="tool-preference-status" role="status" hidden></p>
-          </fieldset>
-        </details>
+        <button type="button" id="composer-add" class="composer-icon" data-text="ai_chat_add_images" hidden>添加图片</button>
+        <input type="file" id="composer-files" accept="image/png,image/jpeg,image/webp,image/gif,image/avif" multiple hidden>
+        <div class="composer-approval" hidden>
+          <button type="button" id="composer-approval" aria-expanded="false" aria-controls="composer-approval-panel">
+            <span id="composer-approval-mode"></span>
+          </button>
+          <section id="composer-approval-panel" class="composer-menu" hidden>
+            <div id="composer-approval-choices">
+              <label>
+                <input type="radio" name="composer-approval-mode" value="ask" aria-labelledby="composer-approval-ask-title" aria-describedby="composer-approval-ask-description" checked>
+                <span class="composer-approval-copy">
+                  <span id="composer-approval-ask-title" data-text="ai_chat_approval_request">请求审批</span>
+                  <small id="composer-approval-ask-description" data-text="ai_chat_approval_request_description">调用修改类工具时始终询问</small>
+                </span>
+              </label>
+              <label>
+                <input type="radio" name="composer-approval-mode" value="full" aria-labelledby="composer-approval-full-title" aria-describedby="composer-approval-full-description">
+                <span class="composer-approval-copy">
+                  <span id="composer-approval-full-title" data-text="ai_chat_approval_full">完全访问</span>
+                  <small id="composer-approval-full-description" data-text="ai_chat_approval_full_description">可不受限制的调用任何工具</small>
+                </span>
+              </label>
+            </div>
+          </section>
+        </div>
         <a id="settings" href="../settings/center.html?category=ai-services" target="_blank" rel="noopener" data-text="ai_chat_settings" hidden>配置 AI 服务</a>
+        <div class="composer-pickers" hidden>
+          <div class="composer-usage">
+            <button type="button" id="composer-usage" class="composer-icon" aria-describedby="composer-usage-info" aria-expanded="false">
+              <svg aria-hidden="true" viewBox="0 0 16 16">
+                <circle class="composer-usage-track" cx="8" cy="8" r="7" />
+                <circle id="composer-usage-fill" cx="8" cy="8" r="7" pathLength="100" />
+              </svg>
+            </button>
+            <div id="composer-usage-info" class="composer-usage-info" role="tooltip" hidden>
+              <div class="composer-usage-content">
+                <strong data-text="ai_chat_context_window">上下文用量</strong>
+                <span id="composer-usage-percent" hidden></span>
+                <span id="composer-usage-detail"></span>
+              </div>
+            </div>
+          </div>
+          <div class="composer-model">
+            <button type="button" id="composer-model" aria-controls="composer-model-panel" aria-expanded="false">
+              <span id="composer-model-name"></span>
+              <span id="composer-effort-badge" class="composer-effort-badge"></span>
+            </button>
+            <section id="composer-model-panel" class="composer-menu" aria-labelledby="composer-model-label" hidden>
+              <div class="composer-model-content">
+                <span id="composer-model-label" data-text="ai_chat_model">模型</span>
+                <div id="composer-model-choices"></div>
+                <div class="composer-effort">
+                  <label for="composer-effort" data-text="ai_chat_effort">推理强度</label>
+                  <div class="composer-effort-track">
+                    <span class="composer-effort-fill" aria-hidden="true"><canvas></canvas></span>
+                    <span class="composer-effort-ticks" aria-hidden="true"><i></i><i></i><i></i></span>
+                    <span class="composer-effort-thumb" aria-hidden="true"></span>
+                    <input type="range" id="composer-effort" min="0" max="2" value="1" step="1">
+                  </div>
+                  <div class="composer-effort-labels">
+                    <button type="button" data-effort="0" data-text="ai_chat_effort_simple">简单</button>
+                    <button type="button" data-effort="1" data-text="ai_chat_effort_medium" aria-pressed="true">中度</button>
+                    <button type="button" data-effort="2" data-text="ai_chat_effort_deep">深度</button>
+                  </div>
+                </div>
+              </div>
+            </section>
+          </div>
+        </div>
         <button type="button" id="stop" data-text="ai_chat_stop" hidden>停止</button>
         <button id="send" type="submit" data-text="ai_chat_send" disabled>发送</button>
       </footer>
     </form>
+    <dialog id="composer-image-preview" class="composer-image-preview" aria-labelledby="composer-image-title">
+      <div>
+        <strong id="composer-image-title"></strong>
+        <button type="button" class="composer-icon composer-image-close" data-text="common_close">关闭</button>
+      </div>
+      <img alt="">
+    </dialog>
   </main>
 </body>
 </html>

@@ -589,6 +589,11 @@
     return [...ids];
   }
 
+  function chatToolsFromWorkflow(workflow) {
+    return (workflow?.tools ?? []).filter(tool => CHAT_TOOLS.some(provider => provider.id === tool.id))
+      .map(({ id, name, enabled }) => ({ id, name, enabled: enabled === true }));
+  }
+
   function chatText(data) {
     const choice = data?.choices?.[0];
     const content = choice?.message?.content ?? choice?.text;
@@ -663,7 +668,7 @@
     hostPermissionPattern,
     chatRequest,
     CHAT_TOOLS, PROVIDER_TOOL_IDS, TOOL_APP_ID_MAX, isToolAppId, STORE_SEARCH_TOOL_ID, STORE_SEARCH_PROPERTIES, toolSchema,
-    validateChatToolIds,
+    validateChatToolIds, chatToolsFromWorkflow,
     chatBody,
     chatText,
     chatDelta,

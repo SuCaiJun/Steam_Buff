@@ -1372,7 +1372,7 @@
 
   function isPanelStorageKey(name) {
     const key = String(name || "");
-    if (key === globalThis.STConfig.aiChatToolPreferenceKey || key === globalThis.STConfig.updates.settingKey ||
+    if (key === globalThis.STConfig.updates.settingKey ||
         key === UI_LOCALE_KEY || key === "st.settings.storePriceChart" || key === "st.settings.gameLinks") {
       return true;
     }

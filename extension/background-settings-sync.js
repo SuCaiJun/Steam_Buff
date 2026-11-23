@@ -990,7 +990,7 @@
       }, {
         owner: "background:settings-cloud",
         key: "dirty-tracker",
-        keys: [localeKey, root.STConfig.updates.settingKey, root.STConfig.aiChatToolPreferenceKey],
+        keys: [localeKey, root.STConfig.updates.settingKey],
         prefixes: ["st.settings."],
       });
       return;

@@ -10,7 +10,7 @@
  */
 ((root) => {
   "use strict";
-  const KEY = "st.settings.workflow.v1",
+  const KEY = root.STConfig.automationConfigKey,
     ROUTE = "AUTOMATION",
     CHANNEL = "steam-buff-automation-v1",
     PREVIEW_CHANNEL = "steam-buff-workflow-preview",

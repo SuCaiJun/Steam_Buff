@@ -10587,6 +10587,9 @@
   "ai_chat_tools": {
     "message": "Tools"
   },
+  "ai_chat_tools_empty": {
+    "message": "No tools available"
+  },
   "ai_chat_tool_game": {
     "message": "Steam game details"
   },
@@ -10973,6 +10976,87 @@
   },
   "ai_chat_service": {
     "message": "AI service"
+  },
+  "ai_chat_composer_placeholder": {
+    "message": "Ask anything…"
+  },
+  "ai_chat_add_images": {
+    "message": "Add images"
+  },
+  "ai_chat_remove_image": {
+    "message": "Remove image"
+  },
+  "ai_chat_approval_preview": {
+    "message": "Approval mode preview"
+  },
+  "ai_chat_approval_request": {
+    "message": "Request approval"
+  },
+  "ai_chat_approval_request_description": {
+    "message": "Always ask before running tools that make changes."
+  },
+  "ai_chat_approval_full": {
+    "message": "Full access"
+  },
+  "ai_chat_approval_full_description": {
+    "message": "Run any tool without restrictions."
+  },
+  "ai_chat_context_window": {
+    "message": "Context usage"
+  },
+  "ai_chat_usage_percent": {
+    "message": "$percent$ used",
+    "placeholders": {
+      "percent": {
+        "content": "$1"
+      }
+    }
+  },
+  "ai_chat_usage_detail": {
+    "message": "$used$ of $total$ tokens used",
+    "placeholders": {
+      "used": {
+        "content": "$1"
+      },
+      "total": {
+        "content": "$2"
+      }
+    }
+  },
+  "ai_chat_usage_unavailable": {
+    "message": "Token usage is unavailable"
+  },
+  "ai_chat_model": {
+    "message": "Model"
+  },
+  "ai_chat_effort": {
+    "message": "Reasoning effort"
+  },
+  "ai_chat_effort_simple": {
+    "message": "Simple"
+  },
+  "ai_chat_effort_medium": {
+    "message": "Medium"
+  },
+  "ai_chat_effort_deep": {
+    "message": "Deep"
+  },
+  "ai_chat_images_preview_only": {
+    "message": "Images are previewed locally. Remove them to send text."
+  },
+  "ai_chat_image_type": {
+    "message": "Choose PNG, JPEG, WebP, GIF, or AVIF images."
+  },
+  "ai_chat_image_unreadable": {
+    "message": "This image could not be previewed"
+  },
+  "ai_chat_mention_game": {
+    "message": "Current game · AppID $id$",
+    "placeholders": {
+      "id": {
+        "content": "$1"
+      }
+    }
   },
   "ai_chat_message": {
     "message": "Message"

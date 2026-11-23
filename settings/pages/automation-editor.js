@@ -13,6 +13,7 @@
   const tr = (key, fallback, params) => globalThis.STI18n?.text(key, fallback, params) ?? fallback;
   const model = root.STAutomation, flow = root.STWorkflow, instructions = root.STWorkflowInstructions, tools = root.STWorkflowTools, css = root.STComponents.css;
   let clipboard = null;
+  const pageStates = new WeakMap();
   const statuses = { get queued() { return tr("workflow_ui_queued", "排队中"); }, get held() { return tr("workflow_ui_not_started", "未启动"); }, get generating() { return tr("workflow_ui_waiting_for_ai", "AI 调用中"); }, get "running-script"() { return tr("workflow_ui_running_script", "脚本执行中"); }, get committing() { return tr("workflow_ui_committing", "正在提交"); }, get "running-steam"() { return tr("workflow_ui_running_steam_action", "Steam 指令执行中"); },
     get "preparing-notification"() { return tr("workflow_ui_delivering_message", "消息投递中"); }, get "waiting-notification"() { return tr("workflow_ui_waiting_for_input", "等待交互"); }, get "waiting-delay"() { return tr("workflow_ui_waiting", "等待中"); },
     get completed() { return tr("messageCenter_business_completed", "已完成"); }, get failed() { return tr("workflow_ui_failed", "失败"); }, get cancelled() { return tr("messageCenter_business_cancelled", "已取消"); }, get expired() { return tr("messageCenter_business_expired", "已失效"); }, get uncertain() { return tr("workflow_ui_outcome_unconfirmed", "结果待核实"); } };
@@ -311,7 +312,9 @@
   }
   async function save(state, bundle, creation) {
     let steamPending = false;
-    state.bundle = await state.ctx.storage.setWorkflow(bundle, { creation, onSteamPending: () => { steamPending = true; } });
+    const saved = await state.ctx.storage.setWorkflow(bundle, { creation, onSteamPending: () => { steamPending = true; } });
+    if (state.bundle.epoch === saved.epoch && state.bundle.revision > saved.revision) return;
+    state.bundle = saved;
     state.steamPending = steamPending;
     renderPage(state);
   }
@@ -2135,7 +2138,12 @@
             if (errors.length) { await showSaveIssues(state, editor, errors); return false; }
             const workflow = tools.forStorage(draft);
             if (inLibrary) return await saveLibraryDefinition(state, model.validateLibrary(workflow));
-            if (inTool) return await saveToolDefinition(state, model.validateTool(workflow));
+            if (inTool) {
+              const current = original && !importIssue ? state.bundle.tools.find(tool => tool.id === original.id) : null;
+              if (original && !importIssue && JSON.stringify(current) !== JSON.stringify(original))
+                throw Object.assign(new Error("AI 工具已在另一窗口修改，请重新打开后保存"), { code: "WORKFLOW_REVISION_CONFLICT" });
+              return await saveToolDefinition(state, model.validateTool(workflow));
+            }
             flow.validate(workflow);
             const next = flow.clone(state.bundle), index = next.workflows.findIndex(item => item.id === workflow.id);
             if (editor.importing) {
@@ -3779,8 +3787,8 @@
       return workflow.name + " · " + tr("workflow_format_line", "第 $count$ 行", { count: line });
     });
   }
-  async function saveToolDefinition(state, tool, { confirmed = false, imported = false } = {}) {
-    const next = flow.clone(state.bundle);
+  async function saveToolDefinition(state, tool, { confirmed = false, imported = false, bundle = state.bundle } = {}) {
+    const next = flow.clone(bundle);
     next.tools ??= [];
     const index = next.tools.findIndex(item => item.id === tool.id);
     const current = next.tools[index];
@@ -3803,7 +3811,8 @@
     if (data?.type !== "steam-buff-tool" || data.schemaVersion !== 1)
       throw new Error(tr("workflow_tool_invalid_file", "工具文件类型或版本无效"));
     const tool = model.validateTool(data.tool);
-    const libraries = state.bundle.libraries ?? [];
+    const bundle = state.bundle;
+    const libraries = bundle.libraries ?? [];
     const issues = libraryIssues(tool, libraries);
     const lines = tools.lines(tools.openDraft(tool));
     const dependencyDetails = issues.map(issue => {
@@ -3820,8 +3829,8 @@
       });
       return;
     }
-    const existing = (state.bundle.tools || []).find(item => item.id === tool.id);
-    const refs = toolReferences(state.bundle, tool.id);
+    const existing = (bundle.tools || []).find(item => item.id === tool.id);
+    const refs = toolReferences(bundle, tool.id);
     const { sites, providers } = await toolPreview(tool, libraries);
     const details = [tool.name, tool.description, ...dependencyDetails, ...sites,
       ...(providers.length ? [tr("workflow_tool_provider", "数据来源") + " · " + providers.join("、")] : []),
@@ -3842,7 +3851,7 @@
       tool.name = tools.copyName(tool.name);
     }
     tool.enabled = false;
-    await saveToolDefinition(state, tool, { confirmed: true, imported: answer !== "copy" });
+    await saveToolDefinition(state, tool, { confirmed: true, imported: answer !== "copy", bundle });
   }
   async function editToolCredential(state, tool) {
     const nodes = [...flow.walk(tool.steps, true)].filter(node => node.action === "http-request" && node.keyHeader);
@@ -4067,8 +4076,14 @@
   async function pageAction(state, control) {
     const action = control.dataset.aw, id = control.closest("[data-id]")?.dataset.id;
     if (action === "tab") {
-      if (state.tab === control.dataset.tab) return;
-      state.tab = control.dataset.tab;
+      const tab = control.dataset.tab, request = ++state.tabRequest;
+      if (state.tab === tab) return;
+      if (tab === "tools") {
+        const latest = await state.ctx.storage.getWorkflow();
+        if (request !== state.tabRequest || !state.node.isConnected) return;
+        if (latest.epoch !== state.bundle.epoch || latest.revision >= state.bundle.revision) state.bundle = latest;
+      }
+      state.tab = tab;
       if (state.tab === "history") await history(state);
       else {
         renderPage(state);
@@ -4147,8 +4162,9 @@
     await save(state, next);
   }
   async function mount(node, shadow, ctx) {
-    const state = { node, shadow, ctx, tab: "workflows", bundle: await ctx.storage.getWorkflow(), jobs: [], next: null, historyRequest: 0, historyLoading: false };
+    const state = { node, shadow, ctx, tab: "workflows", tabRequest: 0, bundle: await ctx.storage.getWorkflow(), jobs: [], next: null, historyRequest: 0, historyLoading: false };
     if (!node.isConnected) return;
+    pageStates.set(node, state);
     state.render = () => renderPage(state);
     renderPage(state);
     node.addEventListener("click", event => {
@@ -4184,5 +4200,25 @@
       } else void importFlow(state, file).catch(error => reportFailure(error, node.querySelector(".aw-error")));
     });
   }
-  root.STAutomationEditor = Object.freeze({ mount, style, confirmDelete });
+
+  function syncToolPage(shadow, bundle) {
+    const state = pageStates.get(shadow.querySelector('[data-workflow="automation"]'));
+    if (state?.tab !== "tools" || !bundle || state.bundle.epoch === bundle.epoch && state.bundle.revision >= bundle.revision) return;
+    const before = state.bundle.tools || [], after = bundle.tools || [];
+    if (before.length === after.length && before.every((tool, i) =>
+      tool.id === after[i].id && tool.revision === after[i].revision && tool.executionId === after[i].executionId &&
+      tool.name === after[i].name && tool.enabled === after[i].enabled &&
+      JSON.stringify(tool.entryRow) === JSON.stringify(after[i].entryRow))) return;
+    state.bundle = model.normalize(bundle, { structureOnly: true });
+    const focused = shadow.activeElement;
+    const id = focused?.closest("[data-id]")?.dataset.id;
+    const action = focused?.dataset.aw;
+    renderPage(state);
+    if (action && id) {
+      const row = [...state.node.querySelectorAll("[data-id]")].find(card => card.dataset.id === id);
+      [...(row?.querySelectorAll("[data-aw]") || [])].find(button => button.dataset.aw === action)?.focus({ preventScroll: true });
+    }
+  }
+
+  root.STAutomationEditor = Object.freeze({ mount, style, confirmDelete, syncToolPage });
 })(globalThis);

@@ -68,6 +68,12 @@
     const onLocaleChange = () => shell.refreshLocale(shadow);
     root.addEventListener(root.STI18n.CHANGE_EVENT, onLocaleChange);
     addDisposer(() => root.removeEventListener(root.STI18n.CHANGE_EVENT, onLocaleChange));
+    const syncToolPage = (changes, area) => {
+      const change = area === "local" && changes[root.STConfig.automationConfigKey];
+      if (change) root.STAutomationEditor?.syncToolPage(shadow, change.newValue);
+    };
+    chrome.storage.onChanged.addListener(syncToolPage);
+    addDisposer(() => chrome.storage.onChanged.removeListener(syncToolPage));
     const translateView = root.STSettingsPageTranslate.mount(shadow.querySelector(".page-translate-slot"));
     addDisposer(translateView.dispose);
     const controller = root.STSettingsMenuController.create({

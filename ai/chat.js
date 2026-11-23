@@ -15,14 +15,12 @@
   const service = byId("service"), input = byId("message"), composer = byId("composer");
   let history = byId("history"), historySlot;
   const transcript = byId("transcript"), status = byId("status"), stop = byId("stop");
-  const checks = byId("tool-options");
+  const checks = byId("tool-options"), toolsMenu = byId("tools");
+  const toolsTrigger = toolsMenu.querySelector("summary"), toolNotice = byId("tool-save-status");
   const send = byId("send"), settings = byId("settings"), create = byId("new");
   const name = STConfig.aiChatName;
-  const toolPreferenceKey = STConfig.aiChatToolPreferenceKey;
   const sendShortcutKey = STConfig.aiChatSendShortcutKey;
-  const toolPreferenceStorage = { owner: "settings:ai-chat", reason: "chat-tool-preference" };
   const STREAM_PREVIEW_MS = 100;
-  const toolOptions = new Map();
   const markdown = window.markdownit({ html: false, linkify: false });
   const markdownTags = new Set([
     "p", "a", "strong", "em", "s", "hr", "h1", "h2", "h3", "h4", "h5", "h6",
@@ -41,13 +39,13 @@
   const rawApp = Number(params.get("appId"));
   const appId = Number.isSafeInteger(rawApp) && rawApp > 0 && rawApp <= 0xffffffff ? rawApp : undefined;
   let port, pending, thread, sequence = 0;
-  let toolSave = 0;
-  const pendingToolSaves = new Map();
-  let toolPreferenceVersion = 0, syncedTools;
+  let toolSyncVersion = 0, savingTool = false;
+  let toolOptions = [];
   let sendShortcutChanged = false, sendWithCtrl = true;
   let needsSettings = false;
   let records = [], services = [];
   let failedTurn;
+  let composerView, composerBusy = true;
 
   function option(id, label) {
     return new Option(label, id);
@@ -104,7 +102,6 @@
     const opened = chrome.runtime.connect({ name: "st-ai-chat-v1" });
     port = opened;
     opened.onMessage.addListener(message => {
-      if (message.type === "tool-preference") { finishToolSave(message.sequence, message.saved); return; }
       if (message.type === "thread-title") { updateThreadTitle(message.id, message.title); return; }
       if (message.sequence !== pending?.sequence) return;
       const { progress, resolve, reject } = pending;
@@ -119,7 +116,6 @@
       port = null;
       pending?.reject(Object.assign(new Error("AI chat connection ended", { cause: reason }), { code: "CHAT_CONNECTION_LOST" }));
       pending = null;
-      for (const request of pendingToolSaves.keys()) finishToolSave(request, false);
     });
     return opened;
   }
@@ -510,6 +506,8 @@
       service.prepend(option("", text("ai_chat_select_service", "选择 AI 服务")));
       service.value = "";
     }
+    composerView?.setServices(services);
+    composerView?.setDraft(thread.id);
     updateSettingsLink();
     if (desktop && !services.length && !status.textContent)
       status.textContent = text("ai_chat_setup_service", "请前往「扩展设置 → AI 服务」配置可用的服务。");
@@ -532,6 +530,7 @@
   }
 
   function busy(value, generating = false) {
+    composerBusy = value;
     create.disabled = history.disabled = service.disabled = value;
     if (historySlot) {
       const toggle = historySlot.querySelector("[data-st-combo-toggle]");
@@ -539,12 +538,19 @@
       if (value) STSearchCombo.closeSearchCombo(historySlot);
     }
     input.disabled = value;
-    for (const check of toolOptions.values()) check.disabled = value;
-    send.disabled = value || !service.value;
+    syncToolControls();
+    composerView?.setBusy(value);
+    syncComposer();
     if (pane) send.hidden = generating;
     stop.hidden = !generating;
     stop.disabled = !generating;
+    stop.removeAttribute("aria-busy");
     if (web) for (const button of byId("suggestions").children) button.disabled = value;
+  }
+
+  function syncComposer() {
+    send.disabled = composerBusy || savingTool || !service.value || !input.value.trim() || composerView?.hasImages() === true;
+    composerView?.syncSize();
   }
 
   function newThread() {
@@ -565,16 +571,29 @@
     });
   }
 
-  function selectedToolIds() {
-    return [...toolOptions].filter(([, check]) => check.checked).map(([id]) => id);
+  function syncToolControls() {
+    for (const box of checks.querySelectorAll("input")) box.disabled = composerBusy || savingTool;
   }
 
-  function toolIdsFromStorage(value) {
-    return value === undefined ? [...toolOptions.keys()] : STAI.validateChatToolIds(value);
-  }
-
-  function applyToolPreference(ids) {
-    for (const [id, check] of toolOptions) check.checked = ids.includes(id);
+  function renderTools(items) {
+    const sameRows = items.length === toolOptions.length && items.every((tool, index) =>
+      tool.id === toolOptions[index].id && tool.name === toolOptions[index].name);
+    toolOptions = items;
+    if (!sameRows) {
+      const focused = checks.contains(document.activeElement) ? document.activeElement.value : null;
+      checks.replaceChildren(...items.map(tool => {
+        const label = document.createElement("label");
+        const box = document.createElement("input");
+        box.type = "checkbox";
+        box.value = tool.id;
+        label.append(box, document.createTextNode(tool.name));
+        return label;
+      }));
+      if (focused) ([...checks.querySelectorAll("input")].find(box => box.value === focused) || toolsTrigger).focus();
+    }
+    for (const [index, box] of [...checks.querySelectorAll("input")].entries()) box.checked = items[index].enabled;
+    byId("tool-empty").hidden = items.length > 0;
+    syncToolControls();
   }
 
   function applySendShortcut(value) {
@@ -588,37 +607,44 @@
       sendShortcutChanged = true;
       applySendShortcut(changes[sendShortcutKey].newValue);
     }
-    if (!Object.hasOwn(changes, toolPreferenceKey)) return;
-    try {
-      syncedTools = toolIdsFromStorage(changes[toolPreferenceKey].newValue);
-    } catch (error) {
-      log.error("chat-tool-preference-invalid", "同步的聊天工具偏好无效", { error });
+    const change = changes[STConfig.automationConfigKey];
+    if (change) {
+      toolSyncVersion += 1;
+      renderTools(STAI.chatToolsFromWorkflow(change.newValue));
+    }
+  }
+
+  async function setToolEnabled(event) {
+    const box = event.target;
+    const current = toolOptions.find(tool => tool.id === box.value);
+    if (!current) return;
+    const enabled = box.checked;
+    if (pending || savingTool || enabled === current.enabled) {
+      box.checked = current.enabled;
       return;
     }
-    toolPreferenceVersion += 1;
-    if (!pendingToolSaves.size) applyToolPreference(syncedTools);
-  }
-
-  function rememberTools(event) {
-    const box = event.target;
-    const request = ++toolSave;
-    pendingToolSaves.set(request, toolPreferenceVersion);
+    const version = toolSyncVersion;
+    savingTool = true;
+    toolNotice.hidden = true;
+    checks.setAttribute("aria-busy", "true");
+    syncToolControls();
+    syncComposer();
     try {
-      connect().postMessage({ action: "set-tool-preference", sequence: request, id: box.value, enabled: box.checked });
+      const items = await call("set-tool-enabled", { id: current.id, enabled });
+      if (version === toolSyncVersion) renderTools(items);
     } catch (error) {
-      log.error("chat-tool-preference-send-failed", "发送聊天工具偏好失败", { error });
-      finishToolSave(request, false);
+      log.error("chat-tool-toggle-failed", "保存 AI 工具启用状态失败", { error });
+      renderTools(toolOptions);
+      toolNotice.textContent = text("common_saveFailed", "保存失败");
+      toolNotice.hidden = false;
+    } finally {
+      savingTool = false;
+      checks.removeAttribute("aria-busy");
+      syncToolControls();
+      syncComposer();
+      if (toolsMenu.open && document.activeElement === document.body)
+        (box.isConnected && !box.disabled ? box : toolsTrigger).focus({ preventScroll: true });
     }
-  }
-
-  function finishToolSave(request, saved) {
-    const version = pendingToolSaves.get(request);
-    if (!pendingToolSaves.delete(request)) return;
-    if (!pendingToolSaves.size && version !== toolPreferenceVersion) applyToolPreference(syncedTools);
-    if (request !== toolSave) return;
-    const notice = byId("tool-preference-status");
-    notice.textContent = saved ? "" : text("common_saveFailed", "保存失败");
-    notice.hidden = saved;
   }
 
   async function switchSession(id) {
@@ -656,7 +682,6 @@
   function mountPane() {
     const header = document.querySelector("main > header");
     const historyLabel = history.closest("label");
-    const serviceLabel = service.closest("label");
     header.querySelector("h1").hidden = true;
     historyLabel.classList.add("chat-history");
     historyLabel.querySelector("span").textContent = text("ai_chat_switch_session", "切换会话");
@@ -670,18 +695,22 @@
     session.append(historyLabel, create);
     header.prepend(session);
     iconControl(create, text("ai_chat_new_session", "新建会话"));
-    document.querySelector("#composer footer").prepend(serviceLabel);
     document.querySelector(".selectors").hidden = true;
-    serviceLabel.classList.add("chat-service");
-    input.placeholder = text("ai_chat_message", "消息");
+    input.placeholder = text("ai_chat_composer_placeholder", "尽管问…");
+    composerView = STChatComposer.mount(composer, {
+      service, text, locale: STI18n.intlLocale(), appId, onDraftChange: syncComposer,
+    });
+    composerView.setBusy(composerBusy);
+    syncComposer();
     if (desktop) {
       transcript.tabIndex = 0;
-      const { titleHeight, brandWidth, controlsWidth, minDragWidth, sessionWidth } = STConfig.aiChatWindowLayout;
+      const { titleHeight, brandWidth, controlsWidth, toolSlotWidth, minDragWidth, sessionWidth } = STConfig.aiChatWindowLayout;
       header.style.setProperty("--chat-title-height", titleHeight + "px");
       session.style.setProperty("--chat-session-width", sessionWidth + "px");
       if (params.get("titlebar") === "hosted" && window.parent !== window) {
         header.style.setProperty("--chat-title-start", brandWidth + "px");
-        header.style.setProperty("--chat-title-end", controlsWidth + minDragWidth + "px");
+        header.style.setProperty("--chat-title-end", `calc(${controlsWidth + toolSlotWidth / 2}px - var(--chat-control-size) / 2)`);
+        session.style.setProperty("--chat-session-width", `min(${sessionWidth}px, calc(100dvw - ${brandWidth + minDragWidth + toolSlotWidth + controlsWidth}px))`);
       }
     }
   }
@@ -689,7 +718,7 @@
   function mountWeb() {
     const actions = byId("web-actions");
     const close = byId("web-close");
-    actions.prepend(settings);
+    actions.prepend(toolsMenu, settings);
     actions.hidden = settings.hidden = false;
     welcome.querySelector("h2").textContent = name;
     for (const control of [settings, close]) iconControl(control, control.textContent);
@@ -697,6 +726,7 @@
     byId("suggestions").addEventListener("click", event => {
       if (event.target.tagName !== "BUTTON") return;
       input.value = event.target.textContent;
+      syncComposer();
       input.focus();
     });
     if (window.parent !== window) window.parent.postMessage({ type: "st-ai-chat-ready" }, "*");
@@ -850,8 +880,7 @@
   async function submit(event) {
     event.preventDefault();
     const message = input.value.trim();
-    if (!message || !service.value || pending) return;
-    const toolIds = selectedToolIds();
+    if (composerBusy || !message || !service.value || pending || composerView?.hasImages()) return;
     const serviceId = service.value;
     if (desktop) stashDraft();
     else thread.serviceId = serviceId;
@@ -859,14 +888,15 @@
     failedTurn?.forEach(row => row.remove());
     failedTurn = null;
     if (web) welcome.hidden = true;
-    byId("tools").open = false;
+    toolsMenu.open = false;
     status.textContent = "";
     const question = addMessage({ role: "user", content: message });
     const reply = startReply();
     input.value = "";
+    syncComposer();
     transcript.scrollTop = transcript.scrollHeight;
     let failure;
-    const request = { id: thread.id, revision: thread.revision, serviceId, text: message, toolIds, appId };
+    const request = { id: thread.id, revision: thread.revision, serviceId, text: message, appId };
     try {
       thread = await call("send", request, reply.progress);
       records = [thread, ...records.filter(item => item.id !== thread.id)];
@@ -899,24 +929,18 @@
     document.title = name;
     document.querySelector("h1").textContent = name;
     for (const node of document.querySelectorAll("[data-text]")) node.textContent = text(node.dataset.text, node.textContent);
+    iconControl(toolsTrigger, toolsTrigger.textContent);
     if (pane) mountPane();
     if (web) mountWeb();
-    for (const tool of STAI.CHAT_TOOLS) {
-      const label = document.createElement("label");
-      const box = document.createElement("input");
-      box.type = "checkbox";
-      box.value = tool.id;
-      box.disabled = true;
-      label.append(box, document.createTextNode(text(tool.label, tool.name)));
-      checks.append(label);
-      toolOptions.set(tool.id, box);
-    }
     chrome.storage.onChanged.addListener(onPreferenceChanged);
-    const version = toolPreferenceVersion;
-    const prefs = await STSettingsBus.rawGet([toolPreferenceKey, sendShortcutKey], { ...toolPreferenceStorage, strict: true });
-    if (version === toolPreferenceVersion) applyToolPreference(toolIdsFromStorage(prefs[toolPreferenceKey]));
+    const version = toolSyncVersion;
+    const [prefs, state] = await Promise.all([
+      STSettingsBus.rawGet([sendShortcutKey], { owner: "settings:ai-chat", reason: "chat-send-shortcut", strict: true }),
+      call("state"),
+    ]);
+    if (version === toolSyncVersion) renderTools(state.tools);
     if (!sendShortcutChanged) applySendShortcut(prefs[sendShortcutKey]);
-    ({ threads: records, services } = await call("state"));
+    ({ threads: records, services } = state);
     thread = records.length ? await call("read", { id: records[0].id }) : newThread();
     render();
     if (web && document.hasFocus() && document.activeElement === document.body) history.focus();
@@ -935,8 +959,9 @@
     input.focus();
   });
   if (!pane) history.addEventListener("change", () => { void switchSession(history.value); });
-  checks.addEventListener("change", rememberTools);
-  service.addEventListener("change", () => { send.disabled = !service.value; });
+  checks.addEventListener("change", event => { void setToolEnabled(event); });
+  service.addEventListener("change", syncComposer);
+  input.addEventListener("input", syncComposer);
   composer.addEventListener("submit", submit);
   input.addEventListener("keydown", event => {
     if (event.key !== "Enter" || event.defaultPrevented || event.isComposing || event.keyCode === 229 ||
@@ -944,16 +969,24 @@
     event.preventDefault();
     if (!event.repeat && !send.disabled && input.value.trim()) composer.requestSubmit(send);
   });
-  stop.addEventListener("click", () => { stop.disabled = true; port?.postMessage({ action: "cancel" }); });
+  stop.addEventListener("click", () => {
+    stop.disabled = true;
+    stop.setAttribute("aria-busy", "true");
+    port?.postMessage({ action: "cancel" });
+  });
   window.addEventListener("keydown", event => {
-    if (event.key !== "Escape" || event.defaultPrevented || event.isComposing || window.parent === window) return;
-    const tools = byId("tools");
-    if (tools.open) {
-      tools.open = false;
-      tools.querySelector("summary").focus();
-    } else requestClose(event);
+    if (event.key !== "Escape" || event.defaultPrevented || event.isComposing || event.keyCode === 229) return;
+    if (composerView?.dismiss()) {
+      event.preventDefault();
+      return;
+    }
+    if (toolsMenu.open) {
+      toolsMenu.open = false;
+      toolsTrigger.focus();
+    } else if (window.parent !== window) requestClose(event);
   });
   window.addEventListener("pagehide", () => {
+    composerView?.dispose();
     chrome.storage.onChanged.removeListener(onPreferenceChanged);
     avatarPort?.close();
     port?.disconnect();

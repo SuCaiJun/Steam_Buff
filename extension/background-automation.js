@@ -2367,6 +2367,18 @@
   async function saveConfig(value, diagnostics = {}) {
     return (await commitConfig(value, diagnostics)).workflow;
   }
+  async function setToolEnabled(id, enabled) {
+    if (!flow.isToolId(id) || typeof enabled !== "boolean") throw new TypeError("AI 工具启用状态无效");
+    await requireSetup();
+    return configExclusive(async () => {
+      const current = await root.STSettings.storage.getWorkflow();
+      const tool = current.tools?.find(item => item.id === id);
+      if (!tool) throw actionError("AI 工具已删除", "WORKFLOW_TOOL_UNAVAILABLE");
+      if (tool.enabled === enabled) return current;
+      const tools = current.tools.map(item => item === tool ? { ...item, enabled } : item);
+      return (await persistSettings({ workflow: { ...current, tools } }, { reason: "set-ai-tool-enabled" })).workflow;
+    });
+  }
   /** 编辑器、引导与导入共用配置锁，旧快照无法覆盖其他窗口的保存 */
   async function configureAi(request, diagnostics = {}) {
     if (!diagnostics.onboardingOnly) await requireSetup();
@@ -2810,6 +2822,7 @@
     },
     context,
     saveConfig,
+    setToolEnabled,
     configureAi,
     async restoreReleasedDefaults(previousVersion) {
       upgradeSource = previousVersion;

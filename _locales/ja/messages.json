@@ -10587,6 +10587,9 @@
   "ai_chat_tools": {
     "message": "ツール"
   },
+  "ai_chat_tools_empty": {
+    "message": "利用できるツールはありません"
+  },
   "ai_chat_tool_game": {
     "message": "Steam ゲーム情報"
   },
@@ -10973,6 +10976,87 @@
   },
   "ai_chat_service": {
     "message": "AI サービス"
+  },
+  "ai_chat_composer_placeholder": {
+    "message": "何でも聞いてください…"
+  },
+  "ai_chat_add_images": {
+    "message": "画像を追加"
+  },
+  "ai_chat_remove_image": {
+    "message": "画像を削除"
+  },
+  "ai_chat_approval_preview": {
+    "message": "承認モードのプレビュー"
+  },
+  "ai_chat_approval_request": {
+    "message": "承認を求める"
+  },
+  "ai_chat_approval_request_description": {
+    "message": "変更を行うツールを呼び出す前に毎回確認します。"
+  },
+  "ai_chat_approval_full": {
+    "message": "フルアクセス"
+  },
+  "ai_chat_approval_full_description": {
+    "message": "すべてのツールを制限なく呼び出せます。"
+  },
+  "ai_chat_context_window": {
+    "message": "コンテキスト使用量"
+  },
+  "ai_chat_usage_percent": {
+    "message": "$percent$ 使用済み",
+    "placeholders": {
+      "percent": {
+        "content": "$1"
+      }
+    }
+  },
+  "ai_chat_usage_detail": {
+    "message": "$total$ トークン中 $used$ トークン使用済み",
+    "placeholders": {
+      "used": {
+        "content": "$1"
+      },
+      "total": {
+        "content": "$2"
+      }
+    }
+  },
+  "ai_chat_usage_unavailable": {
+    "message": "トークン使用量を取得できません"
+  },
+  "ai_chat_model": {
+    "message": "モデル"
+  },
+  "ai_chat_effort": {
+    "message": "推論の強さ"
+  },
+  "ai_chat_effort_simple": {
+    "message": "簡単"
+  },
+  "ai_chat_effort_medium": {
+    "message": "中程度"
+  },
+  "ai_chat_effort_deep": {
+    "message": "詳細"
+  },
+  "ai_chat_images_preview_only": {
+    "message": "画像はローカルでのみプレビューできます。テキストを送信するには画像を削除してください。"
+  },
+  "ai_chat_image_type": {
+    "message": "PNG、JPEG、WebP、GIF、AVIF の画像を選択してください。"
+  },
+  "ai_chat_image_unreadable": {
+    "message": "この画像をプレビューできません"
+  },
+  "ai_chat_mention_game": {
+    "message": "現在のゲーム · AppID $id$",
+    "placeholders": {
+      "id": {
+        "content": "$1"
+      }
+    }
   },
   "ai_chat_message": {
     "message": "メッセージ"

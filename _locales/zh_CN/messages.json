@@ -10587,6 +10587,9 @@
   "ai_chat_tools": {
     "message": "工具"
   },
+  "ai_chat_tools_empty": {
+    "message": "暂无可用工具"
+  },
   "ai_chat_tool_game": {
     "message": "Steam 游戏资料"
   },
@@ -10973,6 +10976,87 @@
   },
   "ai_chat_service": {
     "message": "AI 服务"
+  },
+  "ai_chat_composer_placeholder": {
+    "message": "尽管问…"
+  },
+  "ai_chat_add_images": {
+    "message": "添加图片"
+  },
+  "ai_chat_remove_image": {
+    "message": "移除图片"
+  },
+  "ai_chat_approval_preview": {
+    "message": "审批模式预览"
+  },
+  "ai_chat_approval_request": {
+    "message": "请求审批"
+  },
+  "ai_chat_approval_request_description": {
+    "message": "调用修改类工具时始终询问"
+  },
+  "ai_chat_approval_full": {
+    "message": "完全访问"
+  },
+  "ai_chat_approval_full_description": {
+    "message": "可不受限制的调用任何工具"
+  },
+  "ai_chat_context_window": {
+    "message": "上下文用量"
+  },
+  "ai_chat_usage_percent": {
+    "message": "$percent$ 已用",
+    "placeholders": {
+      "percent": {
+        "content": "$1"
+      }
+    }
+  },
+  "ai_chat_usage_detail": {
+    "message": "已用 $used$ Token，共 $total$ Token",
+    "placeholders": {
+      "used": {
+        "content": "$1"
+      },
+      "total": {
+        "content": "$2"
+      }
+    }
+  },
+  "ai_chat_usage_unavailable": {
+    "message": "暂无 Token 用量"
+  },
+  "ai_chat_model": {
+    "message": "模型"
+  },
+  "ai_chat_effort": {
+    "message": "推理强度"
+  },
+  "ai_chat_effort_simple": {
+    "message": "简单"
+  },
+  "ai_chat_effort_medium": {
+    "message": "中度"
+  },
+  "ai_chat_effort_deep": {
+    "message": "深度"
+  },
+  "ai_chat_images_preview_only": {
+    "message": "图片仅供本地预览，移除图片后可发送文字。"
+  },
+  "ai_chat_image_type": {
+    "message": "请选择 PNG、JPEG、WebP、GIF 或 AVIF 图片。"
+  },
+  "ai_chat_image_unreadable": {
+    "message": "无法预览此图片"
+  },
+  "ai_chat_mention_game": {
+    "message": "当前游戏 · AppID $id$",
+    "placeholders": {
+      "id": {
+        "content": "$1"
+      }
+    }
   },
   "ai_chat_message": {
     "message": "消息"

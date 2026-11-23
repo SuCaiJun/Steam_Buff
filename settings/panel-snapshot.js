@@ -184,9 +184,6 @@
       }
       if (name === "ai") {
         out.ai = root.STAI.migrateV222Service(src.ai, { snapshot: true }) ?? root.STAI.normalizeServices(src.ai);
-        if (isPlainObject(src.ai) && Object.hasOwn(src.ai, "chatToolIds")) {
-          out.ai.chatToolIds = root.STAI.validateChatToolIds(src.ai.chatToolIds);
-        }
         if (Object.hasOwn(src, name)) box.imported += 1;
         continue;
       }

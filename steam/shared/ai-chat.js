@@ -74,21 +74,21 @@
   }
 
   function windowCss() {
-    const { titleHeight, brandWidth, controlsWidth, minDragWidth, sessionWidth } = layout;
+    const { titleHeight, brandWidth, controlsWidth, toolSlotWidth, minDragWidth, sessionWidth } = layout;
     return `
       html, body, #popup_target, .st-ai-chat-native { height: 100%; margin: 0; overflow: hidden; }
       .st-ai-chat-native { position: relative; display: flex; flex-direction: column; color: var(--st-dialog-text-color);
         background: var(--st-dialog-surface); font: 14px/1.4 system-ui, sans-serif; }
       .st-ai-chat-titlebar { position: absolute; inset: 0 0 auto; height: ${titleHeight}px; z-index: 1;
         display: grid; align-items: center; user-select: none; pointer-events: none; -webkit-app-region: no-drag;
-        grid-template-columns: ${brandWidth}px min(${sessionWidth}px, calc(100% - ${brandWidth + minDragWidth + controlsWidth}px)) 1fr ${controlsWidth}px; }
+        grid-template-columns: ${brandWidth}px min(${sessionWidth}px, calc(100% - ${brandWidth + minDragWidth + toolSlotWidth + controlsWidth}px)) 1fr ${toolSlotWidth}px ${controlsWidth}px; }
       .st-ai-chat-window-brand, .st-ai-chat-window-drag {
         align-self: stretch; pointer-events: auto; touch-action: none; -webkit-app-region: no-drag; }
       .st-ai-chat-window-brand { display: flex; align-items: center; gap: 7px; padding-inline: 12px 6px; }
       .st-ai-chat-window-brand img { width: 20px; height: 20px; border-radius: 4px; }
       .st-ai-chat-window-brand h1 { margin: 0; color: var(--st-dialog-title-color); font-size: 14px; font-weight: 650; white-space: nowrap; }
       .st-ai-chat-window-drag { grid-column: 3; }
-      .st-ai-chat-window-controls { grid-column: 4; display: flex; pointer-events: auto; -webkit-app-region: no-drag; }
+      .st-ai-chat-window-controls { grid-column: 5; display: flex; pointer-events: auto; -webkit-app-region: no-drag; }
       .st-ai-chat-window-controls button { display: grid; place-items: center; width: 36px; height: 32px;
         background: transparent; color: var(--st-dialog-muted-color); border: 0;
         border-radius: var(--st-control-radius); cursor: pointer; }
