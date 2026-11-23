@@ -1,0 +1,31 @@
+{
+  "id": "trigger-3",
+  "name": "$text:.name",
+  "revision": 1,
+  "enabled": false,
+  "workflowId": "wf-3",
+  "event": {
+    "type": "installed",
+    "phase": "completed"
+  },
+  "conditions": {
+    "op": "all",
+    "children": []
+  },
+  "inputs": {
+    "var-61": {
+      "source": "input",
+      "path": [
+        "appid"
+      ]
+    },
+    "var-62": {
+      "source": "input",
+      "path": [
+        "game",
+        "official"
+      ]
+    }
+  },
+  "busy": "queue"
+}

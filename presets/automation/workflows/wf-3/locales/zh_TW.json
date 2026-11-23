@@ -1,0 +1,23 @@
+{
+  ".name": "遊戲的成就翻譯",
+  ".variables.var-61.name": "傳入APPID",
+  ".variables.var-62.name": "傳入遊戲名稱",
+  ".variables.var-66.name": "讀取遊戲成就列表結果",
+  ".variables.var-68.name": "讀取已保存的成就譯文結果",
+  ".variables.var-70.name": "列表",
+  ".variables.var-72.name": "當前項目",
+  ".variables.var-73.name": "當前序號",
+  ".variables.var-76.name": "追加到列表結果",
+  ".variables.var-78.name": "列表分塊結果",
+  ".variables.var-80.name": "當前項目2",
+  ".variables.var-81.name": "當前序號2",
+  ".variables.var-83.name": "AI 回覆",
+  ".variables.var-85.name": "JSON 數據",
+  ".variables.var-87.name": "保存成就譯文結果",
+  ".steps.step-63.branches.0.steps.step-64.value.literal.message": "AppID 超出範圍。請輸入介於 1 和 4294967295 的整數。",
+  ".steps.step-79.body.step-82.inputs.成就条目.label": "成就條目",
+  ".steps.step-79.body.step-82.inputs.任务游戏名称.label": "任務遊戲名稱",
+  ".steps.step-79.body.step-82.inputs.目标语言.label": "目標語言",
+  ".inputParameters.0.name": "傳入APPID",
+  ".inputParameters.1.name": "傳入遊戲名稱"
+}

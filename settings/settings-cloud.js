@@ -206,8 +206,11 @@
     return snapshot().pack();
   }
 
-  function isDefaultPack(settingsValue) {
-    return canonical(normalize(settingsValue)) === canonical(defaultsPack());
+  async function isDefaultPack(settingsValue) {
+    const current = normalize(settingsValue);
+    const expected = await snapshot().defaultsPack(current.uiLocale);
+    if (current.workflow) current.workflow.presetImportVersion = "";
+    return canonical(current) === canonical(expected);
   }
 
   async function apply(settingsValue) {

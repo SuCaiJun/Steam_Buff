@@ -1,0 +1,328 @@
+{
+  "id": "wf-3",
+  "name": "$text:.name",
+  "revision": 1,
+  "variables": [
+    {
+      "id": "var-61",
+      "name": "$text:.variables.var-61.name",
+      "type": "number"
+    },
+    {
+      "id": "var-62",
+      "name": "$text:.variables.var-62.name",
+      "type": "text"
+    },
+    {
+      "id": "var-66",
+      "name": "$text:.variables.var-66.name",
+      "type": "list"
+    },
+    {
+      "id": "var-68",
+      "name": "$text:.variables.var-68.name",
+      "type": "list"
+    },
+    {
+      "id": "var-70",
+      "name": "$text:.variables.var-70.name",
+      "type": "list"
+    },
+    {
+      "id": "var-72",
+      "name": "$text:.variables.var-72.name",
+      "type": "any"
+    },
+    {
+      "id": "var-73",
+      "name": "$text:.variables.var-73.name",
+      "type": "number"
+    },
+    {
+      "id": "var-76",
+      "name": "$text:.variables.var-76.name",
+      "type": "list"
+    },
+    {
+      "id": "var-78",
+      "name": "$text:.variables.var-78.name",
+      "type": "list"
+    },
+    {
+      "id": "var-80",
+      "name": "$text:.variables.var-80.name",
+      "type": "any"
+    },
+    {
+      "id": "var-81",
+      "name": "$text:.variables.var-81.name",
+      "type": "number"
+    },
+    {
+      "id": "var-83",
+      "name": "$text:.variables.var-83.name",
+      "type": "text"
+    },
+    {
+      "id": "var-85",
+      "name": "$text:.variables.var-85.name",
+      "type": "any"
+    },
+    {
+      "id": "var-87",
+      "name": "$text:.variables.var-87.name",
+      "type": "object"
+    }
+  ],
+  "steps": [
+    {
+      "id": "step-63",
+      "kind": "if",
+      "branches": [
+        {
+          "condition": {
+            "op": "any",
+            "children": [
+              {
+                "op": "lt",
+                "left": {
+                  "source": "variable",
+                  "id": "var-61",
+                  "path": []
+                },
+                "right": {
+                  "literal": 1
+                }
+              },
+              {
+                "op": "gt",
+                "left": {
+                  "source": "variable",
+                  "id": "var-61",
+                  "path": []
+                },
+                "right": {
+                  "literal": 4294967295
+                }
+              }
+            ]
+          },
+          "steps": [
+            {
+              "id": "step-64",
+              "kind": "action",
+              "action": "raise",
+              "value": {
+                "literal": {
+                  "code": "ACTION_INPUT_INVALID",
+                  "message": "$text:.steps.step-63.branches.0.steps.step-64.value.literal.message"
+                }
+              }
+            }
+          ]
+        }
+      ],
+      "otherwise": null
+    },
+    {
+      "id": "step-65",
+      "kind": "action",
+      "action": "steam-achievements",
+      "game": {
+        "source": "variable",
+        "id": "var-61",
+        "path": []
+      },
+      "output": "var-66"
+    },
+    {
+      "id": "step-67",
+      "kind": "action",
+      "action": "steam-translations",
+      "game": {
+        "source": "variable",
+        "id": "var-61",
+        "path": []
+      },
+      "language": {
+        "source": "meta",
+        "path": [
+          "translationLanguage"
+        ]
+      },
+      "output": "var-68"
+    },
+    {
+      "id": "step-69",
+      "kind": "action",
+      "action": "list",
+      "value": {
+        "literal": []
+      },
+      "output": "var-70"
+    },
+    {
+      "id": "step-71",
+      "kind": "foreach",
+      "body": [
+        {
+          "id": "step-74",
+          "kind": "if",
+          "branches": [
+            {
+              "condition": {
+                "op": "isFalse",
+                "left": {
+                  "expression": [
+                    {
+                      "source": "variable",
+                      "id": "var-68",
+                      "path": []
+                    },
+                    ".some(item => item.id === ",
+                    {
+                      "source": "variable",
+                      "id": "var-72",
+                      "path": [
+                        "id"
+                      ]
+                    },
+                    ")"
+                  ]
+                }
+              },
+              "steps": [
+                {
+                  "id": "step-75",
+                  "kind": "action",
+                  "action": "append",
+                  "value": {
+                    "source": "variable",
+                    "id": "var-70",
+                    "path": []
+                  },
+                  "item": {
+                    "source": "variable",
+                    "id": "var-72",
+                    "path": []
+                  },
+                  "output": "var-70"
+                }
+              ]
+            }
+          ],
+          "otherwise": null
+        }
+      ],
+      "value": {
+        "source": "variable",
+        "id": "var-66",
+        "path": []
+      },
+      "item": "var-72",
+      "index": "var-73"
+    },
+    {
+      "id": "step-77",
+      "kind": "action",
+      "action": "list-chunk",
+      "value": {
+        "source": "variable",
+        "id": "var-70",
+        "path": []
+      },
+      "size": {
+        "literal": 20
+      },
+      "output": "var-78"
+    },
+    {
+      "id": "step-79",
+      "kind": "foreach",
+      "body": [
+        {
+          "id": "step-82",
+          "kind": "action",
+          "action": "ai-call",
+          "serviceId": "AI-0",
+          "promptId": "P-12",
+          "requestTimeoutSeconds": 60,
+          "inputs": {
+            "$text:.steps.step-79.body.step-82.inputs.成就条目.label": {
+              "source": "variable",
+              "id": "var-80",
+              "path": []
+            },
+            "$text:.steps.step-79.body.step-82.inputs.任务游戏名称.label": {
+              "source": "variable",
+              "id": "var-62",
+              "path": []
+            },
+            "$text:.steps.step-79.body.step-82.inputs.目标语言.label": {
+              "source": "meta",
+              "path": [
+                "translationLanguage"
+              ]
+            }
+          },
+          "output": "var-83"
+        },
+        {
+          "id": "step-84",
+          "kind": "action",
+          "action": "json",
+          "value": {
+            "source": "variable",
+            "id": "var-83",
+            "path": []
+          },
+          "output": "var-85"
+        },
+        {
+          "id": "step-86",
+          "kind": "action",
+          "action": "steam-save-translations",
+          "game": {
+            "source": "variable",
+            "id": "var-61",
+            "path": []
+          },
+          "language": {
+            "source": "meta",
+            "path": [
+              "translationLanguage"
+            ]
+          },
+          "value": {
+            "source": "variable",
+            "id": "var-85",
+            "path": []
+          },
+          "origin": {
+            "literal": "ai"
+          },
+          "output": "var-87"
+        }
+      ],
+      "value": {
+        "source": "variable",
+        "id": "var-78",
+        "path": []
+      },
+      "item": "var-80",
+      "index": "var-81"
+    }
+  ],
+  "inputParameters": [
+    {
+      "name": "$text:.inputParameters.0.name",
+      "type": "integer",
+      "variableId": "var-61"
+    },
+    {
+      "name": "$text:.inputParameters.1.name",
+      "type": "text",
+      "variableId": "var-62"
+    }
+  ]
+}

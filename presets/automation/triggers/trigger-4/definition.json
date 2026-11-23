@@ -1,0 +1,20 @@
+{
+  "id": "trigger-4",
+  "name": "$text:.name",
+  "revision": 1,
+  "enabled": false,
+  "workflowId": "wf-4",
+  "event": {
+    "type": "schedule",
+    "timing": {
+      "mode": "day",
+      "time": "09:00"
+    }
+  },
+  "conditions": {
+    "op": "all",
+    "children": []
+  },
+  "inputs": {},
+  "busy": "queue"
+}

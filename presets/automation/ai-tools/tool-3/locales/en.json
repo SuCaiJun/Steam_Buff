@@ -1,0 +1,8 @@
+{
+  ".name": "ITAD price and historical low",
+  ".variables.var-108.name": "appId",
+  ".variables.var-112.name": "Query result",
+  ".steps.step-109.branches.0.steps.step-110.value.literal": "AppID is out of range. Pass an integer from 1 to 4294967295 and call the tool again.",
+  ".description": "Look up the current price and historical low in the configured region.",
+  ".parameters.0.description": "Steam game AppID. Pass an integer from 1 to 4294967295."
+}

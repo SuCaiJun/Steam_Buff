@@ -1,0 +1,25 @@
+{
+  "id": "P-7",
+  "name": "$text:.name",
+  "enabled": true,
+  "revision": 1,
+  "mode": "basic",
+  "basic": {
+    "system": "$text:.basic.system",
+    "user": "$text:.basic.user"
+  },
+  "advanced": {
+    "chat-completions": "$text:.advanced.chat-completions"
+  },
+  "tokenLocale": "$text:.tokenLocale",
+  "tokens": {
+    "$text:.tokens.显示语言.label": "显示语言",
+    "$text:.tokens.摘要语言.label": "摘要语言",
+    "$text:.tokens.游戏资料.label": "游戏资料",
+    "$text:.tokens.当前价格.label": "当前价格",
+    "$text:.tokens.历史折扣.label": "历史折扣",
+    "$text:.tokens.历史节日.label": "历史节日",
+    "$text:.tokens.未来节日.label": "未来节日",
+    "$text:.tokens.模型.label": "模型"
+  }
+}

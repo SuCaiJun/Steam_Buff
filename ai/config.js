@@ -534,7 +534,8 @@
 
   const TOOL_APP_ID_MAX = 0xffffffff;
   const isToolAppId = id => Number.isSafeInteger(id) && id > 0 && id <= TOOL_APP_ID_MAX;
-  const STORE_SEARCH_TOOL_ID = "steam_store_search";
+  const PROVIDER_TOOL_IDS = Object.freeze({ game: "tool-1", players: "tool-2", prices: "tool-3", search: "tool-4" });
+  const STORE_SEARCH_TOOL_ID = PROVIDER_TOOL_IDS.search;
   const searchOptions = description => ({ type: "array", items: { type: "string" }, description });
   const STORE_SEARCH_PROPERTIES = Object.freeze({
     term: { type: "string", maxLength: 64, description: "Game name or search keyword, up to 64 characters. You can use the game's original name. Omit to search without a keyword." },
@@ -559,10 +560,10 @@
     start: { type: "integer", minimum: 0, description: "Page offset, default 0. Keep the same filters and sort order and pass the previous nextStart as start. Stop when nextStart is null. An empty items array can still have a nextStart." },
   });
   const CHAT_TOOLS = Object.freeze([
-    Object.freeze({ id: "steam_game", label: "ai_chat_tool_game", name: "Steam 游戏资料", help: "ai_chat_tool_game_help", description: "按 AppID 查询 Steam 商店公开游戏资料。" }),
-    Object.freeze({ id: "steam_players", label: "ai_chat_tool_players", name: "Steam 在线人数", help: "ai_chat_tool_players_help", description: "按 AppID 查询当前在线人数。" }),
-    Object.freeze({ id: "itad_prices", label: "ai_chat_tool_prices", name: "ITAD 价格与史低", help: "ai_chat_tool_prices_help", description: "按 AppID 查询配置地区的当前报价和历史最低价。" }),
-    Object.freeze({ id: STORE_SEARCH_TOOL_ID, label: "ai_chat_tool_search", name: "Steam 商店搜索", help: "ai_chat_tool_search_help",
+    Object.freeze({ id: PROVIDER_TOOL_IDS.game, label: "ai_chat_tool_game", name: "Steam 游戏资料", description: "按 AppID 查询 Steam 商店公开游戏资料。" }),
+    Object.freeze({ id: PROVIDER_TOOL_IDS.players, label: "ai_chat_tool_players", name: "Steam 在线人数", description: "按 AppID 查询当前在线人数。" }),
+    Object.freeze({ id: PROVIDER_TOOL_IDS.prices, label: "ai_chat_tool_prices", name: "ITAD 价格与史低", description: "按 AppID 查询配置地区的当前报价和历史最低价。" }),
+    Object.freeze({ id: STORE_SEARCH_TOOL_ID, label: "ai_chat_tool_search", name: "Steam 商店搜索",
       description: '搜索 Steam 国区商店的游戏和商品，返回当前价、折扣、评测摘要及链接。全部参数可省略，无需 AppID。查 50 元以下、支持简中且正打折的游戏：{"types":["游戏"],"discountsOnly":true,"priceBelow":50,"languages":["schinese"]}。价格结果以分计，items 是本页命中，candidateTotal 是 Steam 候选总数，未扣除本页价格筛除的商品。nextStart 非空时可用原条件继续翻页。' }),
   ]);
 
@@ -661,7 +662,7 @@
     modelListIssue,
     hostPermissionPattern,
     chatRequest,
-    CHAT_TOOLS, TOOL_APP_ID_MAX, isToolAppId, STORE_SEARCH_TOOL_ID, STORE_SEARCH_PROPERTIES, toolSchema,
+    CHAT_TOOLS, PROVIDER_TOOL_IDS, TOOL_APP_ID_MAX, isToolAppId, STORE_SEARCH_TOOL_ID, STORE_SEARCH_PROPERTIES, toolSchema,
     validateChatToolIds,
     chatBody,
     chatText,

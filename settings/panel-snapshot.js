@@ -179,7 +179,7 @@
         continue;
       }
       if (name === "workflow") {
-        if (Object.hasOwn(src, name)) { out[name] = root.STAutomation.normalize(src[name], undefined, { deferToolLibrary: true }); box.imported += 1; }
+        if (Object.hasOwn(src, name)) { out[name] = root.STAutomation.normalize(src[name]); box.imported += 1; }
         continue;
       }
       if (name === "ai") {
@@ -205,10 +205,11 @@
     return stats ? { settings: out, stats: box } : out;
   }
 
-  function defaultsPack() {
+  async function defaultsPack(locale = "zh_CN") {
     const out = {};
     for (const name of sections()) {
-      out[name] = name === "uiLocale" ? "zh_CN" : clone(sectionDefaults(name));
+      if (name === "workflow") out[name] = await root.STAutomation.loadDefaults(locale);
+      else out[name] = name === "uiLocale" ? locale : clone(sectionDefaults(name));
     }
     return out;
   }

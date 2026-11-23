@@ -164,10 +164,10 @@
     signal.throwIfAborted();
     if (name === root.STAI.STORE_SEARCH_TOOL_ID) return deps.steamStoreSearch(args, signal);
     const { appId } = args;
-    if (name === "itad_prices") return deps.itadPrices(appId, signal);
+    if (name === root.STAI.PROVIDER_TOOL_IDS.prices) return deps.itadPrices(appId, signal);
     const source = "Steam";
     const url = root.STConfig.vendors.steamStore.app(appId);
-    const result = name === "steam_game"
+    const result = name === root.STAI.PROVIDER_TOOL_IDS.game
       ? await deps.steamGame(appId, signal) : { players: await deps.currentPlayers(appId, signal) };
     return { source, url, appId, checkedAt: new Date().toISOString(), ...result };
   }
@@ -183,8 +183,8 @@
   }
 
   function toolFacts(name, value) {
-    if (name === "steam_game") return { name: value.name, found: value.found };
-    if (name === "steam_players") return { players: value.players };
+    if (name === root.STAI.PROVIDER_TOOL_IDS.game) return { name: value.name, found: value.found };
+    if (name === root.STAI.PROVIDER_TOOL_IDS.players) return { players: value.players };
     if (name === root.STAI.STORE_SEARCH_TOOL_ID)
       return { term: value.term, candidateTotal: value.candidateTotal, matched: value.items.length };
     return {

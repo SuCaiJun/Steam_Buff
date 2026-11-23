@@ -1093,11 +1093,8 @@
     const ai = sections.ai ?? (typeof aiEnabled === "boolean"
       ? { ...globalThis.STAI.normalizeServices(), enabled: aiEnabled } : undefined);
     const chatToolIds = ai && Object.hasOwn(ai, "chatToolIds") ? globalThis.STAI.validateChatToolIds(ai.chatToolIds) : undefined;
-    const workflow = sections.workflow?.toolLibraryVersion === undefined && sections.workflow
-      ? globalThis.STAutomation.normalize(sections.workflow, await templateLanguage(sections.uiLocale ?? await getUiLocale({ strict: true })))
-      : sections.workflow;
     await configureAi("apply-ai-settings", {
-      ai, translate: sections.translate, workflow,
+      ai, translate: sections.translate, workflow: sections.workflow,
       familyFeature, familySettings: sections.familyLibrary,
     }, diagnostics);
     const jobs = {
@@ -1150,7 +1147,7 @@
   async function getWorkflow() {
     const model = globalThis.STAutomation;
     const data = await get([model.KEY], { strict: true });
-    return Object.hasOwn(data, model.KEY) ? model.normalize(data[model.KEY], undefined, { structureOnly: true }) : model.empty();
+    return Object.hasOwn(data, model.KEY) ? model.normalize(data[model.KEY], { structureOnly: true }) : model.empty();
   }
 
   /** 2.2.2 的下载开关独立于工作流配置 */
@@ -1180,16 +1177,7 @@
     const legacyKeys = aiConfig.V222_CONNECTION_FIELDS.map(aiKey);
     const stored = await get([SETUP_KEY, UI_LOCALE_KEY, GAME_LINKS_KEY, transKey("aiTarget"), transKey("to"), model.KEY, familyFeatureKey, installedVersionKey, ...Object.values(family.SETTINGS_KEYS),
       ...aiConfig.SETTINGS_KEYS, ...legacyKeys, ...Object.keys(defaults).map(transKey)], { strict: true });
-    const existing = stored[model.KEY];
-    const migrateTools = existing && existing.toolLibraryVersion === undefined;
-    if (stored[SETUP_KEY]) {
-      if (migrateTools) {
-        const locale = localeOf(stored[UI_LOCALE_KEY], localeOf(stored[SETUP_KEY]));
-        const workflow = model.normalize(existing, await templateLanguage(locale));
-        await writeAiSettings({ workflow }, { reason: "initialize-workflow-tools" });
-      }
-      return true;
-    }
+    if (stored[SETUP_KEY]) return true;
     const hasRegistry = Object.hasOwn(stored, aiConfig.SERVICES_KEY);
     const flags = aiConfig.flagsFromStorage(stored);
     const pendingConnection = stored[aiConfig.ONBOARDING_CONNECTION_KEY] != null;
@@ -1213,9 +1201,10 @@
     const gameLinks = globalThis.STGameLinks.seedNames(stored[GAME_LINKS_KEY], text);
     let workflow;
     if (!existingWorkflow) {
-      workflow = model.defaults(text, locale);
+      workflow = await model.loadDefaults(locale);
+      workflow.presetImportVersion = chrome.runtime.getManifest().version;
       if (familySettings) workflow = model.restoreFamilySchedule(workflow, familySettings,
-        stored[familyFeatureKey] !== false && globalThis.STClientEnvironment.isSteamClientRuntime(), true, text);
+        stored[familyFeatureKey] !== false && globalThis.STClientEnvironment.isSteamClientRuntime(), true);
     }
     const ai = hasRegistry ? undefined : legacy ?? aiConfig.servicesFromStorage(stored);
     if (ai) aiConfig.findService(ai, aiConfig.DEFAULT_SERVICE_ID).name = text("seed.ai.default", "默认 AI 服务");
@@ -1224,20 +1213,19 @@
       : undefined;
     if (complete && workflow && !alreadyInstalled && !legacy && !familySettings && !Object.hasOwn(stored, transKey("to")) && !Object.hasOwn(stored, transKey("aiTarget")))
       translate.aiTarget = "display";
-    const configured = workflow || (migrateTools ? model.normalize(existing, text) : undefined);
-    await writeAiSettings({ workflow: configured, ai, translate, familySettings, gameLinks, setupLocale: locale, finishPendingConnection: pendingConnection }, { reason: "initialize-workflow" });
+    await writeAiSettings({ workflow, ai, translate, familySettings, gameLinks, setupLocale: locale, finishPendingConnection: pendingConnection }, { reason: "initialize-workflow" });
     if (legacy) log.info("ai-v222-config-migrated", "2.2.2 AI 连接已迁移到默认服务");
     return true;
   }
 
   async function setWorkflow(values, diagnostics = {}) {
-    const next = globalThis.STAutomation.normalize(values, undefined, { structureOnly: diagnostics.replaceWorkflow !== true });
-    const confirmation = diagnostics.promptDeletion === undefined ? {} : { promptDeletion: diagnostics.promptDeletion };
+    const next = globalThis.STAutomation.normalize(values, { structureOnly: diagnostics.replaceWorkflow !== true });
+    const { promptDeletion, creation } = diagnostics;
     if (globalThis.STBackgroundAutomation)
       return globalThis.STBackgroundAutomation.saveConfig(next, {
         operationId: diagnostics.operationId,
         replace: diagnostics.replaceWorkflow === true,
-        ...confirmation,
+        promptDeletion, creation,
       });
     const response = await globalThis.STMessageBus.request(
       {
@@ -1245,7 +1233,7 @@
         action: diagnostics.replaceWorkflow === true ? "replace-config" : "save-config",
         value: next,
         operationId: diagnostics.operationId,
-        ...confirmation,
+        promptDeletion, creation,
       },
       { timeoutMs: 120000, logFailures: false },
     );

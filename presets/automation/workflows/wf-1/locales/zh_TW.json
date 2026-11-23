@@ -1,0 +1,13 @@
+{
+  ".name": "遊戲名稱漢化",
+  ".variables.var-1.name": "傳入APPID",
+  ".variables.var-2.name": "傳入遊戲名稱",
+  ".variables.var-8.name": "自定義排序名稱",
+  ".variables.var-11.name": "AI 回覆",
+  ".variables.var-13.name": "刪除文本兩端的空白結果",
+  ".variables.var-16.name": "設置自定義排序名稱結果",
+  ".steps.step-3.branches.0.steps.step-4.value.literal.message": "AppID 超出範圍。請輸入介於 1 和 4294967295 的整數。",
+  ".steps.step-9.branches.0.steps.step-10.inputs.Steam 原名.label": "Steam 原名",
+  ".inputParameters.0.name": "傳入APPID",
+  ".inputParameters.1.name": "傳入遊戲名稱"
+}

@@ -673,7 +673,7 @@
       cloud: remote,
       meta,
       localVersion: apiCloud.localVersion(),
-      localIsDefault: apiCloud.isDefaultPack(localPack),
+      localIsDefault: await apiCloud.isDefaultPack(localPack),
       allowEmptyUpload,
     });
 

@@ -87,7 +87,7 @@
   }
   async function rpc(action, value = {}, onLog) {
     if (action === "cancel-instruction-test") return previews.get(value.id)?.() ?? false;
-    const result = ["test-instruction", "test-tool", "test-workflow"].includes(action) ? await preview({ ...value, action }, onLog) : await root.STMessageBus.request(
+    const result = ["test-instruction", "test-tool", "test-library", "test-workflow"].includes(action) ? await preview({ ...value, action }, onLog) : await root.STMessageBus.request(
       { type: model.ROUTE, action, ...value },
       { timeoutMs: 120000, logFailures: false },
     );
@@ -391,7 +391,7 @@
           const index = next.prompts.findIndex((plan) => plan.id === draft.id);
           if (index < 0) next.prompts.push(draft);
           else next.prompts[index] = draft;
-          await save(state, next);
+          await save(state, next, index < 0 ? { creation: { section: "prompts", id: draft.id } } : undefined);
           return true;
         } catch (error) {
           reportFailure(error, null);

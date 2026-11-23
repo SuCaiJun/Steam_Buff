@@ -1,0 +1,13 @@
+{
+  ".name": "家庭庫重新整理",
+  ".variables.var-89.name": "刷新家庭庫結果",
+  ".variables.var-90.name": "刷新執行結果",
+  ".variables.var-93.name": "消息結果",
+  ".variables.var-95.name": "消息結果2",
+  ".steps.step-91.branches.0.condition.right.display": "成功",
+  ".steps.step-91.branches.0.steps.step-92.body.literal": "家庭庫刷新完成",
+  ".steps.step-91.otherwise.step-94.body.template.0": "家庭庫刷新未完成：",
+  ".steps.step-91.otherwise.step-94.body.template.var-90.source": "variable",
+  ".steps.step-91.otherwise.step-94.body.template.var-90.id": "var-90",
+  ".steps.step-91.otherwise.step-94.body.template.var-90.path.0": "reason"
+}

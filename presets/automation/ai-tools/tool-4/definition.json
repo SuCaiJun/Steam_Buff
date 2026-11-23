@@ -1,0 +1,154 @@
+{
+  "id": "tool-4",
+  "name": "$text:.name",
+  "revision": 1,
+  "variables": [
+    {
+      "id": "var-115",
+      "name": "$text:.variables.var-115.name",
+      "type": "object"
+    }
+  ],
+  "steps": [
+    {
+      "id": "step-114",
+      "kind": "action",
+      "action": "query-provider-data",
+      "output": "var-115",
+      "provider": "tool-4",
+      "filters": {
+        "source": "input",
+        "path": []
+      }
+    },
+    {
+      "id": "step-116",
+      "kind": "action",
+      "action": "tool-return",
+      "value": {
+        "source": "variable",
+        "id": "var-115",
+        "path": []
+      }
+    }
+  ],
+  "executionId": "00000000-0000-4000-8000-000000000001",
+  "enabled": true,
+  "description": "$text:.description",
+  "parameters": [
+    {
+      "name": "term",
+      "type": "string",
+      "required": false,
+      "description": "$text:.parameters.0.description"
+    },
+    {
+      "name": "priceBelow",
+      "type": "number",
+      "required": false,
+      "description": "$text:.parameters.1.description"
+    },
+    {
+      "name": "freeOnly",
+      "type": "boolean",
+      "required": false,
+      "description": "$text:.parameters.2.description"
+    },
+    {
+      "name": "discountsOnly",
+      "type": "boolean",
+      "required": false,
+      "description": "$text:.parameters.3.description"
+    },
+    {
+      "name": "hideFreeToPlay",
+      "type": "boolean",
+      "required": false,
+      "description": "$text:.parameters.4.description"
+    },
+    {
+      "name": "languages",
+      "type": "array",
+      "required": false,
+      "description": "$text:.parameters.5.description"
+    },
+    {
+      "name": "tags",
+      "type": "array",
+      "required": false,
+      "description": "$text:.parameters.6.description"
+    },
+    {
+      "name": "excludeTags",
+      "type": "array",
+      "required": false,
+      "description": "$text:.parameters.7.description"
+    },
+    {
+      "name": "types",
+      "type": "array",
+      "required": false,
+      "description": "$text:.parameters.8.description"
+    },
+    {
+      "name": "playerModes",
+      "type": "array",
+      "required": false,
+      "description": "$text:.parameters.9.description"
+    },
+    {
+      "name": "features",
+      "type": "array",
+      "required": false,
+      "description": "$text:.parameters.10.description"
+    },
+    {
+      "name": "controllers",
+      "type": "array",
+      "required": false,
+      "description": "$text:.parameters.11.description"
+    },
+    {
+      "name": "accessibility",
+      "type": "array",
+      "required": false,
+      "description": "$text:.parameters.12.description"
+    },
+    {
+      "name": "deck",
+      "type": "array",
+      "required": false,
+      "description": "$text:.parameters.13.description"
+    },
+    {
+      "name": "vr",
+      "type": "array",
+      "required": false,
+      "description": "$text:.parameters.14.description"
+    },
+    {
+      "name": "excludeVrOnly",
+      "type": "boolean",
+      "required": false,
+      "description": "$text:.parameters.15.description"
+    },
+    {
+      "name": "os",
+      "type": "array",
+      "required": false,
+      "description": "$text:.parameters.16.description"
+    },
+    {
+      "name": "sortBy",
+      "type": "string",
+      "required": false,
+      "description": "$text:.parameters.17.description"
+    },
+    {
+      "name": "start",
+      "type": "integer",
+      "required": false,
+      "description": "$text:.parameters.18.description"
+    }
+  ]
+}

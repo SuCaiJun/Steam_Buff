@@ -1,0 +1,13 @@
+{
+  ".name": "游戏名称汉化",
+  ".variables.var-1.name": "传入APPID",
+  ".variables.var-2.name": "传入游戏名称",
+  ".variables.var-8.name": "自定义排序名称",
+  ".variables.var-11.name": "AI 回复",
+  ".variables.var-13.name": "删除文本两端的空白结果",
+  ".variables.var-16.name": "设置自定义排序名称结果",
+  ".steps.step-3.branches.0.steps.step-4.value.literal.message": "AppID 超出范围。请输入 1 到 4294967295 之间的整数。",
+  ".steps.step-9.branches.0.steps.step-10.inputs.Steam 原名.label": "Steam 原名",
+  ".inputParameters.0.name": "传入APPID",
+  ".inputParameters.1.name": "传入游戏名称"
+}

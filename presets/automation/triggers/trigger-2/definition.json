@@ -1,0 +1,30 @@
+{
+  "id": "trigger-2",
+  "name": "$text:.name",
+  "revision": 1,
+  "enabled": false,
+  "workflowId": "wf-2",
+  "event": {
+    "type": "added"
+  },
+  "conditions": {
+    "op": "all",
+    "children": []
+  },
+  "inputs": {
+    "var-17": {
+      "source": "input",
+      "path": [
+        "appid"
+      ]
+    },
+    "var-18": {
+      "source": "input",
+      "path": [
+        "game",
+        "official"
+      ]
+    }
+  },
+  "busy": "queue"
+}

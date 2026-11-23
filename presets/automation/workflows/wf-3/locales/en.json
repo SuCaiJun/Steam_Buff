@@ -1,0 +1,23 @@
+{
+  ".name": "Translate game achievements",
+  ".variables.var-61.name": "Input AppID",
+  ".variables.var-62.name": "Input game title",
+  ".variables.var-66.name": "Game achievements",
+  ".variables.var-68.name": "Saved translations",
+  ".variables.var-70.name": "List",
+  ".variables.var-72.name": "Current item",
+  ".variables.var-73.name": "Current index",
+  ".variables.var-76.name": "Append result",
+  ".variables.var-78.name": "List chunks",
+  ".variables.var-80.name": "Current item2",
+  ".variables.var-81.name": "Current index2",
+  ".variables.var-83.name": "AI response",
+  ".variables.var-85.name": "JSON data",
+  ".variables.var-87.name": "Translation save result",
+  ".steps.step-63.branches.0.steps.step-64.value.literal.message": "AppID is out of range. Enter an integer from 1 to 4294967295.",
+  ".steps.step-79.body.step-82.inputs.成就条目.label": "Achievements",
+  ".steps.step-79.body.step-82.inputs.任务游戏名称.label": "Task game name",
+  ".steps.step-79.body.step-82.inputs.目标语言.label": "Target language",
+  ".inputParameters.0.name": "Input AppID",
+  ".inputParameters.1.name": "Input game title"
+}

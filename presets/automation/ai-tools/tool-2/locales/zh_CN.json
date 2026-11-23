@@ -1,0 +1,8 @@
+{
+  ".name": "Steam 在线人数",
+  ".variables.var-102.name": "appId",
+  ".variables.var-106.name": "查询结果",
+  ".steps.step-103.branches.0.steps.step-104.value.literal": "AppID 超出范围。请传入 1 到 4294967295 之间的整数后重新调用。",
+  ".description": "按 AppID 查询当前在线人数。",
+  ".parameters.0.description": "Steam 游戏的 AppID。传入 1 到 4294967295 之间的整数。"
+}

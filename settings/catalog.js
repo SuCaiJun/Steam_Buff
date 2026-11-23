@@ -1364,9 +1364,6 @@
     if (name === "ai") {
       return globalThis.STAI.normalizeServices();
     }
-    if (name === "workflow") {
-      return globalThis.STAutomation.defaults();
-    }
     if (name === "thirdPartyServices") {
       return thirdPartyServicesDefaults();
     }

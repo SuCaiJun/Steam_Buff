@@ -1,0 +1,22 @@
+{
+  "id": "P-3",
+  "name": "$text:.name",
+  "enabled": true,
+  "revision": 1,
+  "mode": "basic",
+  "basic": {
+    "system": "$text:.basic.system",
+    "user": "$text:.basic.user"
+  },
+  "advanced": {
+    "chat-completions": "$text:.advanced.chat-completions"
+  },
+  "tokenLocale": "$text:.tokenLocale",
+  "tokens": {
+    "$text:.tokens.目标语言.label": "目标语言",
+    "$text:.tokens.任务游戏名称.label": "任务游戏名称",
+    "$text:.tokens.成就条目.label": "成就条目",
+    "$text:.tokens.模型.label": "模型",
+    "$text:.tokens.显示语言.label": "显示语言"
+  }
+}

@@ -1,0 +1,8 @@
+{
+  ".name": "ITAD 價格與歷史最低價",
+  ".variables.var-108.name": "appId",
+  ".variables.var-112.name": "查詢結果",
+  ".steps.step-109.branches.0.steps.step-110.value.literal": "AppID 超出範圍。請傳入介於 1 和 4294967295 的整數後重新呼叫。",
+  ".description": "按 AppID 查詢所選地區的目前報價和歷史最低價。",
+  ".parameters.0.description": "Steam 遊戲的 AppID。請傳入介於 1 和 4294967295 的整數。"
+}

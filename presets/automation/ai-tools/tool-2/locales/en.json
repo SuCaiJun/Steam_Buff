@@ -1,0 +1,8 @@
+{
+  ".name": "Steam player count",
+  ".variables.var-102.name": "appId",
+  ".variables.var-106.name": "Query result",
+  ".steps.step-103.branches.0.steps.step-104.value.literal": "AppID is out of range. Pass an integer from 1 to 4294967295 and call the tool again.",
+  ".description": "Look up the current player count by AppID.",
+  ".parameters.0.description": "Steam game AppID. Pass an integer from 1 to 4294967295."
+}

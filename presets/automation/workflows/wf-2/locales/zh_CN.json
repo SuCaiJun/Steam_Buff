@@ -1,0 +1,23 @@
+{
+  ".name": "将游戏添加收藏分组",
+  ".variables.var-17.name": "传入APPID",
+  ".variables.var-18.name": "传入游戏名称",
+  ".variables.var-22.name": "字典",
+  ".variables.var-26.name": "游戏类型",
+  ".variables.var-31.name": "游戏题材",
+  ".variables.var-36.name": "游戏特色",
+  ".variables.var-41.name": "商店标签",
+  ".variables.var-46.name": "读取收藏分组列表结果",
+  ".variables.var-48.name": "列表",
+  ".variables.var-50.name": "当前项目",
+  ".variables.var-51.name": "当前序号",
+  ".variables.var-54.name": "追加到列表结果",
+  ".variables.var-56.name": "AI 回复",
+  ".variables.var-58.name": "JSON 数据",
+  ".variables.var-60.name": "将游戏加入收藏分组结果",
+  ".steps.step-19.branches.0.steps.step-20.value.literal.message": "AppID 超出范围。请输入 1 到 4294967295 之间的整数。",
+  ".steps.step-55.inputs.游戏资料.label": "游戏资料",
+  ".steps.step-55.inputs.可选收藏分组.label": "可选收藏分组",
+  ".inputParameters.0.name": "传入APPID",
+  ".inputParameters.1.name": "传入游戏名称"
+}

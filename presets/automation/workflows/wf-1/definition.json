@@ -1,0 +1,219 @@
+{
+  "id": "wf-1",
+  "name": "$text:.name",
+  "revision": 1,
+  "variables": [
+    {
+      "id": "var-1",
+      "name": "$text:.variables.var-1.name",
+      "type": "number"
+    },
+    {
+      "id": "var-2",
+      "name": "$text:.variables.var-2.name",
+      "type": "text"
+    },
+    {
+      "id": "var-8",
+      "name": "$text:.variables.var-8.name",
+      "type": "text"
+    },
+    {
+      "id": "var-11",
+      "name": "$text:.variables.var-11.name",
+      "type": "text"
+    },
+    {
+      "id": "var-13",
+      "name": "$text:.variables.var-13.name",
+      "type": "text"
+    },
+    {
+      "id": "var-16",
+      "name": "$text:.variables.var-16.name",
+      "type": "text"
+    }
+  ],
+  "steps": [
+    {
+      "id": "step-3",
+      "kind": "if",
+      "branches": [
+        {
+          "condition": {
+            "op": "any",
+            "children": [
+              {
+                "op": "lt",
+                "left": {
+                  "source": "variable",
+                  "id": "var-1",
+                  "path": []
+                },
+                "right": {
+                  "literal": 1
+                }
+              },
+              {
+                "op": "gt",
+                "left": {
+                  "source": "variable",
+                  "id": "var-1",
+                  "path": []
+                },
+                "right": {
+                  "literal": 4294967295
+                }
+              }
+            ]
+          },
+          "steps": [
+            {
+              "id": "step-4",
+              "kind": "action",
+              "action": "raise",
+              "value": {
+                "literal": {
+                  "code": "ACTION_INPUT_INVALID",
+                  "message": "$text:.steps.step-3.branches.0.steps.step-4.value.literal.message"
+                }
+              }
+            }
+          ]
+        }
+      ],
+      "otherwise": null
+    },
+    {
+      "id": "step-5",
+      "kind": "if",
+      "branches": [
+        {
+          "condition": {
+            "op": "regex",
+            "left": {
+              "source": "variable",
+              "id": "var-2",
+              "path": []
+            },
+            "right": {
+              "literal": "/\\p{Script=Han}/u"
+            }
+          },
+          "steps": [
+            {
+              "id": "step-6",
+              "kind": "action",
+              "action": "stop"
+            }
+          ]
+        }
+      ],
+      "otherwise": null
+    },
+    {
+      "id": "step-7",
+      "kind": "action",
+      "action": "steam-sort-name",
+      "game": {
+        "source": "variable",
+        "id": "var-1",
+        "path": []
+      },
+      "output": "var-8"
+    },
+    {
+      "id": "step-9",
+      "kind": "if",
+      "branches": [
+        {
+          "condition": {
+            "op": "empty",
+            "left": {
+              "source": "variable",
+              "id": "var-8",
+              "path": []
+            }
+          },
+          "steps": [
+            {
+              "id": "step-10",
+              "kind": "action",
+              "action": "ai-call",
+              "serviceId": "AI-0",
+              "promptId": "P-2",
+              "requestTimeoutSeconds": 60,
+              "inputs": {
+                "$text:.steps.step-9.branches.0.steps.step-10.inputs.Steam 原名.label": {
+                  "source": "variable",
+                  "id": "var-2",
+                  "path": []
+                }
+              },
+              "output": "var-11"
+            },
+            {
+              "id": "step-12",
+              "kind": "action",
+              "action": "text-trim",
+              "value": {
+                "source": "variable",
+                "id": "var-11",
+                "path": []
+              },
+              "output": "var-13"
+            },
+            {
+              "id": "step-14",
+              "kind": "if",
+              "branches": [
+                {
+                  "condition": {
+                    "op": "notEmpty",
+                    "left": {
+                      "source": "variable",
+                      "id": "var-13",
+                      "path": []
+                    }
+                  },
+                  "steps": [
+                    {
+                      "id": "step-15",
+                      "kind": "action",
+                      "action": "steam-set-sort-name",
+                      "game": {
+                        "source": "variable",
+                        "id": "var-1",
+                        "path": []
+                      },
+                      "value": {
+                        "source": "variable",
+                        "id": "var-13",
+                        "path": []
+                      },
+                      "output": "var-16"
+                    }
+                  ]
+                }
+              ],
+              "otherwise": null
+            }
+          ]
+        }
+      ],
+      "otherwise": null
+    }
+  ],
+  "inputParameters": [
+    {
+      "name": "$text:.inputParameters.0.name",
+      "type": "integer",
+      "variableId": "var-1"
+    },
+    {
+      "name": "$text:.inputParameters.1.name",
+      "type": "text",
+      "variableId": "var-2"
+    }
+  ]
+}

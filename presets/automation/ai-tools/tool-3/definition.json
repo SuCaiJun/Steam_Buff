@@ -1,0 +1,99 @@
+{
+  "id": "tool-3",
+  "name": "$text:.name",
+  "revision": 1,
+  "variables": [
+    {
+      "id": "var-108",
+      "name": "$text:.variables.var-108.name",
+      "type": "number"
+    },
+    {
+      "id": "var-112",
+      "name": "$text:.variables.var-112.name",
+      "type": "object"
+    }
+  ],
+  "steps": [
+    {
+      "id": "step-109",
+      "kind": "if",
+      "branches": [
+        {
+          "condition": {
+            "op": "any",
+            "children": [
+              {
+                "op": "lt",
+                "left": {
+                  "source": "variable",
+                  "id": "var-108",
+                  "path": []
+                },
+                "right": {
+                  "literal": 1
+                }
+              },
+              {
+                "op": "gt",
+                "left": {
+                  "source": "variable",
+                  "id": "var-108",
+                  "path": []
+                },
+                "right": {
+                  "literal": 4294967295
+                }
+              }
+            ]
+          },
+          "steps": [
+            {
+              "id": "step-110",
+              "kind": "action",
+              "action": "tool-return",
+              "value": {
+                "literal": "$text:.steps.step-109.branches.0.steps.step-110.value.literal"
+              }
+            }
+          ]
+        }
+      ],
+      "otherwise": null
+    },
+    {
+      "id": "step-111",
+      "kind": "action",
+      "action": "query-provider-data",
+      "appId": {
+        "source": "variable",
+        "id": "var-108",
+        "path": []
+      },
+      "output": "var-112",
+      "provider": "tool-3"
+    },
+    {
+      "id": "step-113",
+      "kind": "action",
+      "action": "tool-return",
+      "value": {
+        "source": "variable",
+        "id": "var-112",
+        "path": []
+      }
+    }
+  ],
+  "executionId": "00000000-0000-4000-8000-000000000001",
+  "enabled": true,
+  "description": "$text:.description",
+  "parameters": [
+    {
+      "name": "appId",
+      "type": "integer",
+      "required": true,
+      "description": "$text:.parameters.0.description",
+      "variableId": "var-108"
+    }
+  ]
+}

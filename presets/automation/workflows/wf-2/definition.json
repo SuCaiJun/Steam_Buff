@@ -1,0 +1,488 @@
+{
+  "id": "wf-2",
+  "name": "$text:.name",
+  "revision": 1,
+  "variables": [
+    {
+      "id": "var-17",
+      "name": "$text:.variables.var-17.name",
+      "type": "number"
+    },
+    {
+      "id": "var-18",
+      "name": "$text:.variables.var-18.name",
+      "type": "text"
+    },
+    {
+      "id": "var-22",
+      "name": "$text:.variables.var-22.name",
+      "type": "object"
+    },
+    {
+      "id": "var-26",
+      "name": "$text:.variables.var-26.name",
+      "type": "text"
+    },
+    {
+      "id": "var-31",
+      "name": "$text:.variables.var-31.name",
+      "type": "list"
+    },
+    {
+      "id": "var-36",
+      "name": "$text:.variables.var-36.name",
+      "type": "list"
+    },
+    {
+      "id": "var-41",
+      "name": "$text:.variables.var-41.name",
+      "type": "list"
+    },
+    {
+      "id": "var-46",
+      "name": "$text:.variables.var-46.name",
+      "type": "list"
+    },
+    {
+      "id": "var-48",
+      "name": "$text:.variables.var-48.name",
+      "type": "list"
+    },
+    {
+      "id": "var-50",
+      "name": "$text:.variables.var-50.name",
+      "type": "any"
+    },
+    {
+      "id": "var-51",
+      "name": "$text:.variables.var-51.name",
+      "type": "number"
+    },
+    {
+      "id": "var-54",
+      "name": "$text:.variables.var-54.name",
+      "type": "list"
+    },
+    {
+      "id": "var-56",
+      "name": "$text:.variables.var-56.name",
+      "type": "text"
+    },
+    {
+      "id": "var-58",
+      "name": "$text:.variables.var-58.name",
+      "type": "any"
+    },
+    {
+      "id": "var-60",
+      "name": "$text:.variables.var-60.name",
+      "type": "object"
+    }
+  ],
+  "steps": [
+    {
+      "id": "step-19",
+      "kind": "if",
+      "branches": [
+        {
+          "condition": {
+            "op": "any",
+            "children": [
+              {
+                "op": "lt",
+                "left": {
+                  "source": "variable",
+                  "id": "var-17",
+                  "path": []
+                },
+                "right": {
+                  "literal": 1
+                }
+              },
+              {
+                "op": "gt",
+                "left": {
+                  "source": "variable",
+                  "id": "var-17",
+                  "path": []
+                },
+                "right": {
+                  "literal": 4294967295
+                }
+              }
+            ]
+          },
+          "steps": [
+            {
+              "id": "step-20",
+              "kind": "action",
+              "action": "raise",
+              "value": {
+                "literal": {
+                  "code": "ACTION_INPUT_INVALID",
+                  "message": "$text:.steps.step-19.branches.0.steps.step-20.value.literal.message"
+                }
+              }
+            }
+          ]
+        }
+      ],
+      "otherwise": null
+    },
+    {
+      "id": "step-21",
+      "kind": "action",
+      "action": "record",
+      "value": {
+        "literal": {}
+      },
+      "output": "var-22"
+    },
+    {
+      "id": "step-23",
+      "kind": "action",
+      "action": "dict-set",
+      "value": {
+        "source": "variable",
+        "id": "var-22",
+        "path": []
+      },
+      "key": {
+        "literal": "official"
+      },
+      "item": {
+        "source": "variable",
+        "id": "var-18",
+        "path": []
+      },
+      "output": "var-22"
+    },
+    {
+      "id": "step-25",
+      "kind": "action",
+      "action": "steam-game-app-type",
+      "game": {
+        "source": "variable",
+        "id": "var-17",
+        "path": []
+      },
+      "output": "var-26",
+      "onError": "continue"
+    },
+    {
+      "id": "step-27",
+      "kind": "if",
+      "branches": [
+        {
+          "condition": {
+            "op": "exists",
+            "left": {
+              "source": "variable",
+              "id": "var-26",
+              "path": []
+            }
+          },
+          "steps": [
+            {
+              "id": "step-28",
+              "kind": "action",
+              "action": "dict-set",
+              "value": {
+                "source": "variable",
+                "id": "var-22",
+                "path": []
+              },
+              "key": {
+                "literal": "app_type"
+              },
+              "item": {
+                "source": "variable",
+                "id": "var-26",
+                "path": []
+              },
+              "output": "var-22"
+            }
+          ]
+        }
+      ],
+      "otherwise": null
+    },
+    {
+      "id": "step-30",
+      "kind": "action",
+      "action": "steam-game-genres",
+      "game": {
+        "source": "variable",
+        "id": "var-17",
+        "path": []
+      },
+      "output": "var-31",
+      "onError": "continue"
+    },
+    {
+      "id": "step-32",
+      "kind": "if",
+      "branches": [
+        {
+          "condition": {
+            "op": "exists",
+            "left": {
+              "source": "variable",
+              "id": "var-31",
+              "path": []
+            }
+          },
+          "steps": [
+            {
+              "id": "step-33",
+              "kind": "action",
+              "action": "dict-set",
+              "value": {
+                "source": "variable",
+                "id": "var-22",
+                "path": []
+              },
+              "key": {
+                "literal": "genres"
+              },
+              "item": {
+                "source": "variable",
+                "id": "var-31",
+                "path": []
+              },
+              "output": "var-22"
+            }
+          ]
+        }
+      ],
+      "otherwise": null
+    },
+    {
+      "id": "step-35",
+      "kind": "action",
+      "action": "steam-game-features",
+      "game": {
+        "source": "variable",
+        "id": "var-17",
+        "path": []
+      },
+      "output": "var-36",
+      "onError": "continue"
+    },
+    {
+      "id": "step-37",
+      "kind": "if",
+      "branches": [
+        {
+          "condition": {
+            "op": "exists",
+            "left": {
+              "source": "variable",
+              "id": "var-36",
+              "path": []
+            }
+          },
+          "steps": [
+            {
+              "id": "step-38",
+              "kind": "action",
+              "action": "dict-set",
+              "value": {
+                "source": "variable",
+                "id": "var-22",
+                "path": []
+              },
+              "key": {
+                "literal": "features"
+              },
+              "item": {
+                "source": "variable",
+                "id": "var-36",
+                "path": []
+              },
+              "output": "var-22"
+            }
+          ]
+        }
+      ],
+      "otherwise": null
+    },
+    {
+      "id": "step-40",
+      "kind": "action",
+      "action": "steam-game-tags",
+      "game": {
+        "source": "variable",
+        "id": "var-17",
+        "path": []
+      },
+      "output": "var-41",
+      "onError": "continue"
+    },
+    {
+      "id": "step-42",
+      "kind": "if",
+      "branches": [
+        {
+          "condition": {
+            "op": "exists",
+            "left": {
+              "source": "variable",
+              "id": "var-41",
+              "path": []
+            }
+          },
+          "steps": [
+            {
+              "id": "step-43",
+              "kind": "action",
+              "action": "dict-set",
+              "value": {
+                "source": "variable",
+                "id": "var-22",
+                "path": []
+              },
+              "key": {
+                "literal": "tags"
+              },
+              "item": {
+                "source": "variable",
+                "id": "var-41",
+                "path": []
+              },
+              "output": "var-22"
+            }
+          ]
+        }
+      ],
+      "otherwise": null
+    },
+    {
+      "id": "step-45",
+      "kind": "action",
+      "action": "steam-collections",
+      "output": "var-46"
+    },
+    {
+      "id": "step-47",
+      "kind": "action",
+      "action": "list",
+      "value": {
+        "literal": []
+      },
+      "output": "var-48"
+    },
+    {
+      "id": "step-49",
+      "kind": "foreach",
+      "body": [
+        {
+          "id": "step-52",
+          "kind": "if",
+          "branches": [
+            {
+              "condition": {
+                "op": "isTrue",
+                "left": {
+                  "source": "variable",
+                  "id": "var-50",
+                  "path": [
+                    "writable"
+                  ]
+                }
+              },
+              "steps": [
+                {
+                  "id": "step-53",
+                  "kind": "action",
+                  "action": "append",
+                  "value": {
+                    "source": "variable",
+                    "id": "var-48",
+                    "path": []
+                  },
+                  "item": {
+                    "source": "variable",
+                    "id": "var-50",
+                    "path": []
+                  },
+                  "output": "var-48"
+                }
+              ]
+            }
+          ],
+          "otherwise": null
+        }
+      ],
+      "value": {
+        "source": "variable",
+        "id": "var-46",
+        "path": []
+      },
+      "item": "var-50",
+      "index": "var-51"
+    },
+    {
+      "id": "step-55",
+      "kind": "action",
+      "action": "ai-call",
+      "serviceId": "AI-0",
+      "promptId": "P-6",
+      "requestTimeoutSeconds": 60,
+      "inputs": {
+        "$text:.steps.step-55.inputs.游戏资料.label": {
+          "source": "variable",
+          "id": "var-22",
+          "path": []
+        },
+        "$text:.steps.step-55.inputs.可选收藏分组.label": {
+          "source": "variable",
+          "id": "var-48",
+          "path": []
+        }
+      },
+      "output": "var-56"
+    },
+    {
+      "id": "step-57",
+      "kind": "action",
+      "action": "json",
+      "value": {
+        "source": "variable",
+        "id": "var-56",
+        "path": []
+      },
+      "output": "var-58"
+    },
+    {
+      "id": "step-59",
+      "kind": "action",
+      "action": "steam-add-collections",
+      "game": {
+        "source": "variable",
+        "id": "var-17",
+        "path": []
+      },
+      "value": {
+        "source": "variable",
+        "id": "var-58",
+        "path": [
+          "collection_ids"
+        ]
+      },
+      "output": "var-60"
+    }
+  ],
+  "inputParameters": [
+    {
+      "name": "$text:.inputParameters.0.name",
+      "type": "integer",
+      "variableId": "var-17"
+    },
+    {
+      "name": "$text:.inputParameters.1.name",
+      "type": "text",
+      "variableId": "var-18"
+    }
+  ]
+}

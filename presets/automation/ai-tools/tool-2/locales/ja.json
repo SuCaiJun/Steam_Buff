@@ -1,0 +1,8 @@
+{
+  ".name": "Steam 同時接続数",
+  ".variables.var-102.name": "appId",
+  ".variables.var-106.name": "取得結果",
+  ".steps.step-103.branches.0.steps.step-104.value.literal": "AppID が範囲外です。1 から 4294967295 までの整数を指定して、ツールを再度呼び出してください。",
+  ".description": "AppID から現在の同時接続数を取得します。",
+  ".parameters.0.description": "Steam ゲームの AppID。1 から 4294967295 までの整数を指定します。"
+}

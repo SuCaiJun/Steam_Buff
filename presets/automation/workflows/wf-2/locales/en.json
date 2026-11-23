@@ -1,0 +1,23 @@
+{
+  ".name": "Add games to collections",
+  ".variables.var-17.name": "Input AppID",
+  ".variables.var-18.name": "Input game title",
+  ".variables.var-22.name": "Dictionary",
+  ".variables.var-26.name": "Game type",
+  ".variables.var-31.name": "Game genres",
+  ".variables.var-36.name": "Game features",
+  ".variables.var-41.name": "Store tags",
+  ".variables.var-46.name": "Collection list",
+  ".variables.var-48.name": "List",
+  ".variables.var-50.name": "Current item",
+  ".variables.var-51.name": "Current index",
+  ".variables.var-54.name": "Append result",
+  ".variables.var-56.name": "AI response",
+  ".variables.var-58.name": "JSON data",
+  ".variables.var-60.name": "Collection update",
+  ".steps.step-19.branches.0.steps.step-20.value.literal.message": "AppID is out of range. Enter an integer from 1 to 4294967295.",
+  ".steps.step-55.inputs.游戏资料.label": "Game details",
+  ".steps.step-55.inputs.可选收藏分组.label": "Available collections",
+  ".inputParameters.0.name": "Input AppID",
+  ".inputParameters.1.name": "Input game title"
+}

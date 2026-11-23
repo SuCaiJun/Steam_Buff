@@ -25,19 +25,20 @@
   });
   const definitions = [...flow.catalog,
     { id: "trigger-parameters", name: "触发器传参", category: "数据处理", group: "输入与变量" },
-    { id: "ai-parameters", name: "AI传参", category: "数据处理", group: "输入与变量" },
+    { id: "ai-parameters", name: "AI 传参", category: "数据处理", group: "输入与变量" },
+    { id: "library-parameters", name: "指令输入", category: "数据处理", group: "输入与变量" },
     { id: "fold-start", name: "折叠开始", category: "折叠" },
     { id: "fold-end", name: "折叠结束", category: "折叠" }];
   const byId = Object.fromEntries(definitions.map(item => [item.id, item]));
   const commands = [
     "ai-call", "tool-call",
-    "tool-return", "wait", "stop",
+    "tool-return", "library-return", "wait", "stop",
     "http-request", "query-provider-data", "script",
     "log", "comment",
     "base64-encode", "base64-decode",
     "csv-parse", "csv-stringify",
     "json", "json-stringify",
-    "trigger-parameters", "ai-parameters", "set", "get", "convert", "calculate", "random",
+    "trigger-parameters", "ai-parameters", "library-parameters", "library-call", "set", "get", "convert", "calculate", "random",
     "list", "append", "list-get", "list-set", "list-insert", "list-filter-condition", "list-filter", "list-field",
     "list-sort", "list-unique", "list-merge", "list-length", "list-index", "list-slice", "list-chunk",
     "list-intersection", "list-reverse", "list-shuffle", "list-remove", "list-clear",
@@ -81,7 +82,7 @@
     "date-now": "calendar-clock", "date-diff": "hourglass", "date-parts": "calendar",
     "date-to-timestamp": "clock-up", "date-format": "calendar-event",
     "date-from-timestamp": "clock-down", "date-add": "calendar-plus", "date-parse": "calendar-search",
-    random: "dice", get: "file-search", receive: "download", "trigger-parameters": "download", "ai-parameters": "download", convert: "switch-horizontal",
+    random: "dice", get: "file-search", receive: "download", "trigger-parameters": "download", "ai-parameters": "download", "library-parameters": "download", "library-return": "arrow-back-up", "library-call": "link", convert: "switch-horizontal",
     set: "variable", calculate: "calculator", "text-pad": "text-wrap", "text-extract": "regex",
     "text-case": "letter-case", "text-length": "ruler-measure", "text-slice": "slice",
     "text-join": "arrows-join", "text-trim": "scissors", "text-pinyin": "language",
@@ -412,7 +413,7 @@
   const schemaLabel = label => Object.hasOwn(schemaKeys, label) ? tr(schemaKeys[label], label) : label;
   const schemaChoices = rows => rows.map(([value, label]) => [value, schemaLabel(label)]);
   const name = id => tr("workflow.command." + id + ".name", byId[id].name);
-  const hint = id => tr("workflow.command." + id + ".hint", hints[id] || byId[id].name);
+  const hint = id => tr("workflow.command." + id + ".hint", hints[id] || name(id));
   const key = row => ["", "else-if"].includes(row.marker || "") && row.node.kind === "if" ? (row.marker ? "else-if" : "if") + (flow.multiple(row.node.branches[row.branch || 0].condition) ? "-many" : "") : row.marker || (row.node.action === "notify" && row.node.messageType === "interactive" ? "interactive" : flow.type(row.node));
   const iconAsset = name => root.chrome.runtime.getURL("images/tabler/" + name + ".svg");
   function iconName(id) {
@@ -503,6 +504,11 @@
       return [token(provider ? tr(provider.label, provider.name) : tr("workflow_tool_provider", "数据来源")),
         " · AppID ", ...value(node.appId), ...output(node.output)];
     }
+    if (id === "library-call") {
+      const library = editor.customLibraries?.find(item => item.id === node.libraryId);
+      return [token(library?.name || hint(id)), ...Object.values(node.libraryOutputs ?? {}).flatMap(output)];
+    }
+    if (id === "library-return") return (editor.draft.outputs ?? []).flatMap((field, index) => [index ? " · " : "", token(field.name), " ", variable(field.variableId)]);
     if (id === "tool-return") return value(node.value);
     if (flow.definitions[id]) return [...(flow.definitions[id].fields.length ? [] : [hint(id)]), ...flow.definitions[id].fields.flatMap((field, index) => [index ? "，" : "", schemaLabel(field.label), " ", ...value(node[field.key], schemaChoices(field.choices || []))]), ...output(node.output)];
     if (id === "script") {

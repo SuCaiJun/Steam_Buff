@@ -1,0 +1,8 @@
+{
+  ".name": "Steam game details",
+  ".variables.var-96.name": "appId",
+  ".variables.var-100.name": "Query result",
+  ".steps.step-97.branches.0.steps.step-98.value.literal": "AppID is out of range. Pass an integer from 1 to 4294967295 and call the tool again.",
+  ".description": "Look up public Steam store details by AppID.",
+  ".parameters.0.description": "Steam game AppID. Pass an integer from 1 to 4294967295."
+}

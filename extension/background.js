@@ -3218,7 +3218,7 @@
       sender?.id !== chrome.runtime.id ||
       !(isSettingsSender(sender) || isSteamRuntimeSender(sender) || onboardingAiSave) ||
       (nativeActions.includes(request.action) && !isSteamRuntimeSender(sender)) ||
-      (["test-instruction", "test-tool", "test-workflow", "tool-credential", "cancel-instruction-test", "site-permissions", "remove-site-permission"].includes(request.action) && !isSettingsSender(sender))
+      (["test-instruction", "test-tool", "test-library", "test-workflow", "tool-credential", "cancel-instruction-test", "site-permissions", "remove-site-permission"].includes(request.action) && !isSettingsSender(sender))
     )
       throw new Error("自动化请求来源无效");
     try {
@@ -3264,7 +3264,7 @@
       }
       if (id !== null || typeof request?.id !== "string" || !request.id) { port.disconnect(); return; }
       const action = request.action ?? "test-instruction";
-      if (!["test-instruction", "test-tool", "test-workflow"].includes(action)) { port.disconnect(); return; }
+      if (!["test-instruction", "test-tool", "test-library", "test-workflow"].includes(action)) { port.disconnect(); return; }
       id = request.id;
       void automationRoute({ ...request, action }, sender, response => {
         done = true;

@@ -1,0 +1,20 @@
+{
+  "id": "P-2",
+  "name": "$text:.name",
+  "enabled": true,
+  "revision": 1,
+  "mode": "basic",
+  "basic": {
+    "system": "$text:.basic.system",
+    "user": "$text:.basic.user"
+  },
+  "advanced": {
+    "chat-completions": "$text:.advanced.chat-completions"
+  },
+  "tokenLocale": "$text:.tokenLocale",
+  "tokens": {
+    "$text:.tokens.Steam 原名.label": "Steam 原名",
+    "$text:.tokens.模型.label": "模型",
+    "$text:.tokens.显示语言.label": "显示语言"
+  }
+}

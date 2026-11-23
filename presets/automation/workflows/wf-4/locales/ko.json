@@ -1,0 +1,13 @@
+{
+  ".name": "가족 라이브러리 새로고침",
+  ".variables.var-89.name": "가족 라이브러리 새로 고침 결과",
+  ".variables.var-90.name": "새로 고침 상태",
+  ".variables.var-93.name": "메시지 전송 결과",
+  ".variables.var-95.name": "메시지 전송 결과2",
+  ".steps.step-91.branches.0.condition.right.display": "성공",
+  ".steps.step-91.branches.0.steps.step-92.body.literal": "가족 라이브러리를 새로 고쳤습니다",
+  ".steps.step-91.otherwise.step-94.body.template.0": "가족 라이브러리를 새로 고치지 못했습니다: ",
+  ".steps.step-91.otherwise.step-94.body.template.var-90.source": "variable",
+  ".steps.step-91.otherwise.step-94.body.template.var-90.id": "var-90",
+  ".steps.step-91.otherwise.step-94.body.template.var-90.path.0": "reason"
+}

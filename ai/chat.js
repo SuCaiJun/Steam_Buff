@@ -341,8 +341,8 @@
       return facts;
     }
     const { source, facts: data } = step;
-    if (step.id === "steam_game") field(text("ai_chat_tool_result", "结果"), data.found ? data.name : text("common_none", "暂无"));
-    if (step.id === "steam_players")
+    if (step.id === STAI.PROVIDER_TOOL_IDS.game) field(text("ai_chat_tool_result", "结果"), data.found ? data.name : text("common_none", "暂无"));
+    if (step.id === STAI.PROVIDER_TOOL_IDS.players)
       field(text("ai_chat_tool_players", "Steam 在线人数"), data.players.toLocaleString(STI18n.intlLocale()));
     if (step.id === STAI.STORE_SEARCH_TOOL_ID) {
       field(text("ai_chat_tool_result", "结果"),
@@ -351,7 +351,7 @@
           total: data.candidateTotal.toLocaleString(STI18n.intlLocale()),
         }));
     }
-    if (step.id === "itad_prices") {
+    if (step.id === STAI.PROVIDER_TOOL_IDS.prices) {
       field(text("ai_chat_tool_region", "地区"), data.country);
       field(text("ai_chat_tool_current_price", "当前价格"), formatPrice(data.current));
       field(text("ai_chat_tool_low", "历史最低价"), formatPrice(data.low));

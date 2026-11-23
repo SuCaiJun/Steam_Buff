@@ -21,12 +21,6 @@
   const DEFAULT_LANGUAGE = "chinese_simplified";
   const STEP_STATES = Object.freeze({ success: "成功", failed: "失败", skipped: "跳过" });
   const NOTICE_TYPES = Object.freeze({ info: "普通", success: "成功", warning: "警告", error: "错误" });
-  const TYPES = Object.freeze({
-    name: "游戏名称汉化",
-    collection: "将游戏添加收藏分组",
-    achievement: "游戏的成就翻译",
-    family: "家庭库刷新",
-  });
   const RANGES = Object.freeze([
     ["30m", "最近 30 分钟", 1800],
     ["1h", "最近 1 小时", 3600],
@@ -270,38 +264,18 @@
   const TOOL_CREDENTIALS_KEY = "st.automation.tool-credentials.v1";
   const PRESET_TOOL_EXECUTION_ID = "00000000-0000-4000-8000-000000000001";
   const TOOL_LIBRARY_VERSION = 1;
-  const toolTypes = Object.freeze(["string", "integer", "number", "boolean", "array", "object", "appId"]);
+  const toolTypes = Object.freeze(["string", "integer", "number", "boolean", "array", "object"]);
   function newTool(name) {
-    return { ...newWorkflow("tool_" + crypto.randomUUID().replaceAll("-", ""), name), executionId: crypto.randomUUID(),
+    return { ...newWorkflow(engine.numericId("tool-"), name), executionId: crypto.randomUUID(),
       enabled: true, description: "", parameters: [] };
   }
-  const isOriginalProviderTool = tool => engine.isProviderToolId(tool.id) && tool.executionId === PRESET_TOOL_EXECUTION_ID && tool.revision === 1;
-  function providerTools(text = (_key, fallback) => fallback, providers = root.STAI.CHAT_TOOLS) {
-    return providers.map(provider => {
-      const search = provider.id === root.STAI.STORE_SEARCH_TOOL_ID;
-      const tool = { ...newWorkflow(provider.id, text(provider.label, provider.name)), executionId: PRESET_TOOL_EXECUTION_ID,
-        enabled: true, description: text(search ? "seed.tool.storeSearch.description" : provider.help, provider.description),
-        parameters: [] };
-      const query = engine.createNode("query-provider-data", tool, text);
-      query.provider = provider.id;
-      if (search) {
-        tool.parameters = Object.entries(root.STAI.STORE_SEARCH_PROPERTIES).map(([name, { type, description }]) => ({
-          name, type, required: false, description: text("seed.tool.storeSearch." + name, description),
-        }));
-        delete query.appId;
-        query.filters = engine.reference("input");
-      } else {
-        const variableId = engine.variable(tool, "appId", "number");
-        tool.parameters.push({ name: "appId", type: "appId", required: true, description: text("workflow_tool_app_id", "Steam AppID"), variableId });
-        query.appId = engine.reference("variable", variableId);
-      }
-      tool.steps.push(query);
-      const output = engine.createNode("tool-return", tool, text);
-      output.value = engine.reference("variable", query.output);
-      tool.steps.push(output);
-      return tool;
-    });
+  function newLibrary(name) {
+    const library = { ...newWorkflow(engine.numericId("lib-"), name), executionId: crypto.randomUUID(),
+      enabled: true, description: "", parameters: [], outputs: [] };
+    library.steps.push(engine.createNode("library-return", library));
+    return library;
   }
+  const isOriginalProviderTool = tool => engine.isProviderToolId(tool.id) && tool.executionId === PRESET_TOOL_EXECUTION_ID && tool.revision === 1;
   const toolConfigError = (message, messageKey) => Object.assign(new TypeError(message), { code: "WORKFLOW_CONFIG_INVALID", messageKey });
   function toolParameters(parameters) {
     if (!Array.isArray(parameters)) throw toolConfigError("工具输入列表无效", "workflow_tool_invalid_parameters");
@@ -346,6 +320,67 @@
     requireToolResult(definition);
     return definition;
   }
+  const libraryDefinitionError = () => toolConfigError("自定义库的名称、输入或输出定义无效", "workflow_library_definition_invalid");
+  function librarySourceMatches(type, source) {
+    const target = engine.parameterVariableType(type);
+    return type === "any" || source === "any" || target === source || (target === "object" && source === "result");
+  }
+  function libraryOutputs({ outputs, variables }) {
+    if (!Array.isArray(outputs)) throw libraryDefinitionError();
+    const outputIds = new Set(), outputNames = new Set();
+    return outputs.map(field => {
+      if (!field || typeof field.id !== "string" || !/^out-\d+$/.test(field.id) || outputIds.has(field.id) ||
+          typeof field.name !== "string" || !field.name.trim() || outputNames.has(field.name) ||
+          ["__proto__", "constructor", "prototype"].includes(field.name) ||
+          ![...toolTypes, "any"].includes(field.type) || typeof field.description !== "string" ||
+           !Array.isArray(variables) || !variables.some(item => item.id === field.variableId && librarySourceMatches(field.type, item.type)))
+        throw libraryDefinitionError();
+      outputIds.add(field.id); outputNames.add(field.name);
+      return { id: field.id, name: field.name, type: field.type, description: field.description, variableId: field.variableId };
+    });
+  }
+  function validateLibrary(library, { structureOnly = false } = {}) {
+    if (!engine.isLibraryId(library?.id) || typeof library.enabled !== "boolean" || typeof library.description !== "string")
+      throw libraryDefinitionError();
+    const { id, name, revision, executionId, enabled, description, variables, steps, folds, entryRow } = library;
+    if (executionId !== undefined && (typeof executionId !== "string" || !/^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/.test(executionId)))
+      throw libraryDefinitionError();
+    const definition = clone({ id, name, revision, enabled, description, parameters: toolParameters(library.parameters),
+      outputs: libraryOutputs(library), variables, steps, ...(executionId !== undefined && { executionId }),
+      ...(folds ? { folds } : {}), ...(entryRow !== undefined && { entryRow }) });
+    engine.validate(definition, { structureOnly });
+    if (![...engine.walk(definition.steps, true)].some(node => node.action === "library-return"))
+      throw toolConfigError("请插入「指令输出」", "workflow_library_output_missing");
+    return definition;
+  }
+  function libraryBindingIssue(library, node, workflow) {
+    if (!library) return toolConfigError("找不到自定义库，请重新选择", "workflow_library_missing");
+    const inputs = new Map(library.parameters.map(field => [field.variableId, field]));
+    const outputs = new Map(library.outputs.map(field => [field.id, field]));
+    const invalid = name => Object.assign(toolConfigError("库字段绑定无效：" + name, "workflow_library_field_invalid"), { messageParams: { name } });
+    for (const field of inputs.values()) {
+      if (!Object.hasOwn(node.libraryInputs, field.variableId)) {
+        if (field.required) return Object.assign(toolConfigError("请填写必填参数「" + field.name + "」", "workflow_library_required_input"),
+          { messageParams: { name: field.name } });
+        continue;
+      }
+      const value = engine.activeValue(node.libraryInputs[field.variableId]);
+      if (Object.hasOwn(value || {}, "literal") && !parameterAccepts(field.type, value.literal)) return invalid(field.name);
+      const target = engine.parameterVariableType(field.type);
+      if (value?.template && target !== "text") return invalid(field.name);
+      if (value?.source === "variable" && value.path.length === 0) {
+        const source = workflow.variables.find(variable => variable.id === value.id)?.type;
+        if (!librarySourceMatches(field.type, source)) return invalid(field.name);
+      }
+    }
+    for (const id of Object.keys(node.libraryInputs)) if (!inputs.has(id)) return invalid(id);
+    for (const [id, target] of Object.entries(node.libraryOutputs)) {
+      const field = outputs.get(id), variable = workflow.variables.find(item => item.id === target);
+      if (!field || !variable || (field.type !== "any" && !["any", engine.parameterVariableType(field.type)].includes(variable.type)))
+        return invalid(field?.name || id);
+    }
+    return null;
+  }
   function upgradeToolParameters(tool) {
     const ids = new Set(tool.variables.map(variable => variable.id)), names = new Set(tool.variables.map(variable => variable.name));
     let serial = 0;
@@ -371,7 +406,6 @@
     if (value === undefined) return false;
     switch (type) {
       case "any": return true;
-      case "appId": return root.STAI.isToolAppId(value);
       case "integer": return Number.isSafeInteger(value);
       case "number": return Number.isFinite(value);
       case "object": return !!value && typeof value === "object" && !Array.isArray(value);
@@ -382,7 +416,7 @@
     }
   }
   const commonEventFields = { id: "text", type: "text" };
-  const gameEventFields = { ...commonEventFields, game: "object", "game.official": "text", "game.appid": "number", appid: "number" };
+  const gameEventFields = { ...commonEventFields, game: "object", "game.official": "text", "game.appid": "integer", appid: "integer" };
   const eventFields = {
     added: gameEventFields,
     installed: { ...gameEventFields, phase: "text" },
@@ -405,7 +439,8 @@
       return issue("当前触发方式无法提供参数「" + name + "」的来源", "workflow_format_source_unavailable", { name, path });
     }
     const actualType = value.template ? "text" : value.source === "input" ? eventParameterType(eventType, value.path) : null;
-    if ((Object.hasOwn(value, "literal") && !parameterAccepts(type, value.literal)) || (actualType && type !== "any" && type !== actualType))
+    const matchesType = !actualType || type === "any" || type === actualType || (type === "number" && actualType === "integer");
+    if (!matchesType || (Object.hasOwn(value, "literal") && !parameterAccepts(type, value.literal)))
       return issue("触发参数类型不符：" + name, "workflow_parameter_type");
     return null;
   }
@@ -427,7 +462,7 @@
     return input;
   }
   function toolArguments(tool, args) {
-    const invalid = () => Object.assign(new TypeError("输入不符合工具参数定义"), { code: "CHAT_TOOL_INVALID" });
+    const invalid = (message = "输入不符合工具参数定义") => Object.assign(new TypeError(message), { code: "CHAT_TOOL_INVALID" });
     if (typeof args === "string") {
       try { args = JSON.parse(args); }
       catch (cause) {
@@ -438,7 +473,11 @@
       Object.keys(args).some(name => !tool.parameters.some(parameter => parameter.name === name))) throw invalid();
     for (const { name, type, required } of tool.parameters) {
       if (!Object.hasOwn(args, name)) { if (required) throw invalid(); continue; }
-      if (!parameterAccepts(type, args[name])) throw invalid();
+      if (parameterAccepts(type, args[name])) continue;
+      if (type !== "integer") throw invalid();
+      throw Object.assign(invalid("参数「" + name + "」必须传入整数，数字无需加引号。"), {
+        messageKey: "workflow_tool_parameter_integer_required", messageParams: { name },
+      });
     }
     return args;
   }
@@ -448,8 +487,7 @@
       name: tool.id, description: tool.description,
       parameters: { type: "object", additionalProperties: false,
         properties: Object.fromEntries(tool.parameters.map(({ name, type, description }) => [name, {
-        ...(Object.hasOwn(preset, name) && preset[name].type === type ? preset[name] :
-          type === "appId" ? { type: "integer", minimum: 1, maximum: root.STAI.TOOL_APP_ID_MAX } : { type }),
+        ...(Object.hasOwn(preset, name) && preset[name].type === type ? preset[name] : { type }),
           ...(description ? { description } : {}),
         }])),
         required: tool.parameters.filter(parameter => parameter.required).map(parameter => parameter.name) },
@@ -464,164 +502,199 @@
       conditions: group(), inputs: {}, busy: "queue" };
   }
   function initialBindings() { return Object.fromEntries(Object.keys(root.STAI.MANUAL_TASKS).map(scene => [scene, root.STAI.initialBinding(scene)])); }
-  function template(type, id) {
-    const workflow = newWorkflow(id, TYPES[type]);
-    workflow.inputParameters = [];
-    const add = (key, steps = workflow.steps) => { const node = engine.createNode(key, workflow); steps.push(node); return node; };
-    const ref = (id, path = []) => engine.reference("variable", id, path);
-    if (type === "family") {
-      const refresh = add("family-refresh"); refresh.errorOutput = engine.variable(workflow, "刷新执行结果", "result"); refresh.onError = "continue";
-      const branch = add("if"); branch.branches[0].condition = { op: "equals", left: ref(refresh.errorOutput, ["status"]), right: engine.constant("success", "成功") };
-      const success = add("notify", branch.branches[0].steps); success.body = engine.literal("家庭库刷新完成"); success.level = "success";
-      branch.otherwise = []; const failed = add("notify", branch.otherwise); failed.body = { template: ["家庭库刷新未完成：", ref(refresh.errorOutput, ["reason"])] }; failed.level = "error";
-      return workflow;
-    }
-    const parameter = (name, type) => {
-      const variableId = engine.variable(workflow, name, type);
-      workflow.inputParameters.push({ name, type, variableId });
-      return variableId;
-    };
-    const appId = parameter("传入APPID", "number"), gameName = parameter("传入游戏名称", "text");
-    if (type === "name") {
-      const containsHan = add("if");
-      containsHan.branches[0].condition = { op: "regex", left: ref(gameName), right: engine.literal(String.raw`/\p{Script=Han}/u`) };
-      add("stop", containsHan.branches[0].steps);
-      const existing = add("steam-sort-name"); existing.game = ref(appId);
-      const branch = add("if"); branch.branches[0].condition = { op: "empty", left: ref(existing.output) };
-      const ai = add("ai-call", branch.branches[0].steps); Object.assign(ai, root.STAI.initialBinding("auto-name")); ai.inputs = { "Steam 原名": ref(gameName) };
-      const trim = add("text-trim", branch.branches[0].steps); trim.value = ref(ai.output);
-      const valid = add("if", branch.branches[0].steps); valid.branches[0].condition = { op: "notEmpty", left: ref(trim.output) };
-      const write = add("steam-set-sort-name", valid.branches[0].steps); write.game = ref(appId); write.value = ref(trim.output);
-    } else if (type === "collection") {
-      const info = add("record");
-      const setField = (key, value, steps) => {
-        const set = add("dict-set", steps);
-        set.value = ref(info.output); set.key = engine.literal(key);
-        set.item = ref(value); set.output = info.output;
-        workflow.variables.pop(); // 保留同一个游戏资料变量
-      };
-      setField("official", gameName);
-      for (const field of ["app-type", "genres", "features", "tags"]) {
-        const read = add("steam-game-" + field); read.game = ref(appId); read.onError = "continue";
-        const available = add("if");
-        available.branches[0].condition = { op: "exists", left: ref(read.output) };
-        setField(field.replace("-", "_"), read.output, available.branches[0].steps);
-      }
-      const groups = add("steam-collections");
-      const allowed = add("list");
-      const loop = add("foreach"); loop.value = ref(groups.output);
-      const writable = add("if", loop.body); writable.branches[0].condition = { op: "isTrue", left: ref(loop.item, ["writable"]) };
-      const append = add("append", writable.branches[0].steps); append.value = ref(allowed.output); append.item = ref(loop.item); append.output = allowed.output;
-      const ai = add("ai-call"); Object.assign(ai, root.STAI.initialBinding("collection")); ai.inputs = { "游戏资料": ref(info.output), "可选收藏分组": ref(allowed.output) };
-      const parsed = add("json"); parsed.value = ref(ai.output);
-      const write = add("steam-add-collections"); write.game = ref(appId); write.value = ref(parsed.output, ["collection_ids"]);
-    } else if (type === "achievement") {
-      const items = add("steam-achievements"); items.game = ref(appId);
-      const saved = add("steam-translations"); saved.game = ref(appId);
-      const pending = add("list");
-      const scan = add("foreach"); scan.value = ref(items.output);
-      const missing = add("if", scan.body); missing.branches[0].condition = { op: "isFalse", left: { expression: [ref(saved.output), ".some(item => item.id === ", ref(scan.item, ["id"]), ")"] } };
-      const append = add("append", missing.branches[0].steps); append.value = ref(pending.output); append.item = ref(scan.item); append.output = pending.output;
-      const batches = add("list-chunk"); batches.value = ref(pending.output);
-      const loop = add("foreach"); loop.value = ref(batches.output);
-      const ai = add("ai-call", loop.body); ai.promptId = "P-12";
-      ai.inputs = { "成就条目": ref(loop.item), "任务游戏名称": ref(gameName), "目标语言": engine.literal("chinese_simplified") };
-      const parsed = add("json", loop.body); parsed.value = ref(ai.output);
-      const write = add("steam-save-translations", loop.body); write.game = ref(appId); write.value = ref(parsed.output); write.origin = engine.literal("ai");
-    } else throw new TypeError("工作流模板类型无效");
-    return workflow;
+  const presetSections = Object.freeze({
+    workflows: ["workflows", "wf-"],
+    prompts: ["prompts", "P-"],
+    tools: ["ai-tools", "tool-"],
+    triggers: ["triggers", "trigger-"],
+    libraries: ["custom-libraries", "lib-"],
+  });
+  const presetRoot = "presets/automation/";
+  const presetLocales = new Set(["zh_CN", "zh_TW", "en", "ja", "ko"]);
+  const firstUserId = 100;
+  const presetCache = new Map();
+
+  function isPresetId(section, itemId) {
+    const prefix = Object.hasOwn(presetSections, section) ? presetSections[section][1] : undefined;
+    if (typeof itemId !== "string" || !prefix || !itemId.startsWith(prefix)) return false;
+    return /^(?:[1-9][0-9]?)$/.test(itemId.slice(prefix.length)) ||
+      (["workflows", "triggers"].includes(section) && itemId === prefix + "0");
   }
+
   function empty() {
     return { version: VERSION, epoch: "initial", revision: 1, prompts: [], bindings: initialBindings(), workflows: [], triggers: [],
-      toolLibraryVersion: TOOL_LIBRARY_VERSION, tools: [] };
+      toolLibraryVersion: TOOL_LIBRARY_VERSION, tools: [], libraries: [], presetImportVersion: "", deletedPresets: {}, nextIds: {} };
   }
 
-  // 只在构建出厂工作流时为可编辑变量命名。已有配置直接读取其保存的名称。
-  const starterVariables = {
-    "传入APPID": "inputAppId", "传入游戏名称": "inputGameName", "自定义排序名称": "sort", "AI 回复": "ai",
-    "删除文本两端的空白结果": "trim", "设置自定义排序名称结果": "setSort", "字典": "record",
-    "游戏类型": "type", "游戏题材": "genres", "游戏特色": "features", "商店标签": "tags",
-    "读取收藏分组列表结果": "collections", "列表": "list", "当前项目": "item", "当前序号": "index",
-    "追加到列表结果": "append", "JSON 数据": "json", "将游戏加入收藏分组结果": "addCollections",
-    "读取游戏成就列表结果": "achievements", "读取已保存的成就译文结果": "translations",
-    "列表分块结果": "chunks", "保存成就译文结果": "saveTranslations", "刷新家庭库结果": "refresh",
-    "刷新执行结果": "refreshStatus", "消息结果": "message",
-  };
-
-  function localizeStarterWorkflow(workflow, type, text, prompts) {
-    workflow.name = text("seed.workflow." + type, workflow.name);
-    for (const variable of workflow.variables) {
-      const [, base, suffix] = /^(.*?)(\d*)$/.exec(variable.name);
-      variable.name = text("seed.variable." + starterVariables[base], base) + suffix;
-    }
-    for (const parameter of workflow.inputParameters) parameter.name = workflow.variables.find(item => item.id === parameter.variableId).name;
-    for (const node of walkSteps(workflow.steps)) {
-      if (node.action === "ai-call") {
-        const plan = prompts.find(plan => plan.id === node.promptId);
-        node.inputs = Object.fromEntries(Object.entries(node.inputs).map(([field, value]) => [
-          root.STPromptPlans.spelling(plan, field), type === "achievement" && field === "目标语言"
-            ? engine.reference("meta", "", ["translationLanguage"]) : value,
-        ]));
+  function presetPaths(manifest) {
+    if (manifest?.schemaVersion !== 1 || Object.keys(manifest).length !== Object.keys(presetSections).length + 1)
+      throw new TypeError("自动化预设清单格式无效");
+    const paths = new Map();
+    for (const [section, [folder]] of Object.entries(presetSections)) {
+      if (!Array.isArray(manifest[section])) throw new TypeError("自动化预设清单缺少分类：" + section);
+      for (const path of manifest[section]) {
+        const [directory, itemId] = typeof path === "string" ? path.split("/") : [];
+        if (directory !== folder || !isPresetId(section, itemId) || path !== folder + "/" + itemId + "/definition.json" || paths.has(path))
+          throw new TypeError("自动化预设路径无效或重复：" + path);
+        paths.set(path, { section, id: itemId });
       }
-      if (type === "achievement" && ["steam-save-translations", "steam-translations"].includes(node.action))
-        node.language = engine.reference("meta", "", ["translationLanguage"]);
-      if (type === "family" && node.kind === "if")
-        node.branches[0].condition.right.display = text("seed.family.successState", "成功");
-      if (type === "family" && node.action === "notify") {
-        if (node.body.template) node.body.template[0] = text("seed.family.failure", node.body.template[0]);
-        else node.body.literal = text("seed.family.success", node.body.literal);
+    }
+    return paths;
+  }
+
+  function localizedPreset(definition, strings, path) {
+    if (!strings || typeof strings !== "object" || Array.isArray(strings))
+      throw new TypeError("自动化预设语言格式无效：" + path);
+    const used = new Set();
+    const translate = value => {
+      if (!value.startsWith("$text:")) return value;
+      const key = value.slice(6);
+      if (!Object.hasOwn(strings, key) || typeof strings[key] !== "string")
+        throw new TypeError("自动化预设缺少语言字段：" + path + " " + key);
+      used.add(key);
+      return strings[key];
+    };
+    function visit(value) {
+      if (typeof value === "string") return translate(value);
+      if (Array.isArray(value)) return value.map(visit);
+      if (!value || typeof value !== "object") return value;
+      const keys = new Set();
+      return Object.fromEntries(Object.entries(value).map(([key, entry]) => {
+        const translated = translate(key);
+        if (keys.has(translated) || ["__proto__", "constructor", "prototype"].includes(translated))
+          throw new TypeError("自动化预设语言字段无效或重复：" + path + " " + translated);
+        keys.add(translated);
+        return [translated, visit(entry)];
+      }));
+    }
+    const result = visit(definition);
+    if (used.size !== Object.keys(strings).length) throw new TypeError("自动化预设存在未使用的语言字段：" + path);
+    return result;
+  }
+
+  function assemblePresets(manifest, entries) {
+    const bundle = empty();
+    for (const [path, { section, id }] of presetPaths(manifest)) {
+      const { definition, strings } = entries.get(path) ?? {};
+      if (definition?.id !== id) throw new TypeError("自动化预设编号与目录不一致：" + path);
+      bundle[section].push(localizedPreset(definition, strings, path));
+    }
+    const normalized = normalize(bundle);
+    const missing = (section, itemId) => !normalized[section].some(item => item.id === itemId);
+    for (const binding of Object.values(normalized.bindings))
+      if (missing("prompts", binding.promptId)) throw new TypeError("自动化预设缺少默认提示词：" + binding.promptId);
+    for (const trigger of normalized.triggers)
+      if (trigger.enabled || missing("workflows", trigger.workflowId))
+        throw new TypeError("自动化预设触发器必须停用并引用有效工作流：" + trigger.id);
+    for (const definition of [...normalized.workflows, ...normalized.tools, ...normalized.libraries]) {
+      for (const node of walkSteps(definition.steps)) {
+        if ((node.promptId && missing("prompts", node.promptId)) ||
+            engine.toolIds(node).some(itemId => missing("tools", itemId)) ||
+            (node.libraryId && missing("libraries", node.libraryId)))
+          throw new TypeError("自动化预设引用不存在：" + definition.id + " " + node.id);
+      }
+    }
+    return normalized;
+  }
+
+  async function presetJson(path) {
+    const response = await root.fetch(root.chrome.runtime.getURL(presetRoot + path));
+    if (!response.ok) throw new Error("无法读取自动化预设：" + path + " (" + response.status + ")");
+    return response.json();
+  }
+
+  async function readPresets(locale) {
+    const manifest = await presetJson("import.json");
+    const entries = await Promise.all([...presetPaths(manifest).keys()].map(async path => {
+      const [definition, strings] = await Promise.all([
+        presetJson(path), presetJson(path.replace("definition.json", "locales/" + locale + ".json")),
+      ]);
+      return [path, { definition, strings }];
+    }));
+    return assemblePresets(manifest, new Map(entries));
+  }
+
+  async function loadDefaults(locale) {
+    if (!presetLocales.has(locale)) throw new TypeError("自动化预设语言无效：" + locale);
+    if (!presetCache.has(locale)) {
+      const pending = readPresets(locale).catch(error => {
+        presetCache.delete(locale);
+        throw error;
+      });
+      presetCache.set(locale, pending);
+    }
+    return clone(await presetCache.get(locale));
+  }
+
+  function normalizePresetState(result) {
+    if (result.presetImportVersion === undefined) result.presetImportVersion = "";
+    if (typeof result.presetImportVersion !== "string" || !/^(?:\d+(?:\.\d+){1,3})?$/.test(result.presetImportVersion))
+      throw new TypeError("自动化预设导入版本无效");
+    for (const key of ["deletedPresets", "nextIds"]) {
+      if (result[key] === undefined) result[key] = {};
+      if (!result[key] || typeof result[key] !== "object" || Array.isArray(result[key]))
+        throw new TypeError("自动化预设状态无效：" + key);
+      for (const [section, value] of Object.entries(result[key])) {
+        if (!Object.hasOwn(presetSections, section) || (key === "deletedPresets"
+          ? !Array.isArray(value) || new Set(value).size !== value.length || value.some(itemId => !isPresetId(section, itemId))
+          : !Number.isSafeInteger(value) || value < firstUserId))
+          throw new TypeError("自动化预设状态无效：" + key + "/" + section);
       }
     }
   }
 
-  function defaults(text, locale) {
-    const starter = [
-      ["name", "游戏入库时处理游戏名称", { type: "added" }],
-      ["collection", "游戏入库时处理收藏分组", { type: "added" }],
-      ["achievement", "安装完成后翻译成就", { type: "installed", phase: "completed" }],
-      ["family", "每天维护家庭库", { type: "schedule", timing: { mode: "day", time: "09:00" } }],
-    ];
-    const workflows = [], triggers = [], prompts = root.STPromptPlans.defaults(text, locale);
-    for (const [type, name, event] of starter) {
-      const workflow = template(type, "wf-" + (workflows.length + 1));
-      const trigger = { ...newTrigger("trigger-" + (triggers.length + 1), workflow.id), name, event };
-      if (event.type === "added" || event.type === "installed") {
-        const [appId, gameName] = workflow.inputParameters;
-        trigger.inputs = {
-          [appId.variableId]: engine.reference("input", "", ["appid"]),
-          [gameName.variableId]: engine.reference("input", "", ["game", "official"]),
-        };
-      }
-      if (text) {
-        localizeStarterWorkflow(workflow, type, text, prompts);
-        trigger.name = text("seed.trigger." + type, trigger.name);
-      }
-      workflows.push(workflow); triggers.push(trigger);
+  function reserveUserId(bundle, current, creation, promptReferences = []) {
+    const { section, id, retainId = false } = creation ?? {};
+    if (!Object.hasOwn(presetSections, section) || typeof id !== "string" || typeof retainId !== "boolean" ||
+        (retainId ? !["tools", "libraries"].includes(section) : isPresetId(section, id)) ||
+        current[section]?.some(item => item.id === id))
+      throw new TypeError("自动化新增项无效");
+    const item = bundle[section]?.find(item => item.id === id);
+    if (!item) throw new TypeError("自动化新增项不存在：" + id);
+    const prefix = presetSections[section][1];
+    let number = Math.max(current.nextIds?.[section] ?? firstUserId, bundle.nextIds[section] ?? firstUserId);
+    if (retainId) {
+      const imported = Number(id.slice(prefix.length));
+      if (Number.isSafeInteger(imported) && imported >= number && imported < Number.MAX_SAFE_INTEGER)
+        bundle.nextIds[section] = imported + 1;
+      return;
     }
-    return { version: VERSION, epoch: "initial", revision: 1, prompts,
-      bindings: initialBindings(), triggers, workflows, toolLibraryVersion: TOOL_LIBRARY_VERSION, tools: providerTools(text) };
+    const occupied = new Set([...(bundle[section] ?? []), ...(current[section] ?? [])].map(row => row.id));
+    if (section === "workflows") bundle.triggers.forEach(trigger => occupied.add(trigger.workflowId));
+    if (section === "prompts") promptReferences.forEach(itemId => occupied.add(itemId));
+    if (["prompts", "tools", "libraries"].includes(section)) {
+      for (const definition of [...bundle.workflows, ...bundle.tools, ...(bundle.libraries ?? [])]) {
+        for (const node of walkSteps(definition.steps)) {
+          if (section === "prompts") occupied.add(node.promptId);
+          if (section === "tools") engine.toolIds(node).forEach(itemId => occupied.add(itemId));
+          if (section === "libraries") occupied.add(node.libraryId);
+        }
+      }
+    }
+    while (occupied.has(prefix + number) && number < Number.MAX_SAFE_INTEGER) number++;
+    if (number >= Number.MAX_SAFE_INTEGER) throw new RangeError("自动化编号已用尽");
+    bundle.nextIds[section] = number + 1;
+    item.id = prefix + number;
   }
+
   /** 正式版没有工作流，只转换全局家庭库配置。现有新版流程用独立的保留 ID 承接旧配置 */
-  function restoreFamilySchedule(bundle, settings, enabled, initial = false, text) {
+  function restoreFamilySchedule(bundle, settings, enabled, initial, defaultFamily) {
     const next = clone(bundle);
     let trigger = next.triggers.find(item => item.id === "trigger-0");
     if (!trigger) {
       let workflow = next.workflows.find(item => item.id === "wf-0");
       if (!workflow) {
-        // 首次生成的 wf-4 已按当前语言写好，迁移只替换其保留 ID 和计划。
-        workflow = initial ? next.workflows.find(item => item.id === "wf-4") : null;
-        if (workflow) {
-          workflow.id = "wf-0";
-        } else {
-          workflow = template("family", "wf-0");
-          if (text) localizeStarterWorkflow(workflow, "family", text);
-          next.workflows.push(workflow);
-        }
+        const starter = initial ? next.workflows.find(item => item.id === "wf-4") : defaultFamily;
+        if (!starter) throw new Error("自动化预设缺少家庭库工作流");
+        workflow = { ...clone(starter), id: "wf-0" };
+        next.workflows.push(workflow);
       }
-      trigger = { ...newTrigger("trigger-0", workflow.id), name: text ? text("seed.workflow.family", TYPES.family) : "维护家庭库" };
+      trigger = newTrigger("trigger-0", workflow.id, workflow.name);
       if (initial) {
         next.workflows = next.workflows.filter(item => item.id !== "wf-4");
         next.triggers = next.triggers.filter(item => item.id !== "trigger-4");
+        next.deletedPresets.workflows = [...new Set([...(next.deletedPresets.workflows ?? []), "wf-4"])];
+        next.deletedPresets.triggers = [...new Set([...(next.deletedPresets.triggers ?? []), "trigger-4"])];
       }
       next.triggers.push(trigger);
     }
@@ -630,12 +703,13 @@
     trigger.enabled = Boolean(interval && enabled);
     return next;
   }
-  function normalize(value, text, { deferToolLibrary = false, structureOnly = false } = {}) {
+  function normalize(value, { structureOnly = false } = {}) {
     if (!value || value.version !== VERSION || !Array.isArray(value.prompts) || !Array.isArray(value.triggers) || !Array.isArray(value.workflows) || !value.bindings || Object.hasOwn(value, "rules"))
       throw new TypeError("提示词与工作流配置包无效");
     id(value.epoch, "配置代次");
     if (!Number.isSafeInteger(value.revision) || value.revision < 1) throw new TypeError("配置修订号无效");
     const result = clone(value), ids = new Set();
+    normalizePresetState(result);
     result.prompts = result.prompts.map(plan => {
       if (ids.has(plan.id)) throw new TypeError("提示词 ID 重复");
       ids.add(plan.id); return root.STPromptPlans.validate(plan);
@@ -653,19 +727,22 @@
     ids.clear();
     if (result.tools === undefined) result.tools = [];
     if (!Array.isArray(result.tools)) throw new TypeError("工具列表无效");
-    if (result.toolLibraryVersion === undefined) {
-      // 旧备份在实际恢复时使用选定语言构建可编辑的默认工具
-      if (!deferToolLibrary) {
-        const legacyIds = ["steam_game", "steam_players", "itad_prices"];
-        result.tools.unshift(...providerTools(text, root.STAI.CHAT_TOOLS.filter(provider => legacyIds.includes(provider.id))));
-        result.toolLibraryVersion = TOOL_LIBRARY_VERSION;
-      }
-    } else if (result.toolLibraryVersion !== TOOL_LIBRARY_VERSION) throw new TypeError("工具库配置版本无效");
+    if (result.toolLibraryVersion === undefined) result.toolLibraryVersion = TOOL_LIBRARY_VERSION;
+    if (result.toolLibraryVersion !== TOOL_LIBRARY_VERSION) throw new TypeError("工具库配置版本无效");
     result.tools = result.tools.map(tool => {
       const valid = validateTool(tool, { structureOnly });
       if (ids.has(valid.id)) throw new TypeError("工具 ID 重复");
       ids.add(valid.id); return valid;
     });
+    ids.clear();
+    if (Object.hasOwn(result, "libraries")) {
+      if (!Array.isArray(result.libraries)) throw new TypeError("自定义库列表无效");
+      result.libraries = result.libraries.map(library => {
+        const valid = validateLibrary(library, { structureOnly });
+        if (ids.has(valid.id)) throw new TypeError("自定义库 ID 重复");
+        ids.add(valid.id); return valid;
+      });
+    }
     ids.clear();
     const workflows = new Map(result.workflows.map(workflow => [workflow.id, workflow]));
     for (const trigger of result.triggers) {
@@ -710,7 +787,8 @@
     return trigger.event.type === event.type && (event.type !== "installed" || trigger.event.phase === event.phase);
   }
   root.STAutomation = Object.freeze({ empty, KEY, ROUTE, CHANNEL, PREVIEW_CHANNEL, VERSION, DEFAULT_LANGUAGE, CHECK_INTERVAL_MS, isTriggerType,
-    STEP_STATES, NOTICE_TYPES, TYPES, RANGES, OPS, group, conditionFields,
-    newWorkflow, newTrigger, newTool, validateTool, toolDiagnostics, toolParameters, toolArguments, toolSchema, toolTypes, workflowDefinitionKey, triggerEventPaths, triggerParameterIssue, inputBindingIssue, workflowArguments, isOriginalProviderTool, TOOL_CREDENTIALS_KEY, template, defaults, restoreFamilySchedule, normalize, walkSteps, operators, validateCondition, match, matchAsync, dateWindow, inRange, triggered, nativeConfig, clone });
+    STEP_STATES, NOTICE_TYPES, RANGES, OPS, group, conditionFields,
+    newWorkflow, newTrigger, newTool, newLibrary, validateTool, validateLibrary, libraryOutputs, libraryBindingIssue, parameterAccepts,
+    toolDiagnostics, toolParameters, toolArguments, toolSchema, toolTypes, workflowDefinitionKey, triggerEventPaths, triggerParameterIssue, inputBindingIssue, workflowArguments, isOriginalProviderTool, TOOL_CREDENTIALS_KEY, presetSections, isPresetId, reserveUserId, assemblePresets, loadDefaults, restoreFamilySchedule, normalize, walkSteps, operators, validateCondition, match, matchAsync, dateWindow, inRange, triggered, nativeConfig, clone });
 
 })(globalThis);

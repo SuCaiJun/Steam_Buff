@@ -1,0 +1,13 @@
+{
+  ".name": "ファミリーライブラリを更新",
+  ".variables.var-89.name": "ライブラリ更新結果",
+  ".variables.var-90.name": "更新状態",
+  ".variables.var-93.name": "メッセージ送信結果",
+  ".variables.var-95.name": "メッセージ送信結果2",
+  ".steps.step-91.branches.0.condition.right.display": "成功",
+  ".steps.step-91.branches.0.steps.step-92.body.literal": "ファミリーライブラリを更新しました",
+  ".steps.step-91.otherwise.step-94.body.template.0": "ファミリーライブラリの更新が完了しませんでした：",
+  ".steps.step-91.otherwise.step-94.body.template.var-90.source": "variable",
+  ".steps.step-91.otherwise.step-94.body.template.var-90.id": "var-90",
+  ".steps.step-91.otherwise.step-94.body.template.var-90.path.0": "reason"
+}

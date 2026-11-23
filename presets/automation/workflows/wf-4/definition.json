@@ -1,0 +1,100 @@
+{
+  "id": "wf-4",
+  "name": "$text:.name",
+  "revision": 1,
+  "variables": [
+    {
+      "id": "var-89",
+      "name": "$text:.variables.var-89.name",
+      "type": "object"
+    },
+    {
+      "id": "var-90",
+      "name": "$text:.variables.var-90.name",
+      "type": "result"
+    },
+    {
+      "id": "var-93",
+      "name": "$text:.variables.var-93.name",
+      "type": "result"
+    },
+    {
+      "id": "var-95",
+      "name": "$text:.variables.var-95.name",
+      "type": "result"
+    }
+  ],
+  "steps": [
+    {
+      "id": "step-88",
+      "kind": "action",
+      "action": "family-refresh",
+      "output": "var-89",
+      "requestTimeoutSeconds": 12,
+      "errorOutput": "var-90",
+      "onError": "continue"
+    },
+    {
+      "id": "step-91",
+      "kind": "if",
+      "branches": [
+        {
+          "condition": {
+            "op": "equals",
+            "left": {
+              "source": "variable",
+              "id": "var-90",
+              "path": [
+                "status"
+              ]
+            },
+            "right": {
+              "literal": "success",
+              "display": "$text:.steps.step-91.branches.0.condition.right.display"
+            }
+          },
+          "steps": [
+            {
+              "id": "step-92",
+              "kind": "action",
+              "action": "notify",
+              "messageType": "notification",
+              "body": {
+                "literal": "$text:.steps.step-91.branches.0.steps.step-92.body.literal"
+              },
+              "level": "success",
+              "delivery": "center",
+              "scope": "account",
+              "output": "var-93"
+            }
+          ]
+        }
+      ],
+      "otherwise": [
+        {
+          "id": "step-94",
+          "kind": "action",
+          "action": "notify",
+          "messageType": "notification",
+          "body": {
+            "template": [
+              "$text:.steps.step-91.otherwise.step-94.body.template.0",
+              {
+                "source": "$text:.steps.step-91.otherwise.step-94.body.template.var-90.source",
+                "id": "$text:.steps.step-91.otherwise.step-94.body.template.var-90.id",
+                "path": [
+                  "$text:.steps.step-91.otherwise.step-94.body.template.var-90.path.0"
+                ]
+              }
+            ]
+          },
+          "level": "error",
+          "delivery": "center",
+          "scope": "account",
+          "output": "var-95"
+        }
+      ]
+    }
+  ],
+  "inputParameters": []
+}

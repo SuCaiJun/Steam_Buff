@@ -100,7 +100,7 @@
   const actionFields = node => node.action === toolQuery.id && node.provider === root.STAI.STORE_SEARCH_TOOL_ID
     ? storeSearchFields : definitions[node.action]?.fields.filter(field =>
       node.action !== aiTool.id || toolFields[node.toolMode]?.includes(field.key));
-  const failable = node => !!definitions[node.action] || ["script", "ai-call"].includes(node.action);
+  const failable = node => !!definitions[node.action] || ["script", "ai-call", "library-call"].includes(node.action);
   const catalog = [...data.definitions, ...effectDefinitions, http, aiTool, toolQuery, ...[
     ["if", "IF 判断", "条件判断"], ["if-many", "IF 多条件", "条件判断"],
     ["else-if", "Else IF", "条件判断"], ["else-if-many", "Else IF 多条件", "条件判断"],
@@ -112,11 +112,12 @@
     ["ai-call", "调用 AI", "AI"], ["notify", "发送通知", "消息"],
     ["interactive", "发送交互消息并等待", "消息"], ["wait", "等待", "等待与控制"],
     ["stop", "结束本次运行", "等待与控制"], ["tool-return", "返回工具结果", "等待与控制"], ["log", "打印日志", "日志与备注"],
+    ["library-call", "调用自定义库", "数据处理"], ["library-return", "指令输出", "等待与控制"],
     ["comment", "添加备注说明", "日志与备注"], ["try", "Try", "异常处理"],
     ["catch", "Catch", "异常处理"], ["finally", "Finally", "异常处理"],
     ["end-try", "End Try", "异常处理"], ["raise", "Raise", "异常处理"],
     ["script", "运行 JavaScript", "脚本"],
-  ].map(([id, name, category]) => Object.freeze({ id, name, category }))];
+  ].map(([id, name, category]) => Object.freeze({ id, name, category, ...(id === "library-call" && { group: "输入与变量" }) }))];
   const names = Object.fromEntries(catalog.map(item => [item.id, item.name]));
   const loops = new Set(["for", "while", "foreach", "entries", "forever"]);
   const markers = new Set(["else-if", "else-if-many", "else", "end-if", "end-loop", "catch", "finally", "end-try"]);
@@ -127,8 +128,8 @@
   const unary = new Set(["empty", "notEmpty", "exists", "missing", "isTrue", "isFalse"]);
   const type = node => node.kind === "action" ? node.action : node.kind;
   const endMarker = node => node.kind === "if" ? "end-if" : node.kind === "try" ? "end-try" : "end-loop";
-  const parameterVariableType = type => ({ string: "text", integer: "number", appId: "number", array: "list" })[type] || type;
-  const entryParameters = workflow => (isToolId(workflow?.id) ? workflow.parameters : workflow?.inputParameters) ?? [];
+  const parameterVariableType = type => ({ string: "text", integer: "number", array: "list" })[type] || type;
+  const entryParameters = workflow => (isToolId(workflow?.id) || isLibraryId(workflow?.id) ? workflow.parameters : workflow?.inputParameters) ?? [];
   const pathGet = (object, path) => path.reduce((value, key) => value[key], object);
   function numericId(prefix, items = []) {
     const occupied = new Set(items.map(item => item.id));
@@ -164,17 +165,18 @@
       }
     }
   }
-  function visitSequences(list, path, visit) {
+  function visitSequences(list, path, visit, skipDisabled = false) {
     visit(list, path);
     for (const [index, node] of list.entries()) {
+      if (skipDisabled && node.disabled) continue;
       const own = [...path, index];
       if (node.kind === "if") {
-        for (const [branch, part] of node.branches.entries()) visitSequences(part.steps, [...own, "branches", branch, "steps"], visit);
-        if (node.otherwise !== null) visitSequences(node.otherwise, [...own, "otherwise"], visit);
+        for (const [branch, part] of node.branches.entries()) visitSequences(part.steps, [...own, "branches", branch, "steps"], visit, skipDisabled);
+        if (node.otherwise !== null) visitSequences(node.otherwise, [...own, "otherwise"], visit, skipDisabled);
       } else if (loops.has(node.kind) || node.kind === "try") {
-        visitSequences(node.body, [...own, "body"], visit);
+        visitSequences(node.body, [...own, "body"], visit, skipDisabled);
         if (node.kind === "try") for (const key of ["catch", "finally"]) {
-          if (node[key] !== null) visitSequences(node[key], [...own, key], visit);
+          if (node[key] !== null) visitSequences(node[key], [...own, key], visit, skipDisabled);
         }
       }
     }
@@ -226,6 +228,28 @@
     if (entry !== undefined && !(entry?.index === 0 && entry.path?.length === 1 && entry.path[0] === "steps"))
       throw entryPositionError();
   }
+  /** 定位不可达的库输出、确定未赋值的来源及输出后的启用步骤 */
+  function validateLibraryOutputPosition(workflow, assigned = []) {
+    const outcomes = new Map();
+    visitSequences(workflow.steps, ["steps"], list => {
+      const index = insertionIndex(workflow, list, outcomes);
+      if (list.slice(index + 1).some(node => !node.disabled)) {
+        const error = configurationError("此处会结束库调用，请将后续启用的指令移到此处之前", "workflow_library_output_position");
+        throw Object.assign(error, { nodeId: list[index].id });
+      }
+    }, true);
+    const returns = [...walk(workflow.steps, true)].filter(node => node.action === "library-return");
+    if (!returns.length) return;
+    const reachable = new Set(), available = scopes(workflow, assigned, reachable);
+    const outputs = returns.filter(node => reachable.has(node.id));
+    if (!outputs.length)
+      throw Object.assign(configurationError("请在可执行的路径插入「指令输出」", "workflow_library_output_missing"), { nodeId: returns[0].id });
+    for (const node of outputs) {
+      const field = workflow.outputs?.find(item => !available.get(node.id).has(item.variableId));
+      if (field)
+        throw Object.assign(configurationError("库输出来源变量尚未赋值：" + field.name, "workflow_library_output_unassigned", { name: field.name }), { nodeId: node.id });
+    }
+  }
   function createNode(key, workflow, text = (_key, fallback) => fallback) {
     const id = numericId("step-", [...walk(workflow.steps)]);
     if (key === "if" || key === "if-many") return { id, kind: "if", branches: [{ condition: key === "if-many" ? { op: "all", children: [comparison()] } : comparison(), steps: [] }], otherwise: null };
@@ -252,7 +276,10 @@
       get: { value: literal({}), key: literal(""), output: variableIf("get", "workflow_ui_item", "项目") },
       json: { value: literal(""), output: variableIf("json", "seed_variable_json", "JSON 数据") },
       wait: { seconds: literal(1) }, log: { value: literal(""), level: "info" },
-      comment: { text: "" }, "tool-return": { value: literal("") }, raise: { value: literal(text("workflow_ui_exception_raised_by_workflow", "流程主动抛出异常")) },
+      comment: { text: "" }, "tool-return": { value: literal("") },
+      "library-call": { libraryId: "", libraryInputs: {}, libraryOutputs: {} },
+      "library-return": {},
+      raise: { value: literal(text("workflow_ui_exception_raised_by_workflow", "流程主动抛出异常")) },
     };
     function variableIf(action, labelKey, fallback, kind) {
       return key === action ? variable(workflow, text(labelKey, fallback), kind) : "";
@@ -355,7 +382,8 @@
       !Number.isSafeInteger(workflow.revision) || workflow.revision < 1 || !Array.isArray(workflow.variables) || !Array.isArray(workflow.steps))
       throw configurationError("工作流结构无效", "workflow_error_workflow");
     const vars = new Set(), labels = new Set(), ids = new Set();
-    const inTool = isToolId(workflow.id);
+    const inLibrary = isLibraryId(workflow.id);
+    const inTool = isToolId(workflow.id) || inLibrary;
     for (const item of workflow.variables) {
       if (!validId(item.id) || vars.has(item.id) || typeof item.name !== "string" || !item.name.trim() || labels.has(item.name) ||
         !["any", "text", "number", "boolean", "list", "object", "result"].includes(item.type)) throw configurationError("变量 ID、名称或类型无效", "workflow_error_variable");
@@ -367,12 +395,12 @@
       throw configurationError("触发器参数列表无效", "workflow_parameter_invalid");
     const parameterIds = new Set(), parameterNames = new Set();
     for (const parameter of entryParameters(workflow)) {
-      if (inTool && !parameter?.variableId) continue;
+      if (inTool && !inLibrary && !parameter?.variableId) continue;
       const variable = workflow.variables.find(item => item.id === parameter?.variableId);
       if (!parameter || typeof parameter.name !== "string" || !parameter.name.trim() ||
           ["__proto__", "constructor", "prototype"].includes(parameter.name) || parameterNames.has(parameter.name) ||
           parameterIds.has(parameter.variableId) || !variable || (!inTool && variable.name !== parameter.name) ||
-          (!inTool && !["any", "text", "number", "boolean", "list", "object"].includes(parameter.type)) ||
+          (!inTool && !["any", "text", "integer", "number", "boolean", "list", "object"].includes(parameter.type)) ||
           variable.type !== parameterVariableType(parameter.type))
         throw configurationError("参数名称、类型或变量定义不一致", "workflow_parameter_invalid");
       parameterIds.add(parameter.variableId); parameterNames.add(parameter.name);
@@ -389,7 +417,7 @@
         try {
           if (!target && (node.draftMissingStart || node.draftMissingEnd))
             throw configurationError("流程块起止指令不完整", "workflow_draft_incomplete_block");
-          if (inTool ? !toolAction(type(node)) : toolOnlyAction(node.action))
+          if (!instructionAvailable(type(node), inLibrary ? "library" : inTool ? "tool" : "workflow"))
             throw configurationError("此处不能使用该指令", "workflow_error_tool_instruction");
           if (workflow.inputParameters && node.action === "receive")
             throw configurationError("请用「触发器传参」声明变量，再替换旧的「接收输入」指令", "workflow_parameter_replace_receive");
@@ -423,6 +451,22 @@
                 throw configurationError("请选择游戏或有效的 AppID", "workflow_error_game_input");
             }
             output(node.output);
+            if (node.action === "library-call") {
+              const binding = value => value && typeof value === "object" && !Array.isArray(value);
+              if (!isLibraryId(node.libraryId) || node.output !== undefined || !binding(node.libraryInputs) || !binding(node.libraryOutputs))
+                throw configurationError("请选择自定义库并配置绑定", "workflow_library_binding_invalid");
+              const targets = new Set([node.errorOutput]);
+              for (const [id, value] of Object.entries(node.libraryInputs)) {
+                if (!validId(id)) throw configurationError("库输入无效", "workflow_library_binding_invalid");
+                validateValue(value, vars);
+              }
+              for (const [id, variableId] of Object.entries(node.libraryOutputs)) {
+                if (!validId(id) || targets.has(variableId))
+                  throw configurationError("库输出必须使用各自的变量", "workflow_library_binding_invalid");
+                output(variableId, true);
+                targets.add(variableId);
+              }
+            }
             if (definitions[node.action]) {
               output(node.output, true);
               if (node.action === "set" && node.valueType !== undefined && !["any", "text", "number", "boolean", "list", "object"].includes(node.valueType)) throw configurationError("变量类型无效", "workflow_error_var_type");
@@ -444,6 +488,8 @@
               if (!httpMethods.includes(node.method) || !Number.isSafeInteger(node.requestTimeoutSeconds) || node.requestTimeoutSeconds < 1 || node.requestTimeoutSeconds > httpMaxTimeout) throw configurationError(`请选择 HTTP 方法，并将超时设置为 1–${httpMaxTimeout} 秒`, "workflow_error_http_method", { max: httpMaxTimeout });
               if (inTool) {
                 const headers = activeValue(node.headers);
+                if (inLibrary && node.keyHeader !== undefined)
+                  throw configurationError("自定义库 HTTP 指令使用已授权站点查询", "workflow_library_http_credentials");
                 if (node.method !== "GET" || !Object.hasOwn(url, "literal") && !Array.isArray(url.template) ||
                   !Object.hasOwn(headers, "literal") || !headers.literal ||
                   typeof headers.literal !== "object" || Array.isArray(headers.literal) || Object.keys(headers.literal).length ||
@@ -519,13 +565,20 @@
     sequence(target ? [target] : workflow.steps, loopDepth);
     if (!target) {
       entryRowLayout(workflow, foldLayout(workflow, ids));
-      if (!structureOnly) validateEntryPosition(workflow);
+      if (!structureOnly) {
+        validateEntryPosition(workflow);
+        if (inLibrary) validateLibraryOutputPosition(workflow, assigned);
+      }
     }
     const available = scopes(workflow, assigned);
     for (const node of walk(target ? [target] : workflow.steps, true)) {
       if (target && node !== target) continue;
       const ready = available.get(node.id);
       if (!ready) throw Object.assign(configurationError("当前指令不属于工作流", "workflow_error_not_in_flow"), { nodeId: node.id });
+      if (node.action === "library-return") {
+        const field = workflow.outputs?.find(item => !ready.has(item.variableId));
+        if (field) throw Object.assign(configurationError("库输出来源变量尚未赋值：" + field.name, "workflow_library_output_unassigned", { name: field.name }), { nodeId: node.id });
+      }
       for (const ref of nodeReferences(node)) {
         if (workflow.inputParameters && ref.source === "input")
           throw Object.assign(configurationError("请改用「触发器传参」声明的变量", "workflow_parameter_legacy_reference"), { nodeId: node.id });
@@ -574,7 +627,7 @@
     return [];
   }
   /** 指令执行前可引用的变量；分支互不借用，循环项目退出后按运行器契约恢复 */
-  function scopes(workflow, assigned = []) {
+  function scopes(workflow, assigned = [], reachable = null) {
     const result = new Map(), merge = (into, from) => {
       for (const [id, producers] of from) into.set(id, [...new Set([...(into.get(id) || []), ...producers])]);
     };
@@ -582,7 +635,7 @@
     // 循环退出会恢复项目和序号，因此这些临时绑定不进入外层 Catch 的目录。
     function partials(steps, into, restored = new Set()) {
       for (const node of steps) {
-        if (node.disabled) continue;
+        if (node.disabled || reachable && !reachable.has(node.id)) continue;
         merge(into, new Map([...result.get(node.id)].filter(([id]) => !restored.has(id))));
         if (node.kind === "if") {
           for (const branch of node.branches) partials(branch.steps, into, restored);
@@ -603,11 +656,17 @@
       for (const node of steps) {
         result.set(node.id, new Map(ready));
         const active = enabled && !node.disabled;
+        if (active) reachable?.add(node.id);
         if (node.kind === "if") {
           const after = new Map();
-          for (const branch of node.branches) merge(after, sequence(branch.steps, ready, active));
-          if (node.otherwise !== null) merge(after, sequence(node.otherwise, ready, active));
-          else merge(after, ready);
+          let fallthrough = active;
+          for (const branch of node.branches) {
+            const fixed = reachable ? fixedBranch(branch.condition) : undefined;
+            merge(after, sequence(branch.steps, ready, fallthrough && fixed !== false));
+            if (fixed === true) fallthrough = false;
+          }
+          if (node.otherwise !== null) merge(after, sequence(node.otherwise, ready, fallthrough));
+          else if (fallthrough) merge(after, ready);
           if (active) { ready.clear(); merge(ready, after); }
         } else if (loops.has(node.kind)) {
           const locals = new Map(ready);
@@ -618,7 +677,7 @@
             locals.set(node.item, [{ node, slot: toolList ? "toolRequestItem" : "item" }]);
             locals.set(node.index, [{ node, slot: "index" }]);
           }
-          const after = sequence(node.body, locals, active);
+          const after = sequence(node.body, locals, active && (!reachable || fixedLoopCount(node) !== 0));
           if (active) for (const [id, producers] of after) if (id !== node.item && id !== node.index) merge(ready, new Map([[id, producers]]));
         } else if (node.kind === "try") {
           let after = sequence(node.body, ready, active);
@@ -630,6 +689,8 @@
           if (active) { ready.clear(); merge(ready, after); }
         } else if (active) {
           if (node.output) ready.set(node.output, [{ node, slot: "output" }]);
+          for (const [id, target] of Object.entries(node.action === "library-call" ? node.libraryOutputs ?? {} : {}))
+            ready.set(target, [{ node, slot: "libraryOutputs." + id }]);
           if (node.action === "ai-call" && node.contextOutput) ready.set(node.contextOutput, [{ node, slot: "contextOutput" }]);
           if (node.action === "ai-call" && node.toolRequestsOutput) ready.set(node.toolRequestsOutput, [{ node, slot: "toolRequestsOutput" }]);
           if (node.errorOutput) ready.set(node.errorOutput, [{ node, slot: "errorOutput" }]);
@@ -685,13 +746,22 @@
   }
   const empty = value => value === null || value === "" || (Array.isArray(value) && value.length === 0) || (value !== null && typeof value === "object" && Object.keys(value).length === 0);
   const isProviderToolId = id => root.STAI.CHAT_TOOLS.some(tool => tool.id === id);
-  const isToolId = id => typeof id === "string" && (/^tool_[a-f0-9]{32}$/.test(id) || isProviderToolId(id));
-  const toolOnlyAction = key => key === "tool-return" || key === toolQuery.id;
+  const isToolId = id => typeof id === "string" && /^tool-[1-9][0-9]{0,19}$/.test(id);
+  const isLibraryId = id => typeof id === "string" && /^lib-[1-9][0-9]{0,19}$/.test(id);
+  const toolOnlyAction = key => key === "tool-return";
   const toolIds = node => node.action === "ai-call" ? node.toolIds || []
     : node.action === "tool-call" && node.toolMode === "registered" ? [node.toolId] : [];
-  const toolAction = key => toolOnlyAction(key) || Object.hasOwn(data.byId, key) && !data.readingActions.includes(key) ||
-    loops.has(key) && key !== "forever" || ["http-request", "script", "if", "if-many", "else-if", "else-if-many", "else", "end-if",
+  const commonAction = key => key === toolQuery.id || Object.hasOwn(data.byId, key) && key !== "receive" ||
+    loops.has(key) && key !== "forever" || ["http-request", "script", "wait", "log", "if", "if-many", "else-if", "else-if-many", "else", "end-if",
       "continue", "break", "end-loop", "try", "catch", "finally", "end-try", "raise", "comment", "fold-start", "fold-end"].includes(key);
+  const toolAction = key => commonAction(key) || toolOnlyAction(key) || key === "library-call" || key === "receive";
+  function instructionAvailable(key, context) {
+    if (key === "trigger-parameters") return context === "workflow";
+    if (key === "ai-parameters") return context === "tool";
+    if (key === "library-parameters" || key === "library-return") return context === "library";
+    if (context === "library") return commonAction(key);
+    return context === "tool" ? toolAction(key) : !toolOnlyAction(key);
+  }
   /** 指令契约中的输入值；运行、编辑器引用与表达式求值共用此边界。 */
   function inputs(node) {
     const result = [];
@@ -701,6 +771,7 @@
     if (node.action === "ai-call" && node.toolResults !== undefined) result.push(["toolResults", node.toolResults]);
     if (node.action === "script" && Array.isArray(node.code)) node.code.forEach((part, index) => { if (typeof part !== "string") result.push(["code." + index, part]); });
     if (node.action === "ai-call") for (const [key, value] of Object.entries(node.inputs || {})) result.push(["inputs." + key, value]);
+    if (node.action === "library-call") for (const [key, value] of Object.entries(node.libraryInputs || {})) result.push(["libraryInputs." + key, value]);
     return result;
   }
   function* conditionInputs(node) {
@@ -792,17 +863,17 @@
   function pop(state) { const frame = state.stack.pop(); if (frame?.kind === "loop") restore(frame, state); return frame; }
   function errorData(error) {
     const value = {};
-    for (const key of ["name", "message", "stack", "code", "nodeId", "field", "saved", "conflicts", "toolId", "toolNodeId", "origin"]) if (error[key] !== undefined) value[key] = clone(error[key]);
+    for (const key of ["name", "message", "stack", "code", "nodeId", "field", "saved", "conflicts", "toolId", "toolNodeId", "libraryNodeId", "origin"]) if (error[key] !== undefined) value[key] = clone(error[key]);
     if (error.cause) value.cause = errorData(error.cause);
     return value;
   }
   function errorObject(value) {
     const error = new Error(value.message, value.cause ? { cause: errorObject(value.cause) } : undefined);
-    for (const key of ["name", "stack", "code", "nodeId", "field", "saved", "conflicts", "toolId", "toolNodeId"]) if (value[key] !== undefined) error[key] = value[key];
+    for (const key of ["name", "stack", "code", "nodeId", "field", "saved", "conflicts", "toolId", "toolNodeId", "libraryNodeId", "origin"]) if (value[key] !== undefined) error[key] = value[key];
     return error;
   }
-  /** Catch 只处理显式 Try 范围；停止/账号失效由宿主终止，不进入此分支 */
-  function raise(workflow, state, error) {
+  /** 仅在进入实际 Catch 时通知调用方；停止或账号失效由宿主处理 */
+  function raise(workflow, state, error, onCaught) {
     while (state.stack.length) {
       const frame = state.stack.at(-1);
       if (frame.kind !== "try") { pop(state); continue; }
@@ -811,10 +882,15 @@
         frame.phase = "catch"; frame.pending = null;
         write(state, node.error, errorData(error));
         state.stack.push(sequenceFrame([...frame.path, "catch"]));
+        onCaught?.(error);
         return true;
       }
       if (frame.phase !== "finally" && node.finally !== null) {
-        frame.phase = "finally"; frame.pending = { kind: "error", error: errorData(error) };
+        // 宿主的继续标记和工具结果只随待重抛状态保存，普通 Catch 变量保持原契约
+        const details = {};
+        for (const key of ["actionResult", "familyResult", "toolResult", "messageKey", "messageParams"])
+          if (error[key] !== undefined) details[key] = clone(error[key]);
+        frame.phase = "finally"; frame.pending = { kind: "error", error: errorData(error), details };
         state.stack.push(sequenceFrame([...frame.path, "finally"]));
         return true;
       }
@@ -851,6 +927,7 @@
     if (node.onError !== "continue" || !error.actionResult && !error.familyResult && !["WORKFLOW_DATA_ERROR", "WORKFLOW_VALUE_UNSET", "WORKFLOW_VALUE_TYPE", "WORKFLOW_GAME_FIELD_UNAVAILABLE", "WORKFLOW_SCRIPT_ERROR", "WORKFLOW_SCRIPT_TIMEOUT", "WORKFLOW_HTTP_FAILED", "WORKFLOW_HTTP_PERMISSION_REQUIRED", "WORKFLOW_HTTP_TIMEOUT", "WORKFLOW_SUPPORTER_REQUIRED", "WORKFLOW_TOOL_KEY_REQUIRED", "AUTOMATION_NAME_ACCESS", "AI_CONFIG_UNAVAILABLE", "AI_RESPONSE_INVALID", "AI_RESPONSE_REFUSED", "PROMPT_UNAVAILABLE", "PROMPT_INVALID", "ACTION_WRITE_CONFLICT", "ACHIEVEMENT_VALUE_INVALID", "ACHIEVEMENT_CONFLICT"].includes(error.code)) return false;
     if (currentNode(workflow, state)?.id !== node.id) throw new Error("工作流执行位置已改变");
     if (node.output) delete state.vars[node.output];
+    if (node.action === "library-call") for (const target of Object.values(node.libraryOutputs)) delete state.vars[target];
     if (node.toolRequestsOutput) write(state, node.toolRequestsOutput, []);
     if (node.action === aiTool.id && error.toolResult) write(state, node.output, error.toolResult);
     const detail = { status: "failed", reason: error.message, code: error.code, error: errorData(error) };
@@ -860,7 +937,7 @@
     return true;
   }
   /** 每次只推进一个结构位置；宿主按批次让出执行权并在等待/副作用前持久化 */
-  async function next(workflow, state, regex, evaluate) {
+  async function next(workflow, state, regex, evaluate, onCaught) {
     delete state.expressionResults;
     if (!state.stack.length || state.done) { state.done = true; return { kind: "done" }; }
     const frame = state.stack.at(-1);
@@ -870,8 +947,8 @@
       state.nodeId = node.id;
       if (node.disabled) { frame.index++; return { kind: "control" }; }
       if (node.kind === "action") {
-        // AI 输入由模板确定，HTTP 输入在确认账号权限后求值，脚本只读取代码中的变量引用
-        if (!["ai-call", aiTool.id, http.id, toolQuery.id, "script"].includes(node.action)) await evaluateValues(inputs(node), state, evaluate);
+        // 宿主先确认配置和权限，再求值；脚本只读取代码中的变量引用。
+        if (!["ai-call", aiTool.id, http.id, toolQuery.id, "library-call", "script"].includes(node.action)) await evaluateValues(inputs(node), state, evaluate);
         return { kind: "action", node };
       }
       const path = [...frame.path, frame.index];
@@ -926,8 +1003,8 @@
     } else {
       pop(state);
       if (frame.pending?.kind === "error") {
-        const error = errorObject(frame.pending.error);
-        if (!raise(workflow, state, error)) throw error;
+        const error = Object.assign(errorObject(frame.pending.error), frame.pending.details);
+        if (!raise(workflow, state, error, onCaught)) throw error;
       } else if (frame.pending) transfer(workflow, state, frame.pending.kind, frame.pending.value);
     }
     return { kind: "control" };
@@ -947,6 +1024,11 @@
       const value = read(node.value, state);
       throw value && typeof value === "object" && typeof value.message === "string" ? errorObject(value) : new Error(String(value));
     } else if (node.action === "tool-return") { transfer(workflow, state, "return", read(node.value, state)); return true; }
+    else if (node.action === "library-return") {
+      const value = Object.fromEntries(workflow.outputs.map(field => [field.id, clone(read(reference("variable", field.variableId), state))]));
+      transfer(workflow, state, "return", value);
+      return true;
+    }
     else if (["break", "continue", "stop"].includes(node.action)) { transfer(workflow, state, node.action); return true; }
     else if (node.action === "comment") result = null;
     else return false;
@@ -968,10 +1050,82 @@
     }
     return pairs;
   }
+  const sequenceNext = 1, libraryReturn = 2, loopTransfer = 4;
+  function fixedBranch(condition) {
+    if (condition.op === "all" || condition.op === "any") {
+      const shortCircuit = condition.op === "any";
+      const results = condition.children.map(fixedBranch);
+      if (results.includes(shortCircuit)) return shortCircuit;
+      if (results.every(value => value === !shortCircuit)) return !shortCircuit;
+      return;
+    }
+    const left = activeValue(condition.left);
+    if (!left || !Object.hasOwn(left, "literal")) return;
+    if (condition.op === "isTrue") return left.literal === true;
+    if (condition.op === "isFalse") return left.literal === false;
+    if (condition.op === "equals" || condition.op === "notEquals") {
+      const right = activeValue(condition.right);
+      if (right && Object.hasOwn(right, "literal")) return data.compareValues(condition.op, left.literal, right.literal);
+    }
+  }
+  function fixedLoopCount(node) {
+    if (node.kind === "for") {
+      const count = activeValue(node.count)?.literal;
+      if (Number.isSafeInteger(count) && count >= 0) return count;
+    }
+    const value = activeValue(node.value)?.literal;
+    if (node.kind === "foreach" && Array.isArray(value)) return value.length;
+    if (node.kind === "entries" && value && typeof value === "object" && !Array.isArray(value)) return Object.keys(value).length;
+  }
+  function librarySequenceOutcome(list, outcomes) {
+    let result = sequenceNext;
+    for (const node of list ?? []) {
+      if (!(result & sequenceNext)) break;
+      result = (result & ~sequenceNext) | libraryNodeOutcome(node, outcomes);
+    }
+    return result;
+  }
+  function libraryNodeOutcome(node, outcomes) {
+    if (outcomes.has(node)) return outcomes.get(node);
+    let result = sequenceNext;
+    if (!node.disabled) {
+      if (node.action === "library-return") result = libraryReturn;
+      else if (node.action === "break" || node.action === "continue") result = loopTransfer;
+      else if (node.kind === "if") {
+        result = 0;
+        let fallthrough = true;
+        for (const branch of node.branches) {
+          const fixed = fixedBranch(branch.condition);
+          if (fixed !== false) result |= librarySequenceOutcome(branch.steps, outcomes);
+          if (fixed === true) { fallthrough = false; break; }
+        }
+        if (fallthrough) result |= librarySequenceOutcome(node.otherwise, outcomes);
+      } else if (node.kind === "try") {
+        result = librarySequenceOutcome(node.body, outcomes);
+        if (node.catch !== null) result |= librarySequenceOutcome(node.catch, outcomes);
+        const cleanup = librarySequenceOutcome(node.finally, outcomes);
+        // Finally 的转移会覆盖先前的返回或循环转移
+        result = (cleanup & ~sequenceNext) | (cleanup & sequenceNext ? result : 0);
+      } else if (loops.has(node.kind)) {
+        const count = fixedLoopCount(node);
+        const body = count === 0 ? sequenceNext : librarySequenceOutcome(node.body, outcomes);
+        // 当前循环消化自身的 Break / Continue，函数返回则继续向外传播
+        result = count > 0 && body === libraryReturn ? libraryReturn : sequenceNext | (body & libraryReturn);
+      }
+    }
+    outcomes.set(node, result);
+    return result;
+  }
+  function insertionIndex(workflow, list = workflow.steps, outcomes = new Map()) {
+    const index = isLibraryId(workflow.id) ? list.findIndex(node => libraryNodeOutcome(node, outcomes) === libraryReturn) : -1;
+    return index < 0 ? list.length : index;
+  }
   function rows(workflow, collapsed = new Set()) {
-    const out = [];
-    function sequence(list, path, depth) {
+    const out = [], outcomes = new Map();
+    function sequence(list, path, depth, key, parent) {
       const pairs = foldPairs(list), levels = [];
+      const insert = { marker: "insert", listPath: path, index: insertionIndex(workflow, list, outcomes), key, ...(parent && { node: parent }) };
+      let inserted = false;
       for (let index = 0; index < list.length; index++) {
         const node = list[index];
         const own = [...path, index];
@@ -986,6 +1140,7 @@
           }
           continue;
         }
+        if (!inserted && index >= insert.index) { out.push({ ...insert, depth }); inserted = true; }
         if (!node.draftMissingStart || node.draftMissingEnd)
           out.push({ node, path: own, listPath: path, index, depth, marker: "", key: node.id, ...(node.draftMissingStart ? { placeholder: true } : {}) });
         if (node.kind === "action") continue;
@@ -993,35 +1148,31 @@
           if (node.kind === "if") {
             for (const [branchIndex, branch] of node.branches.entries()) {
               if (branchIndex) out.push({ node, path: own, depth, marker: "else-if", branch: branchIndex, key: node.id + ":else-if:" + branchIndex });
-              sequence(branch.steps, [...own, "branches", branchIndex, "steps"], depth + 1);
-              out.push({ node, depth: depth + 1, marker: "insert", listPath: [...own, "branches", branchIndex, "steps"], index: branch.steps.length, key: node.id + ":gap:" + branchIndex });
+              sequence(branch.steps, [...own, "branches", branchIndex, "steps"], depth + 1, node.id + ":gap:" + branchIndex, node);
             }
             if (node.otherwise !== null) {
               out.push({ node, path: own, depth, marker: "else", key: node.id + ":else" });
-              sequence(node.otherwise, [...own, "otherwise"], depth + 1);
-              out.push({ node, depth: depth + 1, marker: "insert", listPath: [...own, "otherwise"], index: node.otherwise.length, key: node.id + ":else-gap" });
+              sequence(node.otherwise, [...own, "otherwise"], depth + 1, node.id + ":else-gap", node);
             }
           } else {
-            sequence(node.body, [...own, "body"], depth + 1);
-            out.push({ node, depth: depth + 1, marker: "insert", listPath: [...own, "body"], index: node.body.length, key: node.id + ":body-gap" });
+            sequence(node.body, [...own, "body"], depth + 1, node.id + ":body-gap", node);
             if (node.kind === "try") for (const name of ["catch", "finally"]) if (node[name] !== null) {
               out.push({ node, path: own, depth, marker: name, key: node.id + ":" + name });
-              sequence(node[name], [...own, name], depth + 1);
-              out.push({ node, depth: depth + 1, marker: "insert", listPath: [...own, name], index: node[name].length, key: node.id + ":gap:" + name });
+              sequence(node[name], [...own, name], depth + 1, node.id + ":gap:" + name, node);
             }
           }
         }
         if (!node.draftMissingEnd)
           out.push({ node, path: own, depth, marker: endMarker(node), key: node.id + ":end" });
       }
+      if (!inserted) out.push({ ...insert, depth });
     }
-    sequence(workflow.steps, ["steps"], 0);
-    out.push({ depth: 0, marker: "insert", listPath: ["steps"], index: workflow.steps.length, key: "root-gap" });
+    sequence(workflow.steps, ["steps"], 0, "root-gap");
     return out;
   }
   const previewable = node => node.kind === "if" || !!(data.byId[node.action] || effects[node.action]?.gameField || ["script", "ai-call", http.id, toolQuery.id].includes(node.action));
-  root.STWorkflow = Object.freeze({ catalog: Object.freeze(catalog), definitions, actionFields, effects, failable, previewable, names: Object.freeze(names), loops, markers, operations, clone, literal, constant, reference, isToolId, isProviderToolId, toolAction, toolOnlyAction, toolIds,
+  root.STWorkflow = Object.freeze({ catalog: Object.freeze(catalog), definitions, actionFields, effects, failable, previewable, names: Object.freeze(names), loops, markers, operations, clone, literal, constant, reference, isToolId, isProviderToolId, isLibraryId, instructionAvailable, toolIds,
     httpMethods, httpMaxTimeout, hasHttpBody, httpUrl, staticHttpOrigin, instructionPermission, permissionNotice, permissionDenial,
     numericId, variable, condition, comparison, multiple, unary, inputs, conditionInputs, inputValue, activeValue, references, nodeReferences, scopes, outputFields, evaluateValues, type, walk, createNode, validate, validateValue, validateCondition, read, write, matches, state, next, local, failed,
-    complete, currentNode, raise, transfer, rows, endMarker, foldPairs, foldLayout, entryRowLayout, entryPositionError, validateEntryPosition, visitSequences, pathGet, errorData, errorObject, parameterVariableType, entryParameters, gameAppId });
+    complete, currentNode, raise, transfer, rows, insertionIndex, endMarker, foldPairs, foldLayout, entryRowLayout, entryPositionError, validateEntryPosition, validateLibraryOutputPosition, visitSequences, pathGet, errorData, errorObject, parameterVariableType, entryParameters, gameAppId });
 })(globalThis);

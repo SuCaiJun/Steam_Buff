@@ -1,0 +1,35 @@
+{
+  "schemaVersion": 1,
+  "workflows": [
+    "workflows/wf-1/definition.json",
+    "workflows/wf-2/definition.json",
+    "workflows/wf-3/definition.json",
+    "workflows/wf-4/definition.json"
+  ],
+  "prompts": [
+    "prompts/P-1/definition.json",
+    "prompts/P-2/definition.json",
+    "prompts/P-3/definition.json",
+    "prompts/P-4/definition.json",
+    "prompts/P-5/definition.json",
+    "prompts/P-6/definition.json",
+    "prompts/P-7/definition.json",
+    "prompts/P-8/definition.json",
+    "prompts/P-9/definition.json",
+    "prompts/P-10/definition.json",
+    "prompts/P-12/definition.json"
+  ],
+  "tools": [
+    "ai-tools/tool-1/definition.json",
+    "ai-tools/tool-2/definition.json",
+    "ai-tools/tool-3/definition.json",
+    "ai-tools/tool-4/definition.json"
+  ],
+  "triggers": [
+    "triggers/trigger-1/definition.json",
+    "triggers/trigger-2/definition.json",
+    "triggers/trigger-3/definition.json",
+    "triggers/trigger-4/definition.json"
+  ],
+  "libraries": []
+}

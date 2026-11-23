@@ -1,0 +1,23 @@
+{
+  ".name": "ゲームをコレクションに追加",
+  ".variables.var-17.name": "入力 AppID",
+  ".variables.var-18.name": "入力ゲーム名",
+  ".variables.var-22.name": "辞書",
+  ".variables.var-26.name": "ゲームの種類",
+  ".variables.var-31.name": "ゲームジャンル",
+  ".variables.var-36.name": "ゲームの機能",
+  ".variables.var-41.name": "ストアタグ",
+  ".variables.var-46.name": "コレクション一覧",
+  ".variables.var-48.name": "リスト",
+  ".variables.var-50.name": "現在の項目",
+  ".variables.var-51.name": "現在の位置",
+  ".variables.var-54.name": "リストへの追加結果",
+  ".variables.var-56.name": "AIの応答",
+  ".variables.var-58.name": "JSONデータ",
+  ".variables.var-60.name": "コレクションへの追加結果",
+  ".steps.step-19.branches.0.steps.step-20.value.literal.message": "AppID が範囲外です。1 から 4294967295 までの整数を入力してください。",
+  ".steps.step-55.inputs.游戏资料.label": "ゲーム情報",
+  ".steps.step-55.inputs.可选收藏分组.label": "選択可能なコレクション",
+  ".inputParameters.0.name": "入力 AppID",
+  ".inputParameters.1.name": "入力ゲーム名"
+}

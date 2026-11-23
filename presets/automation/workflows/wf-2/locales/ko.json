@@ -1,0 +1,23 @@
+{
+  ".name": "게임을 모음집에 추가",
+  ".variables.var-17.name": "입력 AppID",
+  ".variables.var-18.name": "입력 게임 이름",
+  ".variables.var-22.name": "사전",
+  ".variables.var-26.name": "게임 유형",
+  ".variables.var-31.name": "게임 장르",
+  ".variables.var-36.name": "게임 특징",
+  ".variables.var-41.name": "상점 태그",
+  ".variables.var-46.name": "모음집 목록",
+  ".variables.var-48.name": "목록",
+  ".variables.var-50.name": "현재 항목",
+  ".variables.var-51.name": "현재 인덱스",
+  ".variables.var-54.name": "목록 추가 결과",
+  ".variables.var-56.name": "AI 응답",
+  ".variables.var-58.name": "JSON 데이터",
+  ".variables.var-60.name": "모음집 추가 결과",
+  ".steps.step-19.branches.0.steps.step-20.value.literal.message": "AppID가 범위를 벗어났습니다. 1부터 4294967295까지의 정수를 입력하세요.",
+  ".steps.step-55.inputs.游戏资料.label": "게임 정보",
+  ".steps.step-55.inputs.可选收藏分组.label": "선택 가능한 모음집",
+  ".inputParameters.0.name": "입력 AppID",
+  ".inputParameters.1.name": "입력 게임 이름"
+}

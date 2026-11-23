@@ -49,14 +49,24 @@
     if (expiredRun(job)) throw timeoutError(job);
   }
   function nodeOf(job) { return job.workflow && job.flow ? flow.currentNode(job.workflow, job.flow) : null; }
-  const execution = job => job.toolRun || job;
-  const hasUnconfirmedRequest = job => job.status === "committing" || job.status === "running-script" &&
-    (job.scriptHttpPending || nodeOf(execution(job))?.action === "http-request");
+  const caller = job => job.toolRun || job;
+  const execution = job => job.libraryRun || caller(job);
+  function hasUnconfirmedRequest(job) {
+    if (job.status === "committing") return true;
+    if (job.status !== "running-script") return false;
+    if (Object.hasOwn(job, "scriptHttpPending")) return job.scriptHttpPending;
+    // 旧版直接 HTTP 写请求没有提交标记，恢复时仍按可能已发送处理
+    const node = nodeOf(execution(job));
+    return node?.action === "http-request" && flow.hasHttpBody(node.method);
+  }
   async function persistFlow(job, expectedStep, seconds = null) {
+    recordLibraryFailures(job);
+    recordToolFailures(job);
     return store.change(job.id, current => {
       if (current.finalized || current.status !== "queued" || current.step !== expectedStep) return null;
       current.flow = copy(job.flow); current.step = job.step;
       if (job.toolRun) current.toolRun = copy(job.toolRun);
+      if (job.libraryRun) current.libraryRun = copy(job.libraryRun);
       return seconds === null ? current : delayState(current, seconds);
     });
   }
@@ -360,7 +370,11 @@
       current.results[node.id] = resultError(error, error.code || "ACTION_FAILED");
     if (current.pendingMessage) current.outbox = (current.outbox || []).filter(row => row.id !== current.pendingMessage);
     closeNotice(current, "cancelled");
+    recordLibraryFailures(current);
+    recordToolFailures(current);
     delete current.toolRun;
+    delete current.libraryRun;
+    delete current.scriptHttpPending;
     return current;
   }
   async function finish(jobId, status, error = null, binding = null, checkpoint = null) {
@@ -369,7 +383,7 @@
       if (current.finalized) return null;
       if (status === "completed") checkRunTime(current);
       if (checkpoint && current.step === checkpoint.expectedStep) { current.flow = copy(checkpoint.job.flow); current.step = checkpoint.job.step; }
-      if (current.scriptHttpPending && ["expired", "cancelled"].includes(status)) {
+      if (current.status === "running-script" && hasUnconfirmedRequest(current) && ["expired", "cancelled"].includes(status)) {
         status = "uncertain";
         error = httpError("HTTP 写请求已发送，结果待核实", "WORKFLOW_HTTP_UNCERTAIN", error);
       }
@@ -660,6 +674,87 @@
     flow.validateEntryPosition(frame.workflow);
     return resolveTool(bundle, frame.workflow.id, toolRevision(frame.workflow));
   }
+  const libraryVersionMatches = (library, version) =>
+    library?.enabled && (version === undefined ||
+      library.revision === version.revision && library.executionId === version.executionId);
+  const libraryUnavailable = () => actionError("自定义库已停用、删除或修改", "WORKFLOW_LIBRARY_UNAVAILABLE");
+  function resolveLibrary(bundle, id, version) {
+    const library = bundle.libraries?.find(item => item.id === id);
+    if (!libraryVersionMatches(library, version)) throw libraryUnavailable();
+    flow.validateEntryPosition(library);
+    return library;
+  }
+  function guardLibrary(bundle, frame) {
+    return resolveLibrary(bundle, frame.workflow.id, frame.workflow);
+  }
+  function validateLibraryOrder(library, callId) {
+    try { flow.validateLibraryOutputPosition(library); }
+    catch (error) {
+      if (error.code !== "WORKFLOW_CONFIG_INVALID" || !error.nodeId) throw error;
+      error.libraryNodeId = error.nodeId;
+      error.nodeId = callId;
+      throw error;
+    }
+  }
+  async function libraryFrame(library, parent, node, evaluate) {
+    validateLibraryOrder(library, node.id);
+    const issue = model.libraryBindingIssue(library, node, parent.workflow);
+    if (issue) throw actionError(issue.message, "WORKFLOW_LIBRARY_BINDING", issue);
+    await flow.evaluateValues(flow.inputs(node), parent.flow, evaluate);
+    const args = {};
+    for (const field of library.parameters) {
+      if (!Object.hasOwn(node.libraryInputs, field.variableId)) continue;
+      const value = flow.read(node.libraryInputs[field.variableId], parent.flow);
+      if (!model.parameterAccepts(field.type, value))
+        throw actionError("库输入类型不符：" + field.name, "WORKFLOW_LIBRARY_BINDING");
+      args[field.name] = value;
+    }
+    return { workflow: library, flow: flow.state(args, {}, library), callId: node.id };
+  }
+  function libraryValue(frame) {
+    const { workflow, flow: local } = frame;
+    if (!Object.hasOwn(local, "returned"))
+      throw actionError("自定义库执行路径缺少「指令输出」", "WORKFLOW_LIBRARY_NO_RETURN");
+    for (const field of workflow.outputs) if (!model.parameterAccepts(field.type, local.returned[field.id]))
+      throw actionError("库输出类型不符：" + field.name, "WORKFLOW_LIBRARY_OUTPUT");
+    return local.returned;
+  }
+  function completeLibrary(parent, node, values) {
+    // 先在独立变量表验证全部类型，再一次性提交父层输出。
+    const staged = { ...parent.flow, vars: { ...parent.flow.vars } };
+    for (const [field, target] of Object.entries(node.libraryOutputs)) flow.write(staged, target, values[field]);
+    flow.complete(parent.workflow, staged, node, undefined);
+    parent.flow.vars = staged.vars;
+    delete parent.flow.expressionResults;
+  }
+  function recordChildFailure(job, item, location) {
+    (job.flow.failures ??= []).push({ ...item, ...location, error: { ...item.error, ...location } });
+  }
+  function recordLibraryFailures(job, library = job.libraryRun) {
+    if (!library?.flow.failures?.length) return;
+    const tool = job.toolRun;
+    const location = tool ? { nodeId: job.flow.nodeId, toolId: tool.workflow.id, toolNodeId: library.callId } : { nodeId: library.callId };
+    for (const item of library.flow.failures) recordChildFailure(job, item, { ...location, libraryNodeId: item.nodeId });
+    delete library.flow.failures;
+  }
+  function recordToolFailures(job, tool = job.toolRun) {
+    if (!tool?.flow.failures?.length) return;
+    for (const item of tool.flow.failures) {
+      const libraryNodeId = item.error?.libraryNodeId;
+      recordChildFailure(job, item, { nodeId: job.flow.nodeId, toolId: tool.workflow.id, toolNodeId: item.nodeId,
+        ...(libraryNodeId && { libraryNodeId }) });
+    }
+    delete tool.flow.failures;
+  }
+  function completeActive(current, node, value) {
+    const active = execution(current);
+    if (current.finalized || nodeOf(active)?.id !== node.id) return null;
+    if (active === current) return completeStep(current, node, value);
+    flow.complete(active.workflow, active.flow, node, value);
+    if (active === current.toolRun) traceTool(active, node, "success");
+    current.step++; current.deadline = 0; current.status = "queued";
+    return current;
+  }
 
   async function historyDigest(messages) {
     const hash = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(JSON.stringify(messages)));
@@ -922,15 +1017,35 @@
   }
 
   const siteIssueKey = (workflowId, nodeId) => "st.automation.site-issue." + workflowId + "." + nodeId;
+  const siteIssueEntries = record => record?.sites ?? (record?.origin ? [{ origin: record.origin }] : []);
+  function siteIssueCurrent(site, bundle) {
+    if (site.library && !libraryVersionMatches(bundle.libraries?.find(item => item.id === site.library.id), site.library)) return false;
+    if (!site.tool) return true;
+    const tool = bundle.tools?.find(item => item.id === site.tool.id);
+    return tool?.enabled && toolRevision(tool) === site.tool.revision;
+  }
   async function rememberSiteIssue(job, error) {
     if (!["WORKFLOW_HTTP_PERMISSION_REQUIRED", "AI_HOST_PERMISSION_REQUIRED"].includes(error.code) || !flow.httpUrl(error.origin)) return;
+    // 子调用重抛时可能已经退出原帧，域名仍归属于第一次遇到它的版本
+    if (error.libraryNodeId || error.toolNodeId) return;
     const node = nodeOf(job);
-    if (!node) return;
-    const current = await root.STSettings.storage.getWorkflow();
-    if (current.epoch !== job.epoch || !current.workflows.some(item => item.id === job.workflow.id && item.revision === job.workflow.revision)) return;
-    await chrome.storage.session.set({ [siteIssueKey(job.workflow.id, node.id)]: {
-      epoch: job.epoch, revision: job.workflow.revision, origin: error.origin,
-    } });
+    if (!node || node.action === "ai-call") return;
+    const library = job.libraryRun?.workflow, tool = job.toolRun?.workflow;
+    const site = { origin: error.origin,
+      ...(library && { library: { id: library.id, revision: library.revision, executionId: library.executionId } }),
+      ...(tool && { tool: { id: tool.id, revision: toolRevision(tool) } }) };
+    await configExclusive(async () => {
+      const current = await root.STSettings.storage.getWorkflow();
+      const { epoch } = job, { id, revision } = job.workflow;
+      if (current.epoch !== epoch || !current.workflows.some(item => item.id === id && item.revision === revision) ||
+          !siteIssueCurrent(site, current)) return;
+      const key = siteIssueKey(id, node.id);
+      const previous = (await chrome.storage.session.get(key))[key];
+      const sites = previous?.epoch === epoch && previous.revision === revision ?
+        siteIssueEntries(previous).filter(item => siteIssueCurrent(item, current)) : [];
+      if (sites.some(item => item.origin === site.origin && item.tool?.id === tool?.id && item.library?.id === library?.id)) return;
+      await chrome.storage.session.set({ [key]: { epoch, revision, sites: [...sites, site] } });
+    });
   }
 
   async function recentSiteIssues(workflow) {
@@ -938,8 +1053,21 @@
       !Array.isArray(workflow.nodes) || !workflow.nodes.every(id => typeof id === "string" && /^[a-zA-Z][a-zA-Z0-9_-]*$/.test(id))) return [];
     const keys = workflow.nodes.map(id => siteIssueKey(workflow.id, id));
     const values = await chrome.storage.session.get(keys);
-    return keys.flatMap((key, index) => values[key]?.epoch === workflow.epoch && values[key]?.revision === workflow.revision ?
-      [[workflow.nodes[index], values[key].origin]] : []);
+    const observed = keys.flatMap((key, index) => values[key]?.epoch === workflow.epoch && values[key]?.revision === workflow.revision ?
+      siteIssueEntries(values[key]).map(site => [workflow.nodes[index], site]) : []);
+    if (!observed.length) return [];
+    const bundle = await root.STSettings.storage.getWorkflow();
+    const saved = bundle.epoch === workflow.epoch && bundle.workflows.find(item => item.id === workflow.id && item.revision === workflow.revision);
+    if (!saved) return [];
+    const nodes = new Map([...flow.walk(saved.steps, true)].map(node => [node.id, node]));
+    return observed.flatMap(([id, site]) => {
+      const node = nodes.get(id);
+      if (!node || node.action === "ai-call" || !siteIssueCurrent(site, bundle) ||
+          (node.action === "library-call" && site.library?.id !== node.libraryId)) return [];
+      if (node.action === "tool-call" && (!site.tool ||
+          (node.toolMode === "registered" ? site.tool.id !== node.toolId : node.toolMode !== "request"))) return [];
+      return [[id, site.origin]];
+    });
   }
 
   /** Chrome 权限为唯一来源；站点清单只暴露可撤销权限，检查同时覆盖生效的固定权限 */
@@ -1014,6 +1142,22 @@
     if (beforeSend) await beforeSend();
     return sendHttp(url, method, headers, body, Math.min(seconds, flow.httpMaxTimeout), signal, 2 * 1024 * 1024, writes ? checkpoint : null);
   }
+  function previewHttpWrites(confirmed, verifyWrite) {
+    let pending = false;
+    const check = cause => {
+      if (!pending) return;
+      if (cause?.code === "WORKFLOW_HTTP_UNCERTAIN") throw cause;
+      const error = httpError("HTTP 写请求已发送，结果待核实", "WORKFLOW_HTTP_UNCERTAIN", cause);
+      if (cause?.nodeId) error.nodeId = cause.nodeId;
+      throw error;
+    };
+    const checkpoint = active => { if (active) verifyWrite?.(); pending = active; };
+    const network = (request, seconds, signal, beforeSend) => {
+      check();
+      return scriptHttp(request, seconds, signal, checkpoint, confirmed, beforeSend);
+    };
+    return { get pending() { return pending; }, check, checkpoint, network };
+  }
 
   function httpHeaders(values) {
     if (!values || typeof values !== "object" || Array.isArray(values)) throw httpError("请求头需要使用字典");
@@ -1073,9 +1217,11 @@
   }
 
   const isToolQuery = node => node.action === "query-provider-data";
-  async function runQuery(node, state, signal, tool, checkpoint) {
-    if (!isToolQuery(node)) return runHttp(node, state, signal, tool, checkpoint);
+  async function runQuery(node, state, signal, tool, checkpoint, beforeSend) {
+    if (!isToolQuery(node)) return runHttp(node, state, signal, tool, checkpoint, beforeSend);
     try {
+      if (beforeSend) await beforeSend();
+      signal.throwIfAborted();
       if (node.provider === root.STAI.STORE_SEARCH_TOOL_ID) {
         const filters = flow.read(node.filters, state);
         return await services.aiTool(node.provider, filters, signal);
@@ -1100,46 +1246,57 @@
     const current = await store.change(job.id, entry => {
       if (entry.finalized || nodeOf(execution(entry))?.id !== node.id) return null;
       if (query && currentFlow.expressionResults) execution(entry).flow.expressionResults = currentFlow.expressionResults;
+      if (http && flow.hasHttpBody(node.method)) entry.scriptHttpPending = false;
       entry.status = "running-script"; return entry;
     });
     if (!current) return null;
     const controller = new AbortController();
     requests.set(job.id, controller);
     try {
-      const frame = current.toolRun, state = execution(current).flow;
-      if (query || frame) {
-        const bundle = await guard(current);
-        if (frame) guardTool(bundle, frame);
-      }
-      const network = !frame && node.action === "script" ? async (request, seconds, signal) => {
-        await guard(current);
-        await requireWorkflowPermission(node);
-        const checkpoint = async active => {
-          const checkpointed = await store.change(job.id, entry => {
-            if (entry.finalized || entry.status !== "running-script" || nodeOf(execution(entry))?.id !== node.id) return null;
-            if (active) entry.scriptHttpPending = true; else delete entry.scriptHttpPending;
-            return entry;
-          });
-          if (active && !checkpointed) throw httpError("脚本执行已结束");
-        };
-        return scriptHttp(request, seconds, signal, checkpoint);
-      } : undefined;
-      const value = await (query ? runQuery(node, state, controller.signal, frame?.workflow) : runScriptOrReading(node, state, job.id, controller.signal, network));
-      controller.signal.throwIfAborted();
-      if (network && (await store.get(job.id)).scriptHttpPending)
-        throw httpError("HTTP 写请求已发送，结果待核实", "WORKFLOW_HTTP_UNCERTAIN");
-      const bundle = await guard(current);
-      if (frame) {
-        guardTool(bundle, frame);
-        return store.change(job.id, entry => {
-          if (entry.finalized || !entry.toolRun || nodeOf(entry.toolRun)?.id !== node.id) return null;
-          flow.complete(frame.workflow, entry.toolRun.flow, node, value);
-          traceTool(entry.toolRun, node, "success");
-          entry.step++; entry.status = "queued";
+      let writePending = false;
+      const checkpoint = async active => {
+        const saved = await store.change(job.id, entry => {
+          if (entry.finalized || entry.step !== current.step || entry.status !== "running-script" ||
+            nodeOf(execution(entry))?.id !== node.id) return null;
+          if (active) checkRunTime(entry);
+          entry.scriptHttpPending = active;
           return entry;
         });
+        if (active && !saved) throw httpError("HTTP 请求所属的运行已结束");
+        writePending = active;
+      };
+      const frame = current.toolRun, library = current.libraryRun, state = execution(current).flow;
+      if (query || frame || library) {
+        const bundle = await guard(current);
+        if (frame) guardTool(bundle, frame);
+        if (library) guardLibrary(bundle, library);
       }
-      return saveResult(current, node, value);
+      const checkLibrary = library ? async () => {
+        const latest = await guard(current);
+        if (frame) guardTool(latest, frame);
+        guardLibrary(latest, library);
+        controller.signal.throwIfAborted();
+      } : undefined;
+      const network = !frame && node.action === "script" ? async (request, seconds, signal) => {
+        if (writePending) throw httpError("HTTP 写请求已发送，结果待核实", "WORKFLOW_HTTP_UNCERTAIN");
+        const bundle = await guard(current);
+        if (library) guardLibrary(bundle, library);
+        await requireWorkflowPermission(node);
+        return scriptHttp(request, seconds, signal, checkpoint, true, checkLibrary);
+      } : undefined;
+      const value = await (query ? runQuery(node, state, controller.signal, library?.workflow ?? frame?.workflow, checkpoint, checkLibrary) :
+        runScriptOrReading(node, state, job.id, controller.signal, network));
+      controller.signal.throwIfAborted();
+      if (writePending)
+        throw httpError("HTTP 写请求已发送，结果待核实", "WORKFLOW_HTTP_UNCERTAIN");
+      const bundle = await guard(current);
+      if (frame) guardTool(bundle, frame);
+      if (library) guardLibrary(bundle, library);
+      return store.change(job.id, entry => {
+        if (entry.step !== current.step || entry.status !== "running-script") return null;
+        delete entry.scriptHttpPending;
+        return completeActive(entry, node, value);
+      });
     } finally { if (requests.get(job.id) === controller) requests.delete(job.id); }
   }
   function traceTool(frame, node, status, countEachStatus = false) {
@@ -1159,69 +1316,162 @@
       "WORKFLOW_SCRIPT_ERROR", "WORKFLOW_SCRIPT_TIMEOUT"].includes(error.code);
     const result = error.actionResult || !known ? error : actionError(error.message, error.code, error);
     result.toolId = frame.workflow.id;
-    result.toolNodeId = error.nodeId ?? frame.flow.nodeId;
+    if (error.code !== "WORKFLOW_TOOL_UNAVAILABLE") result.toolNodeId = error.nodeId ?? frame.flow.nodeId;
+    if (error.libraryNodeId) result.libraryNodeId = error.libraryNodeId;
     result.nodeId = node.id;
     if (known) result.toolResult = { ...frame.binding, ...resultError(result, result.code || "WORKFLOW_AI_TOOL_FAILED") };
     return result;
   }
+  function previewError(error, nodeId = error.nodeId, libraryNodeId = error.libraryNodeId ?? error.cause?.libraryNodeId) {
+    return { code: error.code, message: root.STLoggerSchema.redactText(error.message), nodeId,
+      ...(libraryNodeId && { libraryNodeId }),
+      ...(error.messageKey && { messageKey: error.messageKey, messageParams: error.messageParams }),
+      ...(error.code === "WORKFLOW_HTTP_PERMISSION_REQUIRED" && { origin: error.origin ?? error.cause?.origin }) };
+  }
+  async function previewDefinition(frame, options) {
+    const { workflow, flow: state } = frame;
+    const { signal, check, id, evaluate, confirmNetwork, checkLibrary } = options;
+    const inLibrary = flow.isLibraryId(workflow.id);
+    const onCaught = error => options.failure?.({ at: Date.now(), nodeId: error.nodeId, error });
+    let budget = 0;
+    for (;;) {
+      check();
+      let node;
+      const failures = state.failures?.length || 0;
+      try {
+        const next = await flow.next(workflow, state, regex, evaluate, onCaught);
+        if (next.kind === "done") return inLibrary ? libraryValue(frame) : toolValue(frame);
+        if (next.kind === "wait") await waitPreview(next.seconds, signal);
+        node = next.node;
+        if (next.kind !== "action" || flow.local(workflow, state, node)) {
+          if (frame.trace) traceTool(frame, node, (state.failures?.length || 0) > failures ? "failed" : "success", true);
+          continue;
+        }
+        if (node.action === "library-call") {
+          await previewLibraryCall(frame, node, options);
+          if (frame.trace) traceTool(frame, node, "success", true);
+          continue;
+        }
+        let value;
+        if (node.action === "wait") await waitPreview(flow.read(node.seconds, state), signal);
+        else if (node.action === "log") {
+          if (checkLibrary) await checkLibrary();
+          options.log?.(node, flow.read(node.value, state));
+        }
+        else if (node.action === "script" || root.STWorkflowData.readingActions.includes(node.action)) {
+          if (node.action === "script") await requireWorkflowPermission(node);
+          if (checkLibrary) await checkLibrary();
+          check();
+          value = await runScriptOrReading(node, state, id, signal, options.network);
+          options.checkWrite?.();
+        } else if (node.action === "http-request" || isToolQuery(node)) {
+          if (node.action === "http-request") {
+            if (!confirmNetwork) throw httpError("请确认试运行将发送真实 HTTP 请求");
+            await requireWorkflowPermission(node);
+          }
+          await flow.evaluateValues(flow.inputs(node), state, evaluate);
+          check();
+          value = await runQuery(node, state, signal, workflow, undefined, checkLibrary);
+        } else throw new TypeError("未登记的库试运行指令");
+        check();
+        flow.complete(workflow, state, node, value);
+        if (frame.trace) traceTool(frame, node, "success", true);
+      } catch (error) {
+        check();
+        error.nodeId ??= node?.id || state.nodeId;
+        const current = nodeOf(frame);
+        if (frame.trace && current?.id === error.nodeId) traceTool(frame, current, "failed", true);
+        options.checkWrite?.(error);
+        if (error.code === "WORKFLOW_HTTP_UNCERTAIN" || inLibrary && error.code === "WORKFLOW_LIBRARY_UNAVAILABLE" ||
+            !(current && current.id === error.nodeId && flow.failed(workflow, state, current, error)) &&
+              !flow.raise(workflow, state, error, onCaught)) throw error;
+      } finally {
+        if (options.failure && (state.failures?.length || 0) > failures)
+          for (const item of state.failures.slice(failures)) options.failure(item);
+        if (++budget === 64) {
+          budget = 0;
+          await new Promise(resolve => root.setTimeout(resolve, 0));
+        }
+      }
+    }
+  }
+  async function previewLibraryCall(parent, node, options) {
+    const version = options.libraryVersions?.[node.libraryId];
+    if (!version || !Number.isSafeInteger(version.revision)) throw libraryUnavailable();
+    const active = { id: node.libraryId, version, controller: new AbortController() };
+    const signal = active.controller.signal;
+    const abort = () => active.controller.abort(options.signal.reason);
+    const check = () => { options.check(); signal.throwIfAborted(); };
+    let frame;
+    // 先登记本次子调用，保存引起的失效也能中止尚在核对配置的请求
+    options.preview.library = active;
+    options.signal.addEventListener("abort", abort, { once: true });
+    const checkLibrary = async () => {
+      resolveLibrary(await root.STSettings.storage.getWorkflow(), active.id, version);
+      check();
+    };
+    const network = options.network && ((request, seconds, signal) => options.network(request, seconds, signal, checkLibrary));
+    try {
+      check();
+      const definition = resolveLibrary(await root.STSettings.storage.getWorkflow(), active.id, version);
+      check();
+      const evaluate = data => options.evaluate(data, signal);
+      frame = await libraryFrame(definition, parent, node, evaluate);
+      const result = await previewDefinition(frame, { ...options, signal, check, evaluate, checkLibrary, network,
+        log: (step, value) => options.log?.(node, value, step),
+        failure: item => options.failure?.({ ...item, nodeId: node.id, libraryNodeId: item.nodeId }) });
+      await checkLibrary();
+      completeLibrary(parent, node, result);
+    } catch (error) {
+      error.libraryNodeId ??= error.nodeId ?? frame?.flow.nodeId;
+      error.nodeId = node.id;
+      throw error;
+    } finally {
+      options.signal.removeEventListener("abort", abort);
+      if (options.preview.library === active) delete options.preview.library;
+    }
+  }
   /** 草稿试运行共用指令解释、权益和宿主执行，预览会话由设置窗口持有 */
   async function testTool(request, previewKey) {
     if (previews.has(previewKey)) throw new Error("工具正在试运行");
-    const workflow = model.validateTool(request.tool);
+    const inLibrary = request.action === "test-library";
+    const workflow = inLibrary ? model.validateLibrary(request.tool) : model.validateTool(request.tool);
     const state = flow.state(model.toolArguments(workflow, request.inputs), {}, workflow);
     const frame = { workflow, flow: state, trace: {} };
     const controller = new AbortController();
-    previews.set(previewKey, controller);
+    const preview = { controller }, entries = [];
+    const writes = previewHttpWrites(request.confirmNetwork === true);
+    previews.set(previewKey, preview);
     try {
       return await root.STNetworkRequest.run(60_000, async (signal, check) => {
-        const evaluate = data => root.STWorkflowScript.run({ id: "tool-preview-" + previewKey, ...data, seconds: 10, signal });
-        let budget = 0;
-        for (;;) {
+        const id = "tool-preview-" + previewKey;
+        const evaluate = (data, requestSignal = signal) => root.STWorkflowScript.run({ id, ...data, seconds: 10, signal: requestSignal });
+        const options = { id, signal, check, evaluate, preview, libraryVersions: request.libraryVersions, confirmNetwork: request.confirmNetwork === true,
+          ...(inLibrary && { checkWrite: writes.check, network: writes.network }),
+          log: (node, value, step) => {
+            entries.push({ nodeId: node.id, libraryNodeId: step?.id, level: (step ?? node).level, text: typeof value === "string" ? value : JSON.stringify(value) });
+          }, failure: item => entries.push({ at: item.at, level: "error", ...previewError(item.error, item.nodeId, item.libraryNodeId) }) };
+        try {
+          const raw = await previewDefinition(frame, options);
+          const value = inLibrary ? Object.fromEntries(workflow.outputs.map(field => [field.name, raw[field.id]])) : raw;
+          return { value, steps: Object.values(frame.trace), ...(entries.length && { entries }) };
+        } catch (error) {
           check();
-          let node;
-          try {
-            const next = await flow.next(workflow, state, regex, evaluate);
-            if (next.kind === "done") return { value: toolValue(frame), steps: Object.values(frame.trace) };
-            node = next.node;
-            const failures = state.failures?.length || 0;
-            if (next.kind === "action" && !flow.local(workflow, state, node)) {
-              let result;
-              if (node.action === "script") {
-                await requireWorkflowPermission(node);
-                check();
-                result = await runScriptOrReading(node, state, "tool-preview-" + previewKey, signal);
-              } else {
-                if (node.action === "http-request") await requireWorkflowPermission(node);
-                else if (!isToolQuery(node)) throw new TypeError("工具指令无法执行");
-                await flow.evaluateValues(flow.inputs(node), state, evaluate);
-                result = await runQuery(node, state, signal, workflow);
-              }
-              check();
-              flow.complete(workflow, state, node, result);
-            }
-            if (node) traceTool(frame, node, (state.failures?.length || 0) > failures ? "failed" : "success", true);
-          } catch (error) {
-            check();
-            error.nodeId ??= state.nodeId;
-            traceTool(frame, node || nodeOf(frame), "failed", true);
-            const current = nodeOf(frame);
-            if (!(current && flow.failed(workflow, state, current, error)) && !flow.raise(workflow, state, error)) {
-              const issue = toolFailure(frame, { id: error.nodeId }, error);
-              log.error("automation-tool-preview-failed", "工具试运行失败", { error: issue });
-              return { error: { code: issue.code, message: root.STLoggerSchema.redactText(issue.message), nodeId: issue.toolNodeId },
-                steps: Object.values(frame.trace) };
-            }
-          }
-          if (++budget === 64) {
-            budget = 0;
-            await new Promise(resolve => root.setTimeout(resolve, 0));
-          }
+          const issue = inLibrary ? error : toolFailure(frame, { id: error.nodeId }, error);
+          const label = inLibrary ? "自定义库" : "工具";
+          log.error(inLibrary ? "automation-library-preview-failed" : "automation-tool-preview-failed", label + "试运行失败", { error: issue });
+          return { error: previewError(issue, issue.toolNodeId ?? issue.nodeId),
+            steps: Object.values(frame.trace), ...(entries.length && { entries }) };
         }
       }, controller.signal);
     } catch (error) {
-      if (controller.signal.aborted) return { cancelled: true };
+      if (controller.signal.aborted) return { cancelled: true, ...(writes.pending && { uncertain: true }), entries, steps: Object.values(frame.trace) };
+      if (writes.pending) {
+        const issue = httpError("HTTP 写请求已发送，结果待核实", "WORKFLOW_HTTP_UNCERTAIN", error);
+        return { error: previewError(issue, state.nodeId), entries, steps: Object.values(frame.trace) };
+      }
       throw error;
-    } finally { if (previews.get(previewKey) === controller) previews.delete(previewKey); }
+    } finally { if (previews.get(previewKey) === preview) previews.delete(previewKey); }
   }
   async function expressionValues(job, request) {
     await guard(job);
@@ -1265,21 +1515,47 @@
             checkRunTime(job);
             const frame = job.toolRun, cursor = execution(job);
             if (frame && initialToolBundle) guardTool(initialToolBundle, frame);
+            if (job.libraryRun && initialToolBundle) {
+              guardLibrary(initialToolBundle, job.libraryRun);
+              validateLibraryOrder(job.libraryRun.workflow, job.libraryRun.callId);
+            }
             initialToolBundle = null;
             const next = await flow.next(cursor.workflow, cursor.flow, regex, request => expressionValues(job, request));
             checkRunTime(job);
             const failures = cursor.flow.failures?.length || 0;
             if (next.kind === "control") {
-              if (frame) traceTool(frame, next.node, "success");
+              if (cursor === frame) traceTool(frame, next.node, "success");
               job.step++; budget++;
             }
             else if (next.kind === "done") {
+              if (job.libraryRun) {
+                const node = nodeOf(caller(job)), library = job.libraryRun, values = libraryValue(library);
+                job = await configExclusive(async () => {
+                  const bundle = await guard(job);
+                  guardLibrary(bundle, library);
+                  if (frame) guardTool(bundle, frame);
+                  return store.change(job.id, entry => {
+                    const parent = caller(entry);
+                    if (entry.finalized || entry.step !== base || entry.libraryRun?.callId !== node.id || nodeOf(parent)?.id !== node.id) return null;
+                    completeLibrary(parent, node, values);
+                    if (entry.toolRun) traceTool(entry.toolRun, node, "success");
+                    recordLibraryFailures(entry, library);
+                    delete entry.libraryRun;
+                    entry.step = job.step + 1;
+                    return entry;
+                  });
+                });
+                if (!job) return;
+                base = job.step;
+                continue;
+              }
               if (frame) {
                 const node = nodeOf(job), result = { ...frame.binding, status: "success", data: toolValue(frame) };
                 job = await configExclusive(async () => {
                   guardTool(await guard(job), frame);
                   return store.change(job.id, entry => {
                     if (entry.finalized || entry.step !== base || nodeOf(entry)?.id !== node.id) return null;
+                    recordToolFailures(entry, frame);
                     delete entry.toolRun;
                     entry.step = job.step;
                     return completeStep(entry, node, result);
@@ -1295,26 +1571,47 @@
             } else if (next.kind === "wait") {
               await persistFlow(job, base, next.seconds); return;
             } else if (flow.local(cursor.workflow, cursor.flow, next.node)) {
-              if (frame) traceTool(frame, next.node, (cursor.flow.failures?.length || 0) > failures ? "failed" : "success");
+              const failed = (cursor.flow.failures?.length || 0) > failures;
+              if (cursor === frame) traceTool(frame, next.node, failed ? "failed" : "success");
               job.step++; budget++;
+              if (failed) {
+                job = await persistFlow(job, base);
+                if (!job) return;
+                base = job.step;
+              }
             }
             else {
               job = await persistFlow(job, base); if (!job) return;
               base = job.step;
               const node = nodeOf(execution(job)), bundle = await guard(job);
-              if (node.action === "wait") {
-                const seconds = flow.read(node.seconds, job.flow);
+              if (job.libraryRun) guardLibrary(bundle, job.libraryRun);
+              if (frame) guardTool(bundle, frame);
+              if (node.action === "library-call") {
+                const library = await libraryFrame(resolveLibrary(bundle, node.libraryId), execution(job), node, request => expressionValues(job, request));
+                job = await configExclusive(async () => {
+                  const currentBundle = await guard(job);
+                  guardLibrary(currentBundle, library);
+                  if (frame) guardTool(currentBundle, frame);
+                  return store.change(job.id, entry => {
+                    if (entry.finalized || entry.step !== base || nodeOf(execution(entry))?.id !== node.id) return null;
+                    entry.libraryRun = library;
+                    entry.step++;
+                    return entry;
+                  });
+                });
+              } else if (node.action === "wait") {
+                const seconds = flow.read(node.seconds, execution(job).flow);
                 await store.change(job.id, current => {
-                  const completed = completeStep(current, node, { status: "success" });
+                  const completed = completeActive(current, node, { status: "success" });
                   return completed && delayState(completed, seconds);
                 }); return;
-              }
-              if (node.action === "log") {
-                const value = flow.read(node.value, job.flow);
+              } else if (node.action === "log") {
+                const value = flow.read(node.value, execution(job).flow);
                 job = await store.change(job.id, current => {
                   if (current.finalized) return null;
-                  current.entries.push({ at: Date.now(), nodeId: node.id, level: node.level, text: typeof value === "string" ? value : JSON.stringify(value) });
-                  return completeStep(current, node, { status: "success" });
+                  const location = current.libraryRun ? { nodeId: current.libraryRun.callId, libraryNodeId: node.id } : { nodeId: node.id };
+                  current.entries.push({ at: Date.now(), ...location, level: node.level, text: typeof value === "string" ? value : JSON.stringify(value) });
+                  return completeActive(current, node, { status: "success" });
                 });
               } else if (node.action === "script" || node.action === "http-request" || isToolQuery(node) || root.STWorkflowData.readingActions.includes(node.action)) job = await hostStep(job, node);
               else if (node.action === "notify") job = await runNotice(job, node);
@@ -1327,7 +1624,10 @@
             }
           } catch (error) {
             if ([RUN_TIMEOUT, "AUTOMATION_EXPIRED", "ACCOUNT_CHANGED", "ACCOUNT_UNCONFIRMED"].includes(error.code)) throw error;
-            await rememberSiteIssue(job, error);
+            try { await rememberSiteIssue(job, error); }
+            catch (diagnosticError) {
+              log.warn("automation-site-diagnostic-failed", "自动化授权诊断未能保存", { error: diagnosticError, requestId: job.id });
+            }
             let current = await store.get(jobId);
             if (current.finalized || current.scriptHttpPending || error.code === "WORKFLOW_HTTP_UNCERTAIN") throw error;
             if (current.status === "committing") {
@@ -1340,14 +1640,38 @@
             }
             if (current.step !== base) { job = current; base = current.step; }
             const frame = job.toolRun;
+            const toolUnavailable = error.code === "WORKFLOW_TOOL_UNAVAILABLE";
+            const libraryUnavailable = error.code === "WORKFLOW_LIBRARY_UNAVAILABLE";
             let handled = false;
-            if (frame) {
-              const child = nodeOf(frame);
-              traceTool(frame, child, "failed");
-              if (!["WORKFLOW_TOOL_UNAVAILABLE", "WORKFLOW_TOOL_NO_RETURN"].includes(error.code)) {
-                error.nodeId ??= frame.flow.nodeId;
-                handled = !!(child && flow.failed(frame.workflow, frame.flow, child, error)) || flow.raise(frame.workflow, frame.flow, error);
+            if (job.libraryRun) {
+              const library = job.libraryRun, child = nodeOf(library);
+              const invalidLibrary = error.libraryNodeId && error.nodeId === library.callId;
+              if (!toolUnavailable && !libraryUnavailable && !invalidLibrary) {
+                // Finally 会改动执行游标，第一次传播时保留实际失败位置
+                error.nodeId ??= child?.id ?? library.flow.nodeId;
+                handled = !!(child && child.id === error.nodeId && flow.failed(library.workflow, library.flow, child, error)) ||
+                  flow.raise(library.workflow, library.flow, error);
               }
+              recordLibraryFailures(job);
+              if (!handled) {
+                if (!toolUnavailable) {
+                  if (!libraryUnavailable) error.libraryNodeId ??= error.nodeId ?? library.flow.nodeId;
+                  error.nodeId = library.callId;
+                }
+                delete job.libraryRun;
+              }
+            }
+            if (!handled && frame) {
+              const child = nodeOf(frame);
+              if (!toolUnavailable && error.code !== "WORKFLOW_TOOL_NO_RETURN") {
+                error.nodeId ??= frame.flow.nodeId;
+                if (child && child.id === error.nodeId) {
+                  traceTool(frame, child, "failed");
+                  handled = flow.failed(frame.workflow, frame.flow, child, error);
+                }
+                if (!handled) handled = flow.raise(frame.workflow, frame.flow, error);
+              }
+              recordToolFailures(job);
               if (!handled) {
                 error = toolFailure(frame, nodeOf(job), error);
                 delete job.toolRun;
@@ -1356,7 +1680,8 @@
             if (!handled) {
               error.nodeId ??= job.flow.nodeId;
               const failedNode = nodeOf(job);
-              if (!(failedNode && flow.failed(job.workflow, job.flow, failedNode, error)) && !flow.raise(job.workflow, job.flow, error)) throw error;
+              if (!(failedNode && failedNode.id === error.nodeId && flow.failed(job.workflow, job.flow, failedNode, error)) &&
+                  !flow.raise(job.workflow, job.flow, error)) throw error;
             }
             job.step++; budget++;
             // 已捕获的异常仍保留在运行记录的异常变量中，只有显式 Catch 决定继续
@@ -1366,6 +1691,9 @@
               current.flow = copy(job.flow); current.step = job.step; current.status = "queued";
               if (job.toolRun) current.toolRun = copy(job.toolRun);
               else delete current.toolRun;
+              if (job.libraryRun) current.libraryRun = copy(job.libraryRun);
+              else delete current.libraryRun;
+              delete current.scriptHttpPending;
               current.prompt = null; current.service = null; return current;
             });
             if (!job) return;
@@ -1380,7 +1708,7 @@
         if (current && expiredRun(current) && await expireTimedJob(jobId, Date.now())) return;
         if (current && !finalStates.has(current.status)) await reportFailure(jobId,
           ["AUTOMATION_EXPIRED", "ACCOUNT_CHANGED"].includes(error.code) ? "expired" :
-            current.status === "committing" || current.scriptHttpPending || error.code === "WORKFLOW_HTTP_UNCERTAIN" ? "uncertain" : "failed", error, null,
+            hasUnconfirmedRequest(current) || error.code === "WORKFLOW_HTTP_UNCERTAIN" ? "uncertain" : "failed", error, null,
           job ? { job, expectedStep: base } : null);
       } finally { await arm(); }
     })();
@@ -1450,7 +1778,7 @@
   const previewSteamRead = node => !!flow.effects[node.action]?.gameField ||
     ["steam-collections", "steam-translations", "steam-achievements"].includes(node.action);
   const previewAction = node => previewSteamRead(node) || Object.hasOwn(root.STWorkflowData.byId, node.action) ||
-    ["script", "http-request", "log", "wait", "stop", "break", "continue", "raise", "comment"].includes(node.action);
+    ["script", "http-request", "query-provider-data", "library-call", "log", "wait", "stop", "break", "continue", "raise", "comment"].includes(node.action);
   async function readPreviewSteam(node, state, binding) {
     const accounts = root.STBackgroundSteamAccount;
     binding ??= await accounts.identity();
@@ -1477,7 +1805,7 @@
   async function testWorkflow(request, previewKey, emit) {
     if (previews.has(previewKey)) throw new Error("工作流正在试运行");
     const workflow = copy(request.workflow);
-    if (flow.isToolId(workflow.id)) throw new TypeError("工具需要使用工具试运行");
+    if (flow.isToolId(workflow.id) || flow.isLibraryId(workflow.id)) throw new TypeError("工具和自定义库需要使用各自的试运行入口");
     flow.validate(workflow);
     const { input = {}, meta = { triggerName: "工作流试运行", triggerType: "manual" } } = request;
     if (typeof meta.triggerName !== "string" || !meta.triggerName.trim() || !model.isTriggerType(meta.triggerType))
@@ -1485,6 +1813,7 @@
     root.STWorkflowData.json(input);
     model.workflowArguments(workflow, input);
     const controller = new AbortController(), entries = [], trace = {};
+    const preview = { controller };
     const id = "workflow-preview-" + previewKey;
     const flush = () => { if (emit && entries.length) emit(entries.splice(0)); };
     // 打开 Port 本身不续活，整个试运行共用一条有界的连接计时。
@@ -1493,23 +1822,24 @@
       catch (error) { controller.abort(error); }
     }
     let heartbeat = emit ? root.setTimeout(keepAlive, 20_000) : null;
-    let writePending = false, nodeId;
+    let nodeId;
     let binding;
     const accounts = root.STBackgroundSteamAccount;
     const ensureAccount = () => {
       if (binding && !accounts.current(binding)) throw Object.assign(new Error("Steam 账号已切换，试运行已停止"), { code: "ACCOUNT_CHANGED" });
     };
     const verifyAccount = async () => { if (binding) { await accounts.identity(); ensureAccount(); } };
-    const checkpoint = active => { if (active) ensureAccount(); writePending = active; };
-    const failure = error => ({ code: error.code, message: root.STLoggerSchema.redactText(error.message),
-      nodeId: error.nodeId || nodeId, ...(error.code === "WORKFLOW_HTTP_PERMISSION_REQUIRED" && { origin: error.origin }) });
-    previews.set(previewKey, controller);
+    const writes = previewHttpWrites(request.confirmNetwork === true, ensureAccount);
+    const failure = error => previewError(error, error.nodeId || nodeId);
+    const recordError = error => entries.push({ at: Date.now(), level: "error", ...failure(error) });
+    previews.set(previewKey, preview);
     try {
       return await root.STNetworkRequest.run(60_000, async (signal, check) => {
         const state = await workflowState(workflow, input, meta.triggerName.trim(), meta.triggerType);
         const frame = { workflow, flow: state, trace };
-        const evaluate = data => root.STWorkflowScript.run({ id: id + "-expression", ...data, seconds: 10, signal });
-        const network = (http, seconds, requestSignal) => scriptHttp(http, seconds, requestSignal, checkpoint, request.confirmNetwork === true, verifyAccount);
+        const evaluate = (data, requestSignal = signal) => root.STWorkflowScript.run({ id: id + "-expression", ...data, seconds: 10, signal: requestSignal });
+        const network = (http, seconds, requestSignal, checkLibrary) => writes.network(http, seconds, requestSignal,
+          async () => { await verifyAccount(); if (checkLibrary) await checkLibrary(); });
         let budget = 0;
         for (;;) {
           check(); ensureAccount();
@@ -1520,7 +1850,7 @@
               node = pending;
               throw Object.assign(new Error("草稿试运行不执行这条指令"), { code: "WORKFLOW_PREVIEW_UNSUPPORTED" });
             }
-            const next = await flow.next(workflow, state, regex, evaluate);
+            const next = await flow.next(workflow, state, regex, evaluate, recordError);
             if (next.kind === "done") return { entries, steps: Object.values(trace) };
             node = next.node;
             nodeId = node?.id || state.nodeId;
@@ -1529,6 +1859,17 @@
               flush(); await waitPreview(next.seconds, signal);
             } else if (next.kind === "action" && !flow.local(workflow, state, node)) {
               let value;
+              if (node.action === "library-call") {
+                flush();
+                await previewLibraryCall(frame, node, { id, signal, check: () => { check(); ensureAccount(); }, evaluate,
+                  preview, libraryVersions: request.libraryVersions, network, checkWrite: writes.check, confirmNetwork: request.confirmNetwork === true,
+                  log: (location, value, step) => {
+                    entries.push({ at: Date.now(), nodeId: location.id, libraryNodeId: step.id, level: step.level,
+                      text: typeof value === "string" ? value : JSON.stringify(value) });
+                  }, failure: item => entries.push({ at: item.at, level: "error", ...previewError(item.error, item.nodeId, item.libraryNodeId) }) });
+                traceTool(frame, node, "success", true);
+                continue;
+              }
               if (node.action === "log") {
                 value = flow.read(node.value, state);
                 entries.push({ at: Date.now(), nodeId, level: node.level, text: typeof value === "string" ? value : JSON.stringify(value) });
@@ -1545,15 +1886,18 @@
                 else if (node.action === "script" || root.STWorkflowData.readingActions.includes(node.action)) {
                   if (node.action === "script") await requireWorkflowPermission(node);
                   check(); value = await runScriptOrReading(node, state, id, signal, node.action === "script" ? network : undefined);
-                } else if (node.action === "http-request") {
-                  await requireWorkflowPermission(node);
-                  if (request.confirmNetwork !== true) throw httpError("请确认试运行将发送真实 HTTP 请求");
+                } else if (node.action === "http-request" || isToolQuery(node)) {
+                  if (node.action === "http-request") {
+                    await requireWorkflowPermission(node);
+                    if (request.confirmNetwork !== true) throw httpError("请确认试运行将发送真实 HTTP 请求");
+                  }
                   await flow.evaluateValues(flow.inputs(node), state, evaluate);
-                  check(); value = await runHttp(node, state, signal, null, checkpoint, verifyAccount);
+                  check(); value = isToolQuery(node) ? await runQuery(node, state, signal) :
+                    await runHttp(node, state, signal, null, writes.checkpoint, verifyAccount);
                 } else throw new TypeError("未登记的草稿试运行指令");
               }
               check(); ensureAccount();
-              if (writePending) throw httpError("HTTP 写请求已发送，结果待核实", "WORKFLOW_HTTP_UNCERTAIN");
+              writes.check();
               flow.complete(workflow, state, node, value);
             }
             if (node) traceTool(frame, node, (state.failures?.length || 0) > failures ? "failed" : "success", true);
@@ -1562,12 +1906,13 @@
           } catch (error) {
             check();
             nodeId = node?.id || state.nodeId;
-            if (writePending) throw httpError("HTTP 写请求已发送，结果待核实", "WORKFLOW_HTTP_UNCERTAIN", error);
             const current = nodeOf(frame);
-            traceTool(frame, node || current, "failed", true);
-            if (["WORKFLOW_PREVIEW_UNSUPPORTED", "WORKFLOW_HTTP_UNCERTAIN", "ACCOUNT_CHANGED"].includes(error.code) ||
-              !(current && flow.failed(workflow, state, current, error)) && !flow.raise(workflow, state, error)) throw error;
-            entries.push({ at: Date.now(), level: "error", ...failure(error) });
+            error.nodeId ??= nodeId;
+            if (node || current?.id === error.nodeId) traceTool(frame, node || current, "failed", true);
+            writes.check(error);
+            if (["WORKFLOW_PREVIEW_UNSUPPORTED", "WORKFLOW_HTTP_UNCERTAIN", "ACCOUNT_CHANGED"].includes(error.code)) throw error;
+            if (current && current.id === error.nodeId && flow.failed(workflow, state, current, error)) recordError(error);
+            else if (!flow.raise(workflow, state, error, recordError)) throw error;
           }
           if (++budget === 64) {
             budget = 0; flush();
@@ -1577,13 +1922,15 @@
       }, controller.signal);
     } catch (error) {
       if (controller.signal.reason?.code === "WORKFLOW_PREVIEW_CANCELLED")
-        return { cancelled: true, uncertain: writePending, entries, steps: Object.values(trace) };
-      const issue = writePending ? httpError("HTTP 写请求已发送，结果待核实", "WORKFLOW_HTTP_UNCERTAIN", error) : error;
+        return { cancelled: true, uncertain: writes.pending, entries, steps: Object.values(trace) };
+      const issue = writes.pending && error.code !== "WORKFLOW_HTTP_UNCERTAIN"
+        ? Object.assign(httpError("HTTP 写请求已发送，结果待核实", "WORKFLOW_HTTP_UNCERTAIN", error), { nodeId: error.nodeId })
+        : error;
       log.error("automation-workflow-preview-failed", "工作流试运行失败", { error: issue });
       return { error: failure(issue), entries, steps: Object.values(trace) };
     } finally {
       if (heartbeat !== null) root.clearTimeout(heartbeat);
-      if (previews.get(previewKey) === controller) previews.delete(previewKey);
+      if (previews.get(previewKey) === preview) previews.delete(previewKey);
     }
   }
   async function enqueue(trigger, event, ctx, owner, bundle, { startNow = true, checkRevision = false, binding, inputs: supplied, error = null } = {}) {
@@ -1703,10 +2050,34 @@
     next.revision = current.revision + 1;
     return next;
   }
-  function reviseWorkflow(value, current, replace) {
-    const next = model.normalize(value, undefined, { structureOnly: !replace });
+  function reviseWorkflow(value, current, { replace, reset, creation, includePresets, translate }) {
+    const next = model.normalize(value, { structureOnly: !replace });
+    if (!Object.hasOwn(next, "libraries") && Object.hasOwn(current, "libraries")) next.libraries = current.libraries;
     if (!replace && next.revision !== current.revision)
       throw Object.assign(new Error("配置已在另一窗口修改，请重新读取后保存"), { code: "WORKFLOW_REVISION_CONFLICT" });
+    if (creation !== undefined) {
+      if (replace || reset || includePresets) throw new TypeError("配置替换不能申请新增编号");
+      model.reserveUserId(next, current, creation, featureLinks(next, translate).map(link => link.promptId));
+    }
+    for (const section of Object.keys(model.presetSections)) {
+      if (Object.hasOwn(current.nextIds ?? {}, section))
+        next.nextIds[section] = Math.max(current.nextIds?.[section], next.nextIds[section] ?? 0);
+      if (replace && !(section === "libraries" && !Object.hasOwn(value, "libraries"))) continue;
+      if ((reset && section !== "libraries") || (includePresets && !Object.hasOwn(value.deletedPresets ?? {}, section))) {
+        delete next.deletedPresets[section];
+        continue;
+      }
+      const present = new Set(next[section]?.map(item => item.id));
+      const removed = new Set((includePresets ? next : current).deletedPresets?.[section] ?? []);
+      if (!includePresets) {
+        for (const item of current[section] ?? [])
+          if (model.isPresetId(section, item.id) && !present.has(item.id)) removed.add(item.id);
+      }
+      const deleted = [...removed].filter(itemId => !present.has(itemId));
+      if (deleted.length) next.deletedPresets[section] = deleted;
+      else delete next.deletedPresets[section];
+    }
+    if (!replace && !reset && !includePresets) next.presetImportVersion = current.presetImportVersion ?? "";
     if (replace) next.epoch = crypto.randomUUID();
     next.revision = current.revision + 1;
     if (!replace) {
@@ -1725,15 +2096,30 @@
         }
       }
     }
-    for (const section of ["prompts", "workflows", "triggers", "tools"]) for (const item of next[section]) {
+    const libraryIds = new Map((next.libraries ?? []).map(library => [library.id, library]));
+    for (const definition of [...next.workflows, ...next.tools]) {
+      for (const node of flow.walk(definition.steps)) {
+        if (node.action !== "library-call") continue;
+        const issue = model.libraryBindingIssue(libraryIds.get(node.libraryId), node, definition);
+        if (issue) { issue.nodeId = node.id; throw issue; }
+      }
+    }
+    for (const section of ["prompts", "workflows", "triggers", "tools", "libraries"]) for (const item of next[section] ?? []) {
       const old = current[section]?.find(row => row.id === item.id);
       // 整包保存只提交有改动的定义，其他错误仍可逐项在编辑器中修正
-      if (item.entryRow !== undefined && (section === "workflows" || section === "tools") && JSON.stringify(item) !== JSON.stringify(old))
+      if (item.entryRow !== undefined && ["workflows", "tools", "libraries"].includes(section) && JSON.stringify(item) !== JSON.stringify(old))
         flow.validateEntryPosition(item);
-      const definition = section === "tools" || section === "workflows" ? model.workflowDefinitionKey : row => JSON.stringify({ ...row, revision: 0 });
+      const definition = section === "tools" || section === "workflows" ? model.workflowDefinitionKey :
+        row => JSON.stringify({ ...row, revision: 0, executionId: undefined });
       const same = old && definition(old) === definition(item);
+      if (section === "libraries" && item.enabled && !same) flow.validateLibraryOutputPosition(item);
       item.revision = old ? same ? old.revision : old.revision + 1 : 1;
-      if (section === "tools") item.executionId = same ? old.executionId : crypto.randomUUID();
+      if (section === "tools" || section === "libraries") {
+        if (!old && (reset || includePresets) && model.isOriginalProviderTool(item)) continue;
+        if (!same) item.executionId = crypto.randomUUID();
+        else if (old.executionId === undefined) delete item.executionId;
+        else item.executionId = old.executionId;
+      }
     }
     return next;
   }
@@ -1779,22 +2165,91 @@
     }
   }
 
+  function addMissingPresets(current, presets, version) {
+    const next = model.clone(current);
+    const factory = model.clone(presets);
+    for (const section of Object.keys(model.presetSections)) {
+      next[section] ??= [];
+      const present = new Set(next[section].map(item => item.id));
+      const deleted = new Set(current.deletedPresets?.[section]);
+      next[section].push(...factory[section].filter(item => !present.has(item.id) && !deleted.has(item.id)));
+    }
+    // 仅跳过因已有配置缺少依赖而无法导入的新预设
+    const has = (section, id) => next[section].some(item => item.id === id);
+    const missingDependency = (node, definition) => (node.promptId && !has("prompts", node.promptId)) ||
+      flow.toolIds(node).some(id => !has("tools", id)) ||
+      (node.action === "library-call" && model.libraryBindingIssue(next.libraries.find(library => library.id === node.libraryId), node, definition));
+    const adaptPrompt = node => {
+      if (node.action !== "ai-call" || !node.promptId) return true;
+      const packaged = presets.prompts.find(plan => plan.id === node.promptId);
+      const saved = next.prompts.find(plan => plan.id === node.promptId);
+      if (!saved.enabled) return false;
+      const plans = root.STPromptPlans;
+      const inputs = Object.fromEntries(Object.entries(node.inputs).map(([name, input]) => [
+        plans.spelling(saved, plans.bindingName(packaged, name)), input,
+      ]));
+      try {
+        if (!plans.parameters(saved, "chat-completions", { validateRequest: true }).every(name => Object.hasOwn(inputs, name))) return false;
+      } catch (error) {
+        if (!(error instanceof SyntaxError) && error.code !== "PROMPT_INVALID") throw error;
+        return false;
+      }
+      node.inputs = inputs;
+      return true;
+    };
+    for (const section of ["libraries", "tools", "workflows"]) {
+      const existing = new Set(current[section]?.map(item => item.id));
+      next[section] = next[section].filter(item => existing.has(item.id) ||
+        [...flow.walk(item.steps)].every(node => !missingDependency(node, item) && adaptPrompt(node)));
+    }
+    const existingTriggers = new Set(current.triggers.map(item => item.id));
+    next.triggers = next.triggers.filter(item => {
+      if (existingTriggers.has(item.id)) return true;
+      const workflow = next.workflows.find(row => row.id === item.workflowId);
+      if (!workflow) return false;
+      if (!workflow.inputParameters) return true;
+      const packaged = presets.workflows.find(row => row.id === item.workflowId);
+      const bindings = [];
+      for (const [id, value] of Object.entries(item.inputs)) {
+        const original = packaged.inputParameters?.find(parameter => parameter.variableId === id);
+        const declared = workflow.inputParameters.find(parameter => parameter.variableId === id ||
+          (original && parameter.name === original.name && parameter.type === original.type));
+        if (!declared) return false;
+        bindings.push([declared.variableId, value]);
+      }
+      item.inputs = Object.fromEntries(bindings);
+      return true;
+    });
+    next.presetImportVersion = version;
+    return next;
+  }
+
   async function persistSettings(patch, diagnostics) {
     const storage = root.STSettings.storage;
     const [current, oldAi, oldTranslate] = await Promise.all([
       storage.getWorkflow(), storage.getAi(), storage.getTranslate(),
     ]);
     let workflow = patch.workflow;
-    if (diagnostics.reset) {
+    if (diagnostics.reset || diagnostics.includePresets) {
       const locale = await storage.getUiLocale({ strict: true });
-      const { prompts, triggers, workflows, tools } = model.defaults(await storage.templateLanguage(locale), locale);
-      workflow = { ...current, prompts, triggers, workflows, tools };
+      const presets = await model.loadDefaults(locale);
+      if (diagnostics.reset) {
+        const { prompts, triggers, workflows, tools } = presets;
+        workflow = { ...current, prompts, triggers, workflows, tools };
+      } else {
+        workflow = addMissingPresets(current, presets, chrome.runtime.getManifest().version);
+      }
     }
     if (patch.familySettings) {
-      const text = current.triggers.some(trigger => trigger.id === "trigger-0") ? undefined
-        : await storage.templateLanguage(await storage.getUiLocale({ strict: true }));
-      workflow = model.restoreFamilySchedule(current, patch.familySettings,
-        patch.familyFeature !== false && root.STClientEnvironment.isSteamClientRuntime(), current.epoch === "initial" && current.revision === 1, text);
+      const base = workflow ?? current;
+      const initial = !patch.workflow && current.epoch === "initial" && current.revision === 1;
+      const needsTemplate = !initial && !base.triggers.some(trigger => trigger.id === "trigger-0") &&
+        !base.workflows.some(item => item.id === "wf-0");
+      const family = needsTemplate
+        ? (await model.loadDefaults(await storage.getUiLocale({ strict: true }))).workflows.find(item => item.id === "wf-4")
+        : undefined;
+      workflow = model.restoreFamilySchedule(base, patch.familySettings,
+        patch.familyFeature !== false && root.STClientEnvironment.isSteamClientRuntime(), initial, family);
     }
     const ai = patch.ai ? reviseServices(patch.ai, oldAi, diagnostics.replace, diagnostics.onboardingOnly) : oldAi;
     if (diagnostics.onboardingOnly) {
@@ -1803,7 +2258,8 @@
         throw new Error("安装引导只能配置默认 AI 服务");
     }
     const translate = patch.translate ? { ...oldTranslate, ...patch.translate } : oldTranslate;
-    const next = workflow ? reviseWorkflow(workflow, current, diagnostics.replace && !patch.familySettings) : current;
+    const next = workflow ? reviseWorkflow(workflow, current, { ...diagnostics, translate,
+      replace: diagnostics.replace && !patch.familySettings, includePresets: diagnostics.includePresets || Boolean(patch.familySettings) }) : current;
     if (diagnostics.promptDeletion !== undefined) {
       const { id, referenceIds } = diagnostics.promptDeletion;
       if (!root.STAI.isPromptId(id) || !Array.isArray(referenceIds) || referenceIds.some(reference => typeof reference !== "string") ||
@@ -1843,6 +2299,10 @@
       toolCredentials: credentials,
     }, diagnostics);
 
+    if (next !== current) {
+      for (const { library } of previews.values()) if (library && !libraryVersionMatches(
+        next.libraries?.find(item => item.id === library.id), library.version)) library.controller.abort(libraryUnavailable());
+    }
     if (next !== current || patch.ai) {
       for (const job of await store.byStatus(activeStates)) {
         const rule = next.triggers.find((item) => item.id === job.trigger.id),
@@ -1852,6 +2312,9 @@
           (job.prompt && (!prompt?.enabled || prompt.revision !== job.prompt.revision)) ||
           (job.service && (!ai.enabled || !service?.enabled || service.revision !== job.service.revision)))
           await finish(job.id, "expired");
+        else if (job.libraryRun && !libraryVersionMatches(
+          next.libraries?.find(item => item.id === job.libraryRun.workflow.id), job.libraryRun.workflow))
+          requests.get(job.id)?.abort(libraryUnavailable());
         else if (job.toolRun) {
           const prior = job.toolRun.workflow, tool = next.tools?.find(item => item.id === prior.id);
           if (!tool?.enabled || toolRevision(prior) !== toolRevision(tool))
@@ -2018,14 +2481,14 @@
       const trigger = bundle.triggers.find(item => item.id === request.triggerId && item.revision === request.revision && item.enabled && item.event.type === "schedule");
       return trigger ? root.STAutomationSchedule.clock(trigger, bundle.epoch, await taskIdentity()) : null;
     }
-    if (["test-instruction", "test-tool", "test-workflow", "cancel-instruction-test"].includes(request.action) && (typeof request.id !== "string" || !request.id || typeof sender.documentId !== "string")) throw new TypeError("试运行缺少页面和运行标识");
+    if (["test-instruction", "test-tool", "test-library", "test-workflow", "cancel-instruction-test"].includes(request.action) && (typeof request.id !== "string" || !request.id || typeof sender.documentId !== "string")) throw new TypeError("试运行缺少页面和运行标识");
     const previewKey = [sender?.documentId, request.id].join(":");
     if (request.action === "cancel-instruction-test") {
-      const controller = previews.get(previewKey);
+      const controller = previews.get(previewKey)?.controller;
       controller?.abort(Object.assign(new Error("试运行已停止"), { code: "WORKFLOW_PREVIEW_CANCELLED" }));
       return !!controller;
     }
-    if (request.action === "test-tool") return testTool(request, previewKey);
+    if (request.action === "test-tool" || request.action === "test-library") return testTool(request, previewKey);
     if (request.action === "test-workflow") return testWorkflow(request, previewKey, onPreviewLog);
     if (request.action === "tool-credential") {
       return configExclusive(async () => {
@@ -2060,9 +2523,8 @@
       const meta = request.meta || { triggerName: "指令试运行", triggerType: "manual" };
       if (typeof meta.triggerName !== "string" || !meta.triggerName.trim() || !model.isTriggerType(meta.triggerType)) throw new TypeError("试运行的触发器样例无效");
       const begin = performance.now(), controller = new AbortController();
-      previews.set(previewKey, controller);
-      let writePending = false;
-      const checkpoint = active => { writePending = active; };
+      previews.set(previewKey, { controller });
+      const writes = previewHttpWrites(request.confirmNetwork === true);
       const evaluate = data => root.STWorkflowScript.run({ id: "preview-expression-" + previewKey, ...data, seconds: 10, signal: controller.signal });
       try {
         const state = await workflowState(workflow, request.input || {}, meta.triggerName.trim(), meta.triggerType, [node]);
@@ -2094,24 +2556,23 @@
               output = await readPreviewSteam(node, state);
               flow.complete(workflow, state, node, output);
             } else if (node.action === "http-request" || isToolQuery(node)) {
-              output = await runQuery(node, state, controller.signal, flow.isToolId(workflow.id) ? workflow : null, checkpoint);
+              output = await runQuery(node, state, controller.signal, flow.isToolId(workflow.id) || flow.isLibraryId(workflow.id) ? workflow : null, writes.checkpoint);
               flow.complete(workflow, state, node, output);
             } else if (node.action === "script" || root.STWorkflowData.readingActions.includes(node.action)) {
-              const network = !flow.isToolId(workflow.id) && node.action === "script" ?
-                (http, seconds, signal) => scriptHttp(http, seconds, signal, checkpoint, request.confirmNetwork === true) : undefined;
+              const network = !flow.isToolId(workflow.id) && node.action === "script" ? writes.network : undefined;
               output = await runScriptOrReading(node, state, "preview-" + previewKey, controller.signal, network);
-              if (writePending) throw httpError("HTTP 写请求已发送，结果待核实", "WORKFLOW_HTTP_UNCERTAIN");
+              writes.check();
               flow.complete(workflow, state, node, output);
             } else { flow.local(workflow, state, node); output = state.vars[node.output]; }
           }
           controller.signal.throwIfAborted();
         } catch (error) {
           if (controller.signal.aborted || error.code === "WORKFLOW_HTTP_UNCERTAIN") throw error;
-          if (writePending) throw httpError("HTTP 写请求已发送，结果待核实", "WORKFLOW_HTTP_UNCERTAIN", error);
+          writes.check(error);
           if (node.kind === "if" || node.action === "ai-call" || !flow.failed(workflow, state, node, error)) throw error;
         }
         return { value: output ?? null, variables: state.vars, failures: state.failures || [], milliseconds: performance.now() - begin };
-      } catch (error) { if (controller.signal.aborted) return { cancelled: true, ...(writePending && { uncertain: true }) }; throw error; }
+      } catch (error) { if (controller.signal.aborted) return { cancelled: true, ...(writes.pending && { uncertain: true }) }; throw error; }
       finally { previews.delete(previewKey); }
     }
     if (["save-ai-services", "save-translate", "apply-ai-settings"].includes(request.action))
@@ -2141,7 +2602,7 @@
       return result.body;
     }
     if (request.action === "save-config")
-      return commitConfig(request.value, { operationId: request.operationId, promptDeletion: request.promptDeletion });
+      return commitConfig(request.value, { operationId: request.operationId, promptDeletion: request.promptDeletion, creation: request.creation });
     if (request.action === "reset")
       return commitConfig(undefined, { operationId: request.operationId, reset: true });
     if (request.action === "native-ready") {
@@ -2200,7 +2661,7 @@
     if (request.action === "stop-run") {
       const stopped = await store.change(request.id, job => {
         if (job.owner && job.owner !== owner) throw new Error("当前账号不能停止此运行");
-        if (job.status === "committing" || job.scriptHttpPending) throw new Error("操作已提交，不能保证撤销，请等待实际结果");
+        if (!job.finalized && hasUnconfirmedRequest(job)) throw new Error("操作已提交，不能保证撤销，请等待实际结果");
         return finalState(job, "cancelled");
       });
       if (stopped) await finishEffects(stopped);
@@ -2277,6 +2738,7 @@
       try {
         flow.validateEntryPosition(job.workflow);
         flow.validateEntryPosition(job.toolRun?.workflow);
+        flow.validateEntryPosition(job.libraryRun?.workflow);
       } catch (error) {
         if (error.messageKey !== "workflow_parameter_first") throw error;
         await finish(job.id, "failed", error);
@@ -2352,18 +2814,23 @@
     async restoreReleasedDefaults(previousVersion) {
       upgradeSource = previousVersion;
       if (await startup === false && setupState === "waiting") initializeWorkflow();
-      await startup;
-      if (!root.STFamilyLibrary.hasReleasedSchedule(previousVersion)) return;
+      if (await startup === false) return;
       await configExclusive(async () => {
         const storage = root.STSettings.storage, family = root.STFamilyLibrary;
-        const settingsKey = "st.settings.family-library-owned-marker.enabled";
-        const stored = await chrome.storage.local.get([settingsKey, ...Object.values(family.SETTINGS_KEYS)]);
-        // 已转换的旧配置有明确偏好键，空白升级才需要取正式版默认值
-        if (family.releasedSettings(stored)) return;
         const current = await storage.getWorkflow();
-        if (current.epoch !== "initial" || current.revision !== 1) return;
-        await persistSettings({ familySettings: family.releasedSettings(stored, true), familyFeature: stored[settingsKey] },
-          { reason: "restore-released-family-defaults" });
+        const includePresets = current.presetImportVersion !== chrome.runtime.getManifest().version;
+        const patch = {};
+        if (family.hasReleasedSchedule(previousVersion) && current.epoch === "initial" && current.revision === 1 &&
+          !current.triggers.some(trigger => trigger.id === "trigger-0")) {
+          const settingsKey = "st.settings.family-library-owned-marker.enabled";
+          const stored = await chrome.storage.local.get([settingsKey, ...Object.values(family.SETTINGS_KEYS)]);
+          if (!family.releasedSettings(stored)) {
+            patch.familySettings = family.releasedSettings(stored, true);
+            patch.familyFeature = stored[settingsKey];
+          }
+        }
+        if (includePresets || patch.familySettings)
+          await persistSettings(patch, { reason: "import-automation-presets", includePresets });
       });
     },
     reconcile,

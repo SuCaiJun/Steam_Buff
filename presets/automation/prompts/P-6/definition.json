@@ -1,0 +1,21 @@
+{
+  "id": "P-6",
+  "name": "$text:.name",
+  "enabled": true,
+  "revision": 1,
+  "mode": "basic",
+  "basic": {
+    "system": "$text:.basic.system",
+    "user": "$text:.basic.user"
+  },
+  "advanced": {
+    "chat-completions": "$text:.advanced.chat-completions"
+  },
+  "tokenLocale": "$text:.tokenLocale",
+  "tokens": {
+    "$text:.tokens.游戏资料.label": "游戏资料",
+    "$text:.tokens.可选收藏分组.label": "可选收藏分组",
+    "$text:.tokens.模型.label": "模型",
+    "$text:.tokens.显示语言.label": "显示语言"
+  }
+}

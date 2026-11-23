@@ -1,0 +1,8 @@
+{
+  ".name": "ITAD 가격 및 역대 최저가",
+  ".variables.var-108.name": "appId",
+  ".variables.var-112.name": "조회 결과",
+  ".steps.step-109.branches.0.steps.step-110.value.literal": "AppID가 범위를 벗어났습니다. 1부터 4294967295까지의 정수로 다시 호출하세요.",
+  ".description": "AppID로 설정한 지역의 현재 가격과 역대 최저가를 조회합니다.",
+  ".parameters.0.description": "Steam 게임의 AppID입니다. 1부터 4294967295까지의 정수를 입력합니다."
+}

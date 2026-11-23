@@ -1,0 +1,23 @@
+{
+  ".name": "ゲームの実績を翻訳",
+  ".variables.var-61.name": "入力 AppID",
+  ".variables.var-62.name": "入力ゲーム名",
+  ".variables.var-66.name": "ゲームの実績",
+  ".variables.var-68.name": "保存済みの翻訳",
+  ".variables.var-70.name": "リスト",
+  ".variables.var-72.name": "現在の項目",
+  ".variables.var-73.name": "現在の位置",
+  ".variables.var-76.name": "リストへの追加結果",
+  ".variables.var-78.name": "分割したリスト",
+  ".variables.var-80.name": "現在の項目2",
+  ".variables.var-81.name": "現在の位置2",
+  ".variables.var-83.name": "AIの応答",
+  ".variables.var-85.name": "JSONデータ",
+  ".variables.var-87.name": "翻訳の保存結果",
+  ".steps.step-63.branches.0.steps.step-64.value.literal.message": "AppID が範囲外です。1 から 4294967295 までの整数を入力してください。",
+  ".steps.step-79.body.step-82.inputs.成就条目.label": "実績項目",
+  ".steps.step-79.body.step-82.inputs.任务游戏名称.label": "タスクのゲーム名",
+  ".steps.step-79.body.step-82.inputs.目标语言.label": "翻訳先言語",
+  ".inputParameters.0.name": "入力 AppID",
+  ".inputParameters.1.name": "入力ゲーム名"
+}

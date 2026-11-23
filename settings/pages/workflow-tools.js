@@ -16,8 +16,9 @@
   const outputKeys = ["output", "item", "index", "error", "errorOutput", "contextOutput", "toolRequestsOutput"];
   const typeNames = Object.freeze({ get any() { return tr("workflow_ui_dynamic", "动态"); }, get text() { return tr("steam_independentName_bulk_text", "文本"); }, get number() { return tr("steam_independentName_bulk_number", "数字"); }, get boolean() { return tr("workflow_ui_boolean", "布尔值"); }, get list() { return tr("seed_variable_list", "列表"); }, get object() { return tr("seed_variable_record", "字典"); }, get result() { return tr("workflow_ui_action_result", "指令结果"); } });
   const pairError = (message, nodeId, rowKey = nodeId) => Object.assign(new Error(message), { code: "WORKFLOW_CONFIG_INVALID", nodeId, rowKey, pairing: true });
-  const isEntryRow = node => node?.action === "trigger-parameters" || node?.action === "ai-parameters";
-  const entryKey = workflow => flow.isToolId(workflow.id) ? "ai-parameters" : "trigger-parameters";
+  const isEntryRow = node => ["trigger-parameters", "ai-parameters", "library-parameters"].includes(node?.action);
+  const entryKey = workflow => flow.isLibraryId(workflow.id) ? "library-parameters" : flow.isToolId(workflow.id) ? "ai-parameters" : "trigger-parameters";
+  const usesParameters = workflow => flow.isToolId(workflow.id) || flow.isLibraryId(workflow.id);
   const hasEntryData = workflow => !!workflow.description || flow.entryParameters(workflow).length > 0;
   function createEntryRow(workflow) {
     return { id: flow.numericId("step-", [...flow.walk(workflow.steps)]), kind: "action", action: entryKey(workflow) };
@@ -49,7 +50,7 @@
     for (const node of rows) {
       if (node.action !== key) issues.push(pairError(tr("workflow_error_tool_instruction", "此处不能使用该指令"), node.id));
       else if (node !== primary) {
-        const label = root.STWorkflowInstructions?.name(key) ?? (key === "ai-parameters" ? "AI传参" : "触发器传参");
+        const label = root.STWorkflowInstructions?.name(key) ?? ({ "ai-parameters": "AI 传参", "library-parameters": "指令输入", "trigger-parameters": "触发器传参" })[key];
         issues.push(pairError(tr("workflow_parameter_duplicate", "只能添加一条「" + label + "」指令", { name: label }), node.id));
       }
     }
@@ -63,7 +64,7 @@
     if (remaining.length || !hasEntryData(workflow)) return;
     const ids = new Set(flow.entryParameters(workflow).map(parameter => parameter.variableId));
     workflow.variables = workflow.variables.filter(variable => !ids.has(variable.id));
-    workflow[flow.isToolId(workflow.id) ? "parameters" : "inputParameters"] = [];
+    workflow[usesParameters(workflow) ? "parameters" : "inputParameters"] = [];
     workflow.description = "";
   }
   function pairIssues(list) {
@@ -96,7 +97,7 @@
     const [entryError] = entryRowIssues(draft);
     if (entryError) throw entryError;
     const workflow = flow.clone(draft), folds = [];
-    const inTool = flow.isToolId(workflow.id);
+    const inTool = usesParameters(workflow);
     flow.visitSequences(workflow.steps, ["steps"], (list, path) => {
       const [error] = pairIssues(list);
       if (error) throw error;
@@ -124,7 +125,7 @@
     return workflow;
   }
   // 只遍历指令契约中的引用；literal 内的业务 JSON 即使形似变量引用也不能重写。
-  function bindings(node, visit) {
+  function bindings(node, visit, libraryOutputs = []) {
     function value(item) {
       if (!item || typeof item !== "object" || Object.hasOwn(item, "literal")) return;
       if (item.mode) { value(item.text); value(item.code); return; }
@@ -136,6 +137,8 @@
       else { value(item.left); value(item.right); }
     }
     for (const key of outputKeys) if (node[key]) visit(node, key, "write");
+    if (node.action === "library-call") for (const key of Object.keys(node.libraryOutputs ?? {})) visit(node.libraryOutputs, key, "write");
+    if (node.action === "library-return") for (const field of libraryOutputs) visit(field, "variableId", "read");
     for (const [path, item] of flow.inputs(node)) if (!node.mapping || !path.startsWith("inputs.")) value(item);
     if (node.mapping) { for (const item of node.mapping) value(item.value); }
     if (node.condition) condition(node.condition);
@@ -146,25 +149,32 @@
     for (const node of flow.walk(workflow.steps)) bindings(node, (object, key, role) => {
       const id = object[key]; if (!result.has(id)) result.set(id, []);
       result.get(id).push({ nodeId: node.id, role, key });
-    });
+    }, workflow.outputs);
     return result;
   }
   const uses = (workflow, id) => index(workflow).get(id) || [];
   function replace(workflow, oldId, newId) {
-    for (const node of flow.walk(workflow.steps)) bindings(node, (object, key) => { if (object[key] === oldId) object[key] = newId; });
+    for (const node of flow.walk(workflow.steps))
+      bindings(node, (object, key) => { if (object[key] === oldId) object[key] = newId; }, workflow.outputs);
   }
   function capture(workflow, node, cut = false) {
     const ids = new Set(), children = [...flow.walk([node])];
-    for (const child of children) bindings(child, (object, key) => ids.add(object[key]));
+    const libraryOutputs = children.some(child => child.action === "library-return") ? workflow.outputs : undefined;
+    for (const child of children) bindings(child, (object, key) => ids.add(object[key]), libraryOutputs);
     const key = entryKey(workflow), parameters = flow.entryParameters(workflow);
     const entry = children.some(child => child.action === key) ? { key, description: workflow.description || "", parameters,
       positions: Object.fromEntries(workflow.variables.map((item, index) => [item.id, index])) } : null;
     for (const parameter of entry?.parameters ?? []) ids.add(parameter.variableId);
-    return flow.clone({ workflowId: workflow.id, node, cut, variables: workflow.variables.filter(item => ids.has(item.id)), entry });
+    return flow.clone({ workflowId: workflow.id, node, cut, variables: workflow.variables.filter(item => ids.has(item.id)), entry, libraryOutputs });
   }
   function paste(workflow, clipboard) {
     const copied = flow.clone(clipboard.node), nodes = [...flow.walk([copied])], occupied = [...flow.walk(workflow.steps)], ids = new Map();
     const same = clipboard.workflowId === workflow.id;
+    const libraryOutputs = !same && clipboard.libraryOutputs ? flow.clone(clipboard.libraryOutputs) : undefined;
+    if (libraryOutputs && (!flow.isLibraryId(workflow.id) || workflow.outputs.length))
+      throw Object.assign(new Error(tr("workflow_library_paste_conflict", "无法粘贴库输出。请选择尚未定义输出的自定义库。")), { code: "WORKFLOW_CONFIG_INVALID" });
+    // 同一库的返回指令共用输出来源，复制包含返回的块时也向这些变量写入。
+    const sharedOutputs = new Set(same && clipboard.libraryOutputs ? workflow.outputs.map(field => field.variableId) : []);
     const move = same && clipboard.cut && !nodes.some(node => occupied.some(item => item.id === node.id));
     const key = entryKey(workflow);
     let hasEntry = occupied.some(node => node.action === key);
@@ -173,18 +183,19 @@
     const produced = new Set(), referenced = new Set();
     for (const node of nodes) bindings(node, (object, key, role) => {
       (role === "write" ? produced : referenced).add(object[key]);
-    });
+    }, libraryOutputs);
     for (const variable of clipboard.variables) {
       if (!referenced.has(variable.id) && !produced.has(variable.id) && !parameterIds.has(variable.id)) continue;
       if (move && parameterIds.has(variable.id) && !workflow.variables.some(item => item.id === variable.id || item.name === variable.name)) {
         workflow.variables.splice(entry.positions[variable.id], 0, flow.clone(variable));
         continue;
       }
-      if (same && (!produced.has(variable.id) || move) && workflow.variables.some(item => item.id === variable.id)) continue;
+      if (same && (!produced.has(variable.id) || move || sharedOutputs.has(variable.id)) &&
+          workflow.variables.some(item => item.id === variable.id)) continue;
       ids.set(variable.id, flow.variable(workflow, same ? copyName(variable.name) : variable.name, variable.type));
     }
     if (entry) {
-      const inTool = flow.isToolId(workflow.id);
+      const inTool = usesParameters(workflow);
       workflow.description = entry.description;
       workflow[inTool ? "parameters" : "inputParameters"] = entry.parameters.map(parameter => {
         const variableId = ids.get(parameter.variableId) ?? parameter.variableId;
@@ -199,8 +210,9 @@
         else delete node.draftDuplicateEntry;
         hasEntry = true;
       }
-      bindings(node, (object, key) => { if (ids.has(object[key])) object[key] = ids.get(object[key]); });
+      bindings(node, (object, key) => { if (ids.has(object[key])) object[key] = ids.get(object[key]); }, libraryOutputs);
     }
+    if (libraryOutputs?.length) workflow.outputs = libraryOutputs;
     return copied;
   }
   function lines(workflow) {

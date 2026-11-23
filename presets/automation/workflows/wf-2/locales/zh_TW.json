@@ -1,0 +1,23 @@
+{
+  ".name": "將遊戲新增至收藏分組",
+  ".variables.var-17.name": "傳入APPID",
+  ".variables.var-18.name": "傳入遊戲名稱",
+  ".variables.var-22.name": "字典",
+  ".variables.var-26.name": "遊戲類型",
+  ".variables.var-31.name": "遊戲題材",
+  ".variables.var-36.name": "遊戲特色",
+  ".variables.var-41.name": "商店標籤",
+  ".variables.var-46.name": "讀取收藏分組列表結果",
+  ".variables.var-48.name": "列表",
+  ".variables.var-50.name": "當前項目",
+  ".variables.var-51.name": "當前序號",
+  ".variables.var-54.name": "追加到列表結果",
+  ".variables.var-56.name": "AI 回覆",
+  ".variables.var-58.name": "JSON 數據",
+  ".variables.var-60.name": "將遊戲加入收藏分組結果",
+  ".steps.step-19.branches.0.steps.step-20.value.literal.message": "AppID 超出範圍。請輸入介於 1 和 4294967295 的整數。",
+  ".steps.step-55.inputs.游戏资料.label": "遊戲資料",
+  ".steps.step-55.inputs.可选收藏分组.label": "可選收藏分組",
+  ".inputParameters.0.name": "傳入APPID",
+  ".inputParameters.1.name": "傳入遊戲名稱"
+}
