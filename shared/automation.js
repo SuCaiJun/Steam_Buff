@@ -276,16 +276,25 @@
       enabled: true, description: "", parameters: [] };
   }
   const isOriginalProviderTool = tool => engine.isProviderToolId(tool.id) && tool.executionId === PRESET_TOOL_EXECUTION_ID && tool.revision === 1;
-  function providerTools(text = (_key, fallback) => fallback) {
-    return root.STAI.CHAT_TOOLS.map(provider => {
+  function providerTools(text = (_key, fallback) => fallback, providers = root.STAI.CHAT_TOOLS) {
+    return providers.map(provider => {
+      const search = provider.id === root.STAI.STORE_SEARCH_TOOL_ID;
       const tool = { ...newWorkflow(provider.id, text(provider.label, provider.name)), executionId: PRESET_TOOL_EXECUTION_ID,
-        enabled: true, description: text(provider.help, provider.description),
+        enabled: true, description: text(search ? "seed.tool.storeSearch.description" : provider.help, provider.description),
         parameters: [] };
-      const variableId = engine.variable(tool, "appId", "number");
-      tool.parameters.push({ name: "appId", type: "appId", required: true, description: text("workflow_tool_app_id", "Steam AppID"), variableId });
       const query = engine.createNode("query-provider-data", tool, text);
       query.provider = provider.id;
-      query.appId = engine.reference("variable", variableId);
+      if (search) {
+        tool.parameters = Object.entries(root.STAI.STORE_SEARCH_PROPERTIES).map(([name, { type, description }]) => ({
+          name, type, required: false, description: text("seed.tool.storeSearch." + name, description),
+        }));
+        delete query.appId;
+        query.filters = engine.reference("input");
+      } else {
+        const variableId = engine.variable(tool, "appId", "number");
+        tool.parameters.push({ name: "appId", type: "appId", required: true, description: text("workflow_tool_app_id", "Steam AppID"), variableId });
+        query.appId = engine.reference("variable", variableId);
+      }
       tool.steps.push(query);
       const output = engine.createNode("tool-return", tool, text);
       output.value = engine.reference("variable", query.output);
@@ -434,11 +443,13 @@
     return args;
   }
   function toolSchema(tool) {
+    const preset = tool.id === root.STAI.STORE_SEARCH_TOOL_ID ? root.STAI.STORE_SEARCH_PROPERTIES : {};
     return { type: "function", function: {
       name: tool.id, description: tool.description,
       parameters: { type: "object", additionalProperties: false,
         properties: Object.fromEntries(tool.parameters.map(({ name, type, description }) => [name, {
-          ...(type === "appId" ? { type: "integer", minimum: 1, maximum: root.STAI.TOOL_APP_ID_MAX } : { type }),
+        ...(Object.hasOwn(preset, name) && preset[name].type === type ? preset[name] :
+          type === "appId" ? { type: "integer", minimum: 1, maximum: root.STAI.TOOL_APP_ID_MAX } : { type }),
           ...(description ? { description } : {}),
         }])),
         required: tool.parameters.filter(parameter => parameter.required).map(parameter => parameter.name) },
@@ -645,7 +656,8 @@
     if (result.toolLibraryVersion === undefined) {
       // 旧备份在实际恢复时使用选定语言构建可编辑的默认工具
       if (!deferToolLibrary) {
-        result.tools.unshift(...providerTools(text));
+        const legacyIds = ["steam_game", "steam_players", "itad_prices"];
+        result.tools.unshift(...providerTools(text, root.STAI.CHAT_TOOLS.filter(provider => legacyIds.includes(provider.id))));
         result.toolLibraryVersion = TOOL_LIBRARY_VERSION;
       }
     } else if (result.toolLibraryVersion !== TOOL_LIBRARY_VERSION) throw new TypeError("工具库配置版本无效");

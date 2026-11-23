@@ -10776,6 +10776,79 @@
   "ai_chat_tool_prices_help": {
     "message": "AppID から設定地域の現在価格と過去最安値を取得します。"
   },
+  "ai_chat_tool_search": {
+    "message": "Steam ストア検索"
+  },
+  "ai_chat_tool_search_help": {
+    "message": "キーワード、割引、価格、タグ、互換性で Steam ストアを検索します。条件はすべて任意です。"
+  },
+  "seed_tool_storeSearch_description": {
+    "message": "Steam の中国ストアでゲームや商品を検索し、現在価格、割引、レビュー概要、リンクを返します。すべての引数は任意で、AppID は不要です。50 元未満で簡体字中国語に対応したセール中のゲームを探す例：{\"types\":[\"游戏\"],\"discountsOnly\":true,\"priceBelow\":50,\"languages\":[\"schinese\"]}。返される金額はフェン単位です。items はこのページで条件に合った商品、candidateTotal はこのページの厳密な価格絞り込み前に Steam が返した候補総数です。nextStart に値があれば同じ条件で次のページを取得できます。"
+  },
+  "seed_tool_storeSearch_term": {
+    "message": "ゲーム名や検索キーワード。最大 64 文字で、ゲームの原題も使えます。省略するとキーワードを指定せず検索します。"
+  },
+  "seed_tool_storeSearch_priceBelow": {
+    "message": "表示価格が指定額未満の商品を検索します。単位は中国元で、小数第 2 位まで指定できます。50 を指定した場合、50 元ちょうどの商品は含まれません。freeOnly: true と併用できません。"
+  },
+  "seed_tool_storeSearch_freeOnly": {
+    "message": "true の場合は Steam の無料価格フィルターを使い、表示価格が 0 の商品を返します。freeOnly が true のときは priceBelow を省略し、hideFreeToPlay は true にしないでください。"
+  },
+  "seed_tool_storeSearch_discountsOnly": {
+    "message": "true の場合は Steam の割引・イベントフィルターを使います。false または省略の場合は割引対象外の商品も含まれます。"
+  },
+  "seed_tool_storeSearch_hideFreeToPlay": {
+    "message": "true の場合は Steam で基本プレイ無料の項目を非表示にします。freeOnly: true と併用できません。"
+  },
+  "seed_tool_storeSearch_languages": {
+    "message": "対応言語のコードまたは Steam の簡体字中国語ラベル。例 [\"schinese\",\"japanese\"]。省略すると言語を限定しません。"
+  },
+  "seed_tool_storeSearch_tags": {
+    "message": "含める Steam タグ。例 [\"独立\",\"解谜\"]。Steam の簡体字中国語ラベルまたは \"492\" のような ID 文字列を指定します。"
+  },
+  "seed_tool_storeSearch_excludeTags": {
+    "message": "除外する Steam タグ。例 [\"独立\"] または [\"492\"]。書式は tags と同じです。"
+  },
+  "seed_tool_storeSearch_types": {
+    "message": "商品タイプ。例 [\"游戏\"]（ゲーム）や [\"DLC\"]。Steam の簡体字中国語ラベルまたは \"998\" のような ID 文字列を指定します。"
+  },
+  "seed_tool_storeSearch_playerModes": {
+    "message": "プレイ人数やマルチプレイ形式。例 [\"在线合作\"]。Steam の簡体字中国語ラベルまたは ID 文字列を指定します。"
+  },
+  "seed_tool_storeSearch_features": {
+    "message": "Steam の機能。例 [\"Steam 云\",\"家庭共享\"]。Steam の簡体字中国語ラベルまたは ID 文字列を指定します。"
+  },
+  "seed_tool_storeSearch_controllers": {
+    "message": "コントローラ対応。例 [\"Xbox 控制器支持\"]。Steam の簡体字中国語ラベルまたは ID 文字列を指定します。"
+  },
+  "seed_tool_storeSearch_accessibility": {
+    "message": "アクセシビリティ機能。例 [\"可调整难度\"]。Steam の簡体字中国語ラベルまたは ID 文字列を指定します。"
+  },
+  "seed_tool_storeSearch_deck": {
+    "message": "Steam Deck の互換性。例 [\"通过验证\"] または [\"3\",\"2\"]（確認済み、プレイ可能）。"
+  },
+  "seed_tool_storeSearch_vr": {
+    "message": "VR 対応。例 [\"支持 VR\"]。Steam の簡体字中国語ラベルまたは ID 文字列を指定します。"
+  },
+  "seed_tool_storeSearch_excludeVrOnly": {
+    "message": "true の場合は VR 専用商品を除外し、VR なしでもプレイできる商品を含めます。"
+  },
+  "seed_tool_storeSearch_os": {
+    "message": "対応 OS。例 [\"win\",\"mac\",\"linux\"]。Steam の簡体字中国語ラベルも使えます。"
+  },
+  "seed_tool_storeSearch_sortBy": {
+    "message": "relevance（関連性、既定）、releaseDate（新しい発売日順）、name（名前の昇順）、priceAsc（価格の安い順）、priceDesc（価格の高い順）、reviews（Steam ユーザーレビュー順）。"
+  },
+  "seed_tool_storeSearch_start": {
+    "message": "ページの開始位置。既定は 0 です。次のページは条件と並び順を維持し、前回の nextStart を start に指定します。nextStart が null なら終了です。items が空でも次のページがある場合があります。"
+  },
+  "ai_chat_tool_search_result": {
+    "message": "このページに $matched$ 件、Steam の候補は全 $total$ 件",
+    "placeholders": {
+      "matched": { "content": "$1" },
+      "total": { "content": "$2" }
+    }
+  },
   "workflow_tool_title": {
     "message": "ツール"
   },
@@ -11006,7 +11079,7 @@
     "message": "プラットフォームデータを取得"
   },
   "workflow_command_query_provider_data_hint": {
-    "message": "AppID で Steam または ITAD のデータを取得します"
+    "message": "選択したデータソースの条件で Steam または ITAD を検索します"
   },
   "workflow_output_query_provider_data": {
     "message": "取得結果"
@@ -12001,11 +12074,11 @@
   "workflow_ui_load_more": {
     "message": "さらに読み込む"
   },
-  "workflow_ui_restore_default_prompts_and_automation": {
-    "message": "プロンプトと自動化を初期設定に戻す"
+  "workflow_ui_restore_automation_defaults_title": {
+    "message": "自動化を初期設定に戻す"
   },
-  "workflow_ui_this_replaces_all_prompts_triggers_and_workflows_and_ends_un": {
-    "message": "すべてのプロンプト、トリガー、ワークフローを置き換え、未完了の実行を終了します。AI 接続、メッセージ履歴、保存済みの結果は保持されます。"
+  "workflow_ui_restore_automation_defaults_warning": {
+    "message": "ワークフロー、プロンプト、ツール、トリガーを初期設定に戻します。続行しますか？"
   },
   "workflow_ui_the_referenced_workflow_was_deleted_select_another_workflow": {
     "message": "参照先のワークフローが削除されました。別のワークフローを選択してください。"

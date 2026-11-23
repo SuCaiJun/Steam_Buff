@@ -344,6 +344,13 @@
     if (step.id === "steam_game") field(text("ai_chat_tool_result", "结果"), data.found ? data.name : text("common_none", "暂无"));
     if (step.id === "steam_players")
       field(text("ai_chat_tool_players", "Steam 在线人数"), data.players.toLocaleString(STI18n.intlLocale()));
+    if (step.id === STAI.STORE_SEARCH_TOOL_ID) {
+      field(text("ai_chat_tool_result", "结果"),
+        text("ai_chat_tool_search_result", "本页 $matched$ 项，Steam 候选共 $total$ 项", {
+          matched: data.matched.toLocaleString(STI18n.intlLocale()),
+          total: data.candidateTotal.toLocaleString(STI18n.intlLocale()),
+        }));
+    }
     if (step.id === "itad_prices") {
       field(text("ai_chat_tool_region", "地区"), data.country);
       field(text("ai_chat_tool_current_price", "当前价格"), formatPrice(data.current));

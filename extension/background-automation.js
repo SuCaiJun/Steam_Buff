@@ -1076,6 +1076,10 @@
   async function runQuery(node, state, signal, tool, checkpoint) {
     if (!isToolQuery(node)) return runHttp(node, state, signal, tool, checkpoint);
     try {
+      if (node.provider === root.STAI.STORE_SEARCH_TOOL_ID) {
+        const filters = flow.read(node.filters, state);
+        return await services.aiTool(node.provider, filters, signal);
+      }
       const appId = flow.read(node.appId, state);
       return await services.aiTool(node.provider, { appId }, signal);
     } catch (error) {
@@ -1781,6 +1785,11 @@
       storage.getWorkflow(), storage.getAi(), storage.getTranslate(),
     ]);
     let workflow = patch.workflow;
+    if (diagnostics.reset) {
+      const locale = await storage.getUiLocale({ strict: true });
+      const { prompts, triggers, workflows, tools } = model.defaults(await storage.templateLanguage(locale), locale);
+      workflow = { ...current, prompts, triggers, workflows, tools };
+    }
     if (patch.familySettings) {
       const text = current.triggers.some(trigger => trigger.id === "trigger-0") ? undefined
         : await storage.templateLanguage(await storage.getUiLocale({ strict: true }));
@@ -1793,7 +1802,7 @@
       if (JSON.stringify(custom(ai)) !== JSON.stringify(custom(oldAi)))
         throw new Error("安装引导只能配置默认 AI 服务");
     }
-    let translate = patch.translate ? { ...oldTranslate, ...patch.translate } : oldTranslate;
+    const translate = patch.translate ? { ...oldTranslate, ...patch.translate } : oldTranslate;
     const next = workflow ? reviseWorkflow(workflow, current, diagnostics.replace && !patch.familySettings) : current;
     if (diagnostics.promptDeletion !== undefined) {
       const { id, referenceIds } = diagnostics.promptDeletion;
@@ -1805,17 +1814,9 @@
       if (actual.length !== referenceIds.length || actual.some(reference => !referenceIds.includes(reference.id)))
         throw Object.assign(new Error("提示词的使用方已变更，请重新打开删除确认。"), { code: "WORKFLOW_PROMPT_REFERENCES_CHANGED" });
     }
-    if (diagnostics.reset) {
-      translate = { ...translate };
-      const initial = root.STAI.translationDefaults();
-      for (const fields of Object.values(root.STAI.TRANSLATION)) {
-        for (const key of [fields.prompt, fields.webPrompt].filter(Boolean))
-          if (!next.prompts.some((item) => item.id === translate[key])) translate[key] = initial[key];
-      }
-    }
     validateLinks({ ai, translate, workflow: next }, { ai: oldAi, translate: oldTranslate, workflow: current }, diagnostics.replace);
     let credentials;
-    if (next !== current) {
+    if (!diagnostics.reset && next !== current) {
       const nextTools = new Map((next.tools || []).map(tool => [tool.id, tool]));
       const expiredKeys = [];
       for (const prior of current.tools || []) {
@@ -2141,18 +2142,8 @@
     }
     if (request.action === "save-config")
       return commitConfig(request.value, { operationId: request.operationId, promptDeletion: request.promptDeletion });
-    if (request.action === "reset") {
-      await requireSetup();
-      const current = await root.STSettings.storage.getWorkflow(),
-        locale = await root.STSettings.storage.getUiLocale({ strict: true }),
-        next = model.defaults(await root.STSettings.storage.templateLanguage(locale), locale);
-      for (const [scene, binding] of Object.entries(next.bindings))
-        binding.serviceId = current.bindings[scene].serviceId;
-      next.tools = current.tools || [];
-      next.epoch = crypto.randomUUID();
-      next.revision = current.revision;
-      return commitConfig(next, { operationId: request.operationId, reset: true });
-    }
+    if (request.action === "reset")
+      return commitConfig(undefined, { operationId: request.operationId, reset: true });
     if (request.action === "native-ready") {
       await services.verifyNative(sender);
       const frame = { tabId: sender.tab.id, frameId: sender.frameId };

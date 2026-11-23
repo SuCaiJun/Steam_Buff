@@ -2513,7 +2513,7 @@
                 .map(tool => [tool.id, tool.name, !tool.enabled && tool.id !== working.toolId]),
             ]);
           }
-          const toolLabels = { toolRequest: "workflow_seed_tool_requests", toolArgs: "workflow_ui_tool_arguments", toolData: "workflow_output_tool_call", toolReason: "workflow_ui_tool_reason" };
+          const toolLabels = { toolRequest: "workflow_seed_tool_requests", toolArgs: "workflow_ui_tool_arguments", filters: "workflow_ui_tool_arguments", toolData: "workflow_output_tool_call", toolReason: "workflow_ui_tool_reason" };
           content += flow.actionFields(working).map(field => valueField(toolLabels[field.key] ? tr(toolLabels[field.key], field.label) : instructions.schemaLabel(field.label), working[field.key], field.key, workspace,
             instructions.schemaChoices(field.choices || []), key === "set" ? working.valueType : field.type, false, [], field.selectLiteralType)).join("");
         }
@@ -2802,6 +2802,11 @@
           try {
             if (previewId) void stopPreview().catch(error => reportFailure(error, node.querySelector(".aw-error")));
             collectAll();
+            if (working.action === "query-provider-data" && event.target.matches('[data-prop="provider"]')) {
+              if (working.provider === root.STAI.STORE_SEARCH_TOOL_ID) working.filters ??= flow.literal({});
+              else working.appId ??= flow.literal(0);
+              render(); return;
+            }
             if (http && event.target.matches('[data-prop="method"]') || event.target.matches('[data-prop="toolMode"]')) { render(); return; }
             if (event.target.matches('[data-prop="valueType"]') && Object.hasOwn(flow.activeValue(working.value), "literal")) {
               const type = working.valueType, old = flow.activeValue(working.value).literal;
@@ -3698,8 +3703,8 @@
     }
     if (action.startsWith("tool-")) return toolPageAction(state, action, id);
     if (action === "reset") {
-      const answer = await state.ctx.dialog(state.shadow, { title: tr("workflow_ui_restore_default_prompts_and_automation", "恢复提示词与自动化初始化"), className: "aw-automation-dialog", native: true,
-        message: tr("workflow_ui_this_replaces_all_prompts_triggers_and_workflows_and_ends_un", "将替换全部提示词、触发器和工作流，并结束未完成运行。AI 连接、历史消息及已写入的结果会保留。"),
+      const answer = await state.ctx.dialog(state.shadow, { title: tr("workflow_ui_restore_automation_defaults_title", "恢复自动化出厂设置"), className: "aw-automation-dialog", native: true,
+        message: tr("workflow_ui_restore_automation_defaults_warning", "工作流、提示词、工具、触发器将恢复出厂设置，是否继续？"),
         actions: [{ id: "cancel", label: tr("common_cancel", "取消") }, { id: "reset", label: tr("workflow_ui_restore_defaults", "恢复初始化"), primary: true, danger: true }] });
       if (answer === "reset") {
         const result = await view().rpc("reset");

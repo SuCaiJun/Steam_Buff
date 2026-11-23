@@ -10776,6 +10776,79 @@
   "ai_chat_tool_prices_help": {
     "message": "Look up the current price and historical low in the configured region."
   },
+  "ai_chat_tool_search": {
+    "message": "Steam Store Search"
+  },
+  "ai_chat_tool_search_help": {
+    "message": "Search the Steam Store by keyword, discount, price, tags, or compatibility. All filters are optional."
+  },
+  "seed_tool_storeSearch_description": {
+    "message": "Search Steam’s China store for games and other products. Results include current prices, discounts, review summaries, and links. Every argument is optional. No AppID is needed. For discounted games under ¥50 with Simplified Chinese support, use {\"types\":[\"游戏\"],\"discountsOnly\":true,\"priceBelow\":50,\"languages\":[\"schinese\"]}. Returned prices are in fen. items contains matches on this page. candidateTotal is Steam’s count before the exact price check on this page. Reuse the filters and pass nextStart to get the next page."
+  },
+  "seed_tool_storeSearch_term": {
+    "message": "Game name or search keyword, up to 64 characters. You can use the game's original name. Omit to search without a keyword."
+  },
+  "seed_tool_storeSearch_priceBelow": {
+    "message": "Final displayed price strictly below this amount in CNY, with up to two decimal places. For example, 50 excludes ¥50.00. Incompatible with freeOnly: true."
+  },
+  "seed_tool_storeSearch_freeOnly": {
+    "message": "Use true for Steam’s Free price filter and keep items with a displayed price of zero. Omit priceBelow and leave hideFreeToPlay off when freeOnly is true."
+  },
+  "seed_tool_storeSearch_discountsOnly": {
+    "message": "Use true to select Steam’s Discounts & Events filter. False or omitted includes items without discounts."
+  },
+  "seed_tool_storeSearch_hideFreeToPlay": {
+    "message": "Use true to hide Steam free-to-play items. Incompatible with freeOnly: true."
+  },
+  "seed_tool_storeSearch_languages": {
+    "message": "Supported game language codes or Steam Simplified Chinese labels, e.g. [\"schinese\",\"japanese\"] or [\"简体中文\"]. Omit for any language."
+  },
+  "seed_tool_storeSearch_tags": {
+    "message": "Steam tags to include, e.g. [\"独立\",\"解谜\"]. Use Steam Simplified Chinese labels or ID strings such as \"492\"."
+  },
+  "seed_tool_storeSearch_excludeTags": {
+    "message": "Steam tags to exclude, e.g. [\"独立\"] or [\"492\"]. Uses the same format as tags."
+  },
+  "seed_tool_storeSearch_types": {
+    "message": "Store product types, e.g. [\"游戏\"] for games or [\"DLC\"] for downloadable content. Use Steam Simplified Chinese labels or ID strings such as \"998\"."
+  },
+  "seed_tool_storeSearch_playerModes": {
+    "message": "Player modes, e.g. [\"在线合作\"]. Use Steam Simplified Chinese labels or ID strings."
+  },
+  "seed_tool_storeSearch_features": {
+    "message": "Steam features, e.g. [\"Steam 云\",\"家庭共享\"]. Use Steam Simplified Chinese labels or ID strings."
+  },
+  "seed_tool_storeSearch_controllers": {
+    "message": "Controller support, e.g. [\"Xbox 控制器支持\"]. Use Steam Simplified Chinese labels or ID strings."
+  },
+  "seed_tool_storeSearch_accessibility": {
+    "message": "Accessibility features, e.g. [\"可调整难度\"]. Use Steam Simplified Chinese labels or ID strings."
+  },
+  "seed_tool_storeSearch_deck": {
+    "message": "Steam Deck compatibility, e.g. [\"通过验证\"] or [\"3\",\"2\"] for Verified and Playable."
+  },
+  "seed_tool_storeSearch_vr": {
+    "message": "VR support, e.g. [\"支持 VR\"]. Use Steam Simplified Chinese labels or ID strings."
+  },
+  "seed_tool_storeSearch_excludeVrOnly": {
+    "message": "Use true to exclude VR-only items while allowing games that can also be played without VR."
+  },
+  "seed_tool_storeSearch_os": {
+    "message": "Supported operating systems, e.g. [\"win\",\"mac\",\"linux\"]. Also accepts Steam Simplified Chinese labels."
+  },
+  "seed_tool_storeSearch_sortBy": {
+    "message": "Sort by relevance (default), releaseDate (newest first), name (ascending), priceAsc (lowest first), priceDesc (highest first), or reviews (Steam user review order)."
+  },
+  "seed_tool_storeSearch_start": {
+    "message": "Page offset, default 0. Keep the same filters and order and pass the last nextStart to start. Stop when nextStart is null. An empty items array can still have a nextStart."
+  },
+  "ai_chat_tool_search_result": {
+    "message": "$matched$ on this page, $total$ Steam candidates",
+    "placeholders": {
+      "matched": { "content": "$1" },
+      "total": { "content": "$2" }
+    }
+  },
   "workflow_tool_title": {
     "message": "Tool"
   },
@@ -11006,7 +11079,7 @@
     "message": "Query platform data"
   },
   "workflow_command_query_provider_data_hint": {
-    "message": "Query Steam or ITAD data by AppID"
+    "message": "Query Steam or ITAD using the selected provider's inputs"
   },
   "workflow_output_query_provider_data": {
     "message": "Query result"
@@ -12001,11 +12074,11 @@
   "workflow_ui_load_more": {
     "message": "Load more"
   },
-  "workflow_ui_restore_default_prompts_and_automation": {
-    "message": "Restore default prompts and automation"
+  "workflow_ui_restore_automation_defaults_title": {
+    "message": "Restore automation factory defaults"
   },
-  "workflow_ui_this_replaces_all_prompts_triggers_and_workflows_and_ends_un": {
-    "message": "This replaces all prompts, triggers and workflows and ends unfinished runs. AI connections, message history and saved results are kept."
+  "workflow_ui_restore_automation_defaults_warning": {
+    "message": "Restore workflows, prompts, tools, and triggers to factory defaults?"
   },
   "workflow_ui_the_referenced_workflow_was_deleted_select_another_workflow": {
     "message": "The referenced workflow was deleted. Select another workflow."

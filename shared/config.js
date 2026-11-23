@@ -437,6 +437,8 @@
         add: "/um/AccountCart/AddItemsToCart/",
       }),
       app: (appId) => join(ORIGINS.steamStore, `/app/${encoded(appId)}/`),
+      search: join(ORIGINS.steamStore, "/search"),
+      searchResults: join(ORIGINS.steamStore, "/search/results"),
       appDetails: (appId, filters = "basic", lang = "english") => `${join(ORIGINS.steamStore, "/api/appdetails")}?appids=${encoded(appId)}&filters=${encoded(filters)}&l=${encoded(lang)}`,
       appDetailsForCountry: (appId, cc, filters = "price_overview", lang = "schinese") => `${join(ORIGINS.steamStore, "/api/appdetails")}?appids=${encoded(appId)}&filters=${encoded(filters)}&l=${encoded(lang)}&cc=${encoded(String(cc || "CN").toUpperCase())}`,
       packageDetailsForCountry: (packageId, cc, lang = "schinese") => `${join(ORIGINS.steamStore, "/api/packagedetails")}?packageids=${encoded(packageId)}&l=${encoded(lang)}&cc=${encoded(String(cc || "CN").toUpperCase())}`,

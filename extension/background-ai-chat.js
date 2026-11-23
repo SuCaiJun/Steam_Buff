@@ -105,17 +105,7 @@
   }
 
   function schemas(ids) {
-    return root.STAI.CHAT_TOOLS.filter(tool => ids.includes(tool.id)).map(tool => ({
-      type: "function",
-      function: {
-        name: tool.id,
-        description: tool.description,
-        parameters: {
-          type: "object", properties: { appId: { type: "integer", minimum: 1, maximum: root.STAI.TOOL_APP_ID_MAX } },
-          required: ["appId"], additionalProperties: false,
-        },
-      },
-    }));
+    return root.STAI.CHAT_TOOLS.filter(tool => ids.includes(tool.id)).map(root.STAI.toolSchema);
   }
 
   function collector(emit, bounded = true) {
@@ -159,18 +149,21 @@
     };
   }
 
-  function toolArgs(args) {
+  function toolArgs(name, args) {
     if (typeof args === "string") {
       try { args = JSON.parse(args); }
       catch (cause) { throw Object.assign(new TypeError("AI 返回的工具参数无效", { cause }), { code: "CHAT_TOOL_INVALID" }); }
     }
+    if (name === root.STAI.STORE_SEARCH_TOOL_ID) return root.STSteamStoreSearch.validate(args);
     if (!args || typeof args !== "object" || Array.isArray(args) || Object.keys(args).length !== 1 || !root.STAI.isToolAppId(args.appId))
       throw fault("CHAT_TOOL_INVALID", "AI 返回的 Steam AppID 无效");
     return args;
   }
 
-  async function executeTool(deps, name, appId, signal) {
+  async function executeTool(deps, name, args, signal) {
     signal.throwIfAborted();
+    if (name === root.STAI.STORE_SEARCH_TOOL_ID) return deps.steamStoreSearch(args, signal);
+    const { appId } = args;
     if (name === "itad_prices") return deps.itadPrices(appId, signal);
     const source = "Steam";
     const url = root.STConfig.vendors.steamStore.app(appId);
@@ -181,7 +174,7 @@
 
   async function execute(deps, name, args, signal) {
     root.STAI.validateChatToolIds([name]);
-    return executeTool(deps, name, toolArgs(args).appId, signal);
+    return executeTool(deps, name, toolArgs(name, args), signal);
   }
 
   function priceFact(price) {
@@ -192,6 +185,8 @@
   function toolFacts(name, value) {
     if (name === "steam_game") return { name: value.name, found: value.found };
     if (name === "steam_players") return { players: value.players };
+    if (name === root.STAI.STORE_SEARCH_TOOL_ID)
+      return { term: value.term, candidateTotal: value.candidateTotal, matched: value.items.length };
     return {
       country: value.country,
       current: priceFact(value.current?.price),
@@ -222,9 +217,11 @@
         const index = count++;
         const tool = { type: "tool", id: root.STAI.CHAT_TOOLS.some(item => item.id === id) ? id : null };
         const report = step => emit({ type: "tools", tools: tool.id ? [tool.id] : [], index, step });
+        let args;
         try {
           if (!toolIds.includes(id)) throw fault("CHAT_TOOL_NOT_ALLOWED", "AI 请求了未授权的工具");
-          tool.appId = toolArgs(call.function.arguments).appId;
+          args = toolArgs(id, call.function.arguments);
+          if (args.appId !== undefined) tool.appId = args.appId;
         } catch (error) {
           if (["CHAT_TOOL_NOT_ALLOWED", "CHAT_TOOL_INVALID"].includes(error.code))
             report({ ...tool, state: "blocked", errorCode: error.code });
@@ -233,7 +230,7 @@
         signal.throwIfAborted();
         tool.startedAt = Date.now();
         report({ ...tool, state: "running" });
-        const value = await executeTool(deps, id, tool.appId, signal);
+        const value = await executeTool(deps, id, args, signal);
         signal.throwIfAborted();
         const source = { name: value.source, url: value.url, checkedAt: value.checkedAt };
         if (!sources.has(value.url)) sources.set(value.url, source);

@@ -14,9 +14,11 @@
   function database() {
     if (opening) return opening;
     opening = new Promise((resolve, reject) => {
-      const request = root.indexedDB.open("SteamBuffAutomation", 6);
+      const request = root.indexedDB.open("SteamBuffAutomation", 7);
       let failed = false;
       request.onupgradeneeded = () => {
+        // 兼容已用测试版打开的 v7 数据库，历史继续使用原有索引
+        if (request.result.objectStoreNames.contains("jobs")) return;
         const jobs = request.result.createObjectStore("jobs", { keyPath: "id" });
         jobs.createIndex("event", "eventKey", { unique: true });
         jobs.createIndex("owner-time", ["owner", "createdAt", "id"]);

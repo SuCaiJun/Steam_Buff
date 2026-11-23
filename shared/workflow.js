@@ -91,13 +91,15 @@
   ] });
   const toolQuery = Object.freeze({ id: "query-provider-data", name: "查询平台数据", category: "网络", outputType: "object", outputName: "查询结果",
     fields: [data.field("appId", "AppID", "number", 0)] });
+  const storeSearchFields = [data.field("filters", "工具参数", "object", {})];
   const toolFields = Object.freeze({
     request: ["toolRequest", "toolArgs"], registered: ["toolArgs"],
     result: ["toolRequest", "toolData"], skipped: ["toolRequest", "toolReason"], failed: ["toolRequest", "toolReason"],
   });
   const definitions = Object.freeze({ ...data.byId, ...effects, [http.id]: http, [aiTool.id]: aiTool, [toolQuery.id]: toolQuery });
-  const actionFields = node => definitions[node.action]?.fields.filter(field =>
-    node.action !== aiTool.id || toolFields[node.toolMode]?.includes(field.key));
+  const actionFields = node => node.action === toolQuery.id && node.provider === root.STAI.STORE_SEARCH_TOOL_ID
+    ? storeSearchFields : definitions[node.action]?.fields.filter(field =>
+      node.action !== aiTool.id || toolFields[node.toolMode]?.includes(field.key));
   const failable = node => !!definitions[node.action] || ["script", "ai-call"].includes(node.action);
   const catalog = [...data.definitions, ...effectDefinitions, http, aiTool, toolQuery, ...[
     ["if", "IF 判断", "条件判断"], ["if-many", "IF 多条件", "条件判断"],

@@ -534,11 +534,51 @@
 
   const TOOL_APP_ID_MAX = 0xffffffff;
   const isToolAppId = id => Number.isSafeInteger(id) && id > 0 && id <= TOOL_APP_ID_MAX;
+  const STORE_SEARCH_TOOL_ID = "steam_store_search";
+  const searchOptions = description => ({ type: "array", items: { type: "string" }, description });
+  const STORE_SEARCH_PROPERTIES = Object.freeze({
+    term: { type: "string", maxLength: 64, description: "Game name or search keyword, up to 64 characters. You can use the game's original name. Omit to search without a keyword." },
+    priceBelow: { type: "number", minimum: 0, description: "Final displayed price strictly below this amount in CNY, with up to two decimals. For example, 50 excludes ¥50.00. Incompatible with freeOnly: true." },
+    freeOnly: { type: "boolean", description: "Use true for Steam's Free price filter and keep items with a displayed price of zero. Omit priceBelow and leave hideFreeToPlay off when freeOnly is true." },
+    discountsOnly: { type: "boolean", description: "Use true to select Steam's Discounts & Events filter. With false or when omitted, include items without discounts." },
+    hideFreeToPlay: { type: "boolean", description: "Use true to hide free-to-play items. Incompatible with freeOnly: true." },
+    languages: searchOptions('Supported game language codes or Steam Simplified Chinese labels, e.g. ["schinese", "japanese"]. Omit for any language.'),
+    tags: searchOptions('Steam tags to include, e.g. ["独立", "解谜"]. Natural-language labels must match Steam’s Simplified Chinese catalog. IDs are strings, e.g. "492".'),
+    excludeTags: searchOptions('Steam tags to exclude, e.g. ["独立"] or ["492"]. Uses the same format as tags.'),
+    types: searchOptions('Store product types, e.g. ["游戏"] for games only or ["DLC"] for downloadable content. Accepts Steam Simplified Chinese labels or ID strings such as "998".'),
+    playerModes: searchOptions('Player modes, e.g. ["在线合作"]. Accepts Steam Simplified Chinese labels or ID strings.'),
+    features: searchOptions('Store features, e.g. ["Steam 云", "家庭共享"]. Accepts Steam Simplified Chinese labels or ID strings.'),
+    controllers: searchOptions('Controller support, e.g. ["Xbox 控制器支持"]. Accepts Steam Simplified Chinese labels or ID strings.'),
+    accessibility: searchOptions('Accessibility features, e.g. ["可调整难度"]. Accepts Steam Simplified Chinese labels or ID strings.'),
+    deck: searchOptions('Steam Deck compatibility, e.g. ["通过验证"] or ["3", "2"] for Verified and Playable.'),
+    vr: searchOptions('VR support, e.g. ["支持 VR"]. Accepts Steam Simplified Chinese labels or ID strings.'),
+    excludeVrOnly: { type: "boolean", description: "Use true to exclude VR-only items while allowing games that can also be played without VR." },
+    os: searchOptions('Supported operating systems, e.g. ["win", "mac", "linux"]. Also accepts Steam Simplified Chinese labels.'),
+    sortBy: { type: "string", enum: ["relevance", "releaseDate", "name", "priceAsc", "priceDesc", "reviews"],
+      description: "Sort by relevance (default), releaseDate (newest first), name (A–Z), priceAsc (lowest first), priceDesc (highest first), or reviews (Steam user review order)." },
+    start: { type: "integer", minimum: 0, description: "Page offset, default 0. Keep the same filters and sort order and pass the previous nextStart as start. Stop when nextStart is null. An empty items array can still have a nextStart." },
+  });
   const CHAT_TOOLS = Object.freeze([
     Object.freeze({ id: "steam_game", label: "ai_chat_tool_game", name: "Steam 游戏资料", help: "ai_chat_tool_game_help", description: "按 AppID 查询 Steam 商店公开游戏资料。" }),
     Object.freeze({ id: "steam_players", label: "ai_chat_tool_players", name: "Steam 在线人数", help: "ai_chat_tool_players_help", description: "按 AppID 查询当前在线人数。" }),
     Object.freeze({ id: "itad_prices", label: "ai_chat_tool_prices", name: "ITAD 价格与史低", help: "ai_chat_tool_prices_help", description: "按 AppID 查询配置地区的当前报价和历史最低价。" }),
+    Object.freeze({ id: STORE_SEARCH_TOOL_ID, label: "ai_chat_tool_search", name: "Steam 商店搜索", help: "ai_chat_tool_search_help",
+      description: '搜索 Steam 国区商店的游戏和商品，返回当前价、折扣、评测摘要及链接。全部参数可省略，无需 AppID。查 50 元以下、支持简中且正打折的游戏：{"types":["游戏"],"discountsOnly":true,"priceBelow":50,"languages":["schinese"]}。价格结果以分计，items 是本页命中，candidateTotal 是 Steam 候选总数，未扣除本页价格筛除的商品。nextStart 非空时可用原条件继续翻页。' }),
   ]);
+
+  function toolSchema(tool) {
+    const search = tool.id === STORE_SEARCH_TOOL_ID;
+    return { type: "function", function: {
+      name: tool.id,
+      description: tool.description,
+      parameters: {
+        type: "object",
+        properties: search ? STORE_SEARCH_PROPERTIES : { appId: { type: "integer", minimum: 1, maximum: TOOL_APP_ID_MAX } },
+        required: search ? [] : ["appId"],
+        additionalProperties: false,
+      },
+    } };
+  }
 
   /** 只接受登记的工具 ID。旧提示词省略这个字段 */
   function validateChatToolIds(ids) {
@@ -621,7 +661,7 @@
     modelListIssue,
     hostPermissionPattern,
     chatRequest,
-    CHAT_TOOLS, TOOL_APP_ID_MAX, isToolAppId,
+    CHAT_TOOLS, TOOL_APP_ID_MAX, isToolAppId, STORE_SEARCH_TOOL_ID, STORE_SEARCH_PROPERTIES, toolSchema,
     validateChatToolIds,
     chatBody,
     chatText,

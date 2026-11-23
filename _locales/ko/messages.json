@@ -10776,6 +10776,79 @@
   "ai_chat_tool_prices_help": {
     "message": "AppID로 설정한 지역의 현재 가격과 역대 최저가를 조회합니다."
   },
+  "ai_chat_tool_search": {
+    "message": "Steam 상점 검색"
+  },
+  "ai_chat_tool_search_help": {
+    "message": "검색어, 할인, 가격, 태그, 호환성으로 Steam 상점을 검색합니다. 모든 필터는 선택 사항입니다."
+  },
+  "seed_tool_storeSearch_description": {
+    "message": "Steam 중국 스토어의 게임과 상품을 검색해 현재 가격, 할인, 평가 요약 및 링크를 반환합니다. 모든 인수는 선택 사항이며 AppID는 필요 없습니다. 50위안 미만의 할인 중인 중국어 간체 지원 게임을 검색하는 예: {\"types\":[\"游戏\"],\"discountsOnly\":true,\"priceBelow\":50,\"languages\":[\"schinese\"]}. 반환되는 가격은 펀 단위입니다. items는 이 페이지의 일치 항목이고 candidateTotal은 이 페이지의 정확한 가격 필터를 적용하기 전의 Steam 후보 수입니다. nextStart에 값이 있으면 같은 조건으로 다음 페이지를 불러올 수 있습니다."
+  },
+  "seed_tool_storeSearch_term": {
+    "message": "게임 이름이나 검색어입니다. 원제도 사용할 수 있으며 최대 64자입니다. 생략하면 검색어를 제한하지 않습니다."
+  },
+  "seed_tool_storeSearch_priceBelow": {
+    "message": "현재 표시 가격이 이 금액보다 낮아야 합니다. 단위는 위안이며 소수점 둘째 자리까지 지정할 수 있습니다. 50을 지정하면 정확히 50위안인 상품은 제외합니다. freeOnly가 true이면 쓸 수 없습니다."
+  },
+  "seed_tool_storeSearch_freeOnly": {
+    "message": "true이면 Steam의 무료 가격 필터를 적용하여 표시 가격이 0인 상품만 반환합니다. freeOnly가 true이면 priceBelow를 생략하고 hideFreeToPlay를 true로 설정하지 마세요."
+  },
+  "seed_tool_storeSearch_discountsOnly": {
+    "message": "true이면 Steam의 할인 및 이벤트 필터를 적용합니다. false이거나 생략하면 할인되지 않은 상품도 포함합니다."
+  },
+  "seed_tool_storeSearch_hideFreeToPlay": {
+    "message": "true이면 Steam의 무료 플레이 상품을 숨깁니다. freeOnly가 true이면 쓸 수 없습니다."
+  },
+  "seed_tool_storeSearch_languages": {
+    "message": "지원 언어 코드나 Steam 중국어 간체 이름입니다. 예: [\"schinese\",\"japanese\"]. 생략하면 언어를 제한하지 않습니다."
+  },
+  "seed_tool_storeSearch_tags": {
+    "message": "포함할 Steam 태그입니다. 예: [\"独立\",\"解谜\"]. Steam 중국어 간체 이름이나 \"492\" 같은 ID 문자열을 사용합니다."
+  },
+  "seed_tool_storeSearch_excludeTags": {
+    "message": "제외할 Steam 태그입니다. 예: [\"独立\"] 또는 [\"492\"]. 형식은 tags와 같습니다."
+  },
+  "seed_tool_storeSearch_types": {
+    "message": "스토어 상품 유형입니다. 예: [\"游戏\"](게임) 또는 [\"DLC\"]. Steam 중국어 간체 이름이나 \"998\" 같은 ID 문자열을 사용합니다."
+  },
+  "seed_tool_storeSearch_playerModes": {
+    "message": "플레이 인원 및 방식입니다. 예: [\"在线合作\"]. Steam 중국어 간체 이름이나 ID 문자열을 사용합니다."
+  },
+  "seed_tool_storeSearch_features": {
+    "message": "Steam 기능입니다. 예: [\"Steam 云\",\"家庭共享\"]. Steam 중국어 간체 이름이나 ID 문자열을 사용합니다."
+  },
+  "seed_tool_storeSearch_controllers": {
+    "message": "컨트롤러 지원입니다. 예: [\"Xbox 控制器支持\"]. Steam 중국어 간체 이름이나 ID 문자열을 사용합니다."
+  },
+  "seed_tool_storeSearch_accessibility": {
+    "message": "접근성 기능입니다. 예: [\"可调整难度\"]. Steam 중국어 간체 이름이나 ID 문자열을 사용합니다."
+  },
+  "seed_tool_storeSearch_deck": {
+    "message": "Steam Deck 호환성입니다. 예: [\"通过验证\"] 또는 [\"3\",\"2\"](인증, 플레이 가능)."
+  },
+  "seed_tool_storeSearch_vr": {
+    "message": "VR 지원입니다. 예: [\"支持 VR\"]. Steam 중국어 간체 이름이나 ID 문자열을 사용합니다."
+  },
+  "seed_tool_storeSearch_excludeVrOnly": {
+    "message": "true이면 VR 전용 상품을 제외하고 VR 없이도 플레이할 수 있는 상품을 포함합니다."
+  },
+  "seed_tool_storeSearch_os": {
+    "message": "지원 운영 체제입니다. 예: [\"win\",\"mac\",\"linux\"]. Steam 중국어 간체 이름도 사용할 수 있습니다."
+  },
+  "seed_tool_storeSearch_sortBy": {
+    "message": "relevance(관련성, 기본값), releaseDate(최신 출시순), name(이름 오름차순), priceAsc(가격 낮은순), priceDesc(가격 높은순), reviews(Steam 사용자 평가순)."
+  },
+  "seed_tool_storeSearch_start": {
+    "message": "페이지 시작 위치이며 기본값은 0입니다. 다음 페이지는 필터와 정렬을 유지한 채 이전 nextStart를 start에 전달합니다. nextStart가 null이면 끝이며 items가 비어 있어도 다음 페이지가 있을 수 있습니다."
+  },
+  "ai_chat_tool_search_result": {
+    "message": "이 페이지 $matched$개, Steam 후보 총 $total$개",
+    "placeholders": {
+      "matched": { "content": "$1" },
+      "total": { "content": "$2" }
+    }
+  },
   "workflow_tool_title": {
     "message": "도구"
   },
@@ -11006,7 +11079,7 @@
     "message": "플랫폼 데이터 조회"
   },
   "workflow_command_query_provider_data_hint": {
-    "message": "AppID로 Steam 또는 ITAD 데이터를 조회합니다"
+    "message": "선택한 데이터 소스의 조건으로 Steam 또는 ITAD를 조회합니다"
   },
   "workflow_output_query_provider_data": {
     "message": "조회 결과"
@@ -12001,11 +12074,11 @@
   "workflow_ui_load_more": {
     "message": "더 보기"
   },
-  "workflow_ui_restore_default_prompts_and_automation": {
-    "message": "프롬프트 및 자동화 기본값 복원"
+  "workflow_ui_restore_automation_defaults_title": {
+    "message": "자동화 초기 설정 복원"
   },
-  "workflow_ui_this_replaces_all_prompts_triggers_and_workflows_and_ends_un": {
-    "message": "모든 프롬프트와 트리거, 워크플로를 교체하고 미완료 실행을 종료합니다. AI 연결, 메시지 기록, 저장된 결과는 유지됩니다."
+  "workflow_ui_restore_automation_defaults_warning": {
+    "message": "워크플로, 프롬프트, 도구 및 트리거를 초기 설정으로 되돌립니다. 계속하시겠습니까?"
   },
   "workflow_ui_the_referenced_workflow_was_deleted_select_another_workflow": {
     "message": "참조한 워크플로가 삭제되었습니다. 다른 워크플로를 선택하세요."

@@ -39,6 +39,8 @@
   importScripts(chrome.runtime.getURL("extension/background-lifecycle.js"));
   importScripts(chrome.runtime.getURL("vendor/fflate/fflate.js"));
   importScripts(chrome.runtime.getURL("ai/config.js"));
+  importScripts(chrome.runtime.getURL("vendor/htmlparser2/parser.js"));
+  importScripts(chrome.runtime.getURL("extension/steam-store-search.js"));
   importScripts(chrome.runtime.getURL("extension/background-ai-chat.js"));
   importScripts(chrome.runtime.getURL("shared/price-comparison-catalog.js"));
   importScripts(chrome.runtime.getURL("shared/game-links.js"));
@@ -4174,6 +4176,22 @@
     },
     itadPrices(appId, signal) {
       return chatPricePack(appId, signal);
+    },
+    steamStoreSearch(args, signal) {
+      return globalThis.STSteamStoreSearch.search(args, (url, parent, accept) =>
+        globalThis.STNetworkRequest.run(STORE_FETCH_TIMEOUT_MS, async requestSignal => {
+          let response;
+          try {
+            response = await fetch(url.href, { headers: { Accept: accept }, credentials: "omit", redirect: "error", signal: requestSignal });
+          } catch (error) {
+            if (error.name === "TypeError") error.code = "NETWORK_REQUEST_FAILED";
+            throw error;
+          }
+          if (!response.ok) throw Object.assign(new Error("Steam 商店搜索请求失败"), { status: response.status });
+          if (!(response.headers.get("content-type") || "").toLowerCase().startsWith(accept))
+            throw Object.assign(new TypeError("Steam 商店搜索响应类型异常"), { code: "AI_TOOL_RESPONSE_INVALID" });
+          return response.text();
+        }, parent), signal);
     },
   };
   chrome.runtime.onConnect.addListener(globalThis.STBackgroundAiChat.connect(aiTools));

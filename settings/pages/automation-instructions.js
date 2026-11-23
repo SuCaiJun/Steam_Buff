@@ -121,7 +121,7 @@
     "ai-call": "发送内容给 AI，保存回复原文",
     "tool-call": "执行登记的工具，或为 AI 记录一条已有结果",
     "tool-return": "返回数据并结束工具执行",
-    "query-provider-data": "按 AppID 查询 Steam 或 ITAD 数据",
+    "query-provider-data": "按所选数据来源查询 Steam 或 ITAD 数据",
     notify: "按配置的级别、范围和方式发送通知", interactive: "发送带操作按钮的消息并等待用户操作或超时",
     wait: "等待指定时间后继续执行", stop: "结束本次工作流运行", log: "将内容写入本次运行日志", comment: "为流程添加不参与执行的备注",
     try: "尝试执行内部指令", catch: "发生异常时执行，并保存异常信息", finally: "无论成功或失败都执行", "end-try": "结束异常处理区域", raise: "主动抛出异常，由 Catch 处理或结束失败",
@@ -498,6 +498,8 @@
     }
     if (id === "query-provider-data") {
       const provider = root.STAI.CHAT_TOOLS.find(item => item.id === node.provider);
+      if (node.provider === root.STAI.STORE_SEARCH_TOOL_ID)
+        return [token(tr(provider.label, provider.name)), " · ", ...value(node.filters), ...output(node.output)];
       return [token(provider ? tr(provider.label, provider.name) : tr("workflow_tool_provider", "数据来源")),
         " · AppID ", ...value(node.appId), ...output(node.output)];
     }

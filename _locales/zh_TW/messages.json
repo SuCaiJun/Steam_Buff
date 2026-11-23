@@ -10776,6 +10776,79 @@
   "ai_chat_tool_prices_help": {
     "message": "按 AppID 查詢所選地區的目前報價和歷史最低價。"
   },
+  "ai_chat_tool_search": {
+    "message": "Steam 商店搜尋"
+  },
+  "ai_chat_tool_search_help": {
+    "message": "依關鍵字、折扣、價格、標籤或相容性篩選 Steam 商店。所有條件皆可留空。"
+  },
+  "seed_tool_storeSearch_description": {
+    "message": "搜尋 Steam 中國區商店的遊戲及商品，回傳目前價格、折扣、評論摘要及連結。參數皆可省略，無需 AppID。查詢低於人民幣 50 元、支援簡體中文且正在特價的遊戲：{\"types\":[\"游戏\"],\"discountsOnly\":true,\"priceBelow\":50,\"languages\":[\"schinese\"]}。回傳金額以分為單位。items 是本頁符合的商品，candidateTotal 是 Steam 的候選總數，尚未扣除本頁精確價格篩選的結果。nextStart 有值時可沿用原條件翻頁。"
+  },
+  "seed_tool_storeSearch_term": {
+    "message": "遊戲名稱或關鍵字，最多 64 個字元，可使用遊戲原名。省略時不限關鍵字。"
+  },
+  "seed_tool_storeSearch_priceBelow": {
+    "message": "目前顯示的價格須低於此金額，單位為人民幣元，最多兩位小數。例如 50 不包含正好 50 元的商品。無法與 freeOnly: true 同時使用。"
+  },
+  "seed_tool_storeSearch_freeOnly": {
+    "message": "傳 true 套用 Steam 的免費價格篩選，只保留顯示價格為 0 的商品。此時請省略 priceBelow，且不可將 hideFreeToPlay 設為 true。"
+  },
+  "seed_tool_storeSearch_discountsOnly": {
+    "message": "傳 true 套用 Steam 的折扣與活動篩選。傳 false 或省略會包含未特價商品。"
+  },
+  "seed_tool_storeSearch_hideFreeToPlay": {
+    "message": "傳 true 套用 Steam 隱藏免費遊玩項目的篩選。無法與 freeOnly: true 同時使用。"
+  },
+  "seed_tool_storeSearch_languages": {
+    "message": "遊戲支援的語言，例如 [\"schinese\",\"japanese\"] 或 [\"简体中文\"]。省略時不限語言。"
+  },
+  "seed_tool_storeSearch_tags": {
+    "message": "要納入的 Steam 標籤，例如 [\"独立\",\"解谜\"]。使用 Steam 簡體中文標籤或編號字串，例如 \"492\"。"
+  },
+  "seed_tool_storeSearch_excludeTags": {
+    "message": "要排除的 Steam 標籤，例如 [\"独立\"] 或 [\"492\"]，格式同 tags。"
+  },
+  "seed_tool_storeSearch_types": {
+    "message": "商店商品類型，例如 [\"游戏\"] 或 [\"DLC\"]。使用 Steam 簡體中文名稱或編號字串，例如 \"998\"。"
+  },
+  "seed_tool_storeSearch_playerModes": {
+    "message": "玩家人數或連線模式，例如 [\"在线合作\"]。使用 Steam 簡體中文名稱或編號字串。"
+  },
+  "seed_tool_storeSearch_features": {
+    "message": "Steam 功能，例如 [\"Steam 云\",\"家庭共享\"]。使用 Steam 簡體中文名稱或編號字串。"
+  },
+  "seed_tool_storeSearch_controllers": {
+    "message": "控制器支援，例如 [\"Xbox 控制器支持\"]。使用 Steam 簡體中文名稱或編號字串。"
+  },
+  "seed_tool_storeSearch_accessibility": {
+    "message": "輔助功能，例如 [\"可调整难度\"]。使用 Steam 簡體中文名稱或編號字串。"
+  },
+  "seed_tool_storeSearch_deck": {
+    "message": "Steam Deck 相容性，例如 [\"通过验证\"] 或 [\"3\",\"2\"]（通過驗證、可玩）。"
+  },
+  "seed_tool_storeSearch_vr": {
+    "message": "VR 支援，例如 [\"支持 VR\"]。使用 Steam 簡體中文名稱或編號字串。"
+  },
+  "seed_tool_storeSearch_excludeVrOnly": {
+    "message": "傳 true 排除 VR 獨佔商品，保留也能以非 VR 模式遊玩的商品。"
+  },
+  "seed_tool_storeSearch_os": {
+    "message": "支援的作業系統，例如 [\"win\",\"mac\",\"linux\"]。也可用 Steam 簡體中文名稱。"
+  },
+  "seed_tool_storeSearch_sortBy": {
+    "message": "relevance（關聯性，預設）、releaseDate（最新發行優先）、name（名稱遞增）、priceAsc（價格由低至高）、priceDesc（價格由高至低）、reviews（Steam 使用者評論順序）。"
+  },
+  "seed_tool_storeSearch_start": {
+    "message": "分頁起始位置，預設 0。翻頁時沿用原篩選及排序，把前次回傳的 nextStart 傳給 start。nextStart 為 null 時停止，items 為空時仍可能有下一頁。"
+  },
+  "ai_chat_tool_search_result": {
+    "message": "本頁 $matched$ 項，Steam 候選共 $total$ 項",
+    "placeholders": {
+      "matched": { "content": "$1" },
+      "total": { "content": "$2" }
+    }
+  },
   "workflow_tool_title": {
     "message": "工具"
   },
@@ -11006,7 +11079,7 @@
     "message": "查詢平台資料"
   },
   "workflow_command_query_provider_data_hint": {
-    "message": "按 AppID 查詢 Steam 或 ITAD 資料"
+    "message": "按所選資料來源查詢 Steam 或 ITAD 資料"
   },
   "workflow_output_query_provider_data": {
     "message": "查詢結果"
@@ -12001,11 +12074,11 @@
   "workflow_ui_load_more": {
     "message": "載入更多"
   },
-  "workflow_ui_restore_default_prompts_and_automation": {
-    "message": "恢復提示詞與自動化初始化"
+  "workflow_ui_restore_automation_defaults_title": {
+    "message": "恢復自動化原廠設定"
   },
-  "workflow_ui_this_replaces_all_prompts_triggers_and_workflows_and_ends_un": {
-    "message": "將替換全部提示詞、觸發器和工作流，並結束未完成執行。AI 連線、歷史訊息及已寫入的結果會保留。"
+  "workflow_ui_restore_automation_defaults_warning": {
+    "message": "工作流程、提示詞、工具、觸發器將恢復原廠設定，是否繼續？"
   },
   "workflow_ui_the_referenced_workflow_was_deleted_select_another_workflow": {
     "message": "引用的工作流已刪除，請重新選擇工作流"
