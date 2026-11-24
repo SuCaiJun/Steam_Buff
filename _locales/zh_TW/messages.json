@@ -11197,17 +11197,65 @@
   "ai_chat_model": {
     "message": "模型"
   },
+  "settings_ai_refreshModels": {
+    "message": "重新整理模型"
+  },
+  "settings_ai_reasoningMapping": {
+    "message": "自訂推理參數"
+  },
+  "settings_ai_reasoningMapHint": {
+    "message": "留空時自動辨識。依閘道文件填寫各級別的 JSON 請求參數。"
+  },
+  "settings_ai_reasoningMapStale": {
+    "message": "閘道或模型已變更，請更新自訂推理參數，或清空後自動辨識。"
+  },
+  "ai_chat_effort_default": {
+    "message": "預設"
+  },
+  "ai_chat_effort_off": {
+    "message": "關閉"
+  },
+  "ai_chat_effort_on": {
+    "message": "開啟"
+  },
+  "ai_chat_effort_minimal": {
+    "message": "極低"
+  },
+  "ai_chat_effort_low": {
+    "message": "低"
+  },
+  "ai_chat_effort_high": {
+    "message": "高"
+  },
+  "ai_chat_effort_xhigh": {
+    "message": "很高"
+  },
+  "ai_chat_effort_max": {
+    "message": "最高"
+  },
+  "ai_chat_effort_ultra": {
+    "message": "超高"
+  },
+  "ai_chat_effort_supported": {
+    "message": "支援深度思考"
+  },
+  "ai_chat_effort_unknown": {
+    "message": "尚未確認推理能力"
+  },
+  "ai_chat_effort_invalid": {
+    "message": "推理設定已失效，請檢查 AI 服務和目前模型的推理級別。"
+  },
+  "ai_chat_effort_response_invalid": {
+    "message": "模型傳回的推理續答資料無效。"
+  },
+  "ai_chat_thinking": {
+    "message": "正在思考…"
+  },
   "ai_chat_effort": {
     "message": "推理強度"
   },
-  "ai_chat_effort_simple": {
-    "message": "簡單"
-  },
   "ai_chat_effort_medium": {
     "message": "中度"
-  },
-  "ai_chat_effort_deep": {
-    "message": "深度"
   },
   "ai_chat_images_preview_only": {
     "message": "圖片僅供本機預覽，移除圖片後即可傳送文字。"

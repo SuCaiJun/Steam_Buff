@@ -454,9 +454,17 @@
         .settings-native-layer .wf-editor-dialog { width: min(840px, 100%); }
         .ai-service-editor { position: relative; }
         .ai-service-editor .settings-row { padding-inline: 0; }
-        .ai-service-editor .settings-value { max-width: 100%; }
-        .ai-service-editor [data-ai-model-control] { width: min(280px, 100%); }
-        .ai-service-editor [data-ai="model"] { width: 100%; box-sizing: border-box; padding-inline-end: 36px; }
+        .ai-service-editor .settings-value { flex: 0 1 280px; }
+        .ai-service-editor .settings-control { width: 100%; min-width: 0; box-sizing: border-box; }
+        .ai-service-editor .ai-model-controls {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          width: 100%;
+        }
+        .ai-service-editor [data-ai-model-control] { flex: 1 1 0; min-width: 0; }
+        .ai-service-editor [data-ai="model"] { padding-inline-end: 36px; }
+        .ai-service-editor .ai-reasoning-map { resize: vertical; font-family: monospace; }
         .ai-service-editor .ai-permission-wait { inset: 0; }
         .ai-service-editor .ai-service-feedback { padding: 12px 0 0; }
 
@@ -2347,6 +2355,8 @@
           .settings-control {
             width: 100%;
           }
+
+          .ai-service-editor .settings-value { flex-basis: auto; }
 
           .ai-binding-note {
             width: 100%;

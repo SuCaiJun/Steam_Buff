@@ -324,15 +324,15 @@
     }
   }
 
-  function prepareChat(plan, service, text, history, displayLanguage) {
+  function prepareChat(plan, service, text, history, displayLanguage, requestHistory) {
     const input = chatInput(plan);
     if (!input) throw Object.assign(new Error("关联提示词无法用于聊天，请重新选择"), { code: "CHAT_PROMPT_UNAVAILABLE" });
     if (input.field) {
-      const prepared = prepare(plan, service, { [input.field]: text }, { history, displayLanguage });
+      const prepared = prepare(plan, service, { [input.field]: text }, { history, displayLanguage, requestHistory });
       return prepared.messages ?? prepared.body.messages;
     }
     const withMessage = { ...plan, basic: { ...plan.basic, user: [plan.basic.user, "{{聊天消息}}"].filter(Boolean).join("\n\n") } };
-    return prepare(withMessage, service, { 聊天消息: text }, { history, displayLanguage }).messages;
+    return prepare(withMessage, service, { 聊天消息: text }, { history, displayLanguage, requestHistory }).messages;
   }
 
   root.STPromptPlans = Object.freeze({

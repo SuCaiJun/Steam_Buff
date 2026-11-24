@@ -11197,17 +11197,65 @@
   "ai_chat_model": {
     "message": "모델"
   },
+  "settings_ai_refreshModels": {
+    "message": "모델 새로고침"
+  },
+  "settings_ai_reasoningMapping": {
+    "message": "사용자 지정 추론 매개변수"
+  },
+  "settings_ai_reasoningMapHint": {
+    "message": "비워 두면 자동으로 감지합니다. 게이트웨이 문서에 따라 각 단계의 JSON 요청 매개변수를 입력하세요."
+  },
+  "settings_ai_reasoningMapStale": {
+    "message": "게이트웨이 또는 모델이 변경되었습니다. 사용자 지정 추론 매개변수를 수정하거나 비워 두어 자동 감지를 사용하세요."
+  },
+  "ai_chat_effort_default": {
+    "message": "기본값"
+  },
+  "ai_chat_effort_off": {
+    "message": "끄기"
+  },
+  "ai_chat_effort_on": {
+    "message": "켜기"
+  },
+  "ai_chat_effort_minimal": {
+    "message": "최소"
+  },
+  "ai_chat_effort_low": {
+    "message": "낮음"
+  },
+  "ai_chat_effort_high": {
+    "message": "높음"
+  },
+  "ai_chat_effort_xhigh": {
+    "message": "매우 높음"
+  },
+  "ai_chat_effort_max": {
+    "message": "최대"
+  },
+  "ai_chat_effort_ultra": {
+    "message": "초고강도"
+  },
+  "ai_chat_effort_supported": {
+    "message": "심층 사고 지원"
+  },
+  "ai_chat_effort_unknown": {
+    "message": "추론 기능 미확인"
+  },
+  "ai_chat_effort_invalid": {
+    "message": "추론 설정이 더 이상 유효하지 않습니다. AI 서비스와 모델의 추론 옵션을 확인하세요."
+  },
+  "ai_chat_effort_response_invalid": {
+    "message": "모델이 잘못된 추론 재개 데이터를 반환했습니다."
+  },
+  "ai_chat_thinking": {
+    "message": "생각 중…"
+  },
   "ai_chat_effort": {
     "message": "추론 강도"
   },
-  "ai_chat_effort_simple": {
-    "message": "간단"
-  },
   "ai_chat_effort_medium": {
     "message": "보통"
-  },
-  "ai_chat_effort_deep": {
-    "message": "심층"
   },
   "ai_chat_images_preview_only": {
     "message": "이미지는 로컬에서만 미리 볼 수 있습니다. 텍스트를 보내려면 이미지를 제거하세요."

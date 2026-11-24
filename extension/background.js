@@ -2729,13 +2729,14 @@
         check();
         return data;
       };
-      const { modelIds } = globalThis.STAI;
-      if (!request.paged) return [...new Set(modelIds((await read())?.data))];
+      const { modelDetails } = globalThis.STAI;
+      const unique = rows => [...new Map(rows.map(row => [row.id, row])).values()];
+      if (!request.paged) return unique(modelDetails((await read())?.data, request.gateway));
 
       // 百炼返回分页目录。整个检测共用一个超时，缺页或总数变化时让用户重新检测。
-      const ids = [];
+      const items = [];
       let total;
-      for (let page = 1; total === undefined || ids.length < total; page++) {
+      for (let page = 1; total === undefined || items.length < total; page++) {
         url.searchParams.set("page_no", String(page));
         const data = await read();
         const output = data?.output;
@@ -2743,12 +2744,12 @@
             !Number.isSafeInteger(output.total) || output.total < 0 || (total !== undefined && total !== output.total))
           throw new TypeError("百炼模型列表分页状态无效");
         total = output.total;
-        const batch = modelIds(output.models, "model");
-        if (ids.length + batch.length > total || (!batch.length && ids.length < total))
+        const batch = modelDetails(output.models, request.gateway, "model");
+        if (items.length + batch.length > total || (!batch.length && items.length < total))
           throw new TypeError("百炼模型列表返回不完整");
-        for (const id of batch) ids.push(id);
+        for (const item of batch) items.push(item);
       }
-      return [...new Set(ids)];
+      return unique(items);
     }, signal);
   }
 
@@ -2797,7 +2798,8 @@
           : fetchPreparedAi(next, url.href, timeoutMs, request.signal, toolReader);
       }, request.signal);
       const calls = toolReader ? toolReader.finish() : undefined;
-      sendResponse(listModels ? { success: true, models: result } : { success: true, text: result.content, status: result.status, ...(toolReader ? { calls } : {}) });
+      sendResponse(listModels ? { success: true, models: result.map(row => row.id), modelDetails: result }
+        : { success: true, text: result.content, status: result.status, ...(toolReader ? { calls } : {}) });
     } catch (error) {
       if (error?.name === "SyntaxError") globalThis.STLoggerSchema.markJsonError(error);
       if (error?.name !== "AbortError")
@@ -4202,14 +4204,13 @@
   });
   const aiTools = {
     accountTool: accountTools.execute,
-    async round(service, messages, tools, signal, chat) {
+    async round(service, messages, tools, signal, chat, reasoning) {
       const next = globalThis.STAI.chatRequest(service, messages);
       const url = new URL(next.url);
       next.body.stream = true;
-      if (tools.length) {
-        next.body.tools = tools;
-        configureToolThinking(next.body, url);
-      }
+      if (tools.length) next.body.tools = tools;
+      if (reasoning?.ignoreTemperature) delete next.body.temperature;
+      if (reasoning?.body) Object.assign(next.body, reasoning.body);
       return runAiLimited(service.aiConcurrency, async () => {
         signal.throwIfAborted();
         if (!await hasAiGatewayPermission(url.href))

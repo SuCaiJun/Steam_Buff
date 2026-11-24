@@ -60,8 +60,12 @@
     const models = get("composer-model-choices"), range = get("composer-effort"), badge = get("composer-effort-badge");
     const approvalPanel = get("composer-approval-panel"), approvals = get("composer-approval-choices");
     const approvalMode = get("composer-approval-mode");
-    const labels = Array.from(panel.querySelectorAll("[data-effort]"));
+    const effort = panel.querySelector(".composer-effort");
+    const actions = effort.querySelector(".composer-effort-actions");
+    const status = effort.querySelector(".composer-effort-status");
+    const labels = effort.querySelector(".composer-effort-labels");
     const track = range.parentElement, thumb = track.querySelector(".composer-effort-thumb");
+    const ticks = track.querySelector(".composer-effort-ticks");
     const usage = get("composer-usage"), usageInfo = get("composer-usage-info");
     const usageFill = get("composer-usage-fill"), usageDetail = get("composer-usage-detail");
     const usagePercent = get("composer-usage-percent");
@@ -73,7 +77,8 @@
     const images = new Map();
     const effortField = window.STChatEffortField.mount(track.querySelector("canvas"), track, reduceMotion, signal);
     let listedServices, activeChoice, usageService, busy = true;
-    let previewTrigger, mentionStart, draftId, frame = 0, drag, settle, effortValue = Number(range.value);
+    let previewTrigger, mentionStart, draftId, frame = 0, drag, settle, effortValue = 0;
+    let effortProfile, effortKey, effortSelection, effortLevels = [], toolsEnabled = false;
     let usageTimer = 0, usagePinned = false;
     const listen = (target, event, listener) => target.addEventListener(event, listener, { signal });
 
@@ -158,7 +163,7 @@
         (activeChoice || models.querySelector("input") || range).focus({ preventScroll: true });
       },
       onOpen(open) {
-        effortField.setOpen(open);
+        effortField.setOpen(open && !track.hidden);
         if (!open) finishDrag(true);
       },
     });
@@ -227,18 +232,23 @@
         setUsage(null);
       }
       const selected = listedServices?.find(item => item.id === service.value);
-      modelName.textContent = selected?.model || text("ai_chat_select_service", "选择 AI 服务");
+      modelName.textContent = selected?.modelName || selected?.model || text("ai_chat_select_service", "选择 AI 服务");
       model.title = selected
         ? selected.name + " · " + selected.model + " · " + text("ai_chat_effort", "推理强度")
         : modelName.textContent;
+      syncEffort(selected);
     }
 
     function setServices(items) {
       if (items !== listedServices) {
         listedServices = items;
         const names = new Map();
-        for (const { model: name } of items) names.set(name, (names.get(name) || 0) + 1);
-        models.replaceChildren(modelRows.indicator, ...items.map(({ id, name, model: nameOfModel }) => {
+        for (const item of items) {
+          const name = item.modelName || item.model;
+          names.set(name, (names.get(name) || 0) + 1);
+        }
+        models.replaceChildren(modelRows.indicator, ...items.map(({ id, name, model: modelId, modelName }) => {
+          const nameOfModel = modelName || modelId;
           const row = document.createElement("label");
           const choice = document.createElement("input");
           choice.type = "radio";
@@ -247,7 +257,7 @@
           choice.disabled = busy;
           const caption = document.createElement("span");
           caption.textContent = nameOfModel;
-          row.title = name;
+          row.title = name + " · " + modelId;
           row.append(choice, caption);
           if (names.get(nameOfModel) > 1) {
             const detail = document.createElement("small");
@@ -292,15 +302,88 @@
       });
     }
 
+    const effortNames = {
+      default: ["ai_chat_effort_default", "默认"], off: ["ai_chat_effort_off", "关闭"], on: ["ai_chat_effort_on", "开启"],
+      minimal: ["ai_chat_effort_minimal", "极低"], low: ["ai_chat_effort_low", "低"], medium: ["ai_chat_effort_medium", "中度"],
+      high: ["ai_chat_effort_high", "高"], xhigh: ["ai_chat_effort_xhigh", "很高"], max: ["ai_chat_effort_max", "最高"],
+      ultra: ["ai_chat_effort_ultra", "超高"],
+    };
+
+    function effortLabel(value) {
+      return Object.hasOwn(effortNames, value) ? text(...effortNames[value]) : value;
+    }
+
+    function effortButton(choice) {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.dataset.reasoningChoice = choice;
+      button.textContent = effortLabel(choice);
+      button.disabled = busy;
+      return button;
+    }
+
+    function effortDefault() {
+      return toolsEnabled && effortProfile?.offWithToolsByDefault ? "off" : effortProfile?.defaultLevel;
+    }
+
+    function showEffort(value = effortSelection) {
+      const effective = value ?? effortDefault();
+      const chosen = value ?? "default";
+      badge.textContent = !effort.hidden && effortProfile?.choices.length ? effortLabel(effective ?? "default") : "";
+      badge.hidden = !badge.textContent;
+      const active = effortLevels.indexOf(effective);
+      model.dataset.effort = active < 0 ? "" : active === 0 ? "0" : active === effortLevels.length - 1 ? "2" : "1";
+      for (const button of effort.querySelectorAll("[data-reasoning-choice]"))
+        button.setAttribute("aria-pressed", String(button.dataset.reasoningChoice === chosen));
+    }
+
+    function setEffort(choice) {
+      effortSelection = choice === "default" ? undefined : choice;
+      effortValue = Math.max(0, effortLevels.indexOf(effortSelection ?? effortDefault()));
+      range.value = String(effortValue);
+      showEffort();
+      drawEffort(effortValue);
+    }
+
+    function syncEffort(selected) {
+      const key = selected && JSON.stringify([selected.id, selected.model, selected.revision, selected.reasoning]);
+      if (key === effortKey) return;
+      finishDrag(true);
+      effortKey = key;
+      effortProfile = selected?.reasoning;
+      const choices = effortProfile?.choices ?? [];
+      effortLevels = choices.filter(choice => choice !== "off" && choice !== "on");
+      effort.hidden = !selected || !effortProfile || effortProfile.unsupported;
+      status.hidden = Boolean(choices.length);
+      status.textContent = effortProfile?.supported
+        ? text("ai_chat_effort_supported", "支持深度思考")
+        : text("ai_chat_effort_unknown", "推理能力未确认");
+      const slider = effortLevels.length > 1;
+      const shortcuts = slider ? choices.filter(choice => !effortLevels.includes(choice)) : choices;
+      actions.hidden = !choices.length;
+      actions.replaceChildren(...(choices.length ? ["default", ...shortcuts].map(effortButton) : []));
+      track.hidden = labels.hidden = !slider;
+      labels.replaceChildren(...(slider ? effortLevels.map((choice, index) => {
+        const button = effortButton(choice);
+        button.dataset.effort = String(index);
+        if (index === effortLevels.length - 1) button.classList.add("composer-effort-last");
+        return button;
+      }) : []));
+      ticks.replaceChildren(...(slider ? effortLevels.map(() => document.createElement("i")) : []));
+      range.max = String(Math.max(1, effortLevels.length - 1));
+      range.disabled = busy || !slider;
+      effortField.setOpen(modelMenu.open && slider);
+      setEffort("default");
+    }
+
     function drawEffort(value, position = value, speed = 0) {
-      const label = labels[value].textContent;
-      range.setAttribute("aria-valuetext", label);
-      badge.textContent = label;
-      if (model.dataset.effort !== String(value)) model.dataset.effort = String(value);
-      track.style.setProperty("--composer-effort-ratio", String(position / 2));
-      track.dataset.high = String(position === 2);
-      effortField.setValue(position / 2, speed);
-      labels.forEach((control, index) => control.setAttribute("aria-pressed", String(index === value)));
+      if (track.hidden) return;
+      const ratio = position / (effortLevels.length - 1);
+      range.setAttribute("aria-valuetext", effortLabel(effortLevels[value]));
+      track.style.setProperty("--composer-effort-ratio", String(ratio));
+      track.dataset.high = String(ratio === 1);
+      effortField.setValue(ratio, speed);
+      if (drag) showEffort(effortLevels[value]);
     }
 
     function finishDrag(cancelled, pointerId) {
@@ -308,7 +391,11 @@
       drag = null;
       track.removeAttribute("data-dragging");
       if (cancelled) range.value = String(effortValue);
-      else effortValue = Number(range.value);
+      else {
+        effortValue = Number(range.value);
+        effortSelection = effortLevels[effortValue];
+      }
+      showEffort();
       drawEffort(effortValue);
       thumb.style.removeProperty("--effort-speed");
       thumb.style.removeProperty("--effort-stretch");
@@ -440,7 +527,6 @@
     mention.textContent = text("ai_chat_mention_game", "当前游戏 · AppID $id$", { id: appId ?? "" });
     add.hidden = approval.parentElement.hidden = form.querySelector(".composer-pickers").hidden = false;
     form.classList.add("chat-composer");
-    drawEffort(effortValue);
     syncApproval();
     setUsage(null);
 
@@ -525,13 +611,15 @@
       const rect = track.getBoundingClientRect();
       settle?.cancel();
       const left = rect.left + 15, travel = Math.max(1, rect.width - 30);
-      const position = Math.min(2, Math.max(0, (event.clientX - left) / travel * 2));
+      const max = Number(range.max);
+      const position = Math.min(max, Math.max(0, (event.clientX - left) / travel * max));
       drag = { id: event.pointerId, x: event.clientX, time: event.timeStamp, left, travel, position };
       track.dataset.dragging = "true";
     });
     listen(range, "pointermove", event => {
       if (drag?.id !== event.pointerId || reduceMotion.matches) return;
-      drag.position = Math.min(2, Math.max(0, (event.clientX - drag.left) / drag.travel * 2));
+      const max = Number(range.max);
+      drag.position = Math.min(max, Math.max(0, (event.clientX - drag.left) / drag.travel * max));
       const speed = Math.min(3.5, Math.max(-3.5, (event.clientX - drag.x) / Math.max(1, event.timeStamp - drag.time)));
       thumb.style.setProperty("--effort-speed", String(speed));
       thumb.style.setProperty("--effort-stretch", String(1 + Math.min(.46, Math.abs(speed) * .18)));
@@ -540,16 +628,18 @@
       drag.time = event.timeStamp;
     });
     listen(range, "input", () => {
-      if (!drag) effortValue = Number(range.value);
+      if (!drag) {
+        setEffort(effortLevels[Number(range.value)]);
+        return;
+      }
       drawEffort(Number(range.value), reduceMotion.matches ? undefined : drag?.position);
     });
     listen(window, "pointerup", event => finishDrag(false, event.pointerId));
     listen(window, "pointercancel", event => finishDrag(true, event.pointerId));
     listen(window, "blur", () => finishDrag(true));
-    for (const label of labels) listen(label, "click", () => {
-      effortValue = Number(label.dataset.effort);
-      range.value = label.dataset.effort;
-      drawEffort(effortValue);
+    listen(effort, "click", event => {
+      const button = event.target.closest("[data-reasoning-choice]");
+      if (button && !busy) setEffort(button.dataset.reasoningChoice);
     });
     listen(add, "click", () => files.click());
     listen(files, "change", () => { addImages(files.files); files.value = ""; });
@@ -614,11 +704,19 @@
 
     return {
       syncSize, setServices, setUsage, dismiss,
+      getReasoning: () => effortSelection,
+      setToolsEnabled(value) {
+        if (toolsEnabled === value) return;
+        toolsEnabled = value;
+        if (effortSelection === undefined && effortProfile) setEffort("default");
+      },
       hasImages: () => images.size > 0,
       setBusy(value) {
         busy = value;
         add.disabled = model.disabled = approval.disabled = value;
         for (const item of models.querySelectorAll("input")) item.disabled = value;
+        for (const item of effort.querySelectorAll("button")) item.disabled = value;
+        range.disabled = value || track.hidden;
         if (!value) return;
         finishDrag(true);
         modelMenu.set(false);
@@ -630,6 +728,7 @@
       setDraft(id) {
         if (id === draftId) return;
         draftId = id;
+        setEffort("default");
         clearImages();
         closeUsage(true);
         setUsage(null);

@@ -795,9 +795,16 @@
     const previous = state.aiRegistry;
     const next = { ...previous, enabled: form.enabled, aiConcurrency: form.aiConcurrency };
     if (form.enabled) {
-      const defaultId = globalThis.STAI.DEFAULT_SERVICE_ID;
-      next.services = previous.services.map((service) => service.id === defaultId
-        ? { ...service, ...form, enabled: true } : service);
+      const ai = globalThis.STAI;
+      next.services = previous.services.map((service) => {
+        if (service.id !== ai.DEFAULT_SERVICE_ID) return service;
+        const item = { ...service, ...form, enabled: true };
+        const sameModel = service.model === item.model && ai.endpoint(service) === ai.endpoint(item);
+        if (!sameModel || service.key !== item.key || service.keyMode !== item.keyMode || service.keyName !== item.keyName)
+          delete item.directoryModel;
+        if (!sameModel || item.provider !== "custom") delete item.customReasoning;
+        return item;
+      });
     }
     log.info("onboarding-ai-save-start", "安装引导开始保存 AI 配置", {
       operationId,

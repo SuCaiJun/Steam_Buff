@@ -576,6 +576,7 @@
 
   root.STConfig = Object.freeze({
     aiProviders,
+    aiOpenRouterBase: "https://openrouter.ai/api/v1",
     aiChatName: "蒸汽机",
     // Steam Popup 的拖动区域与隔离页的会话控件必须共享同一组尺寸。
     aiChatWindowLayout: Object.freeze({ titleHeight: 44, brandWidth: 94, controlsWidth: 112, toolSlotWidth: 44, minDragWidth: 44, sessionWidth: 284 }),

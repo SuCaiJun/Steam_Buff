@@ -11197,17 +11197,65 @@
   "ai_chat_model": {
     "message": "モデル"
   },
+  "settings_ai_refreshModels": {
+    "message": "モデルを更新"
+  },
+  "settings_ai_reasoningMapping": {
+    "message": "カスタム推論パラメーター"
+  },
+  "settings_ai_reasoningMapHint": {
+    "message": "空欄の場合は自動検出します。ゲートウェイの仕様に沿って各段階の JSON リクエストパラメーターを入力してください。"
+  },
+  "settings_ai_reasoningMapStale": {
+    "message": "ゲートウェイまたはモデルが変更されました。カスタム推論パラメーターを更新するか、空欄にして自動検出を使用してください。"
+  },
+  "ai_chat_effort_default": {
+    "message": "既定"
+  },
+  "ai_chat_effort_off": {
+    "message": "オフ"
+  },
+  "ai_chat_effort_on": {
+    "message": "オン"
+  },
+  "ai_chat_effort_minimal": {
+    "message": "最小"
+  },
+  "ai_chat_effort_low": {
+    "message": "低"
+  },
+  "ai_chat_effort_high": {
+    "message": "高"
+  },
+  "ai_chat_effort_xhigh": {
+    "message": "より高い"
+  },
+  "ai_chat_effort_max": {
+    "message": "最大"
+  },
+  "ai_chat_effort_ultra": {
+    "message": "超高"
+  },
+  "ai_chat_effort_supported": {
+    "message": "深い思考に対応"
+  },
+  "ai_chat_effort_unknown": {
+    "message": "推論機能は未確認です"
+  },
+  "ai_chat_effort_invalid": {
+    "message": "推論設定が無効になりました。AI サービスとモデルの推論設定を確認してください。"
+  },
+  "ai_chat_effort_response_invalid": {
+    "message": "モデルから無効な推論継続データが返されました。"
+  },
+  "ai_chat_thinking": {
+    "message": "思考中…"
+  },
   "ai_chat_effort": {
     "message": "推論の強さ"
   },
-  "ai_chat_effort_simple": {
-    "message": "簡単"
-  },
   "ai_chat_effort_medium": {
     "message": "中程度"
-  },
-  "ai_chat_effort_deep": {
-    "message": "詳細"
   },
   "ai_chat_images_preview_only": {
     "message": "画像はローカルでのみプレビューできます。テキストを送信するには画像を削除してください。"

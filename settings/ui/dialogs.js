@@ -260,6 +260,7 @@
         } finally {
           actionPending = false;
           controls.forEach((node, index) => { node.disabled = disabled[index]; });
+          if (!done) options.onActionSettled?.();
         }
       }
       layer.addEventListener("click", (event) => {

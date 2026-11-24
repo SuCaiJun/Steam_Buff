@@ -44,6 +44,7 @@
   let sendShortcutChanged = false, sendWithCtrl = true;
   let needsSettings = false;
   let records = [], services = [];
+  let servicesChanged = false;
   let failedTurn;
   let composerView, composerBusy = true;
 
@@ -151,7 +152,7 @@
       if (message.sequence !== pending?.sequence) return;
       const { progress, resolve, reject } = pending;
       if (message.type === "tool-approval") return showApproval(opened, message);
-      if (message.type === "delta" || message.type === "tools") return progress?.(message);
+      if (["delta", "tools", "thinking"].includes(message.type)) return progress?.(message);
       clearApproval();
       pending = null;
       if (message.type === "done") resolve(message.result);
@@ -551,10 +552,7 @@
     else renderHistory();
   }
 
-  function renderControls() {
-    const draft = desktop ? drafts.get(thread.id) : undefined;
-    const selectedService = draft?.serviceId ?? thread.serviceId;
-    renderHistory();
+  function renderServices(selectedService) {
     service.replaceChildren(...services.map(item => option(item.id, item.name + " · " + item.model)));
     if (services.some(item => item.id === selectedService)) service.value = selectedService;
     else if (selectedService) {
@@ -562,10 +560,19 @@
       service.value = "";
     }
     composerView?.setServices(services);
-    composerView?.setDraft(thread.id);
     updateSettingsLink();
-    if (desktop && !services.length && !status.textContent)
-      status.textContent = text("ai_chat_setup_service", "请前往「扩展设置 → AI 服务」配置可用的服务。");
+    if (desktop) {
+      const setup = text("ai_chat_setup_service", "请前往「扩展设置 → AI 服务」配置可用的服务。");
+      if (!services.length && !status.textContent) status.textContent = setup;
+      else if (services.length && status.textContent === setup) status.textContent = "";
+    }
+  }
+
+  function renderControls() {
+    const draft = desktop ? drafts.get(thread.id) : undefined;
+    renderHistory();
+    renderServices(draft?.serviceId ?? thread.serviceId);
+    composerView?.setDraft(thread.id);
     busy(false);
   }
 
@@ -601,10 +608,11 @@
     stop.disabled = !generating;
     stop.removeAttribute("aria-busy");
     if (web) for (const button of byId("suggestions").children) button.disabled = value;
+    if (!value) void refreshServices();
   }
 
   function syncComposer() {
-    send.disabled = composerBusy || savingTool || !service.value || !input.value.trim() || composerView?.hasImages() === true;
+    send.disabled = composerBusy || !!pending || savingTool || !service.value || !input.value.trim() || composerView?.hasImages() === true;
     composerView?.syncSize();
   }
 
@@ -634,6 +642,7 @@
     const sameRows = items.length === toolOptions.length && items.every((tool, index) =>
       tool.id === toolOptions[index].id && tool.name === toolOptions[index].name);
     toolOptions = items;
+    composerView?.setToolsEnabled(items.some(tool => tool.enabled));
     if (!sameRows) {
       const focused = checks.contains(document.activeElement) ? document.activeElement.value : null;
       checks.replaceChildren(...items.map(tool => {
@@ -656,6 +665,25 @@
     send.setAttribute("aria-keyshortcuts", sendWithCtrl ? "Control+Enter" : "Enter");
   }
 
+  async function refreshServices() {
+    if (!servicesChanged || !thread || composerBusy || pending || savingTool) return;
+    servicesChanged = false;
+    try {
+      const results = call("services");
+      syncComposer();
+      const updated = await results;
+      if (servicesChanged) return;
+      services = updated;
+      renderServices(service.value || thread.serviceId);
+    } catch (error) {
+      log.error("chat-services-refresh-failed", "刷新聊天服务信息失败", { error });
+      failed(error);
+    } finally {
+      syncComposer();
+      if (servicesChanged) void refreshServices();
+    }
+  }
+
   function onPreferenceChanged(changes, area) {
     if (area !== "local") return;
     if (Object.hasOwn(changes, sendShortcutKey)) {
@@ -666,6 +694,10 @@
     if (change) {
       toolSyncVersion += 1;
       renderTools(STAI.chatToolsFromWorkflow(change.newValue));
+    }
+    if (Object.hasOwn(changes, STAI.SERVICES_KEY) || Object.hasOwn(changes, STAI.storageKey("enabled"))) {
+      servicesChanged = true;
+      void refreshServices();
     }
   }
 
@@ -699,6 +731,7 @@
       syncComposer();
       if (toolsMenu.open && document.activeElement === document.body)
         (box.isConnected && !box.disabled ? box : toolsTrigger).focus({ preventScroll: true });
+      void refreshServices();
     }
   }
 
@@ -796,6 +829,8 @@
       CHAT_PROMPT_UNAVAILABLE: ["ai_chat_prompt_unavailable", "关联提示词不可用，请在「AI 服务 → 对话入口」重新选择。"],
       CHAT_BUSY: ["ai_chat_busy", "此对话正在另一个窗口生成。"],
       CHAT_CHANGED: ["ai_chat_changed", "此对话已更新，请查看最新记录后重新发送。"],
+      CHAT_REASONING_INVALID: ["ai_chat_effort_invalid", "推理设置已失效，请检查 AI 服务和当前模型的推理档位。"],
+      CHAT_REASONING_RESPONSE_INVALID: ["ai_chat_effort_response_invalid", "模型返回的推理续答数据无效。"],
       AI_HOST_PERMISSION_REQUIRED: ["ai_chat_permission", "请在「AI 服务」中编辑并保存当前服务，以授权 AI 网关。"],
       AI_CONFIG_UNAVAILABLE: desktop ? ["ai_chat_setup_service", "请前往「扩展设置 → AI 服务」配置可用的服务。"] :
         ["ai_chat_config", "当前 AI 服务不可用，请检查设置。"],
@@ -810,7 +845,7 @@
 
   function failed(error, notice = status) {
     notice.textContent = failureText(error.code);
-    if (["AI_HOST_PERMISSION_REQUIRED", "AI_CONFIG_UNAVAILABLE", "PROVIDER_CONFIG_MISSING", "PROVIDER_DISABLED"].includes(error.code))
+    if (["AI_HOST_PERMISSION_REQUIRED", "AI_CONFIG_UNAVAILABLE", "PROVIDER_CONFIG_MISSING", "PROVIDER_DISABLED", "CHAT_REASONING_INVALID"].includes(error.code))
       needsSettings = true;
     if (!error.code) log.error("chat-ui-failed", "AI 对话界面操作失败", { error });
     if (notice === status && error.code !== "CHAT_STOPPED") {
@@ -869,6 +904,11 @@
       previewTimer = 0;
       const follow = transcript.scrollHeight - transcript.clientHeight - transcript.scrollTop < 40;
       for (const update of updates) {
+        if (update.type === "thinking") {
+          notice.dataset.phase = "active";
+          notice.textContent = text("ai_chat_thinking", "正在思考…");
+          continue;
+        }
         if (update.type === "delta") {
           liveSource += update.text;
           if (notice.textContent) notice.textContent = "";
@@ -938,6 +978,8 @@
     const message = input.value.trim();
     if (composerBusy || !message || !service.value || pending || composerView?.hasImages()) return;
     const serviceId = service.value;
+    const reasoning = composerView?.getReasoning();
+    const serviceRevision = services.find(item => item.id === serviceId)?.revision;
     if (desktop) stashDraft();
     else thread.serviceId = serviceId;
     busy(true, true);
@@ -952,7 +994,8 @@
     syncComposer();
     transcript.scrollTop = transcript.scrollHeight;
     let failure;
-    const request = { id: thread.id, revision: thread.revision, serviceId, text: message, appId };
+    const request = { id: thread.id, revision: thread.revision, serviceId, text: message, appId,
+      ...(reasoning !== undefined && { reasoning, serviceRevision }) };
     try {
       thread = await call("send", request, reply.progress);
       records = [thread, ...records.filter(item => item.id !== thread.id)];

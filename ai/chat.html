@@ -114,19 +114,17 @@
               <div class="composer-model-content">
                 <span id="composer-model-label" data-text="ai_chat_model">模型</span>
                 <div id="composer-model-choices"></div>
-                <div class="composer-effort">
+                <div class="composer-effort" hidden>
                   <label for="composer-effort" data-text="ai_chat_effort">推理强度</label>
+                  <div class="composer-effort-actions"></div>
+                  <span class="composer-effort-status" hidden></span>
                   <div class="composer-effort-track">
                     <span class="composer-effort-fill" aria-hidden="true"><canvas></canvas></span>
-                    <span class="composer-effort-ticks" aria-hidden="true"><i></i><i></i><i></i></span>
+                    <span class="composer-effort-ticks" aria-hidden="true"></span>
                     <span class="composer-effort-thumb" aria-hidden="true"></span>
                     <input type="range" id="composer-effort" min="0" max="2" value="1" step="1">
                   </div>
-                  <div class="composer-effort-labels">
-                    <button type="button" data-effort="0" data-text="ai_chat_effort_simple">简单</button>
-                    <button type="button" data-effort="1" data-text="ai_chat_effort_medium" aria-pressed="true">中度</button>
-                    <button type="button" data-effort="2" data-text="ai_chat_effort_deep">深度</button>
-                  </div>
+                  <div class="composer-effort-labels"></div>
                 </div>
               </div>
             </section>

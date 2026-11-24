@@ -246,10 +246,16 @@
         typeof item.enabled !== "boolean" || typeof item.revision !== "string" || !item.revision
       ) throw new TypeError("AI 服务记录无效或 ID 重复");
       ids.add(item.id);
+      const connection = connectionFields(normalize(item));
+      const directoryModel = normalizeDirectoryModel(item, connection);
+      const customReasoning = item.customReasoning === undefined ? undefined : normalizeCustomReasoning(item.customReasoning);
+      if (customReasoning && item.provider !== "custom") throw invalidReasoning();
       return {
         id: item.id, name: item.name.trim(), enabled: item.enabled, revision: item.revision,
-        ...connectionFields(normalize(item)),
+        ...connection,
         ...(typeof item.provider === "string" && item.provider ? { provider: item.provider } : {}),
+        ...(directoryModel && { directoryModel }),
+        ...(customReasoning && { customReasoning }),
       };
     });
     const fixed = services.find((item) => item.id === DEFAULT_SERVICE_ID);
@@ -406,6 +412,211 @@
     };
   }
 
+  const EFFORT_LEVELS = Object.freeze(["minimal", "low", "medium", "high", "xhigh", "max", "ultra"]);
+  const REASONING_CHOICES = new Set(["off", "on", ...EFFORT_LEVELS]);
+  const known = (levels, defaultLevel, off = false) => ({ levels, defaultLevel, off });
+  const offOn = (defaultLevel = "on") => known([], defaultLevel, true);
+  const DEEPSEEK_EFFORT = known(["low", "high", "max"], "high", true);
+  const LOW_HIGH_MAX = known(["low", "high", "max"], "max");
+  const THINKING_MODELS = {
+    deepseek: { "deepseek-flash": DEEPSEEK_EFFORT, "deepseek-v4-pro": DEEPSEEK_EFFORT },
+    zhipu: { "glm-5.2": known(["high", "max"], "max", true), "glm-5.3": LOW_HIGH_MAX,
+      "glm-5.3-flash": LOW_HIGH_MAX, "glm-5.3-flashx": LOW_HIGH_MAX },
+    qwen: { "qwen-flash": offOn("off"), "qwen-plus": offOn("off"), "qwen3.8-max": known(["low", "medium", "xhigh"], "xhigh", true) },
+    hunyuan: { "hy4": offOn(), "hy4-flash": offOn() },
+    qianfan: { "ernie-light-dt-1.0": known(["low", "high", "max"], "max", true), "ernie-4.5-turbo-32k": false },
+    mimo: { "mimo-v2.6-flash": offOn(), "mimo-v2.6-pro": offOn(), "mimo-v2.6-pro-ultraspeed": offOn() },
+    kimi: { "kimi-k3.1-pro": LOW_HIGH_MAX, "kimi-k3": LOW_HIGH_MAX },
+    minimax: { "MiniMax-M3.1-Flash": known(["low", "medium", "high", "xhigh", "max"], "max"), "MiniMax-M3": offOn() },
+    doubao: { "doubao-seed-2-1-pro-260915": known(["low", "medium", "high"], "high", true) },
+    openai: { "gpt-4o-mini": false, "gpt-5.2": known(["low", "medium", "high", "xhigh"], "off", true),
+      "gpt-5.2-2025-12-11": known(["low", "medium", "high", "xhigh"], "off", true) },
+    grok: { "grok-4.7": known(["low", "medium", "high", "xhigh"], "high") },
+    gemini: { "gemini-4-hydrogen": known(["low", "medium", "high", "xhigh"], "high") },
+  };
+
+  function reasoningGateway(service) {
+    const address = endpoint(service);
+    if (!address) return "";
+    const cfg = globalThis.STConfig;
+    const preset = cfg.aiProviders.find(({ base }) => base && address === endpoint({ host: base }));
+    if (preset) return preset.id;
+    if (address === endpoint({ host: cfg.aiOpenRouterBase })) return "openrouter";
+    const url = new URL(address);
+    return url.protocol === "https:" && !url.port && !url.search && !url.hash &&
+      url.pathname === "/compatible-mode/v1/chat/completions" &&
+      (QWEN_WORKSPACE.test(url.hostname) || url.hostname === "dashscope-us.aliyuncs.com") ? "qwen" : "";
+  }
+
+  function normalizeEffort(levels, defaultLevel, off) {
+    if (!Array.isArray(levels) || levels.length > 16 || levels.some(level => typeof level !== "string" || !/^[a-z][a-z0-9_-]{0,31}$/.test(level)) ||
+        (defaultLevel !== undefined && !levels.includes(defaultLevel) && !(off && defaultLevel === "none")))
+      throw new TypeError("模型目录中的推理档位无效");
+    return {
+      levels: [...new Set(levels.filter(level => level !== "none"))],
+      ...(defaultLevel !== undefined && { defaultLevel: defaultLevel === "none" ? "off" : defaultLevel }),
+      ...(off || levels.includes("none") ? { off: true } : {}),
+    };
+  }
+
+  function modelReasoning(row, gateway) {
+    if (gateway === "deepseek" || gateway === "doubao") {
+      const type = row.features?.thinking?.type;
+      if (gateway === "doubao" && type === "disabled") return false;
+      if (row.effort != null) return normalizeEffort(row.effort.supported_levels, row.effort.default_level);
+      if (gateway === "doubao" && type === "enabled") return true;
+    } else if (gateway === "grok" && row.capabilities?.reasoning_effort != null) {
+      return normalizeEffort(row.capabilities.reasoning_effort, row.capabilities.default_reasoning_effort);
+    } else if (gateway === "openrouter" && isRecord(row.reasoning)) {
+      const { supported_efforts: reported, default_effort: effort, default_enabled: enabled, mandatory } = row.reasoning;
+      const off = mandatory === false;
+      const levels = reported === null ? EFFORT_LEVELS.filter(level => level !== "ultra")
+        : reported === undefined ? (off ? ["on"] : []) : Array.isArray(reported)
+          ? reported.filter(level => mandatory !== true || level !== "none").reverse() : reported;
+      let defaultLevel;
+      if (off && (enabled === false || effort === "none")) defaultLevel = "none";
+      else if (Array.isArray(levels) && levels.includes(effort)) defaultLevel = effort;
+      else if (enabled === true && levels[0] === "on") defaultLevel = "on";
+      return normalizeEffort(levels, defaultLevel, off);
+    } else if (gateway === "qwen" && Array.isArray(row.capabilities)) {
+      return row.capabilities.includes("Reasoning");
+    }
+    return undefined;
+  }
+
+  /** 只保留模型目录里已知的 ID、显示名和推理能力字段 */
+  function modelDetails(rows, gateway, field) {
+    return modelIds(rows, field).map((id, index) => {
+      const row = rows[index];
+      const name = typeof row.name === "string" && row.name.length <= 200 ? row.name.trim() : "";
+      const reasoning = modelReasoning(row, gateway);
+      return { id, ...(name && name !== id && { name }), ...(reasoning !== undefined && { reasoning }) };
+    });
+  }
+
+  function normalizeDirectoryModel(item, connection) {
+    const entry = item.directoryModel;
+    if (entry === undefined) return undefined;
+    if (!entry || typeof entry !== "object" || entry.id !== connection.model || entry.endpoint !== endpoint(connection))
+      throw invalidReasoning();
+    const { id, name, reasoning } = entry;
+    const result = { id, endpoint: entry.endpoint };
+    if (name !== undefined) {
+      if (typeof name !== "string" || !name.trim() || name.length > 200) throw invalidReasoning();
+      result.name = name;
+    }
+    if (typeof reasoning === "boolean") result.reasoning = reasoning;
+    else if (reasoning !== undefined) {
+      if (!reasoning || !Array.isArray(reasoning.levels) ||
+          (reasoning.off !== undefined && typeof reasoning.off !== "boolean")) throw invalidReasoning();
+      const level = reasoning.defaultLevel === "off" ? "none" : reasoning.defaultLevel;
+      const levels = level === "none" ? [...reasoning.levels, "none"] : reasoning.levels;
+      result.reasoning = normalizeEffort(levels, level, reasoning.off === true);
+    }
+    return result;
+  }
+
+  const invalidReasoning = (cause) => Object.assign(new TypeError("推理设置无效，请在 AI 服务中检查模型或档位配置", { cause }),
+    { code: "CHAT_REASONING_INVALID" });
+  const isRecord = value => value !== null && typeof value === "object" && !Array.isArray(value);
+  const objectKeys = (value, keys) => isRecord(value) && Object.keys(value).every(key => keys.includes(key));
+  const positiveBudget = value => Number.isSafeInteger(value) && value > 0;
+
+  function validReasoningPatch(body) {
+    if (!objectKeys(body, ["reasoning_effort", "enable_thinking", "thinking_budget", "thinking", "reasoning"]) ||
+        !Object.keys(body).length) return false;
+    const effort = value => typeof value === "string" && /^[a-z][a-z0-9_-]{0,31}$/.test(value);
+    if (Object.hasOwn(body, "reasoning_effort") && !effort(body.reasoning_effort)) return false;
+    if (Object.hasOwn(body, "enable_thinking") && typeof body.enable_thinking !== "boolean") return false;
+    if (Object.hasOwn(body, "thinking_budget") && !positiveBudget(body.thinking_budget)) return false;
+    if (Object.hasOwn(body, "thinking") && (!objectKeys(body.thinking, ["type", "budget_tokens"]) ||
+        !["enabled", "disabled", "auto", "adaptive"].includes(body.thinking.type) ||
+        (Object.hasOwn(body.thinking, "budget_tokens") && !positiveBudget(body.thinking.budget_tokens)))) return false;
+    return !Object.hasOwn(body, "reasoning") || (objectKeys(body.reasoning, ["effort", "enabled", "max_tokens"]) &&
+      Object.keys(body.reasoning).length > 0 &&
+      (!Object.hasOwn(body.reasoning, "effort") || effort(body.reasoning.effort)) &&
+      (!Object.hasOwn(body.reasoning, "enabled") || typeof body.reasoning.enabled === "boolean") &&
+      (!Object.hasOwn(body.reasoning, "max_tokens") || positiveBudget(body.reasoning.max_tokens)));
+  }
+
+  /** 自定义配置只提供已列出的推理字段，无法覆盖认证或对话请求 */
+  function normalizeCustomReasoning(data) {
+    if (!objectKeys(data, ["choices", "continuation"]) || !isRecord(data.choices) ||
+        !Object.keys(data.choices).length ||
+        Object.entries(data.choices).some(([key, body]) => !REASONING_CHOICES.has(key) || !validReasoningPatch(body)) ||
+        (data.continuation !== undefined && data.continuation !== "reasoning_content")) throw invalidReasoning();
+    return data;
+  }
+
+  function reasoningProfile(service) {
+    const gateway = reasoningGateway(service);
+    const builtin = THINKING_MODELS[gateway];
+    const knownModel = builtin && Object.hasOwn(builtin, service.model) ? builtin[service.model] : undefined;
+    const discovered = service.directoryModel?.reasoning;
+    if (service.customReasoning) {
+      const custom = normalizeCustomReasoning(service.customReasoning);
+      return { gateway, custom, choices: ["off", "on", ...EFFORT_LEVELS].filter(choice => Object.hasOwn(custom.choices, choice)) };
+    }
+    if (discovered === false || (!discovered && knownModel === false)) return { gateway, unsupported: true };
+    if (!isRecord(knownModel) && !isRecord(discovered)) return { gateway, supported: discovered === true };
+    // 方舟部分档位是兼容别名，已核实型号只展示实际生效的档位
+    const levels = isRecord(discovered)
+      ? (gateway === "doubao" && knownModel ? discovered.levels.filter(level => knownModel.levels.includes(level)) : discovered.levels)
+      : knownModel.levels;
+    const off = Boolean(discovered?.off || knownModel?.off || gateway === "deepseek");
+    const choices = [...(off ? ["off"] : []), ...(levels.length ? levels : knownModel?.levels.length === 0 ? ["on"] : [])];
+    const defaultLevel = discovered?.defaultLevel ?? knownModel?.defaultLevel;
+    return { gateway, choices, defaultLevel: choices.includes(defaultLevel) ? defaultLevel : undefined, supported: true };
+  }
+
+  /** 只向聊天窗公开可显示的能力，不公开连接、认证或自定义请求片段 */
+  function describeReasoning(service) {
+    const { choices = [], defaultLevel, supported, unsupported, gateway } = reasoningProfile(service);
+    return { choices, defaultLevel, supported: supported === true, unsupported: unsupported === true,
+      offWithToolsByDefault: gateway === "deepseek" && DEEPSEEK_PRESETS.has(service.model) };
+  }
+
+  const DEEPSEEK_PRESETS = new Set(["deepseek-flash", "deepseek-v4-pro"]);
+
+  /** 固定本轮的请求参数及供应商要求的续答数据类型 */
+  function chatReasoning(service, choice, hasTools) {
+    const { gateway, choices = [], defaultLevel, supported, custom } = reasoningProfile(service);
+    if (choice !== undefined && (!choices.includes(choice))) throw invalidReasoning();
+    const off = choice === "off";
+    let body;
+    if (choice === undefined) {
+      if (gateway === "deepseek" && DEEPSEEK_PRESETS.has(service.model) && hasTools) body = { thinking: { type: "disabled" } };
+      if (gateway === "minimax" && service.model === "MiniMax-M3") body = { reasoning_split: true };
+    } else if (custom) body = custom.choices[choice];
+    else if (gateway === "deepseek" || gateway === "openai" || gateway === "grok" || gateway === "gemini" || gateway === "kimi") {
+      body = { reasoning_effort: off ? "none" : choice };
+    } else if (gateway === "qwen") {
+      body = { enable_thinking: !off, ...(!off && choice !== "on" && { reasoning_effort: choice }) };
+    } else if (gateway === "openrouter") {
+      body = { reasoning: choice === "on" ? { enabled: true } : { effort: off ? "none" : choice } };
+    } else {
+      const type = off ? "disabled" : gateway === "minimax" ? "adaptive" : "enabled";
+      body = {
+        ...(gateway === "minimax" && { reasoning_split: true }),
+        ...(choice === "on" || ["zhipu", "qianfan", "doubao"].includes(gateway) || off ? { thinking: { type } } : {}),
+        ...(!off && choice !== "on" && { reasoning_effort: choice }),
+      };
+    }
+    const active = !off && body?.thinking?.type !== "disabled" && (choice !== undefined || defaultLevel !== "off");
+    const field = !active ? undefined : custom ? custom.continuation
+      : gateway === "gemini" ? "signature"
+      : gateway === "doubao" ? "encrypted_content"
+      : gateway === "openrouter" ? "reasoning_details"
+      : supported && ["deepseek", "qwen", "zhipu", "hunyuan", "qianfan", "mimo", "kimi", "minimax"].includes(gateway) ? "reasoning_content" : undefined;
+    const retain = field !== undefined && ["deepseek", "qwen", "mimo", "kimi", "minimax", "doubao", "gemini", "openrouter"].includes(gateway);
+    const requireToolContext = !custom && (field === "signature" ? supported
+      : field === "reasoning_content" && ["deepseek", "mimo"].includes(gateway));
+    const ignoreTemperature = active && (gateway === "mimo" || (choice !== undefined && ["deepseek", "openai"].includes(gateway)));
+    if (service.keyMode === "param" && service.key &&
+        ((body && Object.hasOwn(body, service.keyName || "key")) || (ignoreTemperature && service.keyName === "temperature"))) throw invalidReasoning();
+    return { body, field, retain, requireToolContext, ignoreTemperature };
+  }
+
   /**
    * 从同一网关构造只读模型目录请求，鉴权密钥仅放在请求头。
    * 自定义服务采用 OpenAI Models API 路径，供应商预设只使用其声明的官方入口。
@@ -441,7 +652,8 @@
     if (conf.keyMode === "param") throw unsupported();
     if (["bearer", "header"].includes(conf.keyMode) && !conf.key)
       throw Object.assign(new Error("请填写访问密钥"), { code: "AI_MODEL_KEY_REQUIRED" });
-    return { url: url.href, headers: { Accept: "application/json", ...appendHeaders(conf) }, paged: preset?.id === "qwen" };
+    return { url: url.href, headers: { Accept: "application/json", ...appendHeaders(conf) },
+      paged: preset?.id === "qwen", gateway: reasoningGateway(conf) };
   }
 
   const MODEL_LIST_ISSUES = Object.freeze({
@@ -458,7 +670,7 @@
   }
 
   /** 编辑器与向导共用目录请求，授权外观和生命周期由调用方提供 */
-  async function detectModels({ host, key, keyMode, keyName, provider }, authorize, { operationId, signal } = {}) {
+  async function detectModels({ host, key, keyMode, keyName, provider }, authorize, { operationId, signal, details = false } = {}) {
     signal?.throwIfAborted();
     const connection = { host, key, keyMode, keyName, provider };
     modelListRequest(connection);
@@ -471,7 +683,10 @@
     if (!Array.isArray(response.models) || response.models.some(model => typeof model !== "string" || !model.trim())) {
       throw new TypeError("检测模型回复无效");
     }
-    return response.models;
+    if (!details) return response.models;
+    if (!Array.isArray(response.modelDetails) || response.modelDetails.length !== response.models.length ||
+        response.modelDetails.some((row, index) => row?.id !== response.models[index])) throw new TypeError("模型目录详情无效");
+    return response.modelDetails;
   }
 
   function modelIds(rows, field = "id") {
@@ -715,6 +930,10 @@
     validateBody, bodyIssue,
     modelListRequest,
     modelIds,
+    modelDetails,
+    normalizeCustomReasoning,
+    describeReasoning,
+    chatReasoning,
     requestConfig,
   });
 })();

@@ -11197,17 +11197,65 @@
   "ai_chat_model": {
     "message": "模型"
   },
+  "settings_ai_refreshModels": {
+    "message": "刷新模型"
+  },
+  "settings_ai_reasoningMapping": {
+    "message": "自定义推理参数"
+  },
+  "settings_ai_reasoningMapHint": {
+    "message": "留空自动识别。按网关文档填写每档对应的 JSON 请求参数。"
+  },
+  "settings_ai_reasoningMapStale": {
+    "message": "网关或模型已更换，请更新自定义推理参数，或清空后自动识别。"
+  },
+  "ai_chat_effort_default": {
+    "message": "默认"
+  },
+  "ai_chat_effort_off": {
+    "message": "关闭"
+  },
+  "ai_chat_effort_on": {
+    "message": "开启"
+  },
+  "ai_chat_effort_minimal": {
+    "message": "极低"
+  },
+  "ai_chat_effort_low": {
+    "message": "低"
+  },
+  "ai_chat_effort_high": {
+    "message": "高"
+  },
+  "ai_chat_effort_xhigh": {
+    "message": "很高"
+  },
+  "ai_chat_effort_max": {
+    "message": "最高"
+  },
+  "ai_chat_effort_ultra": {
+    "message": "超高"
+  },
+  "ai_chat_effort_supported": {
+    "message": "支持深度思考"
+  },
+  "ai_chat_effort_unknown": {
+    "message": "推理能力未确认"
+  },
+  "ai_chat_effort_invalid": {
+    "message": "推理设置已失效，请检查 AI 服务和当前模型的推理档位。"
+  },
+  "ai_chat_effort_response_invalid": {
+    "message": "模型返回的推理续答数据无效。"
+  },
+  "ai_chat_thinking": {
+    "message": "正在思考…"
+  },
   "ai_chat_effort": {
     "message": "推理强度"
   },
-  "ai_chat_effort_simple": {
-    "message": "简单"
-  },
   "ai_chat_effort_medium": {
     "message": "中度"
-  },
-  "ai_chat_effort_deep": {
-    "message": "深度"
   },
   "ai_chat_images_preview_only": {
     "message": "图片仅供本地预览，移除图片后可发送文字。"

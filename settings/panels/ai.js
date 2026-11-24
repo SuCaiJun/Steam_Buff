@@ -64,7 +64,7 @@
       ];
     }
 
-    function sendAiTest(testConf, operationId = "") {
+    function sendAiTest(testConf, operationId = "", signal) {
       if (globalThis.STMessageBus?.ready && globalThis.STMessageBus?.send) {
         return globalThis.STMessageBus.send({
           type: "AI_CHAT_COMPLETIONS",
@@ -73,7 +73,7 @@
           ai: testConf,
           messages: aiTestMessages(),
         }, {
-          timeoutMs: 20_000,
+          timeoutMs: 20_000, signal,
         });
       }
       return new Promise((resolve, reject) => {
@@ -333,7 +333,9 @@
       const fields = root.STSearchCombo;
       const label = uiText("settings.field.ai.model.label", "模型");
       const slot = form.querySelector("[data-ai-model-control]");
-      const html = fields.searchComboHtml(models.map(id => ({ value: id, label: id })), {
+      const items = models.map(item => typeof item === "string" ? { value: item, label: item }
+        : { value: item.id, label: item.name || item.id });
+      const html = fields.searchComboHtml(items, {
         id: serviceId + "-model",
         label,
         text: value,
@@ -360,14 +362,37 @@
       }, value: provider.id, dataset: "data-ai" });
       const fields = (options.catalog?.aiFields?.() || ai.SERVICE_FIELDS).filter((field) =>
         field.key !== "enabled" && field.key !== "aiConcurrency").map((field) => {
-        if (field.key === "model") return row(root.STSettingsFields.label(field), '<span data-ai-model-control></span>');
+        if (field.key === "model") {
+          const label = esc(root.STSettingsFields.label(field));
+          const refresh = esc(uiText("settings.ai.refreshModels", "刷新模型"));
+          const icon = esc(root.STSettingsAssets.retryIcon());
+          return `<div class="settings-row form-row">
+            <label class="settings-label label" for="${esc(draft.id)}-model">${label}</label>
+            <div class="settings-value control">
+              <div class="ai-model-controls">
+                <span data-ai-model-control></span>
+                <button type="button" class="ai-service-icon-button" data-ai-refresh-models aria-label="${refresh}" title="${refresh}">
+                  <span class="ai-service-icon" style="mask-image:url('${icon}')" aria-hidden="true"></span>
+                </button>
+              </div>
+            </div>
+          </div>`;
+        }
         const hide = field.key === "key" && keyMode === "none" ||
           field.key === "keyName" && !["header", "param"].includes(keyMode);
         return row(root.STSettingsFields.label(field), fieldInput({
           field, value: draft[field.key], dataset: "data-ai", className: "settings-control",
         }), `data-ai-field="${field.key}" ${hide ? "hidden" : ""}`);
       }).join("");
-      return `<div class="settings-grid" data-ai-editor>${row(providerLabelText, chooser)}${row(uiText("settings.ai.serviceName", "服务名称"), name)}${fields}</div>
+      const reasoningLabel = uiText("settings.ai.reasoningMapping", "自定义推理参数");
+      const reasoning = row(reasoningLabel,
+        `<textarea class="settings-control ai-reasoning-map" data-ai="reasoningMap" rows="3" spellcheck="false"
+          aria-label="${esc(reasoningLabel)}"
+          title="${esc(uiText("settings.ai.reasoningMapHint", "留空自动识别。按网关文档填写每档对应的 JSON 请求参数。"))}"
+          placeholder="${esc('{"choices":{"high":{"reasoning_effort":"high"}}}')}" maxlength="8192">${esc(
+          draft.customReasoning ? JSON.stringify(draft.customReasoning, null, 2) : "")}</textarea>`,
+        `data-ai-custom-reasoning ${provider.id === "custom" ? "" : "hidden"}`);
+      return `<div class="settings-grid" data-ai-editor>${row(providerLabelText, chooser)}${row(uiText("settings.ai.serviceName", "服务名称"), name)}${fields}${reasoning}</div>
 
         <div class="ai-permission-wait" data-ai-permission-wait role="status" aria-label="${esc(uiText("settings_ai_permissionWaiting", "等待浏览器授权"))}" hidden>
           <span class="ai-permission-spinner" aria-hidden="true"></span>
@@ -553,10 +578,22 @@
         .map((control) => [control.dataset.ai, control.value]));
     }
 
-    function readDraft(card, draft) {
-      const values = draftValues(card);
-      const next = { ...draft, ...values, name: values.name.trim() };
+    function readDraft({ reasoningMap, ...values }, draft, catalog, connectionUnchanged, mappingUnchanged) {
+      const { directoryModel, ...previous } = draft;
+      const next = { ...previous, ...values, model: values.model.trim(), name: values.name.trim() };
+      delete next.customReasoning;
       if (!next.name) throw new Error(uiText("settings.ai.nameRequired", "请填写服务名称"));
+      const fromCatalog = catalog?.find(row => row.id === next.model);
+      if (fromCatalog?.reasoning !== undefined || fromCatalog?.name) next.directoryModel = { ...fromCatalog, endpoint: ai.endpoint(next) };
+      else if (!catalog && connectionUnchanged && directoryModel?.id === next.model) next.directoryModel = directoryModel;
+      if (next.provider === "custom" && reasoningMap.trim()) {
+        if (!mappingUnchanged) throw Object.assign(new Error(uiText("settings.ai.reasoningMapStale",
+          "网关或模型已更换，请更新自定义推理参数，或清空后自动识别。")), { code: "CHAT_REASONING_INVALID" });
+        let config;
+        try { config = JSON.parse(reasoningMap); }
+        catch (cause) { throw Object.assign(new TypeError("自定义推理参数需要有效的 JSON", { cause }), { code: "CHAT_REASONING_INVALID" }); }
+        next.customReasoning = ai.normalizeCustomReasoning(config);
+      }
       return next;
     }
 
@@ -578,16 +615,44 @@
       options.onConfigChange?.(saved);
     }
 
-    async function testConnection(item, shadow, operationId) {
+    const serviceCatalogs = new WeakMap();
+    const catalogNotice = (error, fallback) => {
+      const help = ai.modelListIssue(error?.code);
+      return help ? uiText(help[1], help[2]) : error?.message || fallback;
+    };
+
+    async function testConnection(item, shadow, operationId, signal) {
       checkConnection(item);
       const test = { ...item, enabled: true, aiConcurrency: conf.aiConcurrency };
       await requestAiGatewayPermission(test, shadow, operationId);
-      const response = await sendAiTest(test, operationId);
-      if (response?.success !== true) throw new Error(response?.error || uiText("settings.ai.testFailed", "AI 连接测试失败"));
-      log.info("ai-test-success", "AI 连接测试成功", { operationId });
+      signal?.throwIfAborted();
+      const runChat = async () => {
+        const response = await sendAiTest(test, operationId, signal);
+        if (response?.success !== true) throw Object.assign(new Error(response?.error || uiText("settings.ai.testFailed", "AI 连接测试失败")),
+          { code: response?.code });
+      };
+      const [chat, models] = await Promise.allSettled([
+        runChat(),
+        ai.detectModels(test, () => undefined, { operationId, signal, details: true }),
+      ]);
+      signal?.throwIfAborted();
+      if (chat.status === "fulfilled") log.info("ai-test-success", "AI 连接测试成功", { operationId });
+      if (models.status === "rejected" && !ai.modelListIssue(models.reason?.code))
+        log.warn("ai-models-test-failed", "测试连接时刷新模型失败", { operationId, error: models.reason });
+      return { chat, models };
+    }
+
+    function showTestResult(shadow, { chat, models }) {
+      const passed = chat.status === "fulfilled";
+      const title = passed ? uiText("settings.ai.testOk", "连接测试成功") : uiText("settings.ai.testFailed", "AI 连接测试失败");
+      const message = passed ? uiText("settings.ai.testOkBody", "AI 服务连接正常。") : chat.reason.message;
+      const detail = models.status === "fulfilled" ? uiText("settings.ai.modelsDetected", "找到 $count$ 个模型", { count: models.value.length })
+        : catalogNotice(models.reason, uiText("settings.ai.modelsFailed", "模型检测失败"));
+      void root.STSettingsDialogs.notice(shadow, { title, message: message + "\n" + detail });
     }
 
     async function openEditor(service, shadow) {
+      const requiresTest = !service?.host || !service.model;
       const draft = service ? { ...service } : {
         ...ai.defaults(), id: ai.newServiceId(), revision: "draft", name: "", enabled: true,
       };
@@ -601,20 +666,72 @@
         Object.assign(draft, ai.presetConnection(provider), { provider: provider.id });
         if (!draft.name) draft.name = providerLabel(provider);
       }
-      let form, initial, modelsButton;
+      let form, initial, refresh, testButton, saveButton;
       let autoName = !service;
       let autoTemperature = false;
-      let detected = false;
+      let catalog = serviceCatalogs.get(service);
+      let refreshing = false;
       const life = new AbortController();
       const control = name => form.querySelector(`[data-ai="${name}"]`);
       const origin = value => URL.canParse(value) ? new URL(value).origin : "";
       let hostOrigin = origin(draft.host);
-      const modelsLabel = uiText("settings.ai.detectModels", "检测模型");
+      const modelsLabel = uiText("settings.ai.refreshModels", "刷新模型");
+      const connectionKey = values => JSON.stringify([values.provider, values.host, values.keyMode, values.keyName, values.key]);
+      const mappingKey = values => JSON.stringify([values.host.trim(), values.model.trim()]);
+      const testKey = values => JSON.stringify([connectionKey(values), values.model.trim(), values.temperature.trim()]);
+      let verifiedTest;
+      const canSave = values => !requiresTest || verifiedTest === testKey(values);
+      function syncActions() {
+        const ready = canSave(draftValues(form));
+        saveButton.disabled = !ready || refreshing;
+        saveButton.classList.toggle("primary", ready);
+        testButton.disabled = refreshing;
+        testButton.classList.toggle("primary", !ready);
+      }
+      let mappingTarget = mappingKey(draft);
+      let initialConnection;
       const clearDetected = () => {
-        if (!detected) return;
-        detected = false;
+        if (!catalog) return;
+        catalog = undefined;
         modelControl(form, provider.models, control("model").value, draft.id);
       };
+      const updateModels = models => {
+        catalog = models;
+        return modelControl(form, models, control("model").value, draft.id);
+      };
+      async function refreshModels() {
+        if (refreshing || refresh.disabled) return;
+        refreshing = true;
+        refresh.disabled = true;
+        syncActions();
+        refresh.setAttribute("aria-busy", "true");
+        const operationId = root.STLoggerFactory.createOperationId();
+        const connection = draftValues(form);
+        try {
+          const models = await ai.detectModels(connection, async item => {
+            await requestAiGatewayPermission(item, shadow, operationId);
+            life.signal.throwIfAborted();
+          }, { operationId, signal: life.signal, details: true });
+          if (!form.isConnected || connectionKey(connection) !== connectionKey(draftValues(form))) return;
+          const input = updateModels(models);
+          void root.STSettingsDialogs.notice(shadow, { title: modelsLabel,
+            message: models.length ? uiText("settings.ai.modelsDetected", "找到 $count$ 个模型", { count: models.length })
+              : uiText("settings.ai.modelsEmpty", "接口未返回模型，可手动输入。"), focus: input });
+        } catch (error) {
+          if (!form.isConnected || connectionKey(connection) !== connectionKey(draftValues(form)) ||
+              error.name === "AbortError" || error.code === "AI_HOST_PERMISSION_CANCELLED") return;
+          const help = ai.modelListIssue(error.code);
+          const failure = uiText("settings.ai.modelsFailed", "模型检测失败");
+          void root.STSettingsDialogs.notice(shadow, { title: failure, message: catalogNotice(error, failure),
+            focus: help ? control(help[0]) : refresh });
+          if (!help) log.error("ai-models-action-failed", failure, { operationId, error });
+        } finally {
+          refreshing = false;
+          refresh.removeAttribute("aria-busy");
+          refresh.disabled = false;
+          if (form.isConnected) syncActions();
+        }
+      }
       const action = await dialog(shadow, {
         title: service ? uiText("settings.ai.editService", "编辑 AI 服务") : uiText("settings.ai.newService", "新建 AI 服务"),
         form: true,
@@ -626,31 +743,45 @@
           node.classList.add("ai-service-editor");
           node.setAttribute("data-ai-modal", "");
           root.STDomUtils.setTrustedHTML(node, root.STDomUtils.trustedHTML(editorHtml(draft, providers, provider), "settings-ai-services"));
-          modelControl(form, provider.models, draft.model, draft.id);
+          modelControl(form, catalog ?? provider.models, draft.model, draft.id);
           initial = JSON.stringify(draftValues(node));
-          root.STSearchCombo.bindSearchCombos(node, life.signal);
+          initialConnection = connectionKey(draftValues(node));
+          refresh = node.querySelector("[data-ai-refresh-models]");
+          refresh.addEventListener("click", refreshModels, { signal: life.signal });
+          root.STSearchCombo.bindSearchCombos(node, life.signal, (input, id) => {
+            if (input.dataset.ai !== "model") return;
+            input.value = id;
+            syncActions();
+          });
           node.addEventListener("input", event => {
             const field = event.target.dataset.ai;
             if (field === "name") autoName = false;
             if (field === "temperature") autoTemperature = false;
+            if (field === "reasoningMap") mappingTarget = mappingKey(draftValues(form));
             if (field === "host") {
               const nextOrigin = origin(event.target.value);
               if (hostOrigin && hostOrigin !== nextOrigin) control("key").value = "";
               hostOrigin = nextOrigin;
             }
             if (["host", "key", "keyName"].includes(field)) clearDetected();
+            syncActions();
           });
           node.addEventListener("change", event => {
             const field = event.target.dataset.ai;
             if (field === "keyMode") clearDetected();
-            if (field !== "provider") return;
+            if (field !== "provider") {
+              syncActions();
+              return;
+            }
             provider = providers.find(row => row.id === event.target.value);
-            detected = false;
+            catalog = undefined;
+            node.querySelector("[data-ai-custom-reasoning]").hidden = provider.id !== "custom";
             control("key").value = "";
             if (autoTemperature || provider.temperature !== undefined) control("temperature").value = provider.temperature ?? "";
             autoTemperature = provider.temperature !== undefined;
             if (provider.id === "custom") {
               modelControl(form, [], control("model").value, draft.id);
+              syncActions();
               return;
             }
             const { host, model, keyMode, keyName } = ai.presetConnection(provider);
@@ -664,58 +795,42 @@
               control("name").value = providerLabel(provider);
               autoName = true;
             }
+            syncActions();
           });
         },
         actions: [
           { id: "cancel", label: uiText("common_cancel", "取消") },
-          { id: "models", label: modelsLabel },
           { id: "test", label: uiText("common_testConnection", "测试连接") },
-          { id: "save", label: uiText("settings.ai.saveService", "保存服务"), primary: true },
+          { id: "save", label: uiText("settings.ai.saveService", "保存服务") },
         ],
-        renderFooter: (footer) => { modelsButton = footer.querySelector('[data-dialog-action="models"]'); },
+        renderFooter(footer) {
+          testButton = footer.querySelector('[data-dialog-action="test"]');
+          saveButton = footer.querySelector('[data-dialog-action="save"]');
+          syncActions();
+        },
+        onActionSettled: syncActions,
         onAction: async (id) => {
           if (id === "cancel") return true;
+          if (refreshing) return false;
           const operationId = root.STLoggerFactory.createOperationId();
-          if (id === "models") {
-            modelsButton.setAttribute("aria-busy", "true");
-            modelsButton.textContent = uiText("settings.ai.detectingModels", "正在检测模型…");
-            try {
-              const models = await ai.detectModels(draftValues(form), async connection => {
-                await requestAiGatewayPermission(connection, shadow, operationId);
-                if (!form.isConnected) throw new DOMException("编辑器已关闭", "AbortError");
-              }, { operationId, signal: life.signal });
-              if (!form.isConnected) return false;
-              detected = true;
-              const input = modelControl(form, models, control("model").value, draft.id);
-              void root.STSettingsDialogs.notice(shadow, {
-                title: modelsLabel,
-                message: models.length
-                  ? uiText("settings.ai.modelsDetected", "找到 $count$ 个模型", { count: models.length })
-                  : uiText("settings.ai.modelsEmpty", "接口未返回模型，可手动输入。"),
-                focus: input,
-              });
-            } catch (error) {
-              if (!form.isConnected || error.name === "AbortError" || error.code === "AI_HOST_PERMISSION_CANCELLED") return false;
-              const help = ai.modelListIssue(error.code);
-              const failure = uiText("settings.ai.modelsFailed", "模型检测失败");
-              void root.STSettingsDialogs.notice(shadow, {
-                title: failure,
-                message: help ? uiText(help[1], help[2]) : error.message || failure,
-                focus: help ? control(help[0]) : modelsButton,
-              });
-              if (!help) log.error("ai-models-action-failed", failure, { operationId, error });
-            } finally {
-              modelsButton.removeAttribute("aria-busy");
-              modelsButton.textContent = modelsLabel;
-            }
-            return false;
-          }
           try {
-            const item = readDraft(form, draft);
+            const values = draftValues(form);
+            if (id === "save" && !canSave(values)) return false;
+            const connection = connectionKey(values);
+            const item = readDraft(values, draft, catalog, initialConnection === connection, mappingTarget === mappingKey(values));
             if (id === "test") {
-              await testConnection(item, shadow, operationId);
-              void root.STSettingsDialogs.notice(shadow, { title: uiText("settings.ai.testOk", "连接测试成功"), message: uiText("settings.ai.testOkBody", "AI 服务连接正常。") });
-              return false;
+              verifiedTest = undefined;
+              refresh.disabled = true;
+              try {
+                const result = await testConnection(item, shadow, operationId, life.signal);
+                const tested = testKey(values);
+                if (!form.isConnected || tested !== testKey(draftValues(form))) return false;
+                if (result.models.status === "fulfilled") updateModels(result.models.value);
+                if (result.chat.status === "fulfilled") verifiedTest = tested;
+                else log.error("ai-test-failed", "AI 连接测试失败", { operationId, error: result.chat.reason });
+                showTestResult(shadow, result);
+                return false;
+              } finally { refresh.disabled = false; }
             }
             checkConnection(item);
             if (item.enabled) await requestAiGatewayPermission(item, shadow, operationId);
@@ -725,9 +840,10 @@
             await persist({ ...conf, services }, operationId);
             return true;
           } catch (error) {
-            if (error.code !== "AI_HOST_PERMISSION_CANCELLED") {
+            if (error.code !== "AI_HOST_PERMISSION_CANCELLED" && error.name !== "AbortError") {
               void root.STSettingsDialogs.notice(shadow, { title: uiText("common_operationFailed", "操作失败"), message: error.message,
-                focus: ["name", "host", "model"].map(field => form.querySelector(`[data-ai="${field}"]`)).find(input => !input.value.trim()),
+                focus: error.code === "CHAT_REASONING_INVALID" ? control("reasoningMap")
+                  : ["name", "host", "model"].map(control).find(input => !input.value.trim()),
               });
               log.error("ai-service-action-failed", "AI 服务操作失败", { operationId, error });
             }
@@ -747,8 +863,10 @@
         return '[data-ai-action="save-global"]';
       }
       if (action === "test") {
-        await testConnection(service, shadow, operationId);
-        void root.STSettingsDialogs.notice(shadow, { title: uiText("settings.ai.testOk", "连接测试成功"), message: uiText("settings.ai.testOkBody", "AI 服务连接正常。") });
+        const result = await testConnection(service, shadow, operationId);
+        if (result.models.status === "fulfilled") serviceCatalogs.set(service, result.models.value);
+        if (result.chat.status === "rejected") log.error("ai-test-failed", "AI 连接测试失败", { operationId, error: result.chat.reason });
+        showTestResult(shadow, result);
         return "";
       }
       if (action === "delete") {

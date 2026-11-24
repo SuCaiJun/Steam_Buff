@@ -700,6 +700,18 @@ summary { cursor: pointer; padding: 4px 2px; }
 #composer-model-choices label:has(small):has(input:checked)::after { grid-row-end: span 2; }
 #composer-approval-choices label:has(input:checked)::after { grid-area: 1 / 3; margin-block-start: 3px; }
 .composer-effort { display: grid; gap: 7px; padding-block-start: 10px; border-block-start: 1px solid var(--st-dialog-border); }
+.composer-effort [hidden], .composer-effort[hidden], .composer-effort-badge[hidden] { display: none; }
+.composer-effort-status { padding-inline: 4px; color: var(--st-color-text-secondary); font-size: 11px; }
+.composer-effort-actions { display: flex; flex-wrap: wrap; gap: 4px; }
+.composer-effort-actions button {
+  background: var(--composer-control);
+  color: var(--st-color-text-secondary);
+  border: 1px solid transparent;
+  border-radius: var(--st-radius-pill);
+  padding: 2px 8px;
+  font-size: 11px;
+}
+.composer-effort-actions button[aria-pressed="true"] { border-color: var(--st-dialog-border-hover); color: var(--st-color-primary-soft-text); }
 @property --composer-effort-ratio {
   syntax: "<number>";
   inherits: true;
@@ -774,7 +786,7 @@ summary { cursor: pointer; padding: 4px 2px; }
   font-size: 11px;
 }
 .composer-effort-labels button[aria-pressed="true"] { font-weight: 650; color: #a3b9ff; }
-.composer-effort-labels button[data-effort="2"][aria-pressed="true"] { color: #d1a3fc; }
+.composer-effort-labels .composer-effort-last[aria-pressed="true"] { color: #d1a3fc; }
 .chat-composer #composer-usage {
   --usage-color: var(--st-color-text-secondary);
   background: transparent;

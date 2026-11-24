@@ -11197,17 +11197,65 @@
   "ai_chat_model": {
     "message": "Model"
   },
+  "settings_ai_refreshModels": {
+    "message": "Refresh models"
+  },
+  "settings_ai_reasoningMapping": {
+    "message": "Custom reasoning parameters"
+  },
+  "settings_ai_reasoningMapHint": {
+    "message": "Leave blank for automatic detection. Enter the JSON request parameters for each option as documented by your gateway."
+  },
+  "settings_ai_reasoningMapStale": {
+    "message": "The gateway or model changed. Update the custom reasoning parameters or clear them to use automatic detection."
+  },
+  "ai_chat_effort_default": {
+    "message": "Default"
+  },
+  "ai_chat_effort_off": {
+    "message": "Off"
+  },
+  "ai_chat_effort_on": {
+    "message": "On"
+  },
+  "ai_chat_effort_minimal": {
+    "message": "Minimal"
+  },
+  "ai_chat_effort_low": {
+    "message": "Low"
+  },
+  "ai_chat_effort_high": {
+    "message": "High"
+  },
+  "ai_chat_effort_xhigh": {
+    "message": "Very high"
+  },
+  "ai_chat_effort_max": {
+    "message": "Max"
+  },
+  "ai_chat_effort_ultra": {
+    "message": "Ultra"
+  },
+  "ai_chat_effort_supported": {
+    "message": "Deep thinking supported"
+  },
+  "ai_chat_effort_unknown": {
+    "message": "Reasoning capability unknown"
+  },
+  "ai_chat_effort_invalid": {
+    "message": "The reasoning setting is no longer valid. Check the AI service and model's reasoning options."
+  },
+  "ai_chat_effort_response_invalid": {
+    "message": "The model returned invalid data for resuming reasoning."
+  },
+  "ai_chat_thinking": {
+    "message": "Thinking…"
+  },
   "ai_chat_effort": {
     "message": "Reasoning effort"
   },
-  "ai_chat_effort_simple": {
-    "message": "Simple"
-  },
   "ai_chat_effort_medium": {
     "message": "Medium"
-  },
-  "ai_chat_effort_deep": {
-    "message": "Deep"
   },
   "ai_chat_images_preview_only": {
     "message": "Images are previewed locally. Remove them to send text."
