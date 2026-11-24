@@ -1,5 +1,6 @@
 {
   ".name": "게임 도전 과제 번역",
+  ".note": "아직 번역되지 않은 도전 과제의 이름과 설명을 묶어서 번역하고 저장합니다.",
   ".variables.var-61.name": "입력 AppID",
   ".variables.var-62.name": "입력 게임 이름",
   ".variables.var-66.name": "게임 도전 과제",

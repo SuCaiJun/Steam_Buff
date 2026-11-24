@@ -62,6 +62,7 @@
   importScripts(chrome.runtime.getURL("extension/background-messages.js"));
   importScripts(chrome.runtime.getURL("extension/background-update.js"));
   importScripts(chrome.runtime.getURL("extension/background-steam-account.js"));
+  importScripts(chrome.runtime.getURL("extension/background-account-tools.js"));
   importScripts(chrome.runtime.getURL("extension/background-family.js"));
   importScripts(chrome.runtime.getURL("extension/automation-store.js"));
   importScripts(chrome.runtime.getURL("extension/automation-schedule.js"));
@@ -3202,7 +3203,8 @@
             return;
           }
           if (response?.success !== true) {
-            reject(Object.assign(new Error(response?.error || "Steam 自动化入口未响应"), response?.code ? { code: response.code } : {}));
+            reject(Object.assign(new Error(response?.error || "Steam 自动化入口未响应"),
+              response?.code ? { code: response.code } : {}, response?.savedCount > 0 ? { savedCount: response.savedCount } : {}));
             return;
           }
           resolve(response.value);
@@ -3211,21 +3213,50 @@
     });
   }
 
+  const nativeToolWrites = new Map();
+  async function nativeAutomationCommand(action, value, permission) {
+    const key = "st.automation.native-frame.v1";
+    const frame = (await chrome.storage.session.get(key))[key];
+    if (!frame) throw Object.assign(new Error("请打开 Steam 客户端，等待游戏库加载"), { code: "STEAM_CLIENT_REQUIRED", aiToolFailure: true });
+    if (action !== "account-save-sort" && action !== "account-add-collections") return automationNative(frame, action, value);
+    if (!permission) throw new Error("Steam 写入缺少已确认的操作授权");
+    const ticket = crypto.randomUUID();
+    const remaining = new Set(action === "account-save-sort" ? [value.name] : value.ids);
+    nativeToolWrites.set(ticket, { frame, action, value, remaining, permission });
+    try { return await automationNative(frame, action, { ...value, ticket }); }
+    finally { nativeToolWrites.delete(ticket); }
+  }
+
+  /** 原生命令执行前兑换一次性写入授权。页面提供的操作内容不能扩大批准范围。 */
+  async function authorizeNativeToolWrite(request, sender) {
+    const grant = nativeToolWrites.get(request.ticket);
+    const deny = () => Object.assign(new Error("Steam 写入确认已失效"), { code: "ACTION_NOT_WRITTEN" });
+    if (!grant || grant.frame.tabId !== sender.tab?.id || grant.frame.frameId !== sender.frameId || grant.action !== request.command ||
+      grant.value.steamId !== request.steamId || grant.value.appid !== request.appid || !grant.remaining.has(request.part) ||
+      grant.action === "account-save-sort" && grant.value.expected !== request.expected || Date.now() >= grant.value.deadline) throw deny();
+    if (grant.permission.signal.aborted) throw deny();
+    await grant.permission.check();
+    if (grant.permission.signal.aborted || Date.now() >= grant.value.deadline || nativeToolWrites.get(request.ticket) !== grant ||
+        !grant.remaining.delete(request.part)) throw deny();
+    return true;
+  }
+
   async function automationRoute(request, sender, sendResponse, onPreviewLog) {
-    const nativeActions = ["native-ready", "events"];
+    const nativeActions = ["native-ready", "events", "account-write-check"];
     const onboardingAiSave = request.action === "save-ai-services" && isOnboardingSender(sender);
     if (
       sender?.id !== chrome.runtime.id ||
       !(isSettingsSender(sender) || isSteamRuntimeSender(sender) || onboardingAiSave) ||
       (nativeActions.includes(request.action) && !isSteamRuntimeSender(sender)) ||
-      (["test-instruction", "test-tool", "test-library", "test-workflow", "tool-credential", "cancel-instruction-test", "site-permissions", "remove-site-permission"].includes(request.action) && !isSettingsSender(sender))
+      (["test-instruction", "test-tool", "test-library", "test-workflow", "tool-credential", "cancel-instruction-test", "site-permissions", "remove-site-permission", "save-chat-preferences"].includes(request.action) && !isSettingsSender(sender))
     )
       throw new Error("自动化请求来源无效");
     try {
       const automation = globalThis.STBackgroundAutomation;
       sendResponse({
         success: true,
-        value: onboardingAiSave ? await automation.configureAi(request, { onboardingOnly: true })
+        value: request.action === "account-write-check" ? await authorizeNativeToolWrite(request, sender)
+          : onboardingAiSave ? await automation.configureAi(request, { onboardingOnly: true })
           : await automation.execute(request, sender, onPreviewLog),
       });
     } catch (error) {
@@ -4138,7 +4169,39 @@
     // DeepSeek 的思考模式要求回传所有历史思考文本。工具对话仅保存可见消息
     if (url.origin === deepSeek.base && deepSeek.models.includes(body.model)) body.thinking = { type: "disabled" };
   }
+  const accountTools = globalThis.STBackgroundAccountTools.create({
+    native: nativeAutomationCommand,
+    steamGame: (appId, signal) => aiTools.steamGame(appId, signal),
+    async wishlistPrices(ids, country, signal) {
+      const url = CFG.vendors.steamStore.appDetailsForCountry(ids.join(","), country);
+      const { response, data } = await fetchDiagnosticText(url, { credentials: "omit", redirect: "error" }, STORE_FETCH_TIMEOUT_MS, signal);
+      if (!response.ok) return { status: "STEAM_HTTP_" + response.status, prices: {} };
+      const results = parseJson(data);
+      if (!results || ids.some(id => typeof results[id]?.success !== "boolean"))
+        throw Object.assign(new Error("Steam 愿望单价格响应异常"), { code: "AI_TOOL_RESPONSE_INVALID" });
+      const prices = {};
+      for (const id of ids) {
+        const price = results[id].success === true ? results[id].data?.price_overview : null;
+        if (!price) continue;
+        if (!/^[A-Z]{3}$/.test(price.currency) || !Number.isSafeInteger(price.initial) || !Number.isSafeInteger(price.final) ||
+            price.initial < 0 || price.final < 0 || !Number.isSafeInteger(price.discount_percent) || price.discount_percent < 0 || price.discount_percent > 100)
+          throw Object.assign(new Error("Steam 愿望单价格字段异常"), { code: "AI_TOOL_RESPONSE_INVALID" });
+        prices[id] = { currency: price.currency, originalMinor: price.initial, currentMinor: price.final, discountPercent: price.discount_percent };
+      }
+      return { status: "ok", prices };
+    },
+    async wishlistLows(ids, config, country, signal) {
+      const service = globalThis.STStore.thirdPartyData;
+      const items = ids.map(id => ({ type: "app", id }));
+      const pack = await service.getPricePack({}, { items, config, country, steamOnlySummary: true, signal });
+      signal.throwIfAborted();
+      if (!pack.ok) return { prices: {}, status: pack.code || "ITAD_UNAVAILABLE" };
+      const prices = Object.fromEntries(items.map(item => [item.id, service.summarizePricePack(pack, item).historicalLow]));
+      return { prices, status: "ok" };
+    },
+  });
   const aiTools = {
+    accountTool: accountTools.execute,
     async round(service, messages, tools, signal, chat) {
       const next = globalThis.STAI.chatRequest(service, messages);
       const url = new URL(next.url);
@@ -4202,17 +4265,12 @@
   globalThis.STBackgroundAutomation.start({
     native: automationNative,
     verifyNative: verifyAutomationNative,
-    nativeFrameCommand: async (action, value) => {
-      const frame = (await chrome.storage.session.get("st.automation.native-frame.v1"))[
-        "st.automation.native-frame.v1"
-      ];
-      if (!frame) throw new Error("Steam 自动化数据入口尚未就绪");
-      return automationNative(frame, action, value);
-    },
+    nativeFrameCommand: nativeAutomationCommand,
+    batchPlan: accountTools.batchPlan,
     ai: (input) => new Promise((resolve, reject) => {
       void aiChat({ ...input, [AI_PREPARED]: true }, {}, resolve).catch(reject);
     }),
-    aiTool: (id, args, signal) => globalThis.STBackgroundAiChat.execute(aiTools, id, args, signal),
+    aiTool: (id, args, signal, options) => globalThis.STBackgroundAiChat.execute(aiTools, id, args, signal, options),
     taskContext: async (required) => {
       const binding = await globalThis.STBackgroundSteamAccount.identity();
       const fields = { logged_in: !!binding.steamAccountId };

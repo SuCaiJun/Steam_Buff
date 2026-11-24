@@ -1,0 +1,21 @@
+{
+  ".name": "게임 이름 일괄 중국어 번역",
+  ".note": "지정한 Steam 게임의 중국어 정렬 이름을 제안합니다. 기존 정렬 이름이 있거나 이름에 한자가 들어 있으면 건너뛰고 저장 전 확인합니다.",
+  ".description": "지정한 Steam 게임의 중국어 정렬 이름을 제안합니다. 기존 정렬 이름이 있거나 이름에 한자가 들어 있으면 건너뛰고 저장 전 확인합니다.",
+  ".parameters.0.description": "Steam AppID 정수 목록입니다.",
+  ".errors.appIds": "1에서 4294967295 사이의 정수 Steam AppID를 하나 이상 입력하세요.",
+  ".errors.name": "AI가 유효한 중국어 정렬 이름을 반환하지 않았습니다.",
+  ".prompts.P-2.0": "Steam 원래 이름",
+  ".variables.ids": "중복 제거된 AppID",
+  ".variables.size": "게임 수",
+  ".variables.items": "AppID별 결과",
+  ".variables.app": "현재 AppID",
+  ".variables.index": "게임 순번",
+  ".variables.row": "현재 게임 결과",
+  ".variables.error": "현재 게임 오류",
+  ".variables.name": "Steam 원래 이름",
+  ".variables.saved": "Steam 작업 결과",
+  ".variables.sort": "기존 정렬 이름",
+  ".variables.reply": "AI 응답",
+  ".variables.proposed": "예정된 정렬 이름"
+}

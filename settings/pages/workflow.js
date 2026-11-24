@@ -43,6 +43,7 @@
     .wf-toolbar,.wf-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.wf-toolbar{justify-content:space-between}
     [aria-labelledby="aw-tab-prompts"] .aw-card[data-disabled=true]{opacity:.65}
     .wf-editor-dialog{width:min(900px,calc(100vw - 64px));max-width:100%}.wf-editor-dialog .settings-dialog-message{max-height:68vh;overflow:auto;white-space:normal}.wf-editor textarea{height:auto;min-height:170px;padding:12px;resize:vertical;font-family:monospace;line-height:1.6}
+    .wf-editor .wf-item-note{flex:1 1 12rem;width:auto;height:32px;min-height:32px;padding:5px 10px;resize:vertical;font-family:inherit;line-height:20px}
     .wf-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.wf-wide{grid-column:1/-1}.wf-segment{display:flex;gap:4px}.wf-segment button[aria-pressed=true]{color:var(--st-color-primary);border-color:var(--st-color-primary);background:var(--st-color-primary-surface)}
     .wf-prompt-field{display:grid;gap:6px;min-width:0}
     .wf-prompt-head{display:flex;gap:8px;align-items:center;justify-content:space-between;min-height:28px}
@@ -239,7 +240,7 @@
         <div class="wf-toolbar">
           <div class="wf-segment">${button("basic", tr("store_titleCustomName_baseTab", "基础"), `aria-pressed="${draft.mode === "basic"}"`)}
             ${button("advanced", tr("workflow_ui_advanced", "高级"), `aria-pressed="${draft.mode === "advanced"}"`)}</div>
-          <span title="${draft.mode === "basic" ? tr("workflow_ui_edit_the_system_and_user_prompts_for_this_turn", "编辑本轮的系统与用户提示词。") : tr("workflow_ui_the_chat_history_token_can_be_a_string_element_of_the_messag", "对话历史占位符可作为 messages 数组中的一个字符串元素。")}" tabindex="0" aria-label="${esc(tr("workflow_ui_mode_details", "模式说明"))}">ⓘ</span>
+          <textarea class="wf-item-note" data-edit="note" rows="1" aria-label="${esc(tr("store_titleCustomName_noteTab", "备注"))}" placeholder="${esc(tr("store_titleCustomName_noteTab", "备注"))}"></textarea>
         </div>
         ${editor}
         <div class="wf-actions">
@@ -252,6 +253,7 @@
           <h4>${esc(tr("workflow_ui_errors", "错误列表"))}</h4><ul class="wf-error" aria-live="polite"><li></li></ul>
         </section>
       </div>`);
+      node.querySelector('[data-edit="note"]').value = draft.note ?? "";
       refreshPromptErrors();
     }
     async function sampleValues(names) {
@@ -307,6 +309,7 @@
           const control = event.target, path = control.dataset.edit;
           if (!path || path === "previewService") return;
           pathSet(draft, path, path === "enabled" ? control.value === "true" : control.value);
+          if (path === "note") return;
           previewGeneration++;
           node.querySelector("[data-preview]").hidden = true;
         });
@@ -316,7 +319,7 @@
             serviceId = control.value;
             previewGeneration++;
             node.querySelector("[data-preview]").hidden = true;
-          } else if (control.dataset.edit) refreshPromptErrors();
+          } else if (control.dataset.edit && control.dataset.edit !== "note") refreshPromptErrors();
         });
         node.addEventListener("click", (event) => {
           const field = event.target.closest(".wf-prompt-field");
@@ -488,10 +491,16 @@
       }
     }
   }
+  function itemSummary(meta, note) {
+    const hasNote = Boolean(note?.trim());
+    if (!meta && !hasNote) return "";
+    return `<small class="aw-item-summary">${meta ? `<span>${esc(meta)}</span>` : ""}${meta && hasNote ? '<span aria-hidden="true">·</span>' : ""}${hasNote ? `<span class="aw-item-note">${esc(note)}</span>` : ""}</small>`;
+  }
   /** 提示词与自动化宿主使用同一配置快照，保存后只刷新当前页签 */
   function promptsHtml(bundle) {
     const rows = bundle.prompts.map(plan => `<div class="aw-card" data-id="${esc(plan.id)}" data-disabled="${!plan.enabled}">
-      <div><strong>${esc(plan.name)}</strong><small>${esc(plan.mode === "basic" ? tr("store_titleCustomName_baseTab", "基础") : tr("workflow_ui_advanced", "高级"))}</small></div>
+      <div><strong>${esc(plan.name)}</strong>${itemSummary(
+        plan.mode === "basic" ? tr("store_titleCustomName_baseTab", "基础") : tr("workflow_ui_advanced", "高级"), plan.note)}</div>
       <div class="aw-tools">
         ${iconButton("prompt-toggle", (plan.enabled ? tr("common_disable", "停用") : tr("common_enable", "启用")) + " " + plan.name, plan.enabled ? "circle-check" : "circle-off", `aria-pressed="${plan.enabled}"`)}
         ${iconButton("prompt-edit", tr("store_titleCustomName_edit", "编辑") + " " + plan.name, "pencil")}
@@ -526,7 +535,7 @@
       } catch (error) { html(node, '<div class="wf-error" role="alert"></div>'); reportFailure(error, node.firstElementChild); }
     }
   }
-  root.STWorkflowView = Object.freeze({ mount, mountTaskBindings, taskBindingsHtml, promptsHtml, promptAction, style, rpc, serviceChoices, promptChoices, fillBindingSelect, syncBindingNote, esc, html, reportFailure, errorCaption, validationCaption, saveFailureNotice });
+  root.STWorkflowView = Object.freeze({ mount, mountTaskBindings, taskBindingsHtml, promptsHtml, promptAction, itemSummary, style, rpc, serviceChoices, promptChoices, fillBindingSelect, syncBindingNote, esc, html, reportFailure, errorCaption, validationCaption, saveFailureNotice });
   root.STSettingsPages.register({ id: "automation", get name() { return tr("settings_page_automation_name", "自动化"); }, order: 5, style, hideHeader: true, html: () => `<div data-workflow="automation" role="region" aria-label="${esc(tr("settings_page_automation_name", "自动化"))}">${esc(tr("workflow_ui_loading", "正在读取…"))}</div>`, onOpen: mount });
 
 })(globalThis);

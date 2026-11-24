@@ -1,0 +1,10 @@
+{
+  ".name": "自分の Steam ウィッシュリストを取得",
+  ".note": "自分のウィッシュリストの追加日、地域別価格、割引、Steam 過去最安値をページごとに取得します。",
+  ".description": "自分のウィッシュリストの追加日、地域別価格、割引、Steam 過去最安値をページごとに取得します。",
+  ".variables.args": "ツールパラメーター",
+  ".variables.result": "取得結果",
+  ".parameters.0.description": "0 から開始し、次のページに nextStart を使います。",
+  ".parameters.1.description": "Steam AppID の整数リスト。",
+  ".parameters.2.description": "割引中のゲームのみ表示します。"
+}

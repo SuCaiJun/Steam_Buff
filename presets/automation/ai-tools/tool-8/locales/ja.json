@@ -1,0 +1,23 @@
+{
+  ".name": "自分の Steam ライブラリを検索",
+  ".note": "現在の Steam ライブラリを名前や条件で検索し、ページごとに結果を取得します。",
+  ".description": "現在の Steam ライブラリを名前や条件で検索し、ページごとに結果を取得します。",
+  ".variables.args": "ツールパラメーター",
+  ".variables.result": "取得結果",
+  ".parameters.0.description": "ゲーム名で絞り込みます。",
+  ".parameters.1.description": "0 から開始し、次のページに nextStart を使います。",
+  ".parameters.2.description": "ゲームモード。指定可能な値は single、multiplayer、coop、local_multiplayer。",
+  ".parameters.3.description": "ライブラリでの状態。指定可能な値は ready、installed、played、unplayed、private。",
+  ".parameters.4.description": "対応言語。例は schinese、english、japanese。",
+  ".parameters.5.description": "ジャンル。指定可能な値は action、adventure、casual、indie、massively_multiplayer、racing、rpg、simulation、sports、strategy。",
+  ".parameters.6.description": "コントローラ対応。指定可能な値は controller_recommended、controller_full、controller_partial、dualshock、dualshock_bluetooth、dualsense、dualsense_bluetooth、steam_input。",
+  ".parameters.7.description": "Steam Deck 互換性。指定可能な値は deck_verified、deck_playable、deck_unsupported、deck_unknown。",
+  ".parameters.8.description": "VR 対応。指定可能な値は vr、non_vr。",
+  ".parameters.9.description": "Steam の機能。指定可能な値は trading_cards、workshop、achievements、remote_play、family_sharing。",
+  ".parameters.10.description": "Steam ストアのタグ名、または文字列で指定するタグ ID。",
+  ".parameters.11.description": "ゲームを所有する Steam フレンドの正確なニックネームまたはフレンドコード。",
+  ".parameters.12.description": "ゲームプレイのアクセシビリティ。指定可能な値は adjustable_difficulty、save_anytime。",
+  ".parameters.13.description": "視覚のアクセシビリティ。指定可能な値は adjustable_text、subtitles、color_alternatives、contrast、camera_comfort、playable_without_vision。",
+  ".parameters.14.description": "音声のアクセシビリティ。指定可能な値は custom_volume、stereo、surround、narrated_menus。",
+  ".parameters.15.description": "入力のアクセシビリティ。指定可能な値は keyboard_only、mouse_only、touch_only、without_quick_time、own_pace、speech_to_text、text_to_speech。"
+}

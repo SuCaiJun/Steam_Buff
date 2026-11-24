@@ -69,40 +69,44 @@
   const personalNames = Object.freeze(["custom_name", "aliases", "mnemonic", "pinyin"]);
   const readGroups = [
     ["游戏名称", [
-      ["official", "text", "steam-original-name", "Steam 原名称"],
-      ["current", "text", "steam-display-name", "当前显示名称"],
-      ["original_language", "list"],
-      ["custom_name", "text", "steam-custom-name", "独立自定义名称"],
-      ["aliases", "list", null, "游戏别名"],
-      ["mnemonic", "text", null, "游戏助记符"],
-      ["pinyin", "text", null, "游戏拼音全拼"],
-      ["sort", "text", "steam-sort-name"],
+      ["official", "text", "typography", 30, "steam-original-name", "Steam 原名称"],
+      ["current", "text", "eye", 10, "steam-display-name", "当前显示名称"],
+      ["original_language", "list", "language", 70],
+      ["custom_name", "text", "tag", 20, "steam-custom-name", "独立自定义名称"],
+      ["aliases", "list", "tags", 40, null, "游戏别名"],
+      ["mnemonic", "text", "letter-case-upper", 60, null, "游戏助记符"],
+      ["pinyin", "text", "language", 50, null, "游戏拼音全拼"],
+      ["sort", "text", "sort-ascending-letters", 80, "steam-sort-name"],
     ]],
     ["应用与状态", [
-      ["appid", "number", null, "AppID"],
-      ["app_type", "text"], ["sources", "list"], ["modes", "list"],
-      ["status", "list"], ["privacy", "list", null, "游戏隐私状态"],
+      ["appid", "number", "hash", 20, null, "AppID"],
+      ["app_type", "text", "category", 40], ["sources", "list", "source-code", 30], ["modes", "list", "device-gamepad-2", 50],
+      ["status", "list", "activity", 70], ["privacy", "list", "eye-off", 60, null, "游戏隐私状态"],
     ]],
     ["内容与支持", [
-      ["languages", "list"], ["genres", "list"], ["features", "list"],
-      ["tags", "list"], ["hardware", "list"], ["accessibility", "list"],
+      ["languages", "list", "language", 60], ["genres", "list", "category", 50], ["features", "list", "sparkles", 40],
+      ["tags", "list", "tags", 20], ["hardware", "list", "cpu", 30], ["accessibility", "list", "accessible", 10],
     ]],
     ["评价与时间", [
-      ["review_score", "number", null, "Steam 评测等级"],
-      ["metacritic_score", "number"],
-      ["date_added", "number"], ["date_release", "number"], ["date_last_played", "number"],
-      ["playtime_minutes", "number", null, "游戏时长"],
+      ["review_score", "number", "star", 30, null, "Steam 评测等级"],
+      ["metacritic_score", "number", "chart-bar", 20],
+      ["date_added", "number", "calendar-plus", 40], ["date_release", "number", "calendar-event", 10],
+      ["date_last_played", "number", "calendar-clock", 60],
+      ["playtime_minutes", "number", "clock", 50, null, "游戏时长"],
     ]],
     ["收藏分组", [
-      ["collections", "list", "steam-game-collections", "游戏所属分组 ID"],
-      ["collection_names", "list", null, "游戏所属分组名称"],
+      ["collections", "list", "folder", 20, "steam-game-collections", "游戏所属分组 ID"],
+      ["collection_names", "list", "folders", 30, null, "游戏所属分组名称"],
     ]],
   ];
-  const gameReads = Object.freeze(Object.fromEntries(readGroups.flatMap(([group, fields]) =>
-    fields.map(([key, type, id, label]) => [key, Object.freeze({
-      id: id || "steam-game-" + key.replaceAll("_", "-"), label: label || labels[key], group, type,
-    })]),
-  )));
+  const gameReads = {};
+  for (const [group, fields] of readGroups) {
+    for (const [key, type, icon, order, id, label] of fields) {
+      if (Object.hasOwn(gameReads, key)) throw new Error("Steam 游戏读取字段重复：" + key);
+      gameReads[key] = Object.freeze({ id: id || "steam-game-" + key.replaceAll("_", "-"), label: label || labels[key], group, type, icon, order });
+    }
+  }
+  Object.freeze(gameReads);
   const numeric = new Set([
     "appid",
     "review_score",

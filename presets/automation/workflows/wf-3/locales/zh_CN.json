@@ -1,5 +1,6 @@
 {
   ".name": "游戏的成就翻译",
+  ".note": "分批翻译尚无译文的成就名称和描述，并保存译文。",
   ".variables.var-61.name": "传入APPID",
   ".variables.var-62.name": "传入游戏名称",
   ".variables.var-66.name": "读取游戏成就列表结果",

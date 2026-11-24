@@ -1,5 +1,6 @@
 {
   ".name": "ゲーム名の中国語化",
+  ".note": "独自の並べ替え名がない場合、外国語のゲーム名を中国語に翻訳して並べ替え名に保存します。",
   ".variables.var-1.name": "入力 AppID",
   ".variables.var-2.name": "入力ゲーム名",
   ".variables.var-8.name": "並べ替え用の名前",

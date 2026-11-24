@@ -1,5 +1,6 @@
 {
   ".name": "將遊戲新增至收藏分組",
+  ".note": "根據 Steam 商店資料，將遊戲新增至合適的現有收藏群組。",
   ".variables.var-17.name": "傳入APPID",
   ".variables.var-18.name": "傳入遊戲名稱",
   ".variables.var-22.name": "字典",

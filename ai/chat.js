@@ -97,6 +97,51 @@
     return badge;
   }
 
+  let toolApproval;
+  function clearApproval() {
+    if (!toolApproval) return;
+    toolApproval.remove();
+    toolApproval = null;
+  }
+  function showApproval(channel, message) {
+    clearApproval();
+    const dialog = document.createElement("dialog"), title = document.createElement("h2");
+    const definition = STAI.CHAT_TOOLS.find(tool => tool.id === message.toolId);
+    const list = document.createElement("ul"), form = document.createElement("form");
+    const cancel = document.createElement("button"), confirm = document.createElement("button");
+    dialog.className = "chat-tool-approval";
+    title.id = "chat-tool-approval-title";
+    title.textContent = text(definition.label, definition.name);
+    dialog.setAttribute("aria-labelledby", title.id);
+    for (const item of message.items) {
+      const row = document.createElement("li"), label = document.createElement("strong");
+      label.textContent = `${item.name || "AppID"} · ${item.appId}`;
+      const detail = document.createElement("span");
+      detail.textContent = item.sortName || item.collections?.map(group => group.name).join("、") ||
+        text("ai_chat_tool_approval_achievements", "翻译 $count$ 条成就", { count: item.count });
+      row.append(label, detail);
+      list.append(row);
+    }
+    form.method = "dialog";
+    cancel.value = "decline";
+    cancel.autofocus = true;
+    cancel.textContent = text("common_cancel", "取消");
+    confirm.value = "approve";
+    confirm.textContent = text("ai_chat_tool_approval_confirm", "确认修改");
+    form.append(cancel, confirm);
+    dialog.append(title, list, form);
+    dialog.addEventListener("close", () => {
+      if (toolApproval !== dialog) return;
+      clearApproval();
+      if (port === channel && pending?.sequence === message.sequence) channel.postMessage({
+        action: "decide-tool", sequence: message.sequence, id: message.id, approved: dialog.returnValue === "approve",
+      });
+    }, { once: true });
+    document.body.append(dialog);
+    toolApproval = dialog;
+    dialog.showModal();
+  }
+
   function connect() {
     if (port) return port;
     const opened = chrome.runtime.connect({ name: "st-ai-chat-v1" });
@@ -105,7 +150,9 @@
       if (message.type === "thread-title") { updateThreadTitle(message.id, message.title); return; }
       if (message.sequence !== pending?.sequence) return;
       const { progress, resolve, reject } = pending;
+      if (message.type === "tool-approval") return showApproval(opened, message);
       if (message.type === "delta" || message.type === "tools") return progress?.(message);
+      clearApproval();
       pending = null;
       if (message.type === "done") resolve(message.result);
       else reject(Object.assign(new Error("AI chat operation failed"), { code: message.code }));
@@ -113,6 +160,7 @@
     opened.onDisconnect.addListener(() => {
       const reason = chrome.runtime.lastError;
       if (port !== opened) return;
+      clearApproval();
       port = null;
       pending?.reject(Object.assign(new Error("AI chat connection ended", { cause: reason }), { code: "CHAT_CONNECTION_LOST" }));
       pending = null;
@@ -353,9 +401,16 @@
       field(text("ai_chat_tool_low", "历史最低价"), formatPrice(data.low));
       if (data.low) field(text("ai_chat_tool_low_at", "史低记录时间"), localeTime(data.lowAt));
     }
-    field(text("ai_chat_tool_data_at", "数据时间"), localeTime(source.checkedAt));
-    const index = sources.findIndex(item => item.url === source.url);
-    if (index >= 0) field(text("ai_chat_references", "参考资料"), sourceLink(source, "[" + (index + 1) + "] " + source.name + " ↗"));
+    if (Object.values(STAI.ACCOUNT_TOOLS).some(tool => tool.id === step.id)) {
+      field(text("ai_chat_tool_result", "结果"), data.count);
+      field(text("ai_chat_tool_changed", "已修改"), data.changed);
+      field(text("common_failed", "失败"), data.failed);
+    }
+    if (source) {
+      field(text("ai_chat_tool_data_at", "数据时间"), localeTime(source.checkedAt));
+      const index = sources.findIndex(item => item.url === source.url);
+      if (index >= 0) field(text("ai_chat_references", "参考资料"), sourceLink(source, "[" + (index + 1) + "] " + source.name + " ↗"));
+    }
     return facts;
   }
 
@@ -738,6 +793,7 @@
       CHAT_TIMEOUT: ["ai_chat_timeout", "请求超时。可以重新发送。"],
       CHAT_CONNECTION_LOST: ["ai_chat_disconnected", "对话连接已断开。可以重新发送。"],
       CHAT_CONTEXT_LIMIT: ["ai_chat_context_limit", "对话上下文过长，请新建对话。"],
+      CHAT_PROMPT_UNAVAILABLE: ["ai_chat_prompt_unavailable", "关联提示词不可用，请在「AI 服务 → 对话入口」重新选择。"],
       CHAT_BUSY: ["ai_chat_busy", "此对话正在另一个窗口生成。"],
       CHAT_CHANGED: ["ai_chat_changed", "此对话已更新，请查看最新记录后重新发送。"],
       AI_HOST_PERMISSION_REQUIRED: ["ai_chat_permission", "请在「AI 服务」中编辑并保存当前服务，以授权 AI 网关。"],
@@ -833,7 +889,7 @@
           notice.textContent = text(...toolStates.running);
           continue;
         }
-        if (step.source && !sources.some(source => source.url === step.source.url)) sources.push(step.source);
+        if (step.source?.url && !sources.some(source => source.url === step.source.url)) sources.push(step.source);
         const tool = replyTool(step, sources, previous?.tool);
         if (!previous) process.body.append(tool);
         tools.set(index, { step, tool });

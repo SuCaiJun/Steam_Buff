@@ -18,6 +18,7 @@
     "游戏资料": "game_info", "当前价格": "current_price", "历史折扣": "historical_discounts",
     "历史节日": "historical_festivals", "未来节日": "future_festivals", "摘要语言": "summary_language",
     "文档标题": "title", "内容类型": "content_type",
+    "聊天消息": "chat_message",
   });
   const SERVICE_TOKENS = Object.freeze({ "模型": "ai.model", "温度": "ai.temperature" });
   const HISTORY_NAME = "对话历史";
@@ -197,14 +198,16 @@
     if (typeof plan.basic?.system !== "string" || typeof plan.basic?.user !== "string" ||
         typeof plan.advanced?.[CHAT] !== "string")
       throw new TypeError("提示词模板结构无效");
+    if (plan.note !== undefined && typeof plan.note !== "string")
+      throw Object.assign(new TypeError("备注格式无效"), { code: "WORKFLOW_CONFIG_INVALID", messageKey: "workflow_item_note_invalid" });
     if (plan.mode === "advanced" && protocol) {
       parameters(plan, protocol, { validateRequest: true });
     } else {
       const source = plan.mode === "basic" ? plan.basic : plan.advanced[CHAT];
       validateNames(templateTokens(source));
     }
-    const { id, name, enabled, revision, mode, basic } = plan;
-    const result = { id, name, enabled, revision, mode, basic, advanced: { [CHAT]: plan.advanced[CHAT] } };
+    const { id, name, enabled, revision, mode, basic, note } = plan;
+    const result = { id, name, enabled, revision, mode, basic, advanced: { [CHAT]: plan.advanced[CHAT] }, ...(note !== undefined && { note }) };
     if (plan.toolIds !== undefined) {
       const toolIds = root.STAI.validateChatToolIds(plan.toolIds);
       if (toolIds.length) result.toolIds = toolIds;
@@ -301,6 +304,37 @@
     return { messages, ...(captureTurn ? { turn } : {}) };
   }
 
+  /** 聊天只提供当前消息、已有消息和内置服务字段。 */
+  function chatInput(plan) {
+    if (!plan?.enabled) return null;
+    try {
+      const names = parameters(plan, CHAT, { validateRequest: true });
+      const field = names.find(name => bindingName(plan, name) === "聊天消息") ?? userParameter(plan);
+      if (names.some(name => name !== field)) return null;
+      if (plan.mode === "advanced") {
+        const { body, historyIndex } = advancedTemplate(plan);
+        const user = body.messages.at(-1);
+        if (!field || historyIndex < 0 || historyIndex >= body.messages.length ||
+            user?.role !== "user" || !templateTokens(user.content).has(field)) return null;
+      } else if (field && !templateTokens(plan.basic.user).has(field)) return null;
+      return { field: names.includes(field) ? field : null };
+    } catch (error) {
+      if (error.name === "SyntaxError" || error.code === "PROMPT_INVALID") return null;
+      throw error;
+    }
+  }
+
+  function prepareChat(plan, service, text, history, displayLanguage) {
+    const input = chatInput(plan);
+    if (!input) throw Object.assign(new Error("关联提示词无法用于聊天，请重新选择"), { code: "CHAT_PROMPT_UNAVAILABLE" });
+    if (input.field) {
+      const prepared = prepare(plan, service, { [input.field]: text }, { history, displayLanguage });
+      return prepared.messages ?? prepared.body.messages;
+    }
+    const withMessage = { ...plan, basic: { ...plan.basic, user: [plan.basic.user, "{{聊天消息}}"].filter(Boolean).join("\n\n") } };
+    return prepare(withMessage, service, { 聊天消息: text }, { history, displayLanguage }).messages;
+  }
+
   root.STPromptPlans = Object.freeze({
     revisionKey: (bundle, plan) => JSON.stringify([bundle.epoch, plan.id, plan.revision]),
     historyName: HISTORY_NAME,
@@ -316,5 +350,7 @@
     validate,
     resolve,
     prepare,
+    chatInput,
+    prepareChat,
   });
 })(globalThis);

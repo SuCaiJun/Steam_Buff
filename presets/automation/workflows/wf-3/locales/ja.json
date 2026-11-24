@@ -1,5 +1,6 @@
 {
   ".name": "ゲームの実績を翻訳",
+  ".note": "未翻訳の実績名と説明をまとめて翻訳し、訳文を保存します。",
   ".variables.var-61.name": "入力 AppID",
   ".variables.var-62.name": "入力ゲーム名",
   ".variables.var-66.name": "ゲームの実績",

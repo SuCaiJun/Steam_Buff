@@ -49,8 +49,16 @@
     if (expiredRun(job)) throw timeoutError(job);
   }
   function nodeOf(job) { return job.workflow && job.flow ? flow.currentNode(job.workflow, job.flow) : null; }
-  const caller = job => job.toolRun || job;
-  const execution = job => job.libraryRun || caller(job);
+  // 旧队列最多保存一层工具和库。领取后沿同一调用栈推进，记录的写入状态保持有效
+  const stepsIn = job => job.callFrames ?? [job.toolRun, job.libraryRun].filter(Boolean);
+  const execution = job => stepsIn(job).at(-1) ?? job;
+  const libraryFrameType = frame => flow.isLibraryId(frame.workflow.id);
+  function saveFrames(job, frames) {
+    if (frames.length) job.callFrames = frames;
+    else delete job.callFrames;
+    delete job.toolRun;
+    delete job.libraryRun;
+  }
   function hasUnconfirmedRequest(job) {
     if (job.status === "committing") return true;
     if (job.status !== "running-script") return false;
@@ -60,13 +68,11 @@
     return node?.action === "http-request" && flow.hasHttpBody(node.method);
   }
   async function persistFlow(job, expectedStep, seconds = null) {
-    recordLibraryFailures(job);
-    recordToolFailures(job);
+    for (const frame of stepsIn(job)) recordFrameFailures(job, frame);
     return store.change(job.id, current => {
       if (current.finalized || current.status !== "queued" || current.step !== expectedStep) return null;
       current.flow = copy(job.flow); current.step = job.step;
-      if (job.toolRun) current.toolRun = copy(job.toolRun);
-      if (job.libraryRun) current.libraryRun = copy(job.libraryRun);
+      saveFrames(current, copy(stepsIn(job)));
       return seconds === null ? current : delayState(current, seconds);
     });
   }
@@ -152,7 +158,7 @@
       const registry = await root.STSettings.storage.getAi(), service = root.STAI.findService(registry, job.service.id);
       if (!registry.enabled || !service?.enabled || service.revision !== job.service.revision) throw Object.assign(new Error("AI 服务已变化"), { code: "AUTOMATION_EXPIRED" });
     }
-    const node = nodeOf(job), requiresIdentity = ["ai-call", "tool-call"].includes(node?.action) || node?.action === "notify" && node.scope === "account" || flow.effects[node?.action] && node.action !== "family-refresh";
+    const node = nodeOf(execution(job)), requiresIdentity = ["ai-call", "tool-call"].includes(node?.action) || node?.action === "notify" && node.scope === "account" || flow.effects[node?.action] && node.action !== "family-refresh";
     if (requiresIdentity && !job.owner) throw Object.assign(new Error("暂时无法确认工作流的 Steam 账号"), { code: "ACCOUNT_UNCONFIRMED" });
     if (job.owner) {
       const binding = verifiedBinding ?? await taskIdentity();
@@ -290,7 +296,7 @@
   }
   function addMessage(job, node) {
     const id = job.id + ":" + job.step + ":notice", device = node.scope === "device";
-    const body = flow.read(node.body, job.flow);
+    const body = flow.read(node.body, execution(job).flow);
     if (typeof body !== "string" || !body.trim() || body.length > 20000) throw Object.assign(new Error("请配置非空且不超过 20000 字的消息正文"), { code: "NOTICE_CONTENT_INVALID" });
     job.deliveryAt = Date.now(); job.deliveryAttempts = 0; job.deliveryError = "";
     job.outbox ??= [];
@@ -309,7 +315,7 @@
   }
   function closeNotice(job, state) {
     if (!job.pendingMessage) return;
-    if (nodeOf(job)?.messageType === "interactive") projectNotice(job, job.pendingMessage, state);
+    if (nodeOf(execution(job))?.messageType === "interactive") projectNotice(job, job.pendingMessage, state);
     job.pendingMessage = null;
   }
   function flush(jobId) {
@@ -370,10 +376,8 @@
       current.results[node.id] = resultError(error, error.code || "ACTION_FAILED");
     if (current.pendingMessage) current.outbox = (current.outbox || []).filter(row => row.id !== current.pendingMessage);
     closeNotice(current, "cancelled");
-    recordLibraryFailures(current);
-    recordToolFailures(current);
-    delete current.toolRun;
-    delete current.libraryRun;
+    for (const frame of stepsIn(current)) recordFrameFailures(current, frame);
+    saveFrames(current, []);
     delete current.scriptHttpPending;
     return current;
   }
@@ -514,18 +518,28 @@
     throw new Error("独立名称保存失败，未确认写入");
   }
   /** 每条指令只完成对应的 Steam 读写；数据不依赖 AI 草稿或提示词修订 */
-  async function steamOperation(job, node, beforeWrite) {
-    const definition = flow.effects[node.action], args = Object.fromEntries(definition.fields.map(field => [field.key, flow.read(node[field.key], job.flow)]));
+  async function steamOperation(job, node, beforeWrite, plan, checkDefinition) {
+    const definition = flow.effects[node.action], args = Object.fromEntries(definition.fields.map(field => [field.key, flow.read(node[field.key], execution(job).flow)]));
     root.STWorkflowData.validateArguments(definition, args);
     const appid = Object.hasOwn(args, "game") ? gameId(args.game) : 0;
-    const native = (action, value) => nativeFrame().then(frame => services.native(frame, action, value));
+    const native = plan?.read ?? ((action, value) => nativeFrame().then(frame => services.native(frame, action, value)));
     if (definition.gameField) return gameFieldValue(appid, definition.gameField, native);
     if (node.action === "steam-collections") return native("collections", {});
     if (node.action === "steam-translations") return root.STAchievementTranslationStore.load(appid, args.language);
     if (node.action === "steam-achievements") return native("achievements", { appid });
-    const writeGuard = { epoch: job.epoch, ruleId: job.trigger.id, revision: job.trigger.revision,
-      ...(job.runDeadlineAt ? { runDeadlineAt: job.runDeadlineAt } : {}) };
+    if (plan && definition.nameField) throw actionError("此操作需要在获授权的工作流执行", "ACTION_NOT_WRITTEN");
+    if (plan && node.action === "steam-set-sort-name") {
+      plan.add(node.action, { appid, name: args.value, expected: "" }, checkDefinition);
+      return args.value;
+    }
+    if (plan && node.action === "steam-add-collections") {
+      if (args.value.some(id => typeof id !== "string")) throw actionError("收藏分组需要 ID 列表", "ACTION_INPUT_INVALID");
+      plan.add(node.action, { appid, ids: args.value }, checkDefinition);
+      return { planned: true };
+    }
     const nativeWrite = async (action, value) => {
+      const writeGuard = { epoch: job.epoch, ruleId: job.trigger.id, revision: job.trigger.revision,
+        ...(job.runDeadlineAt ? { runDeadlineAt: job.runDeadlineAt } : {}) };
       const frame = await nativeFrame();
       await beforeWrite();
       checkRunTime(job);
@@ -552,10 +566,14 @@
         if (entry.title !== undefined && entry.title !== source.title || entry.description !== undefined && entry.description !== source.description)
           throw actionError("成就原文已变化，未写入译文", "ACTION_SOURCE_CHANGED");
         return { ...source, translatedTitle: entry.translatedTitle, translatedDescription: entry.translatedDescription,
-          expectedRevision: entry.expectedRevision ?? revisions.get(entry.id) ?? 0, origin: args.origin };
+          expectedRevision: plan ? 0 : entry.expectedRevision ?? revisions.get(entry.id) ?? 0, origin: args.origin };
       });
       const batches = root.STAchievementTranslations.batches(entries);
       for (const batch of batches) root.STAchievementTranslations.saveEntries(batch);
+      if (plan) {
+        if (entries.length) plan.add(node.action, { appid, language: args.language, batches }, checkDefinition);
+        return { planned: true, saved: [] };
+      }
       const saved = [];
       for (const batch of batches) {
         await beforeWrite();
@@ -574,7 +592,7 @@
       if (!started) return null;
       let entered = false;
       const beforeWrite = async () => {
-        await guard(started);
+        guardFrames(await guard(started), started);
         if (entered) return;
         const committed = await store.change(job.id, current => {
           if (current.finalized) return null;
@@ -584,9 +602,14 @@
         if (!committed) throw Object.assign(new Error("本次运行已结束"), { code: "AUTOMATION_EXPIRED" });
         entered = true;
       };
-      await guard(started);
+      guardFrames(await guard(started), started);
       let value;
-      if (node.action === "family-refresh") {
+      const spec = stepsIn(started).map(frame => providerSpec(frame.workflow.id)).findLast(item => item?.writes);
+      if (spec) {
+        if (node.action === "family-refresh") throw actionError("批量工具无法向本次提案添加家庭库刷新", "ACTION_NOT_WRITTEN");
+        const plan = services.batchPlan(spec, controller.signal, { expectedSteamId: started.owner });
+        value = await steamOperation(started, node, beforeWrite, plan);
+      } else if (node.action === "family-refresh") {
         const binding = await taskIdentity();
         value = await services.family(started, node, (write, owner) => configExclusive(async () => {
           await guard(started);
@@ -596,8 +619,8 @@
       } else if (node.action.startsWith("steam-set-") || ["steam-save-translations", "steam-add-collections"].includes(node.action))
         value = await configExclusive(() => steamOperation(started, node, beforeWrite));
       else value = await steamOperation(started, node, beforeWrite);
-      await guard(started);
-      return store.change(job.id, current => completeStep(current, node, value));
+      guardFrames(await guard(started), started);
+      return store.change(job.id, current => completeActive(current, node, value));
     } finally { if (requests.get(job.id) === controller) requests.delete(job.id); }
   }
   function resultError(error, code) {
@@ -613,14 +636,14 @@
     return current;
   }
   async function saveResult(job, node, result) {
-    return store.change(job.id, (current) => completeStep(current, node, result));
+    return store.change(job.id, current => completeActive(current, node, result));
   }
 
   async function runNotice(job, node) {
     let preparing;
     try {
       preparing = await store.change(job.id, current => {
-        if (current.finalized || nodeOf(current)?.id !== node.id) return null;
+        if (current.finalized || nodeOf(execution(current))?.id !== node.id) return null;
         current.status = "preparing-notification";
         current.pendingMessage = addMessage(current, node); return current;
       });
@@ -632,11 +655,11 @@
         if (shown?.shown !== true) throw new Error("Steam 未确认显示消息");
       }
       // 弹窗的迟到确认不得复活已经取消的任务；账号及方案变化同样终止当前交互。
-      await guard(preparing);
+      guardFrames(await guard(preparing), preparing);
       const ready = await store.change(job.id, current => {
         if (current.finalized || current.pendingMessage !== preparing.pendingMessage || current.status !== "preparing-notification") return null;
         if (node.messageType === "notification") {
-          current.pendingMessage = null; return completeStep(current, node, { status: "success" });
+          current.pendingMessage = null; return completeActive(current, node, { status: "success" });
         }
         current.status = "waiting-notification";
         current.deadline = node.timeout ? Date.now() + node.timeout.seconds * 1000 : 0;
@@ -649,11 +672,11 @@
       if (!preparing && error.code !== "NOTICE_CONTENT_INVALID") throw error;
       log.error("automation-notification-failed", "自动化消息投递失败", { error, requestId: job.id });
       const updated = await store.change(job.id, current => {
-        if (current.finalized || nodeOf(current)?.id !== node.id) return null;
+        if (current.finalized || nodeOf(execution(current))?.id !== node.id) return null;
         current.outbox = current.outbox.filter(row => row.id !== preparing?.pendingMessage);
         closeNotice(current, "cancelled");
         const result = resultError(error, error.code || "NOTICE_DELIVERY_FAILED");
-        return completeStep(current, node, { ...result, ...(node.messageType === "interactive" ? { decision: "delivery-failed" } : {}) });
+        return completeActive(current, node, { ...result, ...(node.messageType === "interactive" ? { decision: "delivery-failed" } : {}) });
       });
       if (updated?.noticeCleanup?.length) await deliver(job.id);
       return updated;
@@ -663,10 +686,11 @@
   const configured = value => value && flow.activeValue(value).literal !== "";
 
   const toolRevision = tool => [tool.revision, tool.executionId].join(":");
+  const toolUnavailable = () => actionError("工具已停用、删除或修改，请检查工具设置", "WORKFLOW_TOOL_UNAVAILABLE");
   function resolveTool(bundle, id, revision) {
     const tool = bundle.tools?.find(item => item.id === id);
     if (!tool?.enabled || revision !== undefined && toolRevision(tool) !== revision)
-      throw actionError("工具已停用、删除或修改，请检查工具设置", "WORKFLOW_TOOL_UNAVAILABLE");
+      throw toolUnavailable();
     flow.validateEntryPosition(tool);
     return tool;
   }
@@ -686,6 +710,27 @@
   }
   function guardLibrary(bundle, frame) {
     return resolveLibrary(bundle, frame.workflow.id, frame.workflow);
+  }
+  function guardFrames(bundle, job) {
+    for (const frame of stepsIn(job)) {
+      try {
+        if (libraryFrameType(frame)) guardLibrary(bundle, frame);
+        else guardTool(bundle, frame);
+      } catch (error) {
+        error.childDefinition = frame.workflow.id;
+        throw error;
+      }
+    }
+  }
+  function checkCall(path, id) {
+    if (path.includes(id)) throw actionError("不能循环调用工具或自定义库：" + [...path, id].join(" → "), "WORKFLOW_CALL_CYCLE");
+  }
+  function pushFrame(job, frame) {
+    const frames = stepsIn(job);
+    checkCall(frames.map(item => item.workflow.id), frame.workflow.id);
+    saveFrames(job, [...frames, frame]);
+    job.status = "queued";
+    return job;
   }
   function validateLibraryOrder(library, callId) {
     try { flow.validateLibraryOutputPosition(library); }
@@ -709,7 +754,7 @@
         throw actionError("库输入类型不符：" + field.name, "WORKFLOW_LIBRARY_BINDING");
       args[field.name] = value;
     }
-    return { workflow: library, flow: flow.state(args, {}, library), callId: node.id };
+    return { workflow: library, flow: await childState(library, args, parent.flow.meta), callId: node.id };
   }
   function libraryValue(frame) {
     const { workflow, flow: local } = frame;
@@ -727,37 +772,58 @@
     parent.flow.vars = staged.vars;
     delete parent.flow.expressionResults;
   }
-  function recordChildFailure(job, item, location) {
-    (job.flow.failures ??= []).push({ ...item, ...location, error: { ...item.error, ...location } });
-  }
-  function recordLibraryFailures(job, library = job.libraryRun) {
-    if (!library?.flow.failures?.length) return;
-    const tool = job.toolRun;
-    const location = tool ? { nodeId: job.flow.nodeId, toolId: tool.workflow.id, toolNodeId: library.callId } : { nodeId: library.callId };
-    for (const item of library.flow.failures) recordChildFailure(job, item, { ...location, libraryNodeId: item.nodeId });
-    delete library.flow.failures;
-  }
-  function recordToolFailures(job, tool = job.toolRun) {
-    if (!tool?.flow.failures?.length) return;
-    for (const item of tool.flow.failures) {
-      const libraryNodeId = item.error?.libraryNodeId;
-      recordChildFailure(job, item, { nodeId: job.flow.nodeId, toolId: tool.workflow.id, toolNodeId: item.nodeId,
-        ...(libraryNodeId && { libraryNodeId }) });
+  function frameLocation(job, frame, nodeId) {
+    if (frame === job) return { nodeId };
+    const path = stepsIn(job), first = path[0];
+    const location = { nodeId: first.callId ?? job.flow.nodeId };
+    if (!libraryFrameType(first)) {
+      location.toolId = first.workflow.id;
+      location.toolNodeId = first === frame ? nodeId : path[1]?.callId;
     }
-    delete tool.flow.failures;
+    if (libraryFrameType(frame)) location.libraryNodeId = nodeId;
+    return location;
+  }
+  function recordFrameFailures(job, frame) {
+    if (!frame.flow.failures?.length) return;
+    for (const item of frame.flow.failures) {
+      const location = { ...frameLocation(job, frame, item.nodeId), ...(item.error?.libraryNodeId && { libraryNodeId: item.error.libraryNodeId }) };
+      (job.flow.failures ??= []).push({ ...item, ...location, error: { ...item.error, ...location } });
+    }
+    delete frame.flow.failures;
   }
   function completeActive(current, node, value) {
     const active = execution(current);
     if (current.finalized || nodeOf(active)?.id !== node.id) return null;
     if (active === current) return completeStep(current, node, value);
     flow.complete(active.workflow, active.flow, node, value);
-    if (active === current.toolRun) traceTool(active, node, "success");
+    if (active.trace) traceTool(active, node, "success");
     current.step++; current.deadline = 0; current.status = "queued";
     return current;
   }
+  async function completeChild(job, base) {
+    const frames = stepsIn(job), child = frames.at(-1);
+    const node = nodeOf(frames.at(-2) ?? job), isLibrary = libraryFrameType(child);
+    const value = isLibrary ? libraryValue(child) : { ...child.binding, status: "success", data: toolValue(child) };
+    return configExclusive(async () => {
+      guardFrames(await guard(job), job);
+      return store.change(job.id, current => {
+        const currentFrames = stepsIn(current), active = currentFrames.at(-1), parent = currentFrames.at(-2) ?? current;
+        if (current.finalized || current.step !== base || active?.workflow.id !== child.workflow.id || nodeOf(parent)?.id !== node.id) return null;
+        recordFrameFailures(job, child);
+        current.flow.failures = job.flow.failures;
+        saveFrames(current, currentFrames.slice(0, -1));
+        current.step = job.step;
+        if (!isLibrary) return completeActive(current, node, value);
+        completeLibrary(parent, node, value);
+        if (parent.trace) traceTool(parent, node, "success");
+        current.step++;
+        return current;
+      });
+    });
+  }
 
-  async function historyDigest(messages) {
-    const hash = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(JSON.stringify(messages)));
+  async function jsonDigest(value) {
+    const hash = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(JSON.stringify(value)));
     return Array.from(new Uint8Array(hash), byte => byte.toString(16).padStart(2, "0")).join("");
   }
 
@@ -816,7 +882,7 @@
       const { workflowContextId, ...last } = history.at(-1);
       messages = [...history.slice(0, -1), last];
       batch = state.aiHistories[contextId];
-      if (batch.digest !== await historyDigest(messages))
+      if (batch.digest !== await jsonDigest(messages))
         throw invalidToolExchange("对话历史已被修改，无法匹配工具请求");
     }
     if (batch?.calls.length) {
@@ -858,7 +924,7 @@
     const batch = {
       id, calls, serviceId: ai.id, serviceRevision: ai.revision,
       toolRevisions: Object.fromEntries(prepared.definitions.map(tool => [tool.id, toolRevision(tool)])),
-      ...(node.contextOutput ? { digest: await historyDigest(messages), ...(calls.length ? { options } : {}) } : {}),
+      ...(node.contextOutput ? { digest: await jsonDigest(messages), ...(calls.length ? { options } : {}) } : {}),
     };
     const requests = calls.map(call => {
       const toolId = call.function.name, definition = prepared.definitions.find(tool => tool.id === toolId);
@@ -874,17 +940,19 @@
     const ai = await root.STAI.resolveService(await root.STSettings.storage.getAi(), node.serviceId);
     const promptBinding = { id: prompt.id, revision: prompt.revision };
     const serviceBinding = { id: ai.id, revision: ai.revision };
-    const prepared = await prepareAi(node, prompt, ai, job.flow, request => expressionValues({ ...job, prompt: promptBinding, service: serviceBinding }, request), bundle);
+    const state = execution(job).flow;
+    const prepared = await prepareAi(node, prompt, ai, state, request => expressionValues({ ...job, prompt: promptBinding, service: serviceBinding }, request), bundle);
     const controller = new AbortController(); requests.set(job.id, controller);
     try {
       const started = await store.change(job.id, current => {
         if (current.finalized) return null;
         current.prompt = promptBinding; current.service = serviceBinding; current.status = "generating";
-        if (job.flow.expressionResults) current.flow.expressionResults = job.flow.expressionResults;
+        if (state.expressionResults) execution(current).flow.expressionResults = state.expressionResults;
         return current;
       });
       if (!started) return null;
       const currentBundle = await guard(started);
+      guardFrames(currentBundle, started);
       for (const tool of prepared.definitions || []) resolveTool(currentBundle, tool.id, toolRevision(tool));
       const response = await services.ai({ messages: prepared.messages, serviceId: ai.id, serviceRevision: ai.revision, preparedBody: prepared.body,
         ...(prepared.nativeHistory ? { workflowTools: true } : {}),
@@ -893,30 +961,66 @@
       if (typeof response.text !== "string") throw actionError("AI 回复不是文本", "AI_RESPONSE_INVALID");
       const updated = prepared.nativeHistory ? await updatedAiHistory(node, ai, prepared, response) : null;
       const latestBundle = await guard(started);
+      guardFrames(latestBundle, started);
       for (const tool of prepared.definitions || []) resolveTool(latestBundle, tool.id, toolRevision(tool));
       return store.change(job.id, current => {
-        const pending = updated?.requests.length;
-        const next = completeStep(current, node, response.text);
+        const active = execution(current);
+        const next = completeActive(current, node, response.text);
         if (!next) return null;
-        if (pending) {
-          delete next.flow.vars[node.output];
-          next.results[node.id] = { toolRequests: updated.requests };
-        }
-        if (node.toolRequestsOutput) flow.write(next.flow, node.toolRequestsOutput, updated?.requests || []);
-        if (node.contextOutput) {
-          const updatedContext = updated?.messages ?? [...prepared.turn, { role: "assistant", content: response.text }];
-          flow.write(next.flow, node.contextOutput, updatedContext);
-        }
-        if (updated && (node.contextOutput || pending && node.toolRequestsOutput))
-          (next.flow.aiHistories ??= {})[updated.batch.id] = updated.batch;
-        if (prepared.previousBatch) delete next.flow.aiHistories[prepared.previousBatch];
+        applyAiOutputs(active.flow, node, prepared, response.text, updated);
+        if (active === current && updated?.requests.length) current.results[node.id] = { toolRequests: updated.requests };
         next.prompt = null; next.service = null;
         return next;
       });
     } finally { if (requests.get(job.id) === controller) requests.delete(job.id); }
   }
+  function applyAiOutputs(state, node, prepared, text, updated) {
+    const pending = updated?.requests.length;
+    if (pending) delete state.vars[node.output];
+    if (node.toolRequestsOutput) flow.write(state, node.toolRequestsOutput, updated?.requests || []);
+    if (node.contextOutput) flow.write(state, node.contextOutput, updated?.messages ?? [...prepared.turn, { role: "assistant", content: text }]);
+    if (updated && (node.contextOutput || pending && node.toolRequestsOutput)) (state.aiHistories ??= {})[updated.batch.id] = updated.batch;
+    if (prepared.previousBatch) delete state.aiHistories[prepared.previousBatch];
+  }
+  async function toolCall(node, state, bundle, signal) {
+    let request, original, batch;
+    if (node.toolMode !== "registered") {
+      request = flow.read(node.toolRequest, state);
+      const id = request?.contextId;
+      batch = typeof id === "string" && Object.hasOwn(state.aiHistories ?? {}, id) ? state.aiHistories[id] : null;
+      original = matchToolRequest(batch, request);
+    }
+    const toolId = original?.function.name ?? node.toolId;
+    const binding = request ? { contextId: request.contextId, id: request.id, toolId } : { toolId };
+    if (node.toolMode === "skipped" || node.toolMode === "failed") {
+      const reason = flow.read(node.toolReason, state);
+      if (typeof reason !== "string" || !reason.trim()) throw invalidToolExchange("请填写跳过或失败的原因");
+      return { value: { ...binding, status: node.toolMode, reason } };
+    }
+    try {
+      if (node.toolMode === "result") return { value: { ...binding, status: "success", data: flow.read(node.toolData, state) } };
+      const args = flow.read(node.toolArgs, state);
+      const useOriginal = original && Object.hasOwn(flow.activeValue(node.toolArgs), "literal") &&
+        args && typeof args === "object" && !Object.keys(args).length;
+      const revision = batch?.toolRevisions?.[toolId];
+      const workflow = resolveTool(bundle, toolId, revision);
+      // 旧版等待领取的只读预设没有修订号，仍然只允许原始定义
+      if (batch && revision === undefined && !model.isOriginalProviderTool(workflow))
+        throw invalidToolExchange("本批工具配置已变化，请重新请求 AI");
+      const local = await childState(workflow, model.toolArguments(workflow, useOriginal ? original.function.arguments : args), state.meta);
+      return { child: { workflow, flow: local, binding, callId: node.id, trace: {} } };
+    } catch (error) {
+      signal.throwIfAborted();
+      if (!error.actionResult && !["CHAT_TOOL_INVALID", "WORKFLOW_VALUE_UNSET", "WORKFLOW_VALUE_TYPE"].includes(error.code)) throw error;
+      if (error.cause?.name === "SyntaxError") root.STLoggerSchema.markJsonError(error.cause);
+      const detail = resultError(error, error.code || "WORKFLOW_AI_TOOL_FAILED");
+      const failed = actionError(detail.reason, detail.code, error);
+      failed.toolResult = { ...binding, ...detail };
+      throw failed;
+    }
+  }
   async function runAiTool(job, node) {
-    const state = job.flow;
+    const state = execution(job).flow;
     await flow.evaluateValues(flow.inputs(node), state, request => expressionValues(job, request));
     const controller = new AbortController();
     requests.set(job.id, controller);
@@ -928,57 +1032,15 @@
       });
       if (!started) return null;
       const bundle = await guard(started);
-      let request, original, batch;
-      if (node.toolMode !== "registered") {
-        request = flow.read(node.toolRequest, state);
-        const id = request?.contextId;
-        batch = typeof id === "string" && Object.hasOwn(state.aiHistories ?? {}, id) ? state.aiHistories[id] : null;
-        original = matchToolRequest(batch, request);
-      }
-      const toolId = original?.function.name ?? node.toolId;
-      const binding = request ? { contextId: request.contextId, id: request.id, toolId } : { toolId };
-      let result;
-      if (node.toolMode === "skipped" || node.toolMode === "failed") {
-        const reason = flow.read(node.toolReason, state);
-        if (typeof reason !== "string" || !reason.trim()) throw invalidToolExchange("请填写跳过或失败的原因");
-        result = { ...binding, status: node.toolMode, reason };
-      } else {
-        try {
-          let data;
-          if (node.toolMode === "result") data = flow.read(node.toolData, state);
-          else {
-            const args = flow.read(node.toolArgs, state);
-            const useOriginal = original && Object.hasOwn(flow.activeValue(node.toolArgs), "literal") &&
-              args && typeof args === "object" && !Object.keys(args).length;
-            const input = useOriginal ? original.function.arguments : args;
-            const revision = batch?.toolRevisions?.[toolId];
-            const workflow = resolveTool(bundle, toolId, revision);
-            // 升级前只读预设的待处理批次没有修订，仅原始预设可继续领取
-            if (batch && revision === undefined && !model.isOriginalProviderTool(workflow))
-              throw invalidToolExchange("本批工具配置已变化，请重新请求 AI");
-            const local = flow.state(model.toolArguments(workflow, input), {}, workflow);
-            return store.change(job.id, current => {
-              if (current.finalized || nodeOf(current)?.id !== node.id) return null;
-              current.toolRun = { workflow, flow: local, binding, trace: {} };
-              current.status = "queued";
-              return current;
-            });
-          }
-          result = { ...binding, status: "success", data };
-        } catch (error) {
-          controller.signal.throwIfAborted();
-          if (!error.actionResult && !["CHAT_TOOL_INVALID", "WORKFLOW_VALUE_UNSET", "WORKFLOW_VALUE_TYPE"].includes(error.code))
-            throw error;
-          if (error.cause?.name === "SyntaxError") root.STLoggerSchema.markJsonError(error.cause);
-          const detail = resultError(error, error.code || "WORKFLOW_AI_TOOL_FAILED");
-          const failed = actionError(detail.reason, detail.code, error);
-          failed.toolResult = { ...binding, ...detail };
-          throw failed;
-        }
-      }
+      guardFrames(bundle, started);
+      const { child, value } = await toolCall(node, state, bundle, controller.signal);
       controller.signal.throwIfAborted();
-      await guard(started);
-      return saveResult(job, node, result);
+      const latest = await guard(started);
+      guardFrames(latest, started);
+      if (!child) return saveResult(job, node, value);
+      guardTool(latest, child);
+      checkCall(stepsIn(started).map(frame => frame.workflow.id), child.workflow.id);
+      return store.change(job.id, current => current.finalized || nodeOf(execution(current))?.id !== node.id ? null : pushFrame(current, child));
     } finally { if (requests.get(job.id) === controller) requests.delete(job.id); }
   }
   function runScriptOrReading(node, state, id, signal, network) {
@@ -1030,7 +1092,8 @@
     if (error.libraryNodeId || error.toolNodeId) return;
     const node = nodeOf(job);
     if (!node || node.action === "ai-call") return;
-    const library = job.libraryRun?.workflow, tool = job.toolRun?.workflow;
+    const library = stepsIn(job).findLast(libraryFrameType)?.workflow;
+    const tool = stepsIn(job).findLast(frame => !libraryFrameType(frame))?.workflow;
     const site = { origin: error.origin,
       ...(library && { library: { id: library.id, revision: library.revision, executionId: library.executionId } }),
       ...(tool && { tool: { id: tool.id, revision: toolRevision(tool) } }) };
@@ -1208,6 +1271,7 @@
 
   async function requireWorkflowPermission(node) {
     const permission = flow.instructionPermission(node.action);
+    if (!permission) return;
     const membership = await root.STSettings.storage.getMembership();
     if (!root.STSettingsMembership.permission(permission, membership)) {
       const message = `${flow.names[node.action]}：${flow.permissionDenial(permission, membership)}`;
@@ -1216,18 +1280,19 @@
     }
   }
 
-  const isToolQuery = node => node.action === "query-provider-data";
-  async function runQuery(node, state, signal, tool, checkpoint, beforeSend) {
+  const isToolQuery = node => Object.hasOwn(flow.providerQueries, node.action);
+  const providerSpec = id => Object.values(root.STAI.ACCOUNT_TOOLS).find(item => item.id === id);
+  async function runQuery(node, state, signal, tool, checkpoint, beforeSend, expectedSteamId, accountChat) {
     if (!isToolQuery(node)) return runHttp(node, state, signal, tool, checkpoint, beforeSend);
     try {
       if (beforeSend) await beforeSend();
       signal.throwIfAborted();
-      if (node.provider === root.STAI.STORE_SEARCH_TOOL_ID) {
-        const filters = flow.read(node.filters, state);
-        return await services.aiTool(node.provider, filters, signal);
-      }
-      const appId = flow.read(node.appId, state);
-      return await services.aiTool(node.provider, { appId }, signal);
+      const { provider, argument, legacy } = flow.providerQueries[node.action];
+      const input = flow.read(node[argument], state);
+      const args = argument === "appId" ? { appId: input } : input;
+      const id = root.STAI.PROVIDER_TOOL_IDS[provider];
+      if (legacy) return await runLegacyBatch(id, args, signal, expectedSteamId, accountChat?.queryOptions(id), beforeSend);
+      return await services.aiTool(id, args, signal, accountChat?.queryOptions(id) ?? { expectedSteamId });
     } catch (error) {
       signal.throwIfAborted();
       if (!error.aiToolFailure && !Number.isInteger(error.status) && error.name !== "TimeoutError" &&
@@ -1265,33 +1330,25 @@
         if (active && !saved) throw httpError("HTTP 请求所属的运行已结束");
         writePending = active;
       };
-      const frame = current.toolRun, library = current.libraryRun, state = execution(current).flow;
-      if (query || frame || library) {
-        const bundle = await guard(current);
-        if (frame) guardTool(bundle, frame);
-        if (library) guardLibrary(bundle, library);
-      }
-      const checkLibrary = library ? async () => {
-        const latest = await guard(current);
-        if (frame) guardTool(latest, frame);
-        guardLibrary(latest, library);
+      const frames = stepsIn(current), active = execution(current), state = active.flow;
+      const inTool = frames.some(frame => !libraryFrameType(frame));
+      if (query || frames.length) guardFrames(await guard(current), current);
+      const checkChildren = frames.length ? async () => {
+        guardFrames(await guard(current), current);
         controller.signal.throwIfAborted();
       } : undefined;
-      const network = !frame && node.action === "script" ? async (request, seconds, signal) => {
+      const network = !inTool && node.action === "script" ? async (request, seconds, signal) => {
         if (writePending) throw httpError("HTTP 写请求已发送，结果待核实", "WORKFLOW_HTTP_UNCERTAIN");
-        const bundle = await guard(current);
-        if (library) guardLibrary(bundle, library);
+        guardFrames(await guard(current), current);
         await requireWorkflowPermission(node);
-        return scriptHttp(request, seconds, signal, checkpoint, true, checkLibrary);
+        return scriptHttp(request, seconds, signal, checkpoint, true, checkChildren);
       } : undefined;
-      const value = await (query ? runQuery(node, state, controller.signal, library?.workflow ?? frame?.workflow, checkpoint, checkLibrary) :
+      const value = await (query ? runQuery(node, state, controller.signal, frames.length ? active.workflow : null, checkpoint, checkChildren, current.owner) :
         runScriptOrReading(node, state, job.id, controller.signal, network));
       controller.signal.throwIfAborted();
       if (writePending)
         throw httpError("HTTP 写请求已发送，结果待核实", "WORKFLOW_HTTP_UNCERTAIN");
-      const bundle = await guard(current);
-      if (frame) guardTool(bundle, frame);
-      if (library) guardLibrary(bundle, library);
+      guardFrames(await guard(current), current);
       return store.change(job.id, entry => {
         if (entry.step !== current.step || entry.status !== "running-script") return null;
         delete entry.scriptHttpPending;
@@ -1328,6 +1385,52 @@
       ...(error.messageKey && { messageKey: error.messageKey, messageParams: error.messageParams }),
       ...(error.code === "WORKFLOW_HTTP_PERMISSION_REQUIRED" && { origin: error.origin ?? error.cause?.origin }) };
   }
+  async function runDefinition(frame, options) {
+    const spec = providerSpec(frame.workflow.id);
+    const batchId = spec?.writes && options.chat?.receipt ? root.crypto.randomUUID() : null;
+    const ownPlan = spec?.writes ? services.batchPlan(spec, options.signal, { expectedSteamId: options.expectedSteamId,
+      ...options.chat, checkTool: options.checkLibrary ?? options.chat?.checkTool,
+      ...(batchId && { receipt: items => options.chat.receipt(items, { batchId, toolId: spec.id }) }) }) : null;
+    const result = await previewDefinition(frame, { ...options, plan: ownPlan ?? options.plan });
+    return ownPlan ? ownPlan.finish(result) : result;
+  }
+  /** 自建工具里已保存的 2.2.65 节点只做参数转接，执行同一份出厂流程 */
+  async function runLegacyBatch(toolId, args, signal, expectedSteamId, chat, checkLibrary) {
+    const storage = root.STSettings.storage;
+    const [bundle, locale] = await Promise.all([storage.getWorkflow(), storage.getUiLocale({ strict: true })]);
+    const defaults = await model.loadDefaults(locale);
+    const workflow = defaults.tools.find(item => item.id === toolId);
+    for (const node of flow.walk(workflow.steps)) {
+      if (!node.promptId) continue;
+      const packaged = defaults.prompts.find(item => item.id === node.promptId);
+      const saved = bundle.prompts.find(item => item.id === node.promptId);
+      if (saved && packaged) node.inputs = presetInputs(node, packaged, saved);
+    }
+    const input = root.STBackgroundAccountTools.argumentsFor(providerSpec(toolId), args);
+    const id = "legacy-account-tool-" + root.crypto.randomUUID(), check = () => signal.throwIfAborted();
+    return runDefinition({ workflow, flow: await childState(workflow, input) }, { id, signal, check, checkLibrary, chat, expectedSteamId,
+      evaluate: data => root.STWorkflowScript.run({ id, ...data, seconds: 10, signal }) });
+  }
+  async function definitionAi(node, state, options) {
+    const { signal, evaluate, checkLibrary } = options;
+    const storage = root.STSettings.storage;
+    const [bundle, registry] = await Promise.all([storage.getWorkflow(), storage.getAi()]);
+    const prompt = root.STPromptPlans.resolve(bundle, node.promptId);
+    const serviceId = options.plan && node.serviceId === root.STAI.DEFAULT_SERVICE_ID ? options.chat?.serviceId ?? node.serviceId : node.serviceId;
+    const ai = await root.STAI.resolveService(registry, serviceId);
+    const prepared = await prepareAi(node, prompt, ai, state, evaluate, bundle);
+    if (checkLibrary) await checkLibrary();
+    signal.throwIfAborted();
+    const response = await services.ai({ messages: prepared.messages, preparedBody: prepared.body, serviceId: ai.id,
+      serviceRevision: ai.revision, ...(prepared.nativeHistory ? { workflowTools: true } : {}),
+      timeoutMs: node.requestTimeoutSeconds * 1000, operationId: options.id, requestId: options.id, signal });
+    if (response?.success !== true || typeof response.text !== "string")
+      throw actionError(response?.error || "AI 回复不可用", response?.code || "AI_RESPONSE_INVALID");
+    const updated = prepared.nativeHistory ? await updatedAiHistory(node, ai, prepared, response) : null;
+    if (checkLibrary) await checkLibrary();
+    signal.throwIfAborted();
+    return { text: response.text, prepared, updated };
+  }
   async function previewDefinition(frame, options) {
     const { workflow, flow: state } = frame;
     const { signal, check, id, evaluate, confirmNetwork, checkLibrary } = options;
@@ -1353,12 +1456,22 @@
           continue;
         }
         let value;
+        let ai;
         if (node.action === "wait") await waitPreview(flow.read(node.seconds, state), signal);
         else if (node.action === "log") {
           if (checkLibrary) await checkLibrary();
           options.log?.(node, flow.read(node.value, state));
         }
-        else if (node.action === "script" || root.STWorkflowData.readingActions.includes(node.action)) {
+        else if (node.action === "tool-call") {
+          await flow.evaluateValues(flow.inputs(node), state, evaluate);
+          value = await previewToolCall(node, frame, options);
+        } else if (node.action === "ai-call" && (options.chat || options.plan)) {
+          ai = await definitionAi(node, state, options); value = ai.text;
+        } else if (previewSteamRead(node) || options.plan && Object.hasOwn(flow.effects, node.action) && node.action !== "family-refresh") {
+          await requireWorkflowPermission(node);
+          if (checkLibrary) await checkLibrary();
+          value = options.plan ? await steamOperation(frame, node, null, options.plan, checkLibrary) : await readPreviewSteam(node, state);
+        } else if (node.action === "script" || root.STWorkflowData.readingActions.includes(node.action)) {
           if (node.action === "script") await requireWorkflowPermission(node);
           if (checkLibrary) await checkLibrary();
           check();
@@ -1371,10 +1484,11 @@
           }
           await flow.evaluateValues(flow.inputs(node), state, evaluate);
           check();
-          value = await runQuery(node, state, signal, workflow, undefined, checkLibrary);
-        } else throw new TypeError("未登记的库试运行指令");
+          value = await runQuery(node, state, signal, workflow, undefined, checkLibrary, undefined, options.legacyApproval);
+        } else throw actionError("该指令需要在获授权的工作流中正式执行", "WORKFLOW_PREVIEW_UNSUPPORTED");
         check();
         flow.complete(workflow, state, node, value);
+        if (ai) applyAiOutputs(state, node, ai.prepared, ai.text, ai.updated);
         if (frame.trace) traceTool(frame, node, "success", true);
       } catch (error) {
         check();
@@ -1395,8 +1509,54 @@
       }
     }
   }
+
+  async function previewToolCall(node, parent, options) {
+    const bundle = await root.STSettings.storage.getWorkflow();
+    const { child, value } = await toolCall(node, parent.flow, bundle, options.signal);
+    if (!child) return value;
+    const path = [...options.path ?? [], parent.workflow.id];
+    checkCall(path, child.workflow.id);
+    const checkLibrary = async () => {
+      if (options.checkLibrary) await options.checkLibrary();
+      guardTool(await root.STSettings.storage.getWorkflow(), child);
+      options.check();
+    };
+    try {
+      if (!options.chat) {
+        const version = options.toolVersions?.[child.workflow.id];
+        if (!version || toolRevision(child.workflow) !== toolRevision(version)) throw toolUnavailable();
+      }
+      await checkLibrary();
+      const data = await runDefinition(child, { ...options, path, checkLibrary, network: undefined });
+      await checkLibrary();
+      return { ...child.binding, status: "success", data };
+    } catch (error) { throw toolFailure(child, node, error); }
+  }
+
+  /** 执行聊天选中的已保存工具，批量 Steam 修改继续使用对话确认和回执 */
+  async function runAccountChatTool(definition, args, signal, permission) {
+    const workflow = model.validateTool(definition);
+    const state = await childState(workflow, model.toolArguments(workflow, args));
+    const id = "chat-account-tool-" + root.crypto.randomUUID();
+    let writeUsed = false;
+    const queryOptions = toolId => {
+      const tool = Object.values(root.STAI.ACCOUNT_TOOLS).find(item => item.id === toolId);
+      if (!tool?.writes) return {};
+      if (toolId !== workflow.id || writeUsed) throw actionError("单次聊天工具调用只允许执行一次对应的批量修改指令", "CHAT_TOOL_NOT_ALLOWED");
+      writeUsed = true;
+      return permission;
+    };
+    const check = () => signal.throwIfAborted();
+    return runDefinition({ workflow, flow: state }, { id, signal, check, checkLibrary: permission.checkTool, confirmNetwork: true,
+      chat: permission, preview: {}, legacyApproval: { queryOptions }, evaluate: (data, activeSignal = signal) =>
+        root.STWorkflowScript.run({ id, ...data, seconds: 10, signal: activeSignal }) });
+  }
   async function previewLibraryCall(parent, node, options) {
-    const version = options.libraryVersions?.[node.libraryId];
+    const path = [...options.path ?? [], parent.workflow.id];
+    checkCall(path, node.libraryId);
+    const bundle = await root.STSettings.storage.getWorkflow();
+    const version = options.libraryVersions?.[node.libraryId] ?? (options.chat
+      ? resolveLibrary(bundle, node.libraryId) : null);
     if (!version || !Number.isSafeInteger(version.revision)) throw libraryUnavailable();
     const active = { id: node.libraryId, version, controller: new AbortController() };
     const signal = active.controller.signal;
@@ -1404,20 +1564,22 @@
     const check = () => { options.check(); signal.throwIfAborted(); };
     let frame;
     // 先登记本次子调用，保存引起的失效也能中止尚在核对配置的请求
-    options.preview.library = active;
+    const pending = options.preview.libraries ??= new Set();
+    pending.add(active);
     options.signal.addEventListener("abort", abort, { once: true });
     const checkLibrary = async () => {
+      if (options.checkLibrary) await options.checkLibrary();
       resolveLibrary(await root.STSettings.storage.getWorkflow(), active.id, version);
       check();
     };
-    const network = options.network && ((request, seconds, signal) => options.network(request, seconds, signal, checkLibrary));
+    const network = options.network && ((request, seconds, signal, beforeSend = checkLibrary) => options.network(request, seconds, signal, beforeSend));
     try {
       check();
       const definition = resolveLibrary(await root.STSettings.storage.getWorkflow(), active.id, version);
       check();
       const evaluate = data => options.evaluate(data, signal);
       frame = await libraryFrame(definition, parent, node, evaluate);
-      const result = await previewDefinition(frame, { ...options, signal, check, evaluate, checkLibrary, network,
+      const result = await runDefinition(frame, { ...options, path, signal, check, evaluate, checkLibrary, network,
         log: (step, value) => options.log?.(node, value, step),
         failure: item => options.failure?.({ ...item, nodeId: node.id, libraryNodeId: item.nodeId }) });
       await checkLibrary();
@@ -1428,7 +1590,7 @@
       throw error;
     } finally {
       options.signal.removeEventListener("abort", abort);
-      if (options.preview.library === active) delete options.preview.library;
+      pending.delete(active);
     }
   }
   /** 草稿试运行共用指令解释、权益和宿主执行，预览会话由设置窗口持有 */
@@ -1436,7 +1598,7 @@
     if (previews.has(previewKey)) throw new Error("工具正在试运行");
     const inLibrary = request.action === "test-library";
     const workflow = inLibrary ? model.validateLibrary(request.tool) : model.validateTool(request.tool);
-    const state = flow.state(model.toolArguments(workflow, request.inputs), {}, workflow);
+    const state = await childState(workflow, model.toolArguments(workflow, request.inputs));
     const frame = { workflow, flow: state, trace: {} };
     const controller = new AbortController();
     const preview = { controller }, entries = [];
@@ -1446,13 +1608,14 @@
       return await root.STNetworkRequest.run(60_000, async (signal, check) => {
         const id = "tool-preview-" + previewKey;
         const evaluate = (data, requestSignal = signal) => root.STWorkflowScript.run({ id, ...data, seconds: 10, signal: requestSignal });
-        const options = { id, signal, check, evaluate, preview, libraryVersions: request.libraryVersions, confirmNetwork: request.confirmNetwork === true,
+        const options = { id, signal, check, evaluate, preview, libraryVersions: request.libraryVersions, toolVersions: request.toolVersions,
+          confirmNetwork: request.confirmNetwork === true,
           ...(inLibrary && { checkWrite: writes.check, network: writes.network }),
           log: (node, value, step) => {
             entries.push({ nodeId: node.id, libraryNodeId: step?.id, level: (step ?? node).level, text: typeof value === "string" ? value : JSON.stringify(value) });
           }, failure: item => entries.push({ at: item.at, level: "error", ...previewError(item.error, item.nodeId, item.libraryNodeId) }) };
         try {
-          const raw = await previewDefinition(frame, options);
+          const raw = await runDefinition(frame, options);
           const value = inLibrary ? Object.fromEntries(workflow.outputs.map(field => [field.name, raw[field.id]])) : raw;
           return { value, steps: Object.values(frame.trace), ...(entries.length && { entries }) };
         } catch (error) {
@@ -1474,12 +1637,12 @@
     } finally { if (previews.get(previewKey) === preview) previews.delete(previewKey); }
   }
   async function expressionValues(job, request) {
-    await guard(job);
+    guardFrames(await guard(job), job);
     const controller = new AbortController();
     requests.set(job.id, controller);
     try {
       const value = await root.STWorkflowScript.run({ id: job.id + "-expression", ...request, seconds: 10, signal: controller.signal });
-      await guard(job);
+      guardFrames(await guard(job), job);
       return value;
     } finally { if (requests.get(job.id) === controller) requests.delete(job.id); }
   }
@@ -1513,54 +1676,22 @@
         while (job && !job.finalized) {
           try {
             checkRunTime(job);
-            const frame = job.toolRun, cursor = execution(job);
-            if (frame && initialToolBundle) guardTool(initialToolBundle, frame);
-            if (job.libraryRun && initialToolBundle) {
-              guardLibrary(initialToolBundle, job.libraryRun);
-              validateLibraryOrder(job.libraryRun.workflow, job.libraryRun.callId);
+            const cursor = execution(job);
+            if (initialToolBundle) {
+              guardFrames(initialToolBundle, job);
+              for (const frame of stepsIn(job)) if (libraryFrameType(frame)) validateLibraryOrder(frame.workflow, frame.callId);
             }
             initialToolBundle = null;
             const next = await flow.next(cursor.workflow, cursor.flow, regex, request => expressionValues(job, request));
             checkRunTime(job);
             const failures = cursor.flow.failures?.length || 0;
             if (next.kind === "control") {
-              if (cursor === frame) traceTool(frame, next.node, "success");
+              if (cursor.trace) traceTool(cursor, next.node, "success");
               job.step++; budget++;
             }
             else if (next.kind === "done") {
-              if (job.libraryRun) {
-                const node = nodeOf(caller(job)), library = job.libraryRun, values = libraryValue(library);
-                job = await configExclusive(async () => {
-                  const bundle = await guard(job);
-                  guardLibrary(bundle, library);
-                  if (frame) guardTool(bundle, frame);
-                  return store.change(job.id, entry => {
-                    const parent = caller(entry);
-                    if (entry.finalized || entry.step !== base || entry.libraryRun?.callId !== node.id || nodeOf(parent)?.id !== node.id) return null;
-                    completeLibrary(parent, node, values);
-                    if (entry.toolRun) traceTool(entry.toolRun, node, "success");
-                    recordLibraryFailures(entry, library);
-                    delete entry.libraryRun;
-                    entry.step = job.step + 1;
-                    return entry;
-                  });
-                });
-                if (!job) return;
-                base = job.step;
-                continue;
-              }
-              if (frame) {
-                const node = nodeOf(job), result = { ...frame.binding, status: "success", data: toolValue(frame) };
-                job = await configExclusive(async () => {
-                  guardTool(await guard(job), frame);
-                  return store.change(job.id, entry => {
-                    if (entry.finalized || entry.step !== base || nodeOf(entry)?.id !== node.id) return null;
-                    recordToolFailures(entry, frame);
-                    delete entry.toolRun;
-                    entry.step = job.step;
-                    return completeStep(entry, node, result);
-                  });
-                });
+              if (cursor !== job) {
+                job = await completeChild(job, base);
                 if (!job) return;
                 base = job.step; budget = 0;
                 continue;
@@ -1572,7 +1703,7 @@
               await persistFlow(job, base, next.seconds); return;
             } else if (flow.local(cursor.workflow, cursor.flow, next.node)) {
               const failed = (cursor.flow.failures?.length || 0) > failures;
-              if (cursor === frame) traceTool(frame, next.node, failed ? "failed" : "success");
+              if (cursor.trace) traceTool(cursor, next.node, failed ? "failed" : "success");
               job.step++; budget++;
               if (failed) {
                 job = await persistFlow(job, base);
@@ -1584,19 +1715,18 @@
               job = await persistFlow(job, base); if (!job) return;
               base = job.step;
               const node = nodeOf(execution(job)), bundle = await guard(job);
-              if (job.libraryRun) guardLibrary(bundle, job.libraryRun);
-              if (frame) guardTool(bundle, frame);
+              guardFrames(bundle, job);
               if (node.action === "library-call") {
+                checkCall(stepsIn(job).map(child => child.workflow.id), node.libraryId);
                 const library = await libraryFrame(resolveLibrary(bundle, node.libraryId), execution(job), node, request => expressionValues(job, request));
                 job = await configExclusive(async () => {
                   const currentBundle = await guard(job);
                   guardLibrary(currentBundle, library);
-                  if (frame) guardTool(currentBundle, frame);
+                  guardFrames(currentBundle, job);
                   return store.change(job.id, entry => {
                     if (entry.finalized || entry.step !== base || nodeOf(execution(entry))?.id !== node.id) return null;
-                    entry.libraryRun = library;
                     entry.step++;
-                    return entry;
+                    return pushFrame(entry, library);
                   });
                 });
               } else if (node.action === "wait") {
@@ -1609,7 +1739,7 @@
                 const value = flow.read(node.value, execution(job).flow);
                 job = await store.change(job.id, current => {
                   if (current.finalized) return null;
-                  const location = current.libraryRun ? { nodeId: current.libraryRun.callId, libraryNodeId: node.id } : { nodeId: node.id };
+                  const location = frameLocation(current, execution(current), node.id);
                   current.entries.push({ at: Date.now(), ...location, level: node.level, text: typeof value === "string" ? value : JSON.stringify(value) });
                   return completeActive(current, node, { status: "success" });
                 });
@@ -1639,42 +1769,28 @@
               if (!current) throw error;
             }
             if (current.step !== base) { job = current; base = current.step; }
-            const frame = job.toolRun;
-            const toolUnavailable = error.code === "WORKFLOW_TOOL_UNAVAILABLE";
-            const libraryUnavailable = error.code === "WORKFLOW_LIBRARY_UNAVAILABLE";
             let handled = false;
-            if (job.libraryRun) {
-              const library = job.libraryRun, child = nodeOf(library);
-              const invalidLibrary = error.libraryNodeId && error.nodeId === library.callId;
-              if (!toolUnavailable && !libraryUnavailable && !invalidLibrary) {
-                // Finally 会改动执行游标，第一次传播时保留实际失败位置
-                error.nodeId ??= child?.id ?? library.flow.nodeId;
-                handled = !!(child && child.id === error.nodeId && flow.failed(library.workflow, library.flow, child, error)) ||
-                  flow.raise(library.workflow, library.flow, error);
-              }
-              recordLibraryFailures(job);
-              if (!handled) {
-                if (!toolUnavailable) {
-                  if (!libraryUnavailable) error.libraryNodeId ??= error.nodeId ?? library.flow.nodeId;
-                  error.nodeId = library.callId;
-                }
-                delete job.libraryRun;
-              }
-            }
-            if (!handled && frame) {
+            while (!handled && execution(job) !== job) {
+              const frames = stepsIn(job), frame = frames.at(-1), library = libraryFrameType(frame);
               const child = nodeOf(frame);
-              if (!toolUnavailable && error.code !== "WORKFLOW_TOOL_NO_RETURN") {
-                error.nodeId ??= frame.flow.nodeId;
-                if (child && child.id === error.nodeId) {
-                  traceTool(frame, child, "failed");
-                  handled = flow.failed(frame.workflow, frame.flow, child, error);
-                }
-                if (!handled) handled = flow.raise(frame.workflow, frame.flow, error);
+              const lifecycleFailure = error.childDefinition || !error.callPropagated &&
+                (error.code === (library ? "WORKFLOW_LIBRARY_NO_RETURN" : "WORKFLOW_TOOL_NO_RETURN") || library && error.libraryNodeId && error.nodeId === frame.callId);
+              if (!lifecycleFailure) {
+                error.nodeId ??= child?.id ?? frame.flow.nodeId;
+                if (frame.trace && child?.id === error.nodeId) traceTool(frame, child, "failed");
+                handled = !!(child && child.id === error.nodeId && flow.failed(frame.workflow, frame.flow, child, error)) ||
+                  flow.raise(frame.workflow, frame.flow, error);
               }
-              recordToolFailures(job);
+              recordFrameFailures(job, frame);
               if (!handled) {
-                error = toolFailure(frame, nodeOf(job), error);
-                delete job.toolRun;
+                const call = nodeOf(frames.at(-2) ?? job);
+                if (library) {
+                  if (!["WORKFLOW_LIBRARY_UNAVAILABLE", "WORKFLOW_TOOL_UNAVAILABLE"].includes(error.code)) error.libraryNodeId ??= error.nodeId ?? frame.flow.nodeId;
+                  error.nodeId = call.id;
+                } else error = toolFailure(frame, call, error);
+                if (error.childDefinition === frame.workflow.id) delete error.childDefinition;
+                error.callPropagated = true;
+                saveFrames(job, frames.slice(0, -1));
               }
             }
             if (!handled) {
@@ -1689,10 +1805,7 @@
             job = await store.change(jobId, current => {
               if (current.finalized) return null;
               current.flow = copy(job.flow); current.step = job.step; current.status = "queued";
-              if (job.toolRun) current.toolRun = copy(job.toolRun);
-              else delete current.toolRun;
-              if (job.libraryRun) current.libraryRun = copy(job.libraryRun);
-              else delete current.libraryRun;
+              saveFrames(current, copy(stepsIn(job)));
               delete current.scriptHttpPending;
               current.prompt = null; current.service = null; return current;
             });
@@ -1726,19 +1839,19 @@
     if (expectedStep !== null && before.step !== expectedStep) throw new Error("该消息对应的指令已处理");
     const binding = await taskIdentity();
     if (binding.steamAccountId === null) throw Object.assign(new Error("暂时无法确认 Steam 账号"), { code: "ACCOUNT_UNCONFIRMED" });
-    try { await guard(before, binding); }
+    try { guardFrames(await guard(before, binding), before); }
     catch (error) {
       if (error.code === "AUTOMATION_EXPIRED" && !before.finalized) await finish(before.id, "expired", error);
       throw error;
     }
     const job = await store.change(jobId, current => {
       if (!root.STBackgroundSteamAccount.current(binding) || !sameJobAccount(current, binding) || current.finalized || current.status !== "waiting-notification" || current.step !== before.step) return null;
-      const node = nodeOf(current), timedOut = current.deadline > 0 && current.deadline <= Date.now();
+      const node = nodeOf(execution(current)), timedOut = current.deadline > 0 && current.deadline <= Date.now();
       if (decision === "timeout" && !timedOut) return null;
       const selected = timedOut ? "timeout" : decision, button = node.buttons.find(button => button.id === selected);
       if (selected === "timeout" ? !node.timeout : !button) return null;
       closeNotice(current, selected === "timeout" ? "expired" : "handled");
-      return completeStep(current, node, { status: "success", decision: selected, decisionLabel: selected === "timeout" ? "超时" : button.label });
+      return completeActive(current, node, { status: "success", decision: selected, decisionLabel: selected === "timeout" ? "超时" : button.label });
     });
     if (!job) throw new Error("本次交互已处理或按钮已失效");
     await deliver(job.id); await arm(); await pump(); return { message: "工作流运行状态已更新" };
@@ -1764,7 +1877,11 @@
     return current.epoch === bundle.epoch && current.revision === bundle.revision;
   }
   async function workflowState(workflow, inputs, triggerName, triggerType, nodes = flow.walk(workflow.steps, true)) {
-    const meta = { workflowName: workflow.name, triggerName, triggerType };
+    return childState(workflow, inputs, { triggerName, triggerType }, nodes);
+  }
+  async function childState(workflow, inputs, parentMeta = {}, nodes = flow.walk(workflow.steps, true)) {
+    const meta = { ...parentMeta, workflowName: workflow.name };
+    if (Object.hasOwn(meta, "translationLanguage")) return flow.state(inputs, meta, workflow);
     for (const node of nodes) {
       for (const ref of flow.nodeReferences(node)) {
         if (ref.source === "meta" && (!ref.path.length || ref.path[0] === "translationLanguage")) {
@@ -1777,8 +1894,8 @@
   }
   const previewSteamRead = node => !!flow.effects[node.action]?.gameField ||
     ["steam-collections", "steam-translations", "steam-achievements"].includes(node.action);
-  const previewAction = node => previewSteamRead(node) || Object.hasOwn(root.STWorkflowData.byId, node.action) ||
-    ["script", "http-request", "query-provider-data", "library-call", "log", "wait", "stop", "break", "continue", "raise", "comment"].includes(node.action);
+  const previewAction = node => previewSteamRead(node) || isToolQuery(node) || Object.hasOwn(root.STWorkflowData.byId, node.action) ||
+    ["script", "http-request", "library-call", "tool-call", "log", "wait", "stop", "break", "continue", "raise", "comment"].includes(node.action);
   async function readPreviewSteam(node, state, binding) {
     const accounts = root.STBackgroundSteamAccount;
     binding ??= await accounts.identity();
@@ -1862,7 +1979,8 @@
               if (node.action === "library-call") {
                 flush();
                 await previewLibraryCall(frame, node, { id, signal, check: () => { check(); ensureAccount(); }, evaluate,
-                  preview, libraryVersions: request.libraryVersions, network, checkWrite: writes.check, confirmNetwork: request.confirmNetwork === true,
+                  preview, libraryVersions: request.libraryVersions, toolVersions: request.toolVersions, network,
+                  checkWrite: writes.check, confirmNetwork: request.confirmNetwork === true,
                   log: (location, value, step) => {
                     entries.push({ at: Date.now(), nodeId: location.id, libraryNodeId: step.id, level: step.level,
                       text: typeof value === "string" ? value : JSON.stringify(value) });
@@ -1875,6 +1993,10 @@
                 entries.push({ at: Date.now(), nodeId, level: node.level, text: typeof value === "string" ? value : JSON.stringify(value) });
               } else if (node.action === "wait") {
                 flush(); await waitPreview(flow.read(node.seconds, state), signal);
+              } else if (node.action === "tool-call") {
+                await flow.evaluateValues(flow.inputs(node), state, evaluate);
+                value = await previewToolCall(node, frame, { id, signal, check: () => { check(); ensureAccount(); }, evaluate, preview,
+                  libraryVersions: request.libraryVersions, toolVersions: request.toolVersions, confirmNetwork: request.confirmNetwork === true });
               } else {
                 flush();
                 if (previewSteamRead(node)) {
@@ -2022,8 +2144,9 @@
     return links;
   }
 
-  function promptReferences(id, workflow, translate) {
+  function promptReferences(id, workflow, translate, chatPromptId) {
     const references = featureLinks(workflow, translate).filter(link => link.promptId === id).map(({ id, label }) => ({ id, label }));
+    if (chatPromptId === id) references.push({ id: "chat:prompt", label: root.STI18n.text("settings_ai_entry_section", "对话入口") });
     for (const rule of workflow.workflows)
       if ([...model.walkSteps(rule.steps)].some(step => step.promptId === id))
         references.push({ id: `workflow:${rule.id}`, label: rule.name });
@@ -2081,8 +2204,9 @@
     if (replace) next.epoch = crypto.randomUUID();
     next.revision = current.revision + 1;
     if (!replace) {
-      const ids = new Set(next.tools.map(tool => tool.id)), prior = new Map(current.workflows.map(workflow => [workflow.id, workflow]));
-      for (const workflow of next.workflows) {
+      const ids = new Set(next.tools.map(tool => tool.id));
+      const prior = new Map([...current.workflows, ...current.tools, ...current.libraries ?? []].map(workflow => [workflow.id, workflow]));
+      for (const workflow of [...next.workflows, ...next.tools, ...next.libraries ?? []]) {
         let oldNodes;
         for (const node of flow.walk(workflow.steps)) {
           const missing = flow.toolIds(node).filter(id => flow.isToolId(id) && !ids.has(id));
@@ -2097,20 +2221,22 @@
       }
     }
     const libraryIds = new Map((next.libraries ?? []).map(library => [library.id, library]));
-    for (const definition of [...next.workflows, ...next.tools]) {
+    for (const definition of [...next.workflows, ...next.tools, ...next.libraries ?? []]) {
       for (const node of flow.walk(definition.steps)) {
         if (node.action !== "library-call") continue;
         const issue = model.libraryBindingIssue(libraryIds.get(node.libraryId), node, definition);
         if (issue) { issue.nodeId = node.id; throw issue; }
       }
     }
+    validateCallGraph([...next.tools, ...next.libraries ?? []]);
     for (const section of ["prompts", "workflows", "triggers", "tools", "libraries"]) for (const item of next[section] ?? []) {
       const old = current[section]?.find(row => row.id === item.id);
       // 整包保存只提交有改动的定义，其他错误仍可逐项在编辑器中修正
-      if (item.entryRow !== undefined && ["workflows", "tools", "libraries"].includes(section) && JSON.stringify(item) !== JSON.stringify(old))
+      if (item.entryRow !== undefined && ["workflows", "tools", "libraries"].includes(section) &&
+          JSON.stringify({ ...item, note: undefined }) !== JSON.stringify({ ...old, note: undefined }))
         flow.validateEntryPosition(item);
       const definition = section === "tools" || section === "workflows" ? model.workflowDefinitionKey :
-        row => JSON.stringify({ ...row, revision: 0, executionId: undefined });
+        row => JSON.stringify({ ...row, note: undefined, revision: 0, executionId: undefined });
       const same = old && definition(old) === definition(item);
       if (section === "libraries" && item.enabled && !same) flow.validateLibraryOutputPosition(item);
       item.revision = old ? same ? old.revision : old.revision + 1 : 1;
@@ -2149,8 +2275,8 @@
 
     const before = featureLinks(prior.workflow, prior.translate);
     featureLinks(workflow, translate).forEach((link, index) => validateLink(link, before[index], link.label));
-    for (const rule of workflow.workflows) {
-      const old = prior.workflow.workflows.find((item) => item.id === rule.id);
+    for (const rule of [...workflow.workflows, ...workflow.tools, ...workflow.libraries ?? []]) {
+      const old = [...prior.workflow.workflows, ...prior.workflow.tools, ...prior.workflow.libraries ?? []].find(item => item.id === rule.id);
       const oldSteps = old ? [...model.walkSteps(old.steps)] : [];
       for (const step of model.walkSteps(rule.steps)) {
         if (step.action !== "ai-call") continue;
@@ -2158,11 +2284,61 @@
           serviceId: oldSteps.find((item) => item.action === step.action && item.serviceId === step.serviceId)?.serviceId,
           promptId: oldSteps.find((item) => item.action === step.action && item.promptId === step.promptId)?.promptId,
         };
-        const active = workflow.triggers.some(trigger => trigger.enabled && trigger.workflowId === rule.id);
-        const wasActive = prior.workflow.triggers.some(trigger => trigger.enabled && trigger.workflowId === rule.id);
+        const active = rule.enabled ?? workflow.triggers.some(trigger => trigger.enabled && trigger.workflowId === rule.id);
+        const wasActive = old?.enabled ?? prior.workflow.triggers.some(trigger => trigger.enabled && trigger.workflowId === rule.id);
         validateLink(step, previous, rule.name, active, active && !wasActive);
       }
     }
+  }
+
+  function validateCallGraph(definitions) {
+    const byId = new Map(definitions.map(definition => [definition.id, definition]));
+    const visiting = new Set(), checked = new Set();
+    function visit(id) {
+      if (checked.has(id) || !byId.has(id)) return;
+      visiting.add(id);
+      const definition = byId.get(id);
+      for (const node of flow.walk(definition.steps)) {
+        const child = node.action === "library-call" ? node.libraryId : node.action === "tool-call" && node.toolMode === "registered" ? node.toolId : null;
+        if (!child) continue;
+        if (visiting.has(child)) throw Object.assign(actionError("工具或自定义库存在循环调用：「" + definition.name + "」", "WORKFLOW_CALL_CYCLE"), { nodeId: node.id });
+        visit(child);
+      }
+      visiting.delete(id); checked.add(id);
+    }
+    for (const id of byId.keys()) visit(id);
+  }
+
+  function originalBatchBody(tool) {
+    if (tool.entryRow?.disabled || tool.steps.length !== 3 || !providerSpec(tool.id)?.writes) return false;
+    const [parameters, work, output] = tool.steps;
+    const spec = flow.providerQueries[work.action];
+    if (!spec?.legacy || root.STAI.PROVIDER_TOOL_IDS[spec.provider] !== tool.id) return false;
+    const only = (node, keys) => Object.keys(node).every(key => ["id", "kind", "action", ...keys].includes(key));
+    const reads = (value, id) => value?.source === "variable" && value.id === id && value.path.length === 0;
+    return parameters.action === "record" && only(parameters, ["entries", "output"]) &&
+      parameters.entries?.length === tool.parameters.length && tool.variables.length === tool.parameters.length + 2 &&
+      parameters.entries.every(entry => tool.parameters.some(parameter => parameter.name === entry.key &&
+        reads(entry.value, parameter.variableId) && entry.omitIfUnset === !parameter.required)) &&
+      only(work, ["taskArgs", "output"]) && reads(work.taskArgs, parameters.output) &&
+      output.action === "tool-return" && only(output, ["value"]) && reads(output.value, work.output);
+  }
+
+  function presetInputs(node, packaged, saved) {
+    const plans = root.STPromptPlans;
+    return Object.fromEntries(Object.entries(node.inputs).map(([name, input]) => [plans.spelling(saved, plans.bindingName(packaged, name)), input]));
+  }
+  function bindPresetInputs(node, packaged, saved) {
+    if (!saved?.enabled || !packaged) return false;
+    const plans = root.STPromptPlans, inputs = presetInputs(node, packaged, saved);
+    try {
+      if (!plans.parameters(saved, "chat-completions", { validateRequest: true }).every(name => Object.hasOwn(inputs, name))) return false;
+    } catch (error) {
+      if (!(error instanceof SyntaxError) && error.code !== "PROMPT_INVALID") throw error;
+      return false;
+    }
+    node.inputs = inputs;
+    return true;
   }
 
   function addMissingPresets(current, presets, version) {
@@ -2183,20 +2359,19 @@
       if (node.action !== "ai-call" || !node.promptId) return true;
       const packaged = presets.prompts.find(plan => plan.id === node.promptId);
       const saved = next.prompts.find(plan => plan.id === node.promptId);
-      if (!saved.enabled) return false;
-      const plans = root.STPromptPlans;
-      const inputs = Object.fromEntries(Object.entries(node.inputs).map(([name, input]) => [
-        plans.spelling(saved, plans.bindingName(packaged, name)), input,
-      ]));
-      try {
-        if (!plans.parameters(saved, "chat-completions", { validateRequest: true }).every(name => Object.hasOwn(inputs, name))) return false;
-      } catch (error) {
-        if (!(error instanceof SyntaxError) && error.code !== "PROMPT_INVALID") throw error;
-        return false;
-      }
-      node.inputs = inputs;
-      return true;
+      return bindPresetInputs(node, packaged, saved);
     };
+    next.tools = next.tools.map(tool => {
+      if (!originalBatchBody(tool)) return tool;
+      const packaged = presets.tools.find(item => item.id === tool.id);
+      if (!packaged || packaged.parameters.length !== tool.parameters.length || packaged.parameters.some(parameter =>
+        !tool.parameters.some(prior => ["name", "type", "required", "variableId"].every(key => prior[key] === parameter[key])))) return tool;
+      const candidate = copy(packaged);
+      if (![...flow.walk(candidate.steps)].every(node => !missingDependency(node, candidate) && adaptPrompt(node))) return tool;
+      const parameterIds = new Set(tool.parameters.map(parameter => parameter.variableId));
+      const variables = candidate.variables.map(variable => parameterIds.has(variable.id) ? tool.variables.find(item => item.id === variable.id) : variable);
+      return { ...tool, variables, steps: candidate.steps };
+    });
     for (const section of ["libraries", "tools", "workflows"]) {
       const existing = new Set(current[section]?.map(item => item.id));
       next[section] = next[section].filter(item => existing.has(item.id) ||
@@ -2227,7 +2402,7 @@
   async function persistSettings(patch, diagnostics) {
     const storage = root.STSettings.storage;
     const [current, oldAi, oldTranslate] = await Promise.all([
-      storage.getWorkflow(), storage.getAi(), storage.getTranslate(),
+      storage.getWorkflow({ reset: diagnostics.reset === true }), storage.getAi(), storage.getTranslate(),
     ]);
     let workflow = patch.workflow;
     if (diagnostics.reset || diagnostics.includePresets) {
@@ -2236,9 +2411,7 @@
       if (diagnostics.reset) {
         const { prompts, triggers, workflows, tools } = presets;
         workflow = { ...current, prompts, triggers, workflows, tools };
-      } else {
-        workflow = addMissingPresets(current, presets, chrome.runtime.getManifest().version);
-      }
+      } else workflow = addMissingPresets(current, presets, chrome.runtime.getManifest().version);
     }
     if (patch.familySettings) {
       const base = workflow ?? current;
@@ -2266,7 +2439,8 @@
         !current.prompts.some(prompt => prompt.id === id) || next.prompts.some(prompt => prompt.id === id))
         throw new TypeError("提示词删除确认无效");
       // 翻译绑定可独立保存，删除前须在配置锁内核对用户确认的影响范围
-      const actual = promptReferences(id, current, oldTranslate);
+      const { promptId } = await storage.getChatConfiguration();
+      const actual = promptReferences(id, current, oldTranslate, promptId);
       if (actual.length !== referenceIds.length || actual.some(reference => !referenceIds.includes(reference.id)))
         throw Object.assign(new Error("提示词的使用方已变更，请重新打开删除确认。"), { code: "WORKFLOW_PROMPT_REFERENCES_CHANGED" });
     }
@@ -2300,7 +2474,7 @@
     }, diagnostics);
 
     if (next !== current) {
-      for (const { library } of previews.values()) if (library && !libraryVersionMatches(
+      for (const preview of previews.values()) for (const library of preview.libraries ?? []) if (!libraryVersionMatches(
         next.libraries?.find(item => item.id === library.id), library.version)) library.controller.abort(libraryUnavailable());
     }
     if (next !== current || patch.ai) {
@@ -2312,13 +2486,11 @@
           (job.prompt && (!prompt?.enabled || prompt.revision !== job.prompt.revision)) ||
           (job.service && (!ai.enabled || !service?.enabled || service.revision !== job.service.revision)))
           await finish(job.id, "expired");
-        else if (job.libraryRun && !libraryVersionMatches(
-          next.libraries?.find(item => item.id === job.libraryRun.workflow.id), job.libraryRun.workflow))
-          requests.get(job.id)?.abort(libraryUnavailable());
-        else if (job.toolRun) {
-          const prior = job.toolRun.workflow, tool = next.tools?.find(item => item.id === prior.id);
-          if (!tool?.enabled || toolRevision(prior) !== toolRevision(tool))
-            requests.get(job.id)?.abort(actionError("工具已停用、删除或修改，请检查工具设置", "WORKFLOW_TOOL_UNAVAILABLE"));
+        else try { guardFrames(next, job); }
+        catch (error) {
+          if (!["WORKFLOW_TOOL_UNAVAILABLE", "WORKFLOW_LIBRARY_UNAVAILABLE"].includes(error.code)) throw error;
+          requests.get(job.id)?.abort(error);
+          if (job.status === "waiting-notification") await finish(job.id, "expired", error);
         }
       }
     }
@@ -2345,7 +2517,7 @@
         });
       }
     }
-    requestReconcile();
+    if (!diagnostics.reset || setupState !== "recovery-failed") requestReconcile();
     log.info("automation-config-save-success", "提示词与自动化配置已保存", {
       revision: next.revision,
       triggerCount: next.triggers.length, workflowCount: next.workflows.length,
@@ -2390,6 +2562,29 @@
       case "save-translate":
         await configExclusive(() => persistSettings({ translate: request.value }, options));
         return true;
+      case "save-chat-preferences": {
+        const values = request.value;
+        if (!values || typeof values !== "object" || Array.isArray(values) || !Object.keys(values).length)
+          throw new TypeError("对话入口设置格式无效");
+        for (const [key, value] of Object.entries(values)) {
+          const valid = key === "ai-chat-prompt" ? root.STAI.isChatPromptId(value)
+            : key === "ai-chat-send-shortcut" ? value === "enter" || value === "ctrl-enter"
+              : root.STAI.CHAT_ENTRY_FEATURES.includes(key) && typeof value === "boolean";
+          if (!valid) throw new TypeError("对话入口设置无效：" + key);
+        }
+        return configExclusive(async () => {
+          const storage = root.STSettings.storage;
+          const id = values["ai-chat-prompt"];
+          if (id) {
+            const { prompts } = await storage.getWorkflow();
+            if (!root.STPromptPlans.chatInput(prompts.find(plan => plan.id === id)))
+              throw actionError("关联提示词不可用，请重新选择", "CHAT_PROMPT_UNAVAILABLE");
+          }
+          if (!await storage.setAll(values, { ...options, reason: "save-ai-chat-preferences" }))
+            throw new Error("对话入口设置没有保存");
+          return true;
+        });
+      }
       case "apply-ai-settings":
         await configExclusive(() => persistSettings({
           ai: request.value.ai,
@@ -2477,6 +2672,19 @@
   }
   async function execute(request, sender, onPreviewLog) {
     if (request.action === "settings-ready") return ready({ retry: request.retry === true });
+    if (request.action === "reset") {
+      if (await initialization === false) throw new Error("请先完成安装引导");
+      let restartRecovery = false;
+      try { await startup; }
+      catch (error) {
+        if (error.code !== "WORKFLOW_CONFIG_INVALID") throw error;
+        restartRecovery = true;
+      }
+      const { workflow, steamPending } = await configExclusive(() =>
+        persistSettings({}, { operationId: request.operationId, reset: true }));
+      if (restartRecovery) await startRecovery();
+      return { workflow, steamPending };
+    }
     if (request.action === "site-permissions") return sitePermissions(request.hosts, request.workflow);
     if (request.action === "remove-site-permission") {
       const { removable } = await sitePermissions();
@@ -2531,7 +2739,7 @@
       if (workflow.steps.length !== 1 || !flow.previewable(node) ||
         node.kind === "if" && (node.branches.length !== 1 || node.branches[0].steps.length || node.otherwise !== null))
         throw new TypeError("试运行只接受一条支持试运行的指令");
-      flow.validate(workflow, { assigned: Object.keys(request.variables || {}) });
+      flow.validate(workflow, { assigned: [...Object.keys(request.variables || {}), ...flow.optionalRecordVariables(node)] });
       const meta = request.meta || { triggerName: "指令试运行", triggerType: "manual" };
       if (typeof meta.triggerName !== "string" || !meta.triggerName.trim() || !model.isTriggerType(meta.triggerType)) throw new TypeError("试运行的触发器样例无效");
       const begin = performance.now(), controller = new AbortController();
@@ -2562,7 +2770,7 @@
             if (!result) throw new Error("请先填写 AI 服务的网关与模型");
             output = result.body;
           } else {
-            if (node.action !== "script") await flow.evaluateValues(flow.inputs(node), state, evaluate);
+            if (node.action !== "script") await flow.evaluateValues(flow.inputs(node, state), state, evaluate);
             const effect = flow.effects[node.action];
             if (effect?.gameField) {
               output = await readPreviewSteam(node, state);
@@ -2587,13 +2795,13 @@
       } catch (error) { if (controller.signal.aborted) return { cancelled: true, ...(writes.pending && { uncertain: true }) }; throw error; }
       finally { previews.delete(previewKey); }
     }
-    if (["save-ai-services", "save-translate", "apply-ai-settings"].includes(request.action))
+    if (["save-ai-services", "save-translate", "save-chat-preferences", "apply-ai-settings"].includes(request.action))
       return configureAi(request);
     if (request.action === "prompt-references") {
       await initialization;
       const storage = root.STSettings.storage;
-      const [workflow, translate] = await Promise.all([storage.getWorkflow(), storage.getTranslate()]);
-      const references = promptReferences(request.id, workflow, translate);
+      const [workflow, translate, chat] = await Promise.all([storage.getWorkflow(), storage.getTranslate(), storage.getChatConfiguration()]);
+      const references = promptReferences(request.id, workflow, translate, chat.promptId);
       return request.includeIds === true ? references : [...new Set(references.map(reference => reference.label))];
     }
     if (request.action === "replace-config")
@@ -2615,8 +2823,6 @@
     }
     if (request.action === "save-config")
       return commitConfig(request.value, { operationId: request.operationId, promptDeletion: request.promptDeletion, creation: request.creation });
-    if (request.action === "reset")
-      return commitConfig(undefined, { operationId: request.operationId, reset: true });
     if (request.action === "native-ready") {
       await services.verifyNative(sender);
       const frame = { tabId: sender.tab.id, frameId: sender.frameId };
@@ -2748,11 +2954,16 @@
         continue;
       }
       try {
-        flow.validateEntryPosition(job.workflow);
-        flow.validateEntryPosition(job.toolRun?.workflow);
-        flow.validateEntryPosition(job.libraryRun?.workflow);
+        for (const definition of [job.workflow, ...stepsIn(job).map(frame => frame.workflow)]) {
+          if (!definition) continue;
+          flow.validateEntryPosition(definition);
+          const context = flow.isToolId(definition.id) ? "tool" : flow.isLibraryId(definition.id) ? "library" : "workflow";
+          const unsupported = [...flow.walk(definition.steps, true)].find(node => !Object.hasOwn(flow.names, flow.type(node)) ||
+            !flow.instructionAvailable(flow.type(node), context) || context !== "workflow" && flow.implicitToolInput(node));
+          if (unsupported) throw actionError(`「${definition.name}」的指令 ${unsupported.id} 已失效`, "WORKFLOW_SNAPSHOT_UNSUPPORTED");
+        }
       } catch (error) {
-        if (error.messageKey !== "workflow_parameter_first") throw error;
+        if (error.messageKey !== "workflow_parameter_first" && error.code !== "WORKFLOW_SNAPSHOT_UNSUPPORTED") throw error;
         await finish(job.id, "failed", error);
       }
     }
@@ -2813,6 +3024,7 @@
   root.STBackgroundAutomation = Object.freeze({
     ALARM,
     execute,
+    runAccountChatTool,
     start,
     ready,
     async completeSetup() {
@@ -2826,8 +3038,14 @@
     configureAi,
     async restoreReleasedDefaults(previousVersion) {
       upgradeSource = previousVersion;
-      if (await startup === false && setupState === "waiting") initializeWorkflow();
-      if (await startup === false) return;
+      try {
+        if (await startup === false && setupState === "waiting") initializeWorkflow();
+        if (await startup === false) return;
+      } catch (error) {
+        // 保留无效配置，等待用户从设置页确认恢复，不在版本升级时覆写
+        if (error.code === "WORKFLOW_CONFIG_INVALID") return;
+        throw error;
+      }
       await configExclusive(async () => {
         const storage = root.STSettings.storage, family = root.STFamilyLibrary;
         const current = await storage.getWorkflow();

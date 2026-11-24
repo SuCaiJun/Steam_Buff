@@ -1,0 +1,10 @@
+{
+  ".name": "Get my Steam wishlist",
+  ".note": "List your Steam wishlist with dates added, regional price, discounts, and Steam historical lows. Use nextStart to advance.",
+  ".description": "List your Steam wishlist with dates added, regional price, discounts, and Steam historical lows. Use nextStart to advance.",
+  ".variables.args": "Tool parameters",
+  ".variables.result": "Query result",
+  ".parameters.0.description": "Start at zero. Use nextStart for the next page.",
+  ".parameters.1.description": "List of Steam AppIDs as integers.",
+  ".parameters.2.description": "Show only currently discounted games."
+}

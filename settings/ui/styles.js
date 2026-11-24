@@ -1501,9 +1501,9 @@
         .ai-settings-card input[type="number"] { width: 88px; }
         .ai-settings-card .form-switch:focus-within { outline: 2px solid var(--st-color-steam-blue); outline-offset: 2px; }
         .content-swap[data-active="ai-services"] > .page-subtitle { display: none; }
-        .ai-entry-card > .feature-list { margin: 0; gap: 0; }
-        .ai-entry-card > .feature-list > .feature { border: 0; border-radius: 0; padding: 6px 14px; }
-        .ai-entry-card > .feature-list > .feature + .feature { border-block-start: 1px solid var(--st-dialog-divider); }
+        .ai-entry-card .ai-chat-entry-fields { border: 0; margin: 0; padding: 0; min-inline-size: 0; }
+        .ai-chat-entry-description { display: block; color: var(--st-dialog-muted-color); margin-block-start: 2px; }
+        .ai-entry-card [data-ai-chat-status] { margin-inline-end: auto; color: var(--st-dialog-muted-color); }
         .classifier-settings-card > .feature {
           margin: 12px 16px;
         }

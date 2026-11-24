@@ -1,3 +1,4 @@
 {
-  ".name": "Translate achievements after installation"
+  ".name": "Translate achievements after installation",
+  ".note": "Translate untranslated achievements when a game finishes installing."
 }

@@ -40,10 +40,11 @@
       requests.delete(data.rid);
       root.clearTimeout(pending.timer);
       if (data.success) pending.respond({ success: true, value: data.value });
-      else pending.respond({ success: false, error: data.error || "Steam 原生操作失败", ...(data.code ? { code: data.code } : {}) });
+      else pending.respond({ success: false, error: data.error || "Steam 原生操作失败", ...(data.code ? { code: data.code } : {}),
+        ...(Number.isSafeInteger(data.savedCount) && data.savedCount > 0 ? { savedCount: data.savedCount } : {}) });
       return;
     }
-    if (!["native-ready", "events"].includes(data.action)) return;
+    if (!["native-ready", "events", "account-write-check"].includes(data.action)) return;
     try {
       const response = await root.STMessageBus.request(
         {
@@ -52,6 +53,8 @@
           events: data.events,
           revision: data.revision,
           checkedAt: data.checkedAt,
+          ...(data.action === "account-write-check" && { ticket: data.ticket, command: data.command, steamId: data.steamId,
+            appid: data.appid, expected: data.expected, part: data.part }),
         },
         { timeoutMs: 120000, logFailures: false },
       );
@@ -104,6 +107,9 @@
         "collections",
         "save-sort",
         "add-collections",
+        "account-query",
+        "account-save-sort",
+        "account-add-collections",
         "configuration",
         "show-notification",
       ].includes(message.action)

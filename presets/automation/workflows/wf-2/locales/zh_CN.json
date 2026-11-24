@@ -1,5 +1,6 @@
 {
   ".name": "将游戏添加收藏分组",
+  ".note": "根据 Steam 商店资料，将游戏添加到合适的现有收藏分组。",
   ".variables.var-17.name": "传入APPID",
   ".variables.var-18.name": "传入游戏名称",
   ".variables.var-22.name": "字典",

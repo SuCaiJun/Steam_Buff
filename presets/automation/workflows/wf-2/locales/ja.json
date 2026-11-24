@@ -1,5 +1,6 @@
 {
   ".name": "ゲームをコレクションに追加",
+  ".note": "Steam ストアの情報をもとに、ゲームを適切な既存のコレクションに追加します。",
   ".variables.var-17.name": "入力 AppID",
   ".variables.var-18.name": "入力ゲーム名",
   ".variables.var-22.name": "辞書",

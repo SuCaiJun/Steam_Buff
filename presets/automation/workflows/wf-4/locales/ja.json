@@ -1,5 +1,6 @@
 {
   ".name": "ファミリーライブラリを更新",
+  ".note": "Steam ファミリーライブラリを更新し、結果をメッセージセンターに表示します。",
   ".variables.var-89.name": "ライブラリ更新結果",
   ".variables.var-90.name": "更新状態",
   ".variables.var-93.name": "メッセージ送信結果",

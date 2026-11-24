@@ -16,8 +16,8 @@
   const outputKeys = ["output", "item", "index", "error", "errorOutput", "contextOutput", "toolRequestsOutput"];
   const typeNames = Object.freeze({ get any() { return tr("workflow_ui_dynamic", "动态"); }, get text() { return tr("steam_independentName_bulk_text", "文本"); }, get number() { return tr("steam_independentName_bulk_number", "数字"); }, get boolean() { return tr("workflow_ui_boolean", "布尔值"); }, get list() { return tr("seed_variable_list", "列表"); }, get object() { return tr("seed_variable_record", "字典"); }, get result() { return tr("workflow_ui_action_result", "指令结果"); } });
   const pairError = (message, nodeId, rowKey = nodeId) => Object.assign(new Error(message), { code: "WORKFLOW_CONFIG_INVALID", nodeId, rowKey, pairing: true });
-  const isEntryRow = node => ["trigger-parameters", "ai-parameters", "library-parameters"].includes(node?.action);
-  const entryKey = workflow => flow.isLibraryId(workflow.id) ? "library-parameters" : flow.isToolId(workflow.id) ? "ai-parameters" : "trigger-parameters";
+  const isEntryRow = node => flow.instruction(node?.action)?.entry === true;
+  const entryKey = workflow => flow.entryInstruction(flow.instructionContext(workflow)).id;
   const usesParameters = workflow => flow.isToolId(workflow.id) || flow.isLibraryId(workflow.id);
   const hasEntryData = workflow => !!workflow.description || flow.entryParameters(workflow).length > 0;
   function createEntryRow(workflow) {
@@ -50,7 +50,7 @@
     for (const node of rows) {
       if (node.action !== key) issues.push(pairError(tr("workflow_error_tool_instruction", "此处不能使用该指令"), node.id));
       else if (node !== primary) {
-        const label = root.STWorkflowInstructions?.name(key) ?? ({ "ai-parameters": "AI 传参", "library-parameters": "指令输入", "trigger-parameters": "触发器传参" })[key];
+        const label = tr("workflow.command." + key + ".name", flow.instruction(key).name);
         issues.push(pairError(tr("workflow_parameter_duplicate", "只能添加一条「" + label + "」指令", { name: label }), node.id));
       }
     }
@@ -168,7 +168,21 @@
     return flow.clone({ workflowId: workflow.id, node, cut, variables: workflow.variables.filter(item => ids.has(item.id)), entry, libraryOutputs });
   }
   function paste(workflow, clipboard) {
-    const copied = flow.clone(clipboard.node), nodes = [...flow.walk([copied])], occupied = [...flow.walk(workflow.steps)], ids = new Map();
+    const copied = flow.clone(clipboard.node), nodes = [...flow.walk([copied])];
+    const context = flow.instructionContext(workflow);
+    for (const node of nodes) {
+      const id = node.kind === "fold" ? "fold-" + node.edge : flow.type(node);
+      if (flow.instructionAvailable(id, context)) continue;
+      const definition = flow.instruction(id);
+      if (!definition?.context)
+        throw Object.assign(new Error(tr("workflow_error_tool_instruction", "此处不能使用该指令")), { code: "WORKFLOW_CONFIG_INVALID" });
+      const editor = definition.context === "tool" ? tr("workflow_ai_tools_tab", "AI 工具") :
+        definition.context === "library" ? tr("workflow_libraries_tab", "自定义库") : tr("workflow_ui_workflows", "工作流");
+      const name = tr("workflow.command." + id + ".name", definition.name);
+      const message = tr("workflow_clipboard_context", "「" + name + "」只能在「" + editor + "」中使用。", { name, editor });
+      throw Object.assign(new Error(message), { code: "WORKFLOW_CONFIG_INVALID" });
+    }
+    const occupied = [...flow.walk(workflow.steps)], ids = new Map();
     const same = clipboard.workflowId === workflow.id;
     const libraryOutputs = !same && clipboard.libraryOutputs ? flow.clone(clipboard.libraryOutputs) : undefined;
     if (libraryOutputs && (!flow.isLibraryId(workflow.id) || workflow.outputs.length))

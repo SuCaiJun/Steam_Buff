@@ -1,0 +1,10 @@
+{
+  ".name": "내 Steam 찜 목록 조회",
+  ".note": "내 Steam 찜 목록의 추가 날짜, 지역별 가격, 할인율, 역대 최저가를 페이지별로 확인합니다.",
+  ".description": "내 Steam 찜 목록의 추가 날짜, 지역별 가격, 할인율, 역대 최저가를 페이지별로 확인합니다.",
+  ".variables.args": "도구 매개변수",
+  ".variables.result": "조회 결과",
+  ".parameters.0.description": "0부터 시작하고 다음 페이지에는 nextStart를 사용합니다.",
+  ".parameters.1.description": "Steam AppID 정수 목록입니다.",
+  ".parameters.2.description": "할인 중인 게임만 표시합니다."
+}

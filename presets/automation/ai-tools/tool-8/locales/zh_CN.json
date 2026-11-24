@@ -1,0 +1,23 @@
+{
+  ".name": "查询我的 Steam 游戏库",
+  ".note": "按游戏名称及可选筛选条件查询当前 Steam 库，返回 AppID、名称、游玩时间和翻页位置。",
+  ".description": "按游戏名称及可选筛选条件查询当前 Steam 库，返回 AppID、名称、游玩时间和翻页位置。",
+  ".variables.args": "工具参数",
+  ".variables.result": "查询结果",
+  ".parameters.0.description": "按游戏名称筛选，省略表示不限。",
+  ".parameters.1.description": "从 0 开始；翻页时使用上次返回的 nextStart。",
+  ".parameters.2.description": "游戏模式。可选 single、multiplayer、coop、local_multiplayer。",
+  ".parameters.3.description": "游戏状态。可选 ready、installed、played、unplayed、private。",
+  ".parameters.4.description": "支持的语言，如 schinese、english、japanese。",
+  ".parameters.5.description": "游戏类型。可选 action、adventure、casual、indie、massively_multiplayer、racing、rpg、simulation、sports、strategy。",
+  ".parameters.6.description": "控制器。可选 controller_recommended、controller_full、controller_partial、dualshock、dualshock_bluetooth、dualsense、dualsense_bluetooth、steam_input。",
+  ".parameters.7.description": "Steam Deck 兼容性。可选 deck_verified、deck_playable、deck_unsupported、deck_unknown。",
+  ".parameters.8.description": "虚拟现实。可选 vr、non_vr。",
+  ".parameters.9.description": "特色。可选 trading_cards、workshop、achievements、remote_play、family_sharing。",
+  ".parameters.10.description": "Steam 商店标签的名称或数字 ID（以文字传入）。",
+  ".parameters.11.description": "拥有该游戏的 Steam 好友精确昵称或好友代码。",
+  ".parameters.12.description": "玩法辅助。可选 adjustable_difficulty、save_anytime。",
+  ".parameters.13.description": "视觉辅助。可选 adjustable_text、subtitles、color_alternatives、contrast、camera_comfort、playable_without_vision。",
+  ".parameters.14.description": "音频辅助。可选 custom_volume、stereo、surround、narrated_menus。",
+  ".parameters.15.description": "输入辅助。可选 keyboard_only、mouse_only、touch_only、without_quick_time、own_pace、speech_to_text、text_to_speech。"
+}

@@ -1,6 +1,7 @@
 {
   "id": "wf-3",
   "name": "$text:.name",
+  "note": "$text:.note",
   "revision": 1,
   "variables": [
     {
@@ -245,7 +246,7 @@
           "kind": "action",
           "action": "ai-call",
           "serviceId": "AI-0",
-          "promptId": "P-12",
+          "promptId": "P-4",
           "requestTimeoutSeconds": 60,
           "inputs": {
             "$text:.steps.step-79.body.step-82.inputs.成就条目.label": {
@@ -294,9 +295,14 @@
             ]
           },
           "value": {
-            "source": "variable",
-            "id": "var-85",
-            "path": []
+            "expression": [
+              {
+                "source": "variable",
+                "id": "var-85",
+                "path": []
+              },
+              ".map(({ id, title, description }) => ({ id, translatedTitle: title, translatedDescription: description }))"
+            ]
           },
           "origin": {
             "literal": "ai"

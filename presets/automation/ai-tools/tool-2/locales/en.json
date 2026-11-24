@@ -1,5 +1,6 @@
 {
   ".name": "Steam player count",
+  ".note": "Look up a Steam game's current concurrent player count by AppID.",
   ".variables.var-102.name": "appId",
   ".variables.var-106.name": "Query result",
   ".steps.step-103.branches.0.steps.step-104.value.literal": "AppID is out of range. Pass an integer from 1 to 4294967295 and call the tool again.",

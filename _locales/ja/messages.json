@@ -8111,6 +8111,9 @@
   "promptToken_task_summary_language": {
     "message": "要約の言語"
   },
+  "promptToken_task_chat_message": {
+    "message": "チャットメッセージ"
+  },
   "promptToken_task_title": {
     "message": "文書のタイトル"
   },
@@ -10125,6 +10128,12 @@
   "workflow_ui_achievements": {
     "message": "実績"
   },
+  "workflow_ui_store_and_prices": {
+    "message": "ストアと価格"
+  },
+  "workflow_ui_library_and_wishlist": {
+    "message": "ライブラリとウィッシュリスト"
+  },
   "workflow_ui_application_and_status": {
     "message": "アプリと状態"
   },
@@ -10602,11 +10611,65 @@
   "ai_chat_tool_search": {
     "message": "Steam ストア検索"
   },
+  "ai_chat_tool_rename": {
+    "message": "ゲーム名の一括中国語化"
+  },
+  "workflow_command_steam_batch_sort_name_hint": {
+    "message": "Steam ライブラリのゲームの中国語ソート名を提案します。設定済みの名前と漢字を含む名前はスキップし、保存前に確認します。"
+  },
+  "ai_chat_tool_collections": {
+    "message": "コレクションに一括追加"
+  },
+  "workflow_command_steam_batch_collections_hint": {
+    "message": "指定したゲームを既存の編集可能なコレクションに追加します。名前または ID を指定でき、省略時は AI が提案します。追加前に確認します。"
+  },
+  "ai_chat_tool_achievements": {
+    "message": "ゲーム実績を一括翻訳"
+  },
+  "workflow_command_steam_batch_achievements_hint": {
+    "message": "未翻訳の実績を設定した言語で一括翻訳し、保存前に確認します。"
+  },
+  "ai_chat_tool_library": {
+    "message": "自分の Steam ライブラリを検索"
+  },
+  "workflow_command_steam_account_library_hint": {
+    "message": "現在の Steam ライブラリを名前や条件で検索し、ページごとに結果を取得します。"
+  },
+  "ai_chat_tool_library_game": {
+    "message": "自分のゲーム詳細を取得"
+  },
+  "workflow_command_steam_account_game_hint": {
+    "message": "AppID で現在のアカウントのプレイ時間と実績数、解除済み数を取得します。"
+  },
+  "ai_chat_tool_wishlist": {
+    "message": "自分の Steam ウィッシュリストを取得"
+  },
+  "workflow_command_steam_account_wishlist_hint": {
+    "message": "自分のウィッシュリストの追加日、地域別価格、割引、Steam 過去最安値をページごとに取得します。"
+  },
+  "ai_chat_tool_approval_confirm": {
+    "message": "変更を確認"
+  },
+  "ai_chat_tool_approval_achievements": {
+    "message": "$count$ 件の実績を翻訳",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "ai_chat_tool_changed": {
+    "message": "変更済み"
+  },
   "ai_chat_tool_search_result": {
     "message": "このページに $matched$ 件、Steam の候補は全 $total$ 件",
     "placeholders": {
-      "matched": { "content": "$1" },
-      "total": { "content": "$2" }
+      "matched": {
+        "content": "$1"
+      },
+      "total": {
+        "content": "$2"
+      }
     }
   },
   "workflow_tool_title": {
@@ -10627,7 +10690,9 @@
   "workflow_parameter_duplicate": {
     "message": "「$name$」命令は1つだけ追加できます。",
     "placeholders": {
-      "name": { "content": "$1" }
+      "name": {
+        "content": "$1"
+      }
     }
   },
   "workflow_parameter_first": {
@@ -10690,9 +10755,6 @@
   },
   "workflow_tool_description": {
     "message": "ツールの説明"
-  },
-  "workflow_tool_inputs": {
-    "message": "ツール入力"
   },
   "workflow_tool_test": {
     "message": "ツールをテスト"
@@ -10840,11 +10902,97 @@
   "workflow_tool_key_required": {
     "message": "認証値を入力してください"
   },
-  "workflow_command_query_provider_data_hint": {
-    "message": "選択したデータソースの条件で Steam または ITAD を検索します"
+  "workflow_query_result": {
+    "message": "取得結果"
   },
-  "workflow_tool_provider": {
-    "message": "データソース"
+  "workflow_query_filters": {
+    "message": "検索条件"
+  },
+  "workflow_command_steam_game_details_hint": {
+    "message": "AppID で Steam ストアの公開ゲーム情報を取得"
+  },
+  "workflow_command_steam_current_players_hint": {
+    "message": "AppID で Steam の現在のプレイヤー数を取得"
+  },
+  "workflow_command_itad_price_history_hint": {
+    "message": "AppID で設定地域の現在価格と過去最安値を取得"
+  },
+  "workflow_command_steam_store_search_hint": {
+    "message": "指定した条件で Steam 中国ストアを検索"
+  },
+  "workflow_record_mode": {
+    "message": "辞書の入力方法"
+  },
+  "workflow_record_fields": {
+    "message": "項目ごとに入力"
+  },
+  "workflow_record_whole": {
+    "message": "辞書全体"
+  },
+  "workflow_record_missing_policy": {
+    "message": "未設定の場合"
+  },
+  "workflow_record_omit": {
+    "message": "省略"
+  },
+  "workflow_record_fail": {
+    "message": "エラーにする"
+  },
+  "workflow_record_source": {
+    "message": "値の取得元"
+  },
+  "workflow_record_add": {
+    "message": "項目を追加"
+  },
+  "workflow_record_from_ai": {
+    "message": "AI パラメーターから追加"
+  },
+  "workflow_record_sample_include": {
+    "message": "$name$ のサンプルを入力",
+    "placeholders": {
+      "name": {
+        "content": "$1"
+      }
+    }
+  },
+  "workflow_record_input_invalid": {
+    "message": "辞書の入力方法を 1 つ選択してください"
+  },
+  "workflow_record_missing_policy_invalid": {
+    "message": "値が未設定の場合の処理を選択してください"
+  },
+  "workflow_record_duplicate_key": {
+    "message": "辞書の項目名が重複しています：$name$",
+    "placeholders": {
+      "name": {
+        "content": "$1"
+      }
+    }
+  },
+  "workflow_error_unknown_action": {
+    "message": "「$name$」の指令 $step$ に無効または削除済みの種類 $action$ が使われています",
+    "placeholders": {
+      "name": {
+        "content": "$1"
+      },
+      "step": {
+        "content": "$2"
+      },
+      "action": {
+        "content": "$3"
+      }
+    }
+  },
+  "workflow_error_tool_input": {
+    "message": "「$name$」の指令 $step$ では宣言済みのパラメーター変数を使用してください",
+    "placeholders": {
+      "name": {
+        "content": "$1"
+      },
+      "step": {
+        "content": "$2"
+      }
+    }
   },
   "workflow_tool_builtin": {
     "message": "組み込み"
@@ -10911,8 +11059,16 @@
   "workflow_error_tool_instruction": {
     "message": "この指示はここでは使用できません。"
   },
-  "workflow_error_tool_input": {
-    "message": "宣言済みのツール入力を選択してください"
+  "workflow_clipboard_context": {
+    "message": "「$name$」は「$editor$」でのみ使用できます。",
+    "placeholders": {
+      "name": {
+        "content": "$1"
+      },
+      "editor": {
+        "content": "$2"
+      }
+    }
   },
   "workflow_error_tool_http": {
     "message": "ツールは GET クエリ、URL テキストのテンプレート、ローカル認証情報の参照に対応しています。"
@@ -10928,6 +11084,18 @@
   },
   "settings_ai_services_section": {
     "message": "サービス一覧"
+  },
+  "settings_ai_chat_prompt": {
+    "message": "関連付けるプロンプト"
+  },
+  "settings_ai_chat_prompt_default": {
+    "message": "既定のチャットプロンプト"
+  },
+  "settings_ai_chat_preferences_error": {
+    "message": "設定を読み込み、または保存できませんでした。再試行してください。"
+  },
+  "ai_chat_prompt_unavailable": {
+    "message": "関連付けたプロンプトは利用できません。「AI サービス → チャット入口」で選び直してください。"
   },
   "settings_ai_entry_section": {
     "message": "チャットの入口"
@@ -12094,12 +12262,6 @@
   "workflow_ui_format_json": {
     "message": "JSON を整形"
   },
-  "workflow_ui_edit_the_system_and_user_prompts_for_this_turn": {
-    "message": "今回のシステムプロンプトとユーザープロンプトを編集します。"
-  },
-  "workflow_ui_the_chat_history_token_can_be_a_string_element_of_the_messag": {
-    "message": "会話履歴タグは messages 配列の文字列要素に指定できます。"
-  },
   "workflow_ui_preview_ai_service": {
     "message": "プレビュー用 AI サービス"
   },
@@ -12262,8 +12424,8 @@
   "workflow_ui_all_placeholders": {
     "message": "すべてのプレースホルダー"
   },
-  "workflow_ui_mode_details": {
-    "message": "モードの説明"
+  "workflow_item_note_invalid": {
+    "message": "メモの形式が無効です"
   },
   "workflow_ui_loading": {
     "message": "読み込み中…"

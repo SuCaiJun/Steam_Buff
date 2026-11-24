@@ -1,5 +1,6 @@
 {
   ".name": "ITAD price and historical low",
+  ".note": "Look up current offers and historical lows in the configured region by AppID.",
   ".variables.var-108.name": "appId",
   ".variables.var-112.name": "Query result",
   ".steps.step-109.branches.0.steps.step-110.value.literal": "AppID is out of range. Pass an integer from 1 to 4294967295 and call the tool again.",

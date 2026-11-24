@@ -1,6 +1,7 @@
 {
   "id": "P-2",
   "name": "$text:.name",
+  "note": "$text:.note",
   "enabled": true,
   "revision": 1,
   "mode": "basic",

@@ -1,5 +1,6 @@
 {
   ".name": "가족 라이브러리 새로고침",
+  ".note": "Steam 가족 라이브러리를 새로고침하고 메시지 센터에 결과를 표시합니다.",
   ".variables.var-89.name": "가족 라이브러리 새로 고침 결과",
   ".variables.var-90.name": "새로 고침 상태",
   ".variables.var-93.name": "메시지 전송 결과",

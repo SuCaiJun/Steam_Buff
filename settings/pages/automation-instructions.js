@@ -10,7 +10,7 @@
  */
 ((root) => {
   "use strict";
-  const tr = (key, fallback) => globalThis.STI18n?.text(key, fallback) ?? fallback;
+  const tr = (key, fallback, params) => globalThis.STI18n?.text(key, fallback, params) ?? fallback;
   const flow = root.STWorkflow, model = root.STAutomation;
   const categories = Object.freeze({
     "数据处理": "database", "条件判断": "sitemap", "循环": "repeat", "AI": "brain", "Steam 操作": "device-gamepad-2",
@@ -22,114 +22,14 @@
     "JSON 转换": "file-code", "日期时间": "calendar", "CSV 转换": "file-type-csv", "Base64 编解码": "binary",
     "游戏名称": "tag", "收藏分组": "folders", "家庭库": "users-group", "游戏成就": "trophy",
     "应用与状态": "apps", "内容与支持": "list-details", "评价与时间": "chart-bar",
+    "商店与价格": "tag", "游戏库与愿望单": "list-details",
   });
-  const definitions = [...flow.catalog,
-    { id: "trigger-parameters", name: "触发器传参", category: "数据处理", group: "输入与变量" },
-    { id: "ai-parameters", name: "AI 传参", category: "数据处理", group: "输入与变量" },
-    { id: "library-parameters", name: "指令输入", category: "数据处理", group: "输入与变量" },
-    { id: "fold-start", name: "折叠开始", category: "折叠" },
-    { id: "fold-end", name: "折叠结束", category: "折叠" }];
-  const byId = Object.fromEntries(definitions.map(item => [item.id, item]));
-  const commands = [
-    "ai-call", "tool-call",
-    "tool-return", "library-return", "wait", "stop",
-    "http-request", "query-provider-data", "script",
-    "log", "comment",
-    "base64-encode", "base64-decode",
-    "csv-parse", "csv-stringify",
-    "json", "json-stringify",
-    "trigger-parameters", "ai-parameters", "library-parameters", "library-call", "set", "get", "convert", "calculate", "random",
-    "list", "append", "list-get", "list-set", "list-insert", "list-filter-condition", "list-filter", "list-field",
-    "list-sort", "list-unique", "list-merge", "list-length", "list-index", "list-slice", "list-chunk",
-    "list-intersection", "list-reverse", "list-shuffle", "list-remove", "list-clear",
-    "record", "dict-set", "dict-get", "dict-get-default", "dict-has", "dict-keys", "dict-values", "dict-delete", "dict-clear",
-    "text-append", "text-replace", "text-trim", "text-split", "text-join", "text-slice", "text-extract",
-    "text-length", "text-case", "text-pad", "text-pinyin", "text-mnemonic",
-    "date-now", "date-parse", "date-format", "date-add", "date-diff", "date-parts", "date-to-timestamp", "date-from-timestamp",
-    "family-refresh",
-    "steam-game-accessibility", "steam-game-tags", "steam-game-hardware", "steam-game-features", "steam-game-genres", "steam-game-languages",
-    "steam-game-date-release", "steam-game-metacritic-score", "steam-game-review-score", "steam-game-date-added",
-    "steam-game-playtime-minutes", "steam-game-date-last-played",
-    "steam-collections", "steam-game-collections", "steam-game-collection-names", "steam-add-collections",
-    "steam-game-appid", "steam-game-sources", "steam-game-app-type", "steam-game-modes", "steam-game-privacy", "steam-game-status",
-    "steam-save-translations", "steam-translations", "steam-achievements",
-    "steam-display-name", "steam-custom-name", "steam-original-name", "steam-game-aliases", "steam-game-pinyin", "steam-game-mnemonic",
-    "steam-game-original-language", "steam-sort-name", "steam-set-custom-name", "steam-set-aliases", "steam-set-pinyin",
-    "steam-set-mnemonic", "steam-set-sort-name",
-    "if", "if-many", "else", "else-if", "else-if-many", "end-if",
-    "interactive", "notify",
-    "for", "while", "forever", "foreach", "entries", "continue", "break", "end-loop",
-    "try", "catch", "finally", "end-try", "raise",
-    "fold-start", "fold-end",
-  ].map(id => byId[id]);
   const categoryOrder = Object.keys(categories).flatMap(name => name === "其他" ? Object.keys(otherCategories) : [name]);
   const groupOrder = Object.keys(groups);
-  const catalog = Object.freeze(commands.sort((a, b) =>
+  const catalog = Object.freeze(flow.instructions.filter(item => !item.legacy).sort((a, b) =>
     categoryOrder.indexOf(a.category) - categoryOrder.indexOf(b.category) ||
-    groupOrder.indexOf(a.group) - groupOrder.indexOf(b.group)));
-  // 键沿用指令契约，值使用 Tabler 上游 SVG 文件名。
-  const commandIcons = Object.freeze({
-    "ai-call": "sparkles", "tool-call": "link", "tool-return": "arrow-back-up", "http-request": "link", "query-provider-data": "database", wait: "hourglass", stop: "player-stop", script: "code", log: "article",
-    comment: "message", "base64-encode": "binary", "base64-decode": "file-symlink",
-    "csv-parse": "file-type-csv", "csv-stringify": "file-export", json: "braces",
-    "json-stringify": "file-code", "list-filter-condition": "filter-check", list: "list",
-    "list-get": "list-search", "list-reverse": "arrows-sort", "list-filter": "filter",
-    "list-merge": "arrows-join", "list-intersection": "circles-relation", "list-length": "list-numbers",
-    "list-index": "list-search", "list-slice": "slice", "list-insert": "list-details",
-    "list-chunk": "layout-grid", "list-sort": "sort-ascending", "list-unique": "list-check",
-    "list-shuffle": "arrows-shuffle", "list-clear": "playlist-off", "list-field": "list-details",
-    "list-set": "list-details", "list-remove": "playlist-x", append: "playlist-add",
-    "date-now": "calendar-clock", "date-diff": "hourglass", "date-parts": "calendar",
-    "date-to-timestamp": "clock-up", "date-format": "calendar-event",
-    "date-from-timestamp": "clock-down", "date-add": "calendar-plus", "date-parse": "calendar-search",
-    random: "dice", get: "file-search", receive: "download", "trigger-parameters": "download", "ai-parameters": "download", "library-parameters": "download", "library-return": "arrow-back-up", "library-call": "link", convert: "switch-horizontal",
-    set: "variable", calculate: "calculator", "text-pad": "text-wrap", "text-extract": "regex",
-    "text-case": "letter-case", "text-length": "ruler-measure", "text-slice": "slice",
-    "text-join": "arrows-join", "text-trim": "scissors", "text-pinyin": "language",
-    "text-mnemonic": "letter-case-upper", "text-split": "separator", "text-replace": "replace",
-    "text-append": "text-plus", record: "braces", "dict-get": "file-search",
-    "dict-get-default": "file-check", "dict-keys": "key", "dict-values": "list-details",
-    "dict-has": "checklist", "dict-clear": "eraser", "dict-delete": "file-minus",
-    "dict-set": "file-pencil", "family-refresh": "refresh", "steam-save-translations": "file-check",
-    "steam-translations": "language", "steam-achievements": "trophy", "steam-display-name": "eye",
-    "steam-custom-name": "tag", "steam-original-name": "typography",
-    "steam-sort-name": "sort-ascending-letters", "steam-set-custom-name": "tag-star",
-    "steam-set-sort-name": "sort-descending-letters",
-    "steam-collections": "folders", "steam-game-collections": "folder",
-    "steam-add-collections": "folder-plus", else: "arrow-back-up", "else-if": "git-compare",
-    "else-if-many": "git-pull-request", "end-if": "git-merge", "if-many": "sitemap", if: "git-branch",
-    interactive: "message-question", notify: "bell", for: "list-numbers", foreach: "list-details",
-    entries: "list-letters", continue: "player-skip-forward", break: "logout", while: "list-check",
-    forever: "infinity", "end-loop": "repeat-off", catch: "shield-check", "end-try": "shield-off",
-    finally: "flag-check", raise: "alert-triangle", try: "shield", "fold-start": "square-minus",
-    "fold-end": "square-plus",
-  });
-  const fieldIcons = Object.freeze({
-    original_language: "language", aliases: "tags", mnemonic: "letter-case-upper", pinyin: "language",
-    appid: "hash", app_type: "category", sources: "source-code", modes: "device-gamepad-2",
-    status: "activity", privacy: "eye-off", languages: "language", genres: "category",
-    features: "sparkles", tags: "tags", hardware: "cpu", accessibility: "accessible",
-    custom_name: "tag", review_score: "star", metacritic_score: "chart-bar",
-    date_added: "calendar-plus", date_release: "calendar-event", date_last_played: "calendar-clock",
-    playtime_minutes: "clock", collection_names: "folders",
-  });
-  const hints = Object.freeze({
-    ...Object.fromEntries(Object.values(flow.definitions).map(item => [item.id, item.hint])),
-    if: "条件满足时执行内部指令", "if-many": "按全部满足或任一满足组合多个条件", "else-if": "前面的条件不满足时继续判断", "else-if-many": "前面的条件不满足时判断一组条件",
-    else: "以上条件均不满足时执行", "end-if": "结束条件判断",
-    for: "按指定次数执行内部指令", while: "每轮开始前判断条件，满足时继续循环", foreach: "逐项读取列表并执行内部指令", entries: "逐项读取字典的键和值", forever: "重复执行内部指令，直到流程退出循环",
-    continue: "跳过当前轮剩余指令，开始下一轮", break: "退出当前循环", "end-loop": "结束当前循环区域",
-    "ai-call": "发送内容给 AI，保存回复原文",
-    "tool-call": "执行登记的工具，或为 AI 记录一条已有结果",
-    "tool-return": "返回数据并结束工具执行",
-    "query-provider-data": "按所选数据来源查询 Steam 或 ITAD 数据",
-    notify: "按配置的级别、范围和方式发送通知", interactive: "发送带操作按钮的消息并等待用户操作或超时",
-    wait: "等待指定时间后继续执行", stop: "结束本次工作流运行", log: "将内容写入本次运行日志", comment: "为流程添加不参与执行的备注",
-    try: "尝试执行内部指令", catch: "发生异常时执行，并保存异常信息", finally: "无论成功或失败都执行", "end-try": "结束异常处理区域", raise: "主动抛出异常，由 Catch 处理或结束失败",
-    script: "执行 JavaScript，可直接读取流程变量并返回结果",
-    "http-request": "向已授权的站点发送请求并保存响应",
-    "fold-start": "从这里开始折叠一组指令", "fold-end": "结束当前折叠区域",
-  });
+    groupOrder.indexOf(a.group) - groupOrder.indexOf(b.group) ||
+    (a.order ?? Number.MAX_SAFE_INTEGER) - (b.order ?? Number.MAX_SAFE_INTEGER)));
   // 只解析内置字段与选项的显示名称，自定义名称由各控件原样呈现。
   const schemaKeys = Object.freeze({
     "AI 回复": "seed_variable_ai",
@@ -212,6 +112,7 @@
     "失败": "workflow_ui_failed",
     "失败原因": "workflow_ui_failure_reason",
     "字典": "seed_variable_record",
+    "查询参数": "workflow_query_filters",
     "字典列表或二维列表": "workflow_ui_list_of_dictionaries_or_rows",
     "字典操作": "workflow_ui_dictionary_operations",
     "字段值": "workflow_ui_field_value",
@@ -242,6 +143,8 @@
     "年-月-日 时:分:秒": "workflow_ui_year_month_day_hour_minute_second",
     "应用": "steam_independentName_applyFilter",
     "应用与状态": "workflow_ui_application_and_status",
+    "商店与价格": "workflow_ui_store_and_prices",
+    "游戏库与愿望单": "workflow_ui_library_and_wishlist",
     "开头": "workflow_ui_beginning",
     "开始位置": "workflow_ui_start_index",
     "开始位置（从 0 开始）": "workflow_ui_start_index_zero_based",
@@ -412,13 +315,15 @@
   });
   const schemaLabel = label => Object.hasOwn(schemaKeys, label) ? tr(schemaKeys[label], label) : label;
   const schemaChoices = rows => rows.map(([value, label]) => [value, schemaLabel(label)]);
-  const name = id => tr("workflow.command." + id + ".name", byId[id].name);
-  const hint = id => tr("workflow.command." + id + ".hint", hints[id] || name(id));
+  function name(id) {
+    const definition = flow.instruction(id);
+    return tr(definition.label || "workflow.command." + id + ".name", definition.name);
+  }
+  const hint = id => tr("workflow.command." + id + ".hint", flow.instruction(id).hint || name(id));
   const key = row => ["", "else-if"].includes(row.marker || "") && row.node.kind === "if" ? (row.marker ? "else-if" : "if") + (flow.multiple(row.node.branches[row.branch || 0].condition) ? "-many" : "") : row.marker || (row.node.action === "notify" && row.node.messageType === "interactive" ? "interactive" : flow.type(row.node));
   const iconAsset = name => root.chrome.runtime.getURL("images/tabler/" + name + ".svg");
   function iconName(id) {
-    const effect = flow.effects[id], field = effect?.gameField || effect?.nameField;
-    const name = commandIcons[id] || fieldIcons[field];
+    const name = flow.instruction(id)?.icon;
     if (!name) throw new Error("自动化指令缺少图标：" + id);
     return name;
   }
@@ -486,6 +391,7 @@
       ...id === "interactive" ? [tr("workflow_ui_buttons", "；按钮："), token(node.buttons.map(item => item.label || item.id).join(" / ")), ...node.timeout ? [tr("workflow_ui_wait_up_to", "，最多等待 "), token(node.timeout.seconds), tr("workflow_ui_seconds_label", " 秒")] : [tr("workflow_ui_no_timeout", "，不设置超时")]] : ["，", token(node.scope === "device" ? tr("workflow_ui_this_device", "本机") : tr("workflow_ui_current_account", "当前账号"))], ...output(node.output)];
     if (id === "receive") return [tr("workflow_ui_receive", "接收 "), ...value(node.value), ...output(node.output)];
     if (id === "set") return [tr("workflow_ui_set", "将 "), variable(node.output), tr("workflow_ui_to", " 设为 "), ...value(node.value), "（", root.STWorkflowTools.typeNames[node.valueType || "any"], "）"];
+    if (id === "record" && node.entries) return [tr("workflow_format_field_count", "$count$ 个字段", { count: node.entries.length }), ...output(node.output)];
     if (id === "list" || id === "record" || id === "json") return [id === "json" ? tr("workflow_ui_parse", "解析 ") : tr("workflow_ui_create", "创建 "), ...value(node.value), ...output(node.output)];
     if (id === "get") return [tr("workflow_ui_from", "从 "), ...value(node.value), tr("workflow_ui_read", " 读取 "), ...value(node.key), ...output(node.output)];
     if (id === "http-request") {
@@ -497,13 +403,8 @@
       const tool = editor.toolLibrary?.find(item => item.id === node.toolId);
       return [tool && node.toolMode === "registered" ? token(tool.name) : hint(id), ...output(node.output)];
     }
-    if (id === "query-provider-data") {
-      const provider = root.STAI.CHAT_TOOLS.find(item => item.id === node.provider);
-      if (node.provider === root.STAI.STORE_SEARCH_TOOL_ID)
-        return [token(tr(provider.label, provider.name)), " · ", ...value(node.filters), ...output(node.output)];
-      return [token(provider ? tr(provider.label, provider.name) : tr("workflow_tool_provider", "数据来源")),
-        " · AppID ", ...value(node.appId), ...output(node.output)];
-    }
+    const query = flow.providerQueries[id];
+    if (query) return [query.argument === "appId" ? "AppID" : schemaLabel("查询参数"), " · ", ...value(node[query.argument]), ...output(node.output)];
     if (id === "library-call") {
       const library = editor.customLibraries?.find(item => item.id === node.libraryId);
       return [token(library?.name || hint(id)), ...Object.values(node.libraryOutputs ?? {}).flatMap(output)];
@@ -521,5 +422,5 @@
     if (id === "raise") return [tr("workflow_ui_raise_an_exception", "抛出异常："), ...value(node.value)];
     throw new Error("未定义指令说明：" + id);
   }
-  root.STWorkflowInstructions = Object.freeze({ catalog, categories, otherCategories, groups, hints, name, hint, schemaLabel, schemaChoices, key, iconAsset, icon, iconUrl, iconTone, commandIcon, choices, describe });
+  root.STWorkflowInstructions = Object.freeze({ catalog, categories, otherCategories, groups, name, hint, schemaLabel, schemaChoices, key, iconAsset, icon, iconUrl, iconTone, commandIcon, choices, describe });
 })(globalThis);

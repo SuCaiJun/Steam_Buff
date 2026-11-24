@@ -144,6 +144,24 @@ button[type=submit] { background: var(--st-color-primary-surface); color: var(--
 .reply-tool dl:empty { display: none; }
 .reply-tool dt { color: var(--st-dialog-muted-color); }
 .reply-tool dd { margin: 0; }
+.chat-tool-approval {
+  box-sizing: border-box;
+  width: min(420px, calc(100% - 24px));
+  max-height: calc(100dvh - 32px);
+  padding: 16px;
+  border: 1px solid var(--st-dialog-border);
+  border-radius: var(--st-radius-md);
+  background: var(--st-dialog-surface);
+  color: var(--st-color-text-primary);
+  box-shadow: var(--st-shadow-lg);
+}
+.chat-tool-approval::backdrop { background: var(--st-color-overlay); }
+.chat-tool-approval h2 { margin: 0; font-size: var(--st-font-size-body); }
+.chat-tool-approval ul { list-style: none; padding: 0; max-height: 44dvh; overflow: auto; }
+.chat-tool-approval li { display: grid; gap: 4px; border-bottom: 1px solid var(--st-dialog-divider); padding: 8px 0; overflow-wrap: anywhere; }
+.chat-tool-approval li span { color: var(--st-dialog-muted-color); }
+.chat-tool-approval form { display: flex; justify-content: flex-end; gap: 8px; }
+.chat-tool-approval button[value="approve"] { background: var(--st-color-button-primary-solid); color: var(--st-color-text-primary); }
 .sources {
   display: flex;
   flex-wrap: wrap;

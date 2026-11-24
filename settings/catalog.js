@@ -1052,6 +1052,7 @@
       kind: "ai-services",
       items: Object.freeze([
         { id: "ai", name: "AI 模块", desc: "控制 AI 请求是否可用。", area: "settings", enabled: false },
+        { id: "ai-chat-prompt", name: "关联提示词", area: "settings", control: "prompt", default: "" },
         {
           id: "ai-chat-web",
           name: "网页 AI 对话入口",
@@ -1247,6 +1248,7 @@
 
   function valueKind(item) {
     const control = String(item?.control || "");
+    if (control === "prompt") return control;
     if (control === "order") {
       return "order";
     }
@@ -1269,7 +1271,7 @@
     const out = {};
     for (const item of featureItems()) {
       const kind = valueKind(item);
-      if (kind === "choice") {
+      if (kind === "choice" || kind === "prompt") {
         out[item.id] = item.default;
         continue;
       }

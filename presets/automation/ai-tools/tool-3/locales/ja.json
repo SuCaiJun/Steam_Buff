@@ -1,5 +1,6 @@
 {
   ".name": "ITAD 価格と過去最安値",
+  ".note": "AppID で設定地域の現在価格と過去最安値を調べます。",
   ".variables.var-108.name": "appId",
   ".variables.var-112.name": "取得結果",
   ".steps.step-109.branches.0.steps.step-110.value.literal": "AppID が範囲外です。1 から 4294967295 までの整数を指定して、ツールを再度呼び出してください。",

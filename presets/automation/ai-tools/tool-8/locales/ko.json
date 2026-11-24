@@ -1,0 +1,23 @@
+{
+  ".name": "내 Steam 라이브러리 검색",
+  ".note": "이름이나 필터로 현재 Steam 라이브러리를 검색하고 페이지별 결과를 가져옵니다.",
+  ".description": "이름이나 필터로 현재 Steam 라이브러리를 검색하고 페이지별 결과를 가져옵니다.",
+  ".variables.args": "도구 매개변수",
+  ".variables.result": "조회 결과",
+  ".parameters.0.description": "게임 이름으로 필터링합니다.",
+  ".parameters.1.description": "0부터 시작하고 다음 페이지에는 nextStart를 사용합니다.",
+  ".parameters.2.description": "게임 모드. 가능한 값은 single, multiplayer, coop, local_multiplayer.",
+  ".parameters.3.description": "라이브러리 상태. 가능한 값은 ready, installed, played, unplayed, private.",
+  ".parameters.4.description": "지원 언어. 예: schinese, english, japanese.",
+  ".parameters.5.description": "장르. 가능한 값은 action, adventure, casual, indie, massively_multiplayer, racing, rpg, simulation, sports, strategy.",
+  ".parameters.6.description": "컨트롤러 지원. 가능한 값은 controller_recommended, controller_full, controller_partial, dualshock, dualshock_bluetooth, dualsense, dualsense_bluetooth, steam_input.",
+  ".parameters.7.description": "Steam Deck 호환성. 가능한 값은 deck_verified, deck_playable, deck_unsupported, deck_unknown.",
+  ".parameters.8.description": "VR 지원. 가능한 값은 vr, non_vr.",
+  ".parameters.9.description": "Steam 기능. 가능한 값은 trading_cards, workshop, achievements, remote_play, family_sharing.",
+  ".parameters.10.description": "Steam 상점 태그 이름 또는 문자열로 전달하는 태그 ID.",
+  ".parameters.11.description": "게임을 소유한 Steam 친구의 정확한 닉네임 또는 친구 코드.",
+  ".parameters.12.description": "플레이 접근성. 가능한 값은 adjustable_difficulty, save_anytime.",
+  ".parameters.13.description": "시각 접근성. 가능한 값은 adjustable_text, subtitles, color_alternatives, contrast, camera_comfort, playable_without_vision.",
+  ".parameters.14.description": "오디오 접근성. 가능한 값은 custom_volume, stereo, surround, narrated_menus.",
+  ".parameters.15.description": "입력 접근성. 가능한 값은 keyboard_only, mouse_only, touch_only, without_quick_time, own_pace, speech_to_text, text_to_speech."
+}

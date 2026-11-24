@@ -1,5 +1,6 @@
 {
   ".name": "Steam 동시 접속자 수",
+  ".note": "AppID로 Steam 게임의 현재 동시 접속자 수를 조회합니다.",
   ".variables.var-102.name": "appId",
   ".variables.var-106.name": "조회 결과",
   ".steps.step-103.branches.0.steps.step-104.value.literal": "AppID가 범위를 벗어났습니다. 1부터 4294967295까지의 정수로 다시 호출하세요.",

@@ -1,0 +1,21 @@
+{
+  ".name": "ゲーム名の一括中国語化",
+  ".note": "Steam ライブラリのゲームの中国語ソート名を提案します。設定済みの名前と漢字を含む名前はスキップし、保存前に確認します。",
+  ".description": "Steam ライブラリのゲームの中国語ソート名を提案します。設定済みの名前と漢字を含む名前はスキップし、保存前に確認します。",
+  ".parameters.0.description": "Steam AppID の整数リスト。",
+  ".errors.appIds": "1 から 4294967295 の整数で有効な Steam AppID を 1 つ以上指定してください。",
+  ".errors.name": "AI が有効な中国語の並べ替え名を返しませんでした。",
+  ".prompts.P-2.0": "Steamの元の名前",
+  ".variables.ids": "重複を除いた AppID",
+  ".variables.size": "ゲーム数",
+  ".variables.items": "AppID ごとの結果",
+  ".variables.app": "現在の AppID",
+  ".variables.index": "ゲームの番号",
+  ".variables.row": "現在のゲームの結果",
+  ".variables.error": "現在のゲームのエラー",
+  ".variables.name": "Steam の元の名前",
+  ".variables.saved": "Steam 操作の結果",
+  ".variables.sort": "既存の並べ替え名",
+  ".variables.reply": "AI の応答",
+  ".variables.proposed": "提案された並べ替え名"
+}

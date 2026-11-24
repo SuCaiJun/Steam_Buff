@@ -1,6 +1,7 @@
 {
   "id": "tool-2",
   "name": "$text:.name",
+  "note": "$text:.note",
   "revision": 1,
   "variables": [
     {
@@ -64,14 +65,13 @@
     {
       "id": "step-105",
       "kind": "action",
-      "action": "query-provider-data",
+      "action": "steam-current-players",
       "appId": {
         "source": "variable",
         "id": "var-102",
         "path": []
       },
-      "output": "var-106",
-      "provider": "tool-2"
+      "output": "var-106"
     },
     {
       "id": "step-107",
@@ -84,7 +84,7 @@
       }
     }
   ],
-  "executionId": "00000000-0000-4000-8000-000000000001",
+  "executionId": "00000000-0000-4000-8000-000000000002",
   "enabled": true,
   "description": "$text:.description",
   "parameters": [

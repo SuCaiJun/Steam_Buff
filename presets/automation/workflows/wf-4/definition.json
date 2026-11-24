@@ -1,6 +1,7 @@
 {
   "id": "wf-4",
   "name": "$text:.name",
+  "note": "$text:.note",
   "revision": 1,
   "variables": [
     {

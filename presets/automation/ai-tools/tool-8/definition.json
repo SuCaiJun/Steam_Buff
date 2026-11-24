@@ -1,0 +1,390 @@
+{
+  "id": "tool-8",
+  "name": "$text:.name",
+  "note": "$text:.note",
+  "revision": 1,
+  "executionId": "00000000-0000-4000-8000-000000000002",
+  "enabled": true,
+  "description": "$text:.description",
+  "parameters": [
+    {
+      "name": "term",
+      "type": "string",
+      "required": false,
+      "description": "$text:.parameters.0.description",
+      "variableId": "var-term"
+    },
+    {
+      "name": "start",
+      "type": "integer",
+      "required": false,
+      "description": "$text:.parameters.1.description",
+      "variableId": "var-start"
+    },
+    {
+      "name": "modes",
+      "type": "array",
+      "required": false,
+      "description": "$text:.parameters.2.description",
+      "variableId": "var-modes"
+    },
+    {
+      "name": "status",
+      "type": "array",
+      "required": false,
+      "description": "$text:.parameters.3.description",
+      "variableId": "var-status"
+    },
+    {
+      "name": "languages",
+      "type": "array",
+      "required": false,
+      "description": "$text:.parameters.4.description",
+      "variableId": "var-languages"
+    },
+    {
+      "name": "genres",
+      "type": "array",
+      "required": false,
+      "description": "$text:.parameters.5.description",
+      "variableId": "var-genres"
+    },
+    {
+      "name": "controllers",
+      "type": "array",
+      "required": false,
+      "description": "$text:.parameters.6.description",
+      "variableId": "var-controllers"
+    },
+    {
+      "name": "deck",
+      "type": "array",
+      "required": false,
+      "description": "$text:.parameters.7.description",
+      "variableId": "var-deck"
+    },
+    {
+      "name": "vr",
+      "type": "array",
+      "required": false,
+      "description": "$text:.parameters.8.description",
+      "variableId": "var-vr"
+    },
+    {
+      "name": "features",
+      "type": "array",
+      "required": false,
+      "description": "$text:.parameters.9.description",
+      "variableId": "var-features"
+    },
+    {
+      "name": "tags",
+      "type": "array",
+      "required": false,
+      "description": "$text:.parameters.10.description",
+      "variableId": "var-tags"
+    },
+    {
+      "name": "friends",
+      "type": "array",
+      "required": false,
+      "description": "$text:.parameters.11.description",
+      "variableId": "var-friends"
+    },
+    {
+      "name": "gameplay",
+      "type": "array",
+      "required": false,
+      "description": "$text:.parameters.12.description",
+      "variableId": "var-gameplay"
+    },
+    {
+      "name": "visual",
+      "type": "array",
+      "required": false,
+      "description": "$text:.parameters.13.description",
+      "variableId": "var-visual"
+    },
+    {
+      "name": "audio",
+      "type": "array",
+      "required": false,
+      "description": "$text:.parameters.14.description",
+      "variableId": "var-audio"
+    },
+    {
+      "name": "input",
+      "type": "array",
+      "required": false,
+      "description": "$text:.parameters.15.description",
+      "variableId": "var-input"
+    }
+  ],
+  "variables": [
+    {
+      "id": "var-term",
+      "name": "term",
+      "type": "text"
+    },
+    {
+      "id": "var-start",
+      "name": "start",
+      "type": "number"
+    },
+    {
+      "id": "var-modes",
+      "name": "modes",
+      "type": "list"
+    },
+    {
+      "id": "var-status",
+      "name": "status",
+      "type": "list"
+    },
+    {
+      "id": "var-languages",
+      "name": "languages",
+      "type": "list"
+    },
+    {
+      "id": "var-genres",
+      "name": "genres",
+      "type": "list"
+    },
+    {
+      "id": "var-controllers",
+      "name": "controllers",
+      "type": "list"
+    },
+    {
+      "id": "var-deck",
+      "name": "deck",
+      "type": "list"
+    },
+    {
+      "id": "var-vr",
+      "name": "vr",
+      "type": "list"
+    },
+    {
+      "id": "var-features",
+      "name": "features",
+      "type": "list"
+    },
+    {
+      "id": "var-tags",
+      "name": "tags",
+      "type": "list"
+    },
+    {
+      "id": "var-friends",
+      "name": "friends",
+      "type": "list"
+    },
+    {
+      "id": "var-gameplay",
+      "name": "gameplay",
+      "type": "list"
+    },
+    {
+      "id": "var-visual",
+      "name": "visual",
+      "type": "list"
+    },
+    {
+      "id": "var-audio",
+      "name": "audio",
+      "type": "list"
+    },
+    {
+      "id": "var-input",
+      "name": "input",
+      "type": "list"
+    },
+    {
+      "id": "var-task-args",
+      "name": "$text:.variables.args",
+      "type": "object"
+    },
+    {
+      "id": "var-result",
+      "name": "$text:.variables.result",
+      "type": "object"
+    }
+  ],
+  "steps": [
+    {
+      "id": "step-params",
+      "kind": "action",
+      "action": "record",
+      "entries": [
+        {
+          "key": "term",
+          "value": {
+            "source": "variable",
+            "id": "var-term",
+            "path": []
+          },
+          "omitIfUnset": true
+        },
+        {
+          "key": "start",
+          "value": {
+            "source": "variable",
+            "id": "var-start",
+            "path": []
+          },
+          "omitIfUnset": true
+        },
+        {
+          "key": "modes",
+          "value": {
+            "source": "variable",
+            "id": "var-modes",
+            "path": []
+          },
+          "omitIfUnset": true
+        },
+        {
+          "key": "status",
+          "value": {
+            "source": "variable",
+            "id": "var-status",
+            "path": []
+          },
+          "omitIfUnset": true
+        },
+        {
+          "key": "languages",
+          "value": {
+            "source": "variable",
+            "id": "var-languages",
+            "path": []
+          },
+          "omitIfUnset": true
+        },
+        {
+          "key": "genres",
+          "value": {
+            "source": "variable",
+            "id": "var-genres",
+            "path": []
+          },
+          "omitIfUnset": true
+        },
+        {
+          "key": "controllers",
+          "value": {
+            "source": "variable",
+            "id": "var-controllers",
+            "path": []
+          },
+          "omitIfUnset": true
+        },
+        {
+          "key": "deck",
+          "value": {
+            "source": "variable",
+            "id": "var-deck",
+            "path": []
+          },
+          "omitIfUnset": true
+        },
+        {
+          "key": "vr",
+          "value": {
+            "source": "variable",
+            "id": "var-vr",
+            "path": []
+          },
+          "omitIfUnset": true
+        },
+        {
+          "key": "features",
+          "value": {
+            "source": "variable",
+            "id": "var-features",
+            "path": []
+          },
+          "omitIfUnset": true
+        },
+        {
+          "key": "tags",
+          "value": {
+            "source": "variable",
+            "id": "var-tags",
+            "path": []
+          },
+          "omitIfUnset": true
+        },
+        {
+          "key": "friends",
+          "value": {
+            "source": "variable",
+            "id": "var-friends",
+            "path": []
+          },
+          "omitIfUnset": true
+        },
+        {
+          "key": "gameplay",
+          "value": {
+            "source": "variable",
+            "id": "var-gameplay",
+            "path": []
+          },
+          "omitIfUnset": true
+        },
+        {
+          "key": "visual",
+          "value": {
+            "source": "variable",
+            "id": "var-visual",
+            "path": []
+          },
+          "omitIfUnset": true
+        },
+        {
+          "key": "audio",
+          "value": {
+            "source": "variable",
+            "id": "var-audio",
+            "path": []
+          },
+          "omitIfUnset": true
+        },
+        {
+          "key": "input",
+          "value": {
+            "source": "variable",
+            "id": "var-input",
+            "path": []
+          },
+          "omitIfUnset": true
+        }
+      ],
+      "output": "var-task-args"
+    },
+    {
+      "id": "step-operation",
+      "kind": "action",
+      "action": "steam-account-library",
+      "taskArgs": {
+        "source": "variable",
+        "id": "var-task-args",
+        "path": []
+      },
+      "output": "var-result"
+    },
+    {
+      "id": "step-result",
+      "kind": "action",
+      "action": "tool-return",
+      "value": {
+        "source": "variable",
+        "id": "var-result",
+        "path": []
+      }
+    }
+  ]
+}

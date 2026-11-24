@@ -1,0 +1,10 @@
+{
+  ".name": "查詢我的 Steam 願望清單",
+  ".note": "查詢目前帳號願望清單的加入日期、區域價格、折扣與歷史最低價，可分頁查看。",
+  ".description": "查詢目前帳號願望清單的加入日期、區域價格、折扣與歷史最低價，可分頁查看。",
+  ".variables.args": "工具參數",
+  ".variables.result": "查詢結果",
+  ".parameters.0.description": "從 0 開始，下一頁使用 nextStart。",
+  ".parameters.1.description": "Steam 遊戲的整數 AppID 清單。",
+  ".parameters.2.description": "只顯示目前特價的遊戲。"
+}

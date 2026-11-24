@@ -16,14 +16,19 @@
     "prompts/P-7/definition.json",
     "prompts/P-8/definition.json",
     "prompts/P-9/definition.json",
-    "prompts/P-10/definition.json",
-    "prompts/P-12/definition.json"
+    "prompts/P-10/definition.json"
   ],
   "tools": [
     "ai-tools/tool-1/definition.json",
     "ai-tools/tool-2/definition.json",
     "ai-tools/tool-3/definition.json",
-    "ai-tools/tool-4/definition.json"
+    "ai-tools/tool-4/definition.json",
+    "ai-tools/tool-5/definition.json",
+    "ai-tools/tool-6/definition.json",
+    "ai-tools/tool-7/definition.json",
+    "ai-tools/tool-8/definition.json",
+    "ai-tools/tool-9/definition.json",
+    "ai-tools/tool-10/definition.json"
   ],
   "triggers": [
     "triggers/trigger-1/definition.json",

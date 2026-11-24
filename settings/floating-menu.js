@@ -449,8 +449,9 @@
       setupPending = await api.storage.waitForAiSettings({ retry: retrySetup }) === false;
     } catch (error) {
       // 旧版 AI 配置迁移失败时，AI 面板显示错误，其余设置仍可使用。
-      if (error.code !== "AI_V222_INVALID_CONNECTION") throw error;
-      aiInitializationError = error;
+      if (error.code === "AI_V222_INVALID_CONNECTION") aiInitializationError = error;
+      // 自动化页面的恢复入口负责处理无效流程，设置壳仍需可进入
+      else if (error.code !== "WORKFLOW_CONFIG_INVALID") throw error;
     }
     if (!setupPending) await loadState(aiInitializationError);
     createDeps();

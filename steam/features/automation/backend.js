@@ -90,8 +90,11 @@
     async function achievements(appid) {
       const response = await window.SteamClient.Apps.GetMyAchievementsForApp(String(appid));
       if (stopped) throw new Error("自动化数据入口已停止");
+      if (response?.result !== 1) throw Object.assign(new Error("Steam 成就数据读取失败"), { code: "STEAM_ACHIEVEMENTS_UNAVAILABLE" });
       return window.STAchievementTranslations.nativeItems(response);
     }
+    const collections = () => window.collectionStore.userCollections.map(item => ({ id: item.m_strId, name: item.m_strName,
+      writable: item.bIsDynamic === false && item.bIsEditable === true }));
     async function read(appid, required = []) {
       const app = libraryApp(appid);
       const metadataContext = api.nameFilterMetadata.context({ appids: [appid] }),
@@ -195,10 +198,11 @@
           throw Object.assign(new Error("工作流运行时限已到，未继续写入"), { code: "WORKFLOW_RUN_TIMEOUT" });
       }
     }
-    async function addCollections(value) {
+    async function addCollections(value, guard = () => writeGuard(value), authorize) {
       const app = window.appStore.GetAppOverviewByAppID(value.appid);
       if (!app || !Array.isArray(value.ids) || new Set(value.ids).size !== value.ids.length)
         throw new TypeError("收藏写入参数无效");
+      let changed = 0;
       for (const id of value.ids) {
         const previous = collectionWrites.get(id) || Promise.resolve();
         let release;
@@ -208,10 +212,17 @@
         collectionWrites.set(id, gate);
         await previous;
         try {
-          writeGuard(value);
+          guard();
+          if (authorize) {
+            await authorize(id);
+            guard();
+          }
           const collection = window.collectionStore.GetCollection(id);
-          if (!collection || collection.bIsDynamic !== false || collection.bIsEditable !== true)
-            throw new Error("收藏分组已不存在或不能写入");
+          if (!collection || collection.bIsDynamic !== false || collection.bIsEditable !== true) {
+            const error = new Error("收藏分组已不存在或不能写入");
+            if (authorize) error.code = "ACTION_NOT_WRITTEN";
+            throw error;
+          }
           if (collection.apps.has(value.appid)) continue;
           const data = collection.ToStorageFormat();
           const target = app.BIsModOrShortcut() ? data.localData : data.roamingData;
@@ -220,7 +231,6 @@
           if (!target.added.includes(value.appid)) target.added.push(value.appid);
           target.removed = target.removed.filter((appid) => appid !== value.appid);
           // 原生 AddApps 丢弃 Save 的Promise；使用已核对的SaveCollection输入协议等待持久化
-          writeGuard(value);
           await window.collectionStore.SaveCollection({
             id: collection.id,
             displayName: collection.displayName,
@@ -228,12 +238,34 @@
           });
           if (!window.collectionStore.GetCollection(id)?.apps.has(value.appid))
             throw new Error("收藏分组写入后回读不一致，未确认保存");
+          changed++;
+        } catch (error) {
+          if (authorize && changed > 0) error.savedCount = changed;
+          throw error;
         } finally {
           release();
           if (collectionWrites.get(id) === gate) collectionWrites.delete(id);
         }
       }
+      return authorize ? { saved: true, changed } : { saved: true };
+    }
+    async function saveSort(value, guard = () => writeGuard(value), authorize) {
+      await api.reg.loadScript("steam/shared/native-sort-name.js");
+      if (authorize) await authorize(value.name);
+      guard();
+      if (api.nativeSortName.read(value.appid) !== value.expected)
+        throw Object.assign(new Error("名称已被修改，未覆盖较新的内容"), { code: "ACTION_WRITE_CONFLICT" });
+      await api.nativeSortName.write(value.appid, value.name);
+      if (api.nativeSortName.read(value.appid) !== value.name)
+        throw new Error("Steam 名称写入后回读不一致");
       return { saved: true };
+    }
+    function accountWriteGuard(value) {
+      if (stopped || !Number.isSafeInteger(value.deadline) || Date.now() >= value.deadline)
+        throw Object.assign(new Error("修改确认已失效"), { code: "ACTION_NOT_WRITTEN" });
+      api.automationAccountQueries.selectedOwner(value.steamId);
+      const app = libraryApp(value.appid);
+      if (!app.BIsOwned() && !app.BIsBorrowed()) throw Object.assign(new Error("游戏已不在 Steam 库中"), { code: "ACTION_NOT_WRITTEN" });
     }
     async function execute(action, value) {
       if (action === "show-notification")
@@ -256,29 +288,30 @@
         configure(value);
         return { updated: true };
       }
-      if (action === "collections")
-        return window.collectionStore.userCollections.map((item) => ({
-          id: item.m_strId,
-          name: item.m_strName,
-          writable: item.bIsDynamic === false && item.bIsEditable === true,
-        }));
+      if (action === "collections") return collections();
       if (action === "context") return read(value.appid, value.required || []);
       if (action === "achievements") {
         const app = libraryApp(value.appid);
         return achievements(app.appid);
       }
       if (action === "game-field") return readGameField(value.appid, value.field);
-      if (action === "save-sort") {
-        await api.reg.loadScript("steam/shared/native-sort-name.js");
-        writeGuard(value);
-        if (api.nativeSortName.read(value.appid) !== value.expected)
-          throw Object.assign(new Error("名称已被修改，未覆盖较新的内容"), { code: "ACTION_WRITE_CONFLICT" });
-        await api.nativeSortName.write(value.appid, value.name);
-        if (api.nativeSortName.read(value.appid) !== value.name)
-          throw new Error("Steam 名称写入后回读不一致");
-        return { saved: true };
-      }
+      if (action === "save-sort") return saveSort(value);
       if (action === "add-collections") return addCollections(value);
+      if (action === "account-query" || action === "account-save-sort" || action === "account-add-collections") {
+        await api.reg.loadScript("steam/shared/automation-account-queries.js");
+        if (stopped) throw new Error("自动化数据入口已停止");
+        if (action === "account-query") {
+          if (value.action === "owned-apps" && value.args.includeSortName)
+            await api.reg.loadScript("steam/shared/native-sort-name.js");
+          if (stopped) throw new Error("自动化数据入口已停止");
+          return api.automationAccountQueries.query(value, originalName, achievements, collections, api.nativeSortName?.read);
+        }
+        const guard = () => accountWriteGuard(value);
+        const authorize = part => request("account-write-check", { command: action, ticket: value.ticket,
+          appid: value.appid, steamId: value.steamId, expected: value.expected, part });
+        guard();
+        return action === "account-save-sort" ? saveSort(value, guard, authorize) : addCollections(value, guard, authorize);
+      }
       throw new TypeError("原生自动化动作无效");
     }
     async function onMessage(event) {
@@ -297,7 +330,7 @@
         pending.delete(data.rid);
         window.clearTimeout(task.timer);
         if (data.success) task.resolve(data.value);
-        else task.reject(new Error(data.error || "自动化后台请求失败"));
+        else task.reject(Object.assign(new Error(data.error || "自动化后台请求失败"), data.errorCode ? { code: data.errorCode } : {}));
         return;
       }
       if (data.kind !== "native-command" || typeof data.rid !== "string") return;
@@ -311,7 +344,8 @@
           phase: data.action,
         });
         if (!stopped)
-          post({ kind: "native-result", rid: data.rid, success: false, error: String(error.message), ...(error.code ? { code: error.code } : {}) });
+          post({ kind: "native-result", rid: data.rid, success: false, error: String(error.message),
+            ...(error.code ? { code: error.code } : {}), ...(error.savedCount > 0 ? { savedCount: error.savedCount } : {}) });
       }
     }
     const listener = scope.listener("automation-native-message", window, "message", onMessage);

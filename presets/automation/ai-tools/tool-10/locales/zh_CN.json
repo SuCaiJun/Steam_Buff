@@ -1,0 +1,10 @@
+{
+  ".name": "查询我的 Steam 愿望单",
+  ".note": "查询当前账号的愿望单和添加时间，返回配置地区的 Steam 商店原价、现价、折扣和史低，并支持翻页。",
+  ".description": "查询当前账号的愿望单和添加时间，返回配置地区的 Steam 商店原价、现价、折扣和史低，并支持翻页。",
+  ".variables.args": "工具参数",
+  ".variables.result": "查询结果",
+  ".parameters.0.description": "从 0 开始；翻页时使用上次返回的 nextStart。",
+  ".parameters.1.description": "Steam 游戏 AppID 列表，传整数。",
+  ".parameters.2.description": "仅返回目前有折扣的游戏。本页没有命中时，仍应按 nextStart 翻页。"
+}

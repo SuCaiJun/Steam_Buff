@@ -62,6 +62,7 @@
 
   function normalizeStored(id, value, fallback) {
     const control = api.catalog?.valueControl?.(id);
+    if (control === "prompt") return globalThis.STAI.isChatPromptId(value) ? value : fallback;
     if (control === "choice") {
       const allowed = new Set((api.catalog?.featureById?.(id)?.options || []).map((option) => String(option.value)));
       const next = typeof value === "string" ? value : "";
@@ -486,7 +487,7 @@
       }
       if (api.catalog?.valueControl?.(id) === "order") {
         data[key(id)] = JSON.stringify(normalizeStored(id, values[id], defs[id]));
-      } else if (api.catalog?.valueControl?.(id) === "choice") {
+      } else if (["choice", "prompt"].includes(api.catalog?.valueControl?.(id))) {
         data[key(id)] = normalizeStored(id, values[id], defs[id]);
       } else {
         data[key(id)] = Boolean(values[id]);
@@ -757,13 +758,17 @@
     const message = { type: "AUTOMATION", action, value, operationId: diagnostics.operationId };
     if (globalThis.STBackgroundAutomation) return globalThis.STBackgroundAutomation.configureAi(message, diagnostics);
     const response = await globalThis.STMessageBus.request(message, { timeoutMs: 120000, logFailures: false });
-    if (response?.success !== true) throw new Error(response?.error || "AI 与翻译设置保存失败");
+    if (response?.success !== true) throw Object.assign(new Error(response?.error || "AI 与翻译设置保存失败"), { code: response?.errorCode });
     return response.value;
   }
 
   async function setTranslate(values, diagnostics = {}) {
     await configureAi("save-translate", values, diagnostics);
     return true;
+  }
+
+  function setChatPreferences(values, diagnostics = {}) {
+    return configureAi("save-chat-preferences", values, diagnostics);
   }
 
   async function getReviewFilter() {
@@ -1032,6 +1037,17 @@
     return globalThis.STAI.chatToolsFromWorkflow(data[key]);
   }
 
+  async function getChatConfiguration() {
+    const config = globalThis.STConfig;
+    const data = await get([config.automationConfigKey, config.aiChatPromptKey], { strict: true });
+    const workflow = data[config.automationConfigKey];
+    return {
+      tools: globalThis.STAI.chatToolsFromWorkflow(workflow),
+      prompts: workflow?.prompts ?? [],
+      promptId: data[config.aiChatPromptKey] ?? "",
+    };
+  }
+
   async function getPanelSettings(options = {}) {
     await waitForAiSettings();
     const readOptions = { strict: options.strict === true };
@@ -1115,10 +1131,18 @@
     return await put({ [GAME_LINKS_KEY]: saved }, diagnostics) ? saved : false;
   }
 
-  async function getWorkflow() {
+  async function getWorkflow({ reset = false } = {}) {
     const model = globalThis.STAutomation;
     const data = await get([model.KEY], { strict: true });
-    return Object.hasOwn(data, model.KEY) ? model.normalize(data[model.KEY], { structureOnly: true }) : model.empty();
+    if (!Object.hasOwn(data, model.KEY)) return model.empty();
+    const saved = data[model.KEY];
+    if (!reset) return model.normalize(saved, { structureOnly: true });
+    // 恢复只校验要保留的配置，旧定义仅用于比较修订号和引用
+    const { prompts, workflows, tools = [], triggers } = saved;
+    const sections = { prompts, workflows, tools, triggers };
+    if (!Object.values(sections).every(Array.isArray)) throw new TypeError("自动化配置分类无效");
+    const retained = model.normalize({ ...saved, prompts: [], workflows: [], tools: [], triggers: [] }, { structureOnly: true });
+    return { ...retained, ...sections };
   }
 
   /** 2.2.2 的下载开关独立于工作流配置 */
@@ -1248,6 +1272,8 @@
     getAiFlags,
     waitForAiSettings,
     getChatTools,
+    getChatConfiguration,
+    setChatPreferences,
     setAi,
     writeAiSettings,
     getThirdPartyServices,

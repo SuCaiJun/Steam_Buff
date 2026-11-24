@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "__MSG_extName__",
-  "version": "2.2.64",
+  "version": "2.2.67",
   "description": "__MSG_extDescription__",
   "default_locale": "zh_CN",
   "author": "Ricky",
@@ -282,6 +282,7 @@
         "shared/logger-factory.js",
         "steam/shared/constants.js",
         "steam/shared/native-sort-name.js",
+        "steam/shared/automation-account-queries.js",
         "shared/error-boundary.js",
         "shared/styles/theme.js",
         "shared/styles/components.js",

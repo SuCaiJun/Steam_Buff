@@ -1,0 +1,117 @@
+{
+  "id": "tool-10",
+  "name": "$text:.name",
+  "note": "$text:.note",
+  "revision": 1,
+  "executionId": "00000000-0000-4000-8000-000000000002",
+  "enabled": true,
+  "description": "$text:.description",
+  "parameters": [
+    {
+      "name": "start",
+      "type": "integer",
+      "required": false,
+      "description": "$text:.parameters.0.description",
+      "variableId": "var-start"
+    },
+    {
+      "name": "appIds",
+      "type": "array",
+      "required": false,
+      "description": "$text:.parameters.1.description",
+      "variableId": "var-appIds"
+    },
+    {
+      "name": "discountsOnly",
+      "type": "boolean",
+      "required": false,
+      "description": "$text:.parameters.2.description",
+      "variableId": "var-discountsOnly"
+    }
+  ],
+  "variables": [
+    {
+      "id": "var-start",
+      "name": "start",
+      "type": "number"
+    },
+    {
+      "id": "var-appIds",
+      "name": "appIds",
+      "type": "list"
+    },
+    {
+      "id": "var-discountsOnly",
+      "name": "discountsOnly",
+      "type": "boolean"
+    },
+    {
+      "id": "var-task-args",
+      "name": "$text:.variables.args",
+      "type": "object"
+    },
+    {
+      "id": "var-result",
+      "name": "$text:.variables.result",
+      "type": "object"
+    }
+  ],
+  "steps": [
+    {
+      "id": "step-params",
+      "kind": "action",
+      "action": "record",
+      "entries": [
+        {
+          "key": "start",
+          "value": {
+            "source": "variable",
+            "id": "var-start",
+            "path": []
+          },
+          "omitIfUnset": true
+        },
+        {
+          "key": "appIds",
+          "value": {
+            "source": "variable",
+            "id": "var-appIds",
+            "path": []
+          },
+          "omitIfUnset": true
+        },
+        {
+          "key": "discountsOnly",
+          "value": {
+            "source": "variable",
+            "id": "var-discountsOnly",
+            "path": []
+          },
+          "omitIfUnset": true
+        }
+      ],
+      "output": "var-task-args"
+    },
+    {
+      "id": "step-operation",
+      "kind": "action",
+      "action": "steam-account-wishlist",
+      "taskArgs": {
+        "source": "variable",
+        "id": "var-task-args",
+        "path": []
+      },
+      "output": "var-result"
+    },
+    {
+      "id": "step-result",
+      "kind": "action",
+      "action": "tool-return",
+      "value": {
+        "source": "variable",
+        "id": "var-result",
+        "path": []
+      }
+    }
+  ]
+}

@@ -1,0 +1,23 @@
+{
+  ".name": "查詢我的 Steam 遊戲庫",
+  ".note": "按名稱或篩選條件搜尋目前 Steam 帳號的遊戲庫，可分頁查看。",
+  ".description": "按名稱或篩選條件搜尋目前 Steam 帳號的遊戲庫，可分頁查看。",
+  ".variables.args": "工具參數",
+  ".variables.result": "查詢結果",
+  ".parameters.0.description": "依遊戲名稱篩選。",
+  ".parameters.1.description": "從 0 開始，下一頁使用 nextStart。",
+  ".parameters.2.description": "遊戲模式。可選 single、multiplayer、coop、local_multiplayer。",
+  ".parameters.3.description": "遊戲狀態。可選 ready、installed、played、unplayed、private。",
+  ".parameters.4.description": "支援的語言，例如 schinese、english、japanese。",
+  ".parameters.5.description": "遊戲類型。可選 action、adventure、casual、indie、massively_multiplayer、racing、rpg、simulation、sports、strategy。",
+  ".parameters.6.description": "控制器支援。可選 controller_recommended、controller_full、controller_partial、dualshock、dualshock_bluetooth、dualsense、dualsense_bluetooth、steam_input。",
+  ".parameters.7.description": "Steam Deck 相容性。可選 deck_verified、deck_playable、deck_unsupported、deck_unknown。",
+  ".parameters.8.description": "虛擬實境。可選 vr、non_vr。",
+  ".parameters.9.description": "遊戲特色。可選 trading_cards、workshop、achievements、remote_play、family_sharing。",
+  ".parameters.10.description": "Steam 商店標籤名稱或數字 ID（以文字傳入）。",
+  ".parameters.11.description": "擁有該遊戲的 Steam 好友的確切暱稱或好友代碼。",
+  ".parameters.12.description": "遊戲玩法輔助。可選 adjustable_difficulty、save_anytime。",
+  ".parameters.13.description": "視覺輔助。可選 adjustable_text、subtitles、color_alternatives、contrast、camera_comfort、playable_without_vision。",
+  ".parameters.14.description": "音訊輔助。可選 custom_volume、stereo、surround、narrated_menus。",
+  ".parameters.15.description": "輸入輔助。可選 keyboard_only、mouse_only、touch_only、without_quick_time、own_pace、speech_to_text、text_to_speech。"
+}

@@ -1,6 +1,7 @@
 {
   "id": "trigger-4",
   "name": "$text:.name",
+  "note": "$text:.note",
   "revision": 1,
   "enabled": false,
   "workflowId": "wf-4",

@@ -655,6 +655,14 @@
           data: { lookup: lookup.data },
         });
       }
+      if (options.steamOnlySummary === true) {
+        const steam = { ...opt, shops: [61] };
+        const storeLow = await provider.getStoreLow(ids, steam, config);
+        return success("prices", provider, { lookup: lookup.data, ids, storeLow: storeLow.data }, {
+          hit: lookup.cache?.hit === true && storeLow.cache?.hit === true,
+          ttlMs: Math.min(lookup.cache?.ttlMs || 0, storeLow.cache?.ttlMs || 0),
+        });
+      }
       const includeHistory = options.includeHistory !== false && text(options.mode).toLowerCase() !== "summary";
       if (options.overviewSummary === true) {
         const summaryOptions = { ...opt, shops: [61] };

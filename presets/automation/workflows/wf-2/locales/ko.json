@@ -1,5 +1,6 @@
 {
   ".name": "게임을 모음집에 추가",
+  ".note": "Steam 상점 정보를 바탕으로 게임을 적합한 기존 컬렉션에 추가합니다.",
   ".variables.var-17.name": "입력 AppID",
   ".variables.var-18.name": "입력 게임 이름",
   ".variables.var-22.name": "사전",

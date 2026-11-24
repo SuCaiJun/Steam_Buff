@@ -8111,6 +8111,9 @@
   "promptToken_task_summary_language": {
     "message": "摘要语言"
   },
+  "promptToken_task_chat_message": {
+    "message": "聊天消息"
+  },
   "promptToken_task_title": {
     "message": "文档标题"
   },
@@ -10125,6 +10128,12 @@
   "workflow_ui_achievements": {
     "message": "游戏成就"
   },
+  "workflow_ui_store_and_prices": {
+    "message": "商店与价格"
+  },
+  "workflow_ui_library_and_wishlist": {
+    "message": "游戏库与愿望单"
+  },
   "workflow_ui_application_and_status": {
     "message": "应用与状态"
   },
@@ -10602,11 +10611,65 @@
   "ai_chat_tool_search": {
     "message": "Steam 商店搜索"
   },
+  "ai_chat_tool_rename": {
+    "message": "批量游戏名汉化"
+  },
+  "workflow_command_steam_batch_sort_name_hint": {
+    "message": "为 Steam 库内指定游戏生成中文排序名称，已有排序名称或名称已含汉字时跳过。修改前会请求确认。"
+  },
+  "ai_chat_tool_collections": {
+    "message": "批量添加到收藏分组"
+  },
+  "workflow_command_steam_batch_collections_hint": {
+    "message": "把指定游戏加入现有可写收藏分组。可按名称或 ID 指定分组，也可省略，让 AI 根据游戏资料选择合适分组。修改前会请求确认。"
+  },
+  "ai_chat_tool_achievements": {
+    "message": "批量游戏成就翻译"
+  },
+  "workflow_command_steam_batch_achievements_hint": {
+    "message": "分批翻译指定游戏尚无译文的成就，使用配置的目标语言。保存前会请求确认。"
+  },
+  "ai_chat_tool_library": {
+    "message": "查询我的 Steam 游戏库"
+  },
+  "workflow_command_steam_account_library_hint": {
+    "message": "按游戏名称及可选筛选条件查询当前 Steam 库，返回 AppID、名称、游玩时间和翻页位置。"
+  },
+  "ai_chat_tool_library_game": {
+    "message": "查询我的游戏详情"
+  },
+  "workflow_command_steam_account_game_hint": {
+    "message": "按 AppID 查询当前账号在 Steam 库中的游戏详情、游玩时间、成就总数与已解锁数。"
+  },
+  "ai_chat_tool_wishlist": {
+    "message": "查询我的 Steam 愿望单"
+  },
+  "workflow_command_steam_account_wishlist_hint": {
+    "message": "查询当前账号的愿望单和添加时间，返回配置地区的 Steam 商店原价、现价、折扣和史低，并支持翻页。"
+  },
+  "ai_chat_tool_approval_confirm": {
+    "message": "确认修改"
+  },
+  "ai_chat_tool_approval_achievements": {
+    "message": "翻译 $count$ 条成就",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "ai_chat_tool_changed": {
+    "message": "已修改"
+  },
   "ai_chat_tool_search_result": {
     "message": "本页 $matched$ 项，Steam 候选共 $total$ 项",
     "placeholders": {
-      "matched": { "content": "$1" },
-      "total": { "content": "$2" }
+      "matched": {
+        "content": "$1"
+      },
+      "total": {
+        "content": "$2"
+      }
     }
   },
   "workflow_tool_title": {
@@ -10627,7 +10690,9 @@
   "workflow_parameter_duplicate": {
     "message": "只能添加一条「$name$」指令",
     "placeholders": {
-      "name": { "content": "$1" }
+      "name": {
+        "content": "$1"
+      }
     }
   },
   "workflow_parameter_first": {
@@ -10690,9 +10755,6 @@
   },
   "workflow_tool_description": {
     "message": "工具描述"
-  },
-  "workflow_tool_inputs": {
-    "message": "工具输入"
   },
   "workflow_tool_test": {
     "message": "测试工具"
@@ -10840,11 +10902,97 @@
   "workflow_tool_key_required": {
     "message": "请输入密钥值"
   },
-  "workflow_command_query_provider_data_hint": {
-    "message": "按所选数据来源查询 Steam 或 ITAD 数据"
+  "workflow_query_result": {
+    "message": "查询结果"
   },
-  "workflow_tool_provider": {
-    "message": "数据来源"
+  "workflow_query_filters": {
+    "message": "查询参数"
+  },
+  "workflow_command_steam_game_details_hint": {
+    "message": "按 AppID 查询 Steam 商店的公开游戏资料"
+  },
+  "workflow_command_steam_current_players_hint": {
+    "message": "按 AppID 查询 Steam 当前在线人数"
+  },
+  "workflow_command_itad_price_history_hint": {
+    "message": "按 AppID 查询配置地区的当前报价和历史最低价"
+  },
+  "workflow_command_steam_store_search_hint": {
+    "message": "按查询参数搜索 Steam 国区商店"
+  },
+  "workflow_record_mode": {
+    "message": "字典输入方式"
+  },
+  "workflow_record_fields": {
+    "message": "逐项填写"
+  },
+  "workflow_record_whole": {
+    "message": "完整字典"
+  },
+  "workflow_record_missing_policy": {
+    "message": "未赋值时"
+  },
+  "workflow_record_omit": {
+    "message": "省略"
+  },
+  "workflow_record_fail": {
+    "message": "报错"
+  },
+  "workflow_record_source": {
+    "message": "值来源"
+  },
+  "workflow_record_add": {
+    "message": "添加字段"
+  },
+  "workflow_record_from_ai": {
+    "message": "从 AI 传参带入"
+  },
+  "workflow_record_sample_include": {
+    "message": "提供 $name$ 的样例",
+    "placeholders": {
+      "name": {
+        "content": "$1"
+      }
+    }
+  },
+  "workflow_record_input_invalid": {
+    "message": "请选择一种字典输入方式"
+  },
+  "workflow_record_missing_policy_invalid": {
+    "message": "请选择字段未赋值时的处理方式"
+  },
+  "workflow_record_duplicate_key": {
+    "message": "字典字段名重复：$name$",
+    "placeholders": {
+      "name": {
+        "content": "$1"
+      }
+    }
+  },
+  "workflow_error_unknown_action": {
+    "message": "「$name$」的指令 $step$ 使用了无效或已移除的类型：$action$",
+    "placeholders": {
+      "name": {
+        "content": "$1"
+      },
+      "step": {
+        "content": "$2"
+      },
+      "action": {
+        "content": "$3"
+      }
+    }
+  },
+  "workflow_error_tool_input": {
+    "message": "「$name$」的指令 $step$ 必须使用已声明的参数变量",
+    "placeholders": {
+      "name": {
+        "content": "$1"
+      },
+      "step": {
+        "content": "$2"
+      }
+    }
   },
   "workflow_tool_builtin": {
     "message": "内置"
@@ -10911,8 +11059,16 @@
   "workflow_error_tool_instruction": {
     "message": "此处不能使用该指令"
   },
-  "workflow_error_tool_input": {
-    "message": "请选择已声明的工具输入"
+  "workflow_clipboard_context": {
+    "message": "「$name$」只能在「$editor$」中使用。",
+    "placeholders": {
+      "name": {
+        "content": "$1"
+      },
+      "editor": {
+        "content": "$2"
+      }
+    }
   },
   "workflow_error_tool_http": {
     "message": "工具只支持 GET 查询、URL 文本模板和本机密钥引用"
@@ -10928,6 +11084,18 @@
   },
   "settings_ai_services_section": {
     "message": "服务列表"
+  },
+  "settings_ai_chat_prompt": {
+    "message": "关联提示词"
+  },
+  "settings_ai_chat_prompt_default": {
+    "message": "默认聊天提示词"
+  },
+  "settings_ai_chat_preferences_error": {
+    "message": "读取或保存设置失败，请重试。"
+  },
+  "ai_chat_prompt_unavailable": {
+    "message": "关联提示词不可用，请在「AI 服务 → 对话入口」重新选择。"
   },
   "settings_ai_entry_section": {
     "message": "对话入口"
@@ -12094,12 +12262,6 @@
   "workflow_ui_format_json": {
     "message": "格式化 JSON"
   },
-  "workflow_ui_edit_the_system_and_user_prompts_for_this_turn": {
-    "message": "编辑本轮的系统与用户提示词。"
-  },
-  "workflow_ui_the_chat_history_token_can_be_a_string_element_of_the_messag": {
-    "message": "对话历史占位符可作为 messages 数组中的一个字符串元素。"
-  },
   "workflow_ui_preview_ai_service": {
     "message": "预览用 AI 服务"
   },
@@ -12262,8 +12424,8 @@
   "workflow_ui_all_placeholders": {
     "message": "全部占位符"
   },
-  "workflow_ui_mode_details": {
-    "message": "模式说明"
+  "workflow_item_note_invalid": {
+    "message": "备注格式无效"
   },
   "workflow_ui_loading": {
     "message": "正在读取…"

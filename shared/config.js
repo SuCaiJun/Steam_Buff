@@ -581,6 +581,7 @@
     aiChatWindowLayout: Object.freeze({ titleHeight: 44, brandWidth: 94, controlsWidth: 112, toolSlotWidth: 44, minDragWidth: 44, sessionWidth: 284 }),
     automationConfigKey: "st.settings.workflow.v1",
     aiChatSendShortcutKey: "st.settings.ai-chat-send-shortcut.value",
+    aiChatPromptKey: "st.settings.ai-chat-prompt.value",
     hosts,
     urls,
     vendors,

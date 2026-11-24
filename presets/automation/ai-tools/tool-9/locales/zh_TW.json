@@ -1,0 +1,8 @@
+{
+  ".name": "查詢我的遊戲詳情",
+  ".note": "按 AppID 查詢目前帳號的遊玩時間、成就總數和已解鎖數。",
+  ".description": "按 AppID 查詢目前帳號的遊玩時間、成就總數和已解鎖數。",
+  ".variables.args": "工具參數",
+  ".variables.result": "查詢結果",
+  ".parameters.0.description": "Steam 遊戲的整數 AppID 清單。"
+}

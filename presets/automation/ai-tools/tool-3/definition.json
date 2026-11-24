@@ -1,6 +1,7 @@
 {
   "id": "tool-3",
   "name": "$text:.name",
+  "note": "$text:.note",
   "revision": 1,
   "variables": [
     {
@@ -64,14 +65,13 @@
     {
       "id": "step-111",
       "kind": "action",
-      "action": "query-provider-data",
+      "action": "itad-price-history",
       "appId": {
         "source": "variable",
         "id": "var-108",
         "path": []
       },
-      "output": "var-112",
-      "provider": "tool-3"
+      "output": "var-112"
     },
     {
       "id": "step-113",
@@ -84,7 +84,7 @@
       }
     }
   ],
-  "executionId": "00000000-0000-4000-8000-000000000001",
+  "executionId": "00000000-0000-4000-8000-000000000002",
   "enabled": true,
   "description": "$text:.description",
   "parameters": [

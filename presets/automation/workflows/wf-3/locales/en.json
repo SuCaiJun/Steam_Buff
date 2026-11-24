@@ -1,5 +1,6 @@
 {
   ".name": "Translate game achievements",
+  ".note": "Translate untranslated achievement titles and descriptions in batches and save the translations.",
   ".variables.var-61.name": "Input AppID",
   ".variables.var-62.name": "Input game title",
   ".variables.var-66.name": "Game achievements",

@@ -1,8 +1,109 @@
 {
   "id": "tool-4",
   "name": "$text:.name",
+  "note": "$text:.note",
   "revision": 1,
   "variables": [
+    {
+      "id": "var-term",
+      "name": "term",
+      "type": "text"
+    },
+    {
+      "id": "var-priceBelow",
+      "name": "priceBelow",
+      "type": "number"
+    },
+    {
+      "id": "var-freeOnly",
+      "name": "freeOnly",
+      "type": "boolean"
+    },
+    {
+      "id": "var-discountsOnly",
+      "name": "discountsOnly",
+      "type": "boolean"
+    },
+    {
+      "id": "var-hideFreeToPlay",
+      "name": "hideFreeToPlay",
+      "type": "boolean"
+    },
+    {
+      "id": "var-languages",
+      "name": "languages",
+      "type": "list"
+    },
+    {
+      "id": "var-tags",
+      "name": "tags",
+      "type": "list"
+    },
+    {
+      "id": "var-excludeTags",
+      "name": "excludeTags",
+      "type": "list"
+    },
+    {
+      "id": "var-types",
+      "name": "types",
+      "type": "list"
+    },
+    {
+      "id": "var-playerModes",
+      "name": "playerModes",
+      "type": "list"
+    },
+    {
+      "id": "var-features",
+      "name": "features",
+      "type": "list"
+    },
+    {
+      "id": "var-controllers",
+      "name": "controllers",
+      "type": "list"
+    },
+    {
+      "id": "var-accessibility",
+      "name": "accessibility",
+      "type": "list"
+    },
+    {
+      "id": "var-deck",
+      "name": "deck",
+      "type": "list"
+    },
+    {
+      "id": "var-vr",
+      "name": "vr",
+      "type": "list"
+    },
+    {
+      "id": "var-excludeVrOnly",
+      "name": "excludeVrOnly",
+      "type": "boolean"
+    },
+    {
+      "id": "var-os",
+      "name": "os",
+      "type": "list"
+    },
+    {
+      "id": "var-sortBy",
+      "name": "sortBy",
+      "type": "text"
+    },
+    {
+      "id": "var-start",
+      "name": "start",
+      "type": "number"
+    },
+    {
+      "id": "var-search-parameters",
+      "name": "$text:.variables.var-search-parameters.name",
+      "type": "object"
+    },
     {
       "id": "var-115",
       "name": "$text:.variables.var-115.name",
@@ -11,13 +112,192 @@
   ],
   "steps": [
     {
+      "id": "step-search-parameters",
+      "kind": "action",
+      "action": "record",
+      "entries": [
+        {
+          "key": "term",
+          "value": {
+            "source": "variable",
+            "id": "var-term",
+            "path": []
+          },
+          "omitIfUnset": true
+        },
+        {
+          "key": "priceBelow",
+          "value": {
+            "source": "variable",
+            "id": "var-priceBelow",
+            "path": []
+          },
+          "omitIfUnset": true
+        },
+        {
+          "key": "freeOnly",
+          "value": {
+            "source": "variable",
+            "id": "var-freeOnly",
+            "path": []
+          },
+          "omitIfUnset": true
+        },
+        {
+          "key": "discountsOnly",
+          "value": {
+            "source": "variable",
+            "id": "var-discountsOnly",
+            "path": []
+          },
+          "omitIfUnset": true
+        },
+        {
+          "key": "hideFreeToPlay",
+          "value": {
+            "source": "variable",
+            "id": "var-hideFreeToPlay",
+            "path": []
+          },
+          "omitIfUnset": true
+        },
+        {
+          "key": "languages",
+          "value": {
+            "source": "variable",
+            "id": "var-languages",
+            "path": []
+          },
+          "omitIfUnset": true
+        },
+        {
+          "key": "tags",
+          "value": {
+            "source": "variable",
+            "id": "var-tags",
+            "path": []
+          },
+          "omitIfUnset": true
+        },
+        {
+          "key": "excludeTags",
+          "value": {
+            "source": "variable",
+            "id": "var-excludeTags",
+            "path": []
+          },
+          "omitIfUnset": true
+        },
+        {
+          "key": "types",
+          "value": {
+            "source": "variable",
+            "id": "var-types",
+            "path": []
+          },
+          "omitIfUnset": true
+        },
+        {
+          "key": "playerModes",
+          "value": {
+            "source": "variable",
+            "id": "var-playerModes",
+            "path": []
+          },
+          "omitIfUnset": true
+        },
+        {
+          "key": "features",
+          "value": {
+            "source": "variable",
+            "id": "var-features",
+            "path": []
+          },
+          "omitIfUnset": true
+        },
+        {
+          "key": "controllers",
+          "value": {
+            "source": "variable",
+            "id": "var-controllers",
+            "path": []
+          },
+          "omitIfUnset": true
+        },
+        {
+          "key": "accessibility",
+          "value": {
+            "source": "variable",
+            "id": "var-accessibility",
+            "path": []
+          },
+          "omitIfUnset": true
+        },
+        {
+          "key": "deck",
+          "value": {
+            "source": "variable",
+            "id": "var-deck",
+            "path": []
+          },
+          "omitIfUnset": true
+        },
+        {
+          "key": "vr",
+          "value": {
+            "source": "variable",
+            "id": "var-vr",
+            "path": []
+          },
+          "omitIfUnset": true
+        },
+        {
+          "key": "excludeVrOnly",
+          "value": {
+            "source": "variable",
+            "id": "var-excludeVrOnly",
+            "path": []
+          },
+          "omitIfUnset": true
+        },
+        {
+          "key": "os",
+          "value": {
+            "source": "variable",
+            "id": "var-os",
+            "path": []
+          },
+          "omitIfUnset": true
+        },
+        {
+          "key": "sortBy",
+          "value": {
+            "source": "variable",
+            "id": "var-sortBy",
+            "path": []
+          },
+          "omitIfUnset": true
+        },
+        {
+          "key": "start",
+          "value": {
+            "source": "variable",
+            "id": "var-start",
+            "path": []
+          },
+          "omitIfUnset": true
+        }
+      ],
+      "output": "var-search-parameters"
+    },
+    {
       "id": "step-114",
       "kind": "action",
-      "action": "query-provider-data",
+      "action": "steam-store-search",
       "output": "var-115",
-      "provider": "tool-4",
       "filters": {
-        "source": "input",
+        "source": "variable",
+        "id": "var-search-parameters",
         "path": []
       }
     },
@@ -32,7 +312,7 @@
       }
     }
   ],
-  "executionId": "00000000-0000-4000-8000-000000000001",
+  "executionId": "00000000-0000-4000-8000-000000000002",
   "enabled": true,
   "description": "$text:.description",
   "parameters": [
@@ -40,115 +320,134 @@
       "name": "term",
       "type": "string",
       "required": false,
-      "description": "$text:.parameters.0.description"
+      "description": "$text:.parameters.0.description",
+      "variableId": "var-term"
     },
     {
       "name": "priceBelow",
       "type": "number",
       "required": false,
-      "description": "$text:.parameters.1.description"
+      "description": "$text:.parameters.1.description",
+      "variableId": "var-priceBelow"
     },
     {
       "name": "freeOnly",
       "type": "boolean",
       "required": false,
-      "description": "$text:.parameters.2.description"
+      "description": "$text:.parameters.2.description",
+      "variableId": "var-freeOnly"
     },
     {
       "name": "discountsOnly",
       "type": "boolean",
       "required": false,
-      "description": "$text:.parameters.3.description"
+      "description": "$text:.parameters.3.description",
+      "variableId": "var-discountsOnly"
     },
     {
       "name": "hideFreeToPlay",
       "type": "boolean",
       "required": false,
-      "description": "$text:.parameters.4.description"
+      "description": "$text:.parameters.4.description",
+      "variableId": "var-hideFreeToPlay"
     },
     {
       "name": "languages",
       "type": "array",
       "required": false,
-      "description": "$text:.parameters.5.description"
+      "description": "$text:.parameters.5.description",
+      "variableId": "var-languages"
     },
     {
       "name": "tags",
       "type": "array",
       "required": false,
-      "description": "$text:.parameters.6.description"
+      "description": "$text:.parameters.6.description",
+      "variableId": "var-tags"
     },
     {
       "name": "excludeTags",
       "type": "array",
       "required": false,
-      "description": "$text:.parameters.7.description"
+      "description": "$text:.parameters.7.description",
+      "variableId": "var-excludeTags"
     },
     {
       "name": "types",
       "type": "array",
       "required": false,
-      "description": "$text:.parameters.8.description"
+      "description": "$text:.parameters.8.description",
+      "variableId": "var-types"
     },
     {
       "name": "playerModes",
       "type": "array",
       "required": false,
-      "description": "$text:.parameters.9.description"
+      "description": "$text:.parameters.9.description",
+      "variableId": "var-playerModes"
     },
     {
       "name": "features",
       "type": "array",
       "required": false,
-      "description": "$text:.parameters.10.description"
+      "description": "$text:.parameters.10.description",
+      "variableId": "var-features"
     },
     {
       "name": "controllers",
       "type": "array",
       "required": false,
-      "description": "$text:.parameters.11.description"
+      "description": "$text:.parameters.11.description",
+      "variableId": "var-controllers"
     },
     {
       "name": "accessibility",
       "type": "array",
       "required": false,
-      "description": "$text:.parameters.12.description"
+      "description": "$text:.parameters.12.description",
+      "variableId": "var-accessibility"
     },
     {
       "name": "deck",
       "type": "array",
       "required": false,
-      "description": "$text:.parameters.13.description"
+      "description": "$text:.parameters.13.description",
+      "variableId": "var-deck"
     },
     {
       "name": "vr",
       "type": "array",
       "required": false,
-      "description": "$text:.parameters.14.description"
+      "description": "$text:.parameters.14.description",
+      "variableId": "var-vr"
     },
     {
       "name": "excludeVrOnly",
       "type": "boolean",
       "required": false,
-      "description": "$text:.parameters.15.description"
+      "description": "$text:.parameters.15.description",
+      "variableId": "var-excludeVrOnly"
     },
     {
       "name": "os",
       "type": "array",
       "required": false,
-      "description": "$text:.parameters.16.description"
+      "description": "$text:.parameters.16.description",
+      "variableId": "var-os"
     },
     {
       "name": "sortBy",
       "type": "string",
       "required": false,
-      "description": "$text:.parameters.17.description"
+      "description": "$text:.parameters.17.description",
+      "variableId": "var-sortBy"
     },
     {
       "name": "start",
       "type": "integer",
       "required": false,
-      "description": "$text:.parameters.18.description"
+      "description": "$text:.parameters.18.description",
+      "variableId": "var-start"
     }
   ]
 }

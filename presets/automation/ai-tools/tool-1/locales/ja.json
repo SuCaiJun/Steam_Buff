@@ -1,5 +1,6 @@
 {
   ".name": "Steam ゲーム情報",
+  ".note": "AppID で Steam ストアの公開ゲーム情報を取得します。",
   ".variables.var-96.name": "appId",
   ".variables.var-100.name": "取得結果",
   ".steps.step-97.branches.0.steps.step-98.value.literal": "AppID が範囲外です。1 から 4294967295 までの整数を指定して、ツールを再度呼び出してください。",

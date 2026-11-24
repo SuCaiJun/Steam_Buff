@@ -1,5 +1,6 @@
 {
   ".name": "Localize game titles into Chinese",
+  ".note": "Translate foreign-language game titles into Chinese and save them as sort names when no custom sort name is set.",
   ".variables.var-1.name": "Input AppID",
   ".variables.var-2.name": "Input game title",
   ".variables.var-8.name": "Custom sort name",

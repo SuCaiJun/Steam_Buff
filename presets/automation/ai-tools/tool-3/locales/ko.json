@@ -1,5 +1,6 @@
 {
   ".name": "ITAD 가격 및 역대 최저가",
+  ".note": "AppID로 설정한 지역의 현재 판매가와 역대 최저가를 조회합니다.",
   ".variables.var-108.name": "appId",
   ".variables.var-112.name": "조회 결과",
   ".steps.step-109.branches.0.steps.step-110.value.literal": "AppID가 범위를 벗어났습니다. 1부터 4294967295까지의 정수로 다시 호출하세요.",

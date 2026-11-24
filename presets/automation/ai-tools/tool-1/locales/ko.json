@@ -1,5 +1,6 @@
 {
   ".name": "Steam 게임 정보",
+  ".note": "AppID로 Steam 상점의 공개 게임 정보를 조회합니다.",
   ".variables.var-96.name": "appId",
   ".variables.var-100.name": "조회 결과",
   ".steps.step-97.branches.0.steps.step-98.value.literal": "AppID가 범위를 벗어났습니다. 1부터 4294967295까지의 정수로 다시 호출하세요.",

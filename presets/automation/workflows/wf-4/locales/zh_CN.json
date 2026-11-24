@@ -1,5 +1,6 @@
 {
   ".name": "家庭库刷新",
+  ".note": "刷新 Steam 家庭库，并在消息中心报告结果。",
   ".variables.var-89.name": "刷新家庭库结果",
   ".variables.var-90.name": "刷新执行结果",
   ".variables.var-93.name": "消息结果",

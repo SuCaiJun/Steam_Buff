@@ -1,5 +1,6 @@
 {
   ".name": "Refresh family library",
+  ".note": "Refresh the Steam family library and report the result in the Message Center.",
   ".variables.var-89.name": "Family library refresh",
   ".variables.var-90.name": "Refresh status",
   ".variables.var-93.name": "Message result",

@@ -1,5 +1,6 @@
 {
   ".name": "家庭庫重新整理",
+  ".note": "重新整理 Steam 家庭收藏庫，並在訊息中心回報結果。",
   ".variables.var-89.name": "刷新家庭庫結果",
   ".variables.var-90.name": "刷新執行結果",
   ".variables.var-93.name": "消息結果",

@@ -1,0 +1,8 @@
+{
+  ".name": "查询我的游戏详情",
+  ".note": "按 AppID 查询当前账号在 Steam 库中的游戏详情、游玩时间、成就总数与已解锁数。",
+  ".description": "按 AppID 查询当前账号在 Steam 库中的游戏详情、游玩时间、成就总数与已解锁数。",
+  ".variables.args": "工具参数",
+  ".variables.result": "查询结果",
+  ".parameters.0.description": "Steam 游戏 AppID 列表，传整数。"
+}

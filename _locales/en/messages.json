@@ -8111,6 +8111,9 @@
   "promptToken_task_summary_language": {
     "message": "Summary language"
   },
+  "promptToken_task_chat_message": {
+    "message": "Chat message"
+  },
   "promptToken_task_title": {
     "message": "Document title"
   },
@@ -10125,6 +10128,12 @@
   "workflow_ui_achievements": {
     "message": "Achievements"
   },
+  "workflow_ui_store_and_prices": {
+    "message": "Store and prices"
+  },
+  "workflow_ui_library_and_wishlist": {
+    "message": "Library and wishlist"
+  },
   "workflow_ui_application_and_status": {
     "message": "Application and status"
   },
@@ -10602,11 +10611,65 @@
   "ai_chat_tool_search": {
     "message": "Steam Store Search"
   },
+  "ai_chat_tool_rename": {
+    "message": "Batch localize game names"
+  },
+  "workflow_command_steam_batch_sort_name_hint": {
+    "message": "Propose Chinese sort names for selected Steam library games. Skip games with a sort name or a title containing Han characters. Ask for confirmation before saving."
+  },
+  "ai_chat_tool_collections": {
+    "message": "Batch add to Steam collections"
+  },
+  "workflow_command_steam_batch_collections_hint": {
+    "message": "Add selected games to existing editable collections. Supply an exact collection name or ID, or omit it to choose based on game details. Ask for confirmation before writing."
+  },
+  "ai_chat_tool_achievements": {
+    "message": "Batch translate achievements"
+  },
+  "workflow_command_steam_batch_achievements_hint": {
+    "message": "Translate achievements with no saved translation into the configured language. Ask for confirmation before saving."
+  },
+  "ai_chat_tool_library": {
+    "message": "Search my Steam library"
+  },
+  "workflow_command_steam_account_library_hint": {
+    "message": "Search the active Steam library with optional filters and pagination. Return AppID, game name, playtime, and nextStart."
+  },
+  "ai_chat_tool_library_game": {
+    "message": "Get my game details"
+  },
+  "workflow_command_steam_account_game_hint": {
+    "message": "Look up your playtime, total achievements, and unlocked achievements for the supplied Steam AppIDs."
+  },
+  "ai_chat_tool_wishlist": {
+    "message": "Get my Steam wishlist"
+  },
+  "workflow_command_steam_account_wishlist_hint": {
+    "message": "List your Steam wishlist with dates added, regional price, discounts, and Steam historical lows. Use nextStart to advance."
+  },
+  "ai_chat_tool_approval_confirm": {
+    "message": "Confirm changes"
+  },
+  "ai_chat_tool_approval_achievements": {
+    "message": "Translate $count$ achievements",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "ai_chat_tool_changed": {
+    "message": "Changed"
+  },
   "ai_chat_tool_search_result": {
     "message": "$matched$ on this page, $total$ Steam candidates",
     "placeholders": {
-      "matched": { "content": "$1" },
-      "total": { "content": "$2" }
+      "matched": {
+        "content": "$1"
+      },
+      "total": {
+        "content": "$2"
+      }
     }
   },
   "workflow_tool_title": {
@@ -10627,7 +10690,9 @@
   "workflow_parameter_duplicate": {
     "message": "Add only one “$name$” instruction.",
     "placeholders": {
-      "name": { "content": "$1" }
+      "name": {
+        "content": "$1"
+      }
     }
   },
   "workflow_parameter_first": {
@@ -10690,9 +10755,6 @@
   },
   "workflow_tool_description": {
     "message": "Tool description"
-  },
-  "workflow_tool_inputs": {
-    "message": "Tool inputs"
   },
   "workflow_tool_test": {
     "message": "Test tool"
@@ -10840,11 +10902,97 @@
   "workflow_tool_key_required": {
     "message": "Enter a credential value"
   },
-  "workflow_command_query_provider_data_hint": {
-    "message": "Query Steam or ITAD using the selected provider's inputs"
+  "workflow_query_result": {
+    "message": "Query result"
   },
-  "workflow_tool_provider": {
-    "message": "Data source"
+  "workflow_query_filters": {
+    "message": "Search parameters"
+  },
+  "workflow_command_steam_game_details_hint": {
+    "message": "Look up public Steam store game details by AppID"
+  },
+  "workflow_command_steam_current_players_hint": {
+    "message": "Look up the current Steam player count by AppID"
+  },
+  "workflow_command_itad_price_history_hint": {
+    "message": "Look up the current price and historical low in the configured region by AppID"
+  },
+  "workflow_command_steam_store_search_hint": {
+    "message": "Search the Steam China store with the supplied parameters"
+  },
+  "workflow_record_mode": {
+    "message": "Dictionary input"
+  },
+  "workflow_record_fields": {
+    "message": "Fill in fields"
+  },
+  "workflow_record_whole": {
+    "message": "Whole dictionary"
+  },
+  "workflow_record_missing_policy": {
+    "message": "If unset"
+  },
+  "workflow_record_omit": {
+    "message": "Omit"
+  },
+  "workflow_record_fail": {
+    "message": "Report an error"
+  },
+  "workflow_record_source": {
+    "message": "Value source"
+  },
+  "workflow_record_add": {
+    "message": "Add field"
+  },
+  "workflow_record_from_ai": {
+    "message": "Add from AI parameters"
+  },
+  "workflow_record_sample_include": {
+    "message": "Provide a sample for $name$",
+    "placeholders": {
+      "name": {
+        "content": "$1"
+      }
+    }
+  },
+  "workflow_record_input_invalid": {
+    "message": "Choose one dictionary input method"
+  },
+  "workflow_record_missing_policy_invalid": {
+    "message": "Choose what to do when the field is unset"
+  },
+  "workflow_record_duplicate_key": {
+    "message": "Duplicate dictionary field: $name$",
+    "placeholders": {
+      "name": {
+        "content": "$1"
+      }
+    }
+  },
+  "workflow_error_unknown_action": {
+    "message": "Instruction $step$ in “$name$” uses an invalid or removed type: $action$",
+    "placeholders": {
+      "name": {
+        "content": "$1"
+      },
+      "step": {
+        "content": "$2"
+      },
+      "action": {
+        "content": "$3"
+      }
+    }
+  },
+  "workflow_error_tool_input": {
+    "message": "Instruction $step$ in “$name$” must use declared parameter variables",
+    "placeholders": {
+      "name": {
+        "content": "$1"
+      },
+      "step": {
+        "content": "$2"
+      }
+    }
   },
   "workflow_tool_builtin": {
     "message": "Built-in"
@@ -10911,8 +11059,16 @@
   "workflow_error_tool_instruction": {
     "message": "This action is unavailable here."
   },
-  "workflow_error_tool_input": {
-    "message": "Select a declared tool input"
+  "workflow_clipboard_context": {
+    "message": "“$name$” can only be used in $editor$.",
+    "placeholders": {
+      "name": {
+        "content": "$1"
+      },
+      "editor": {
+        "content": "$2"
+      }
+    }
   },
   "workflow_error_tool_http": {
     "message": "Tools support GET queries, URL text templates, and local credential references."
@@ -10928,6 +11084,18 @@
   },
   "settings_ai_services_section": {
     "message": "Service list"
+  },
+  "settings_ai_chat_prompt": {
+    "message": "Linked prompt"
+  },
+  "settings_ai_chat_prompt_default": {
+    "message": "Default chat prompt"
+  },
+  "settings_ai_chat_preferences_error": {
+    "message": "Could not load or save settings. Please try again."
+  },
+  "ai_chat_prompt_unavailable": {
+    "message": "The linked prompt is unavailable. Select another one in AI Services → Chat Entry."
   },
   "settings_ai_entry_section": {
     "message": "Chat entry points"
@@ -12094,12 +12262,6 @@
   "workflow_ui_format_json": {
     "message": "Format JSON"
   },
-  "workflow_ui_edit_the_system_and_user_prompts_for_this_turn": {
-    "message": "Edit the system and user prompts for this turn."
-  },
-  "workflow_ui_the_chat_history_token_can_be_a_string_element_of_the_messag": {
-    "message": "The chat history token can be a string element of the messages array."
-  },
   "workflow_ui_preview_ai_service": {
     "message": "Preview AI service"
   },
@@ -12262,8 +12424,8 @@
   "workflow_ui_all_placeholders": {
     "message": "All placeholders"
   },
-  "workflow_ui_mode_details": {
-    "message": "Mode details"
+  "workflow_item_note_invalid": {
+    "message": "Invalid note format"
   },
   "workflow_ui_loading": {
     "message": "Loading…"

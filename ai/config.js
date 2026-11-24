@@ -202,7 +202,7 @@
     "auto-achievement": "P-4",
     "achievement-group": "P-5",
     collection: "P-6",
-    forecast: "P-7",
+    chat: "P-7",
     "steam-news": "P-8",
     "steam-content": "P-9",
     "web-translate": "P-10",
@@ -210,6 +210,8 @@
 
   const isServiceId = (id) => typeof id === "string" && /^AI-(?:0|[1-9][0-9]{0,19})$/.test(id);
   const isPromptId = (id) => typeof id === "string" && /^P-[1-9][0-9]{0,19}$/.test(id);
+  const isChatPromptId = id => id === "" || isPromptId(id);
+  const CHAT_ENTRY_FEATURES = Object.freeze(["ai-chat-web", "ai-chat-main", "ai-chat-friends"]);
 
   /** 随机编号避免按现有最大值编号时复用已删除的引用。低位编号保留给预置方案 */
   function newNumber() {
@@ -534,7 +536,8 @@
 
   const TOOL_APP_ID_MAX = 0xffffffff;
   const isToolAppId = id => Number.isSafeInteger(id) && id > 0 && id <= TOOL_APP_ID_MAX;
-  const PROVIDER_TOOL_IDS = Object.freeze({ game: "tool-1", players: "tool-2", prices: "tool-3", search: "tool-4" });
+  const PROVIDER_TOOL_IDS = Object.freeze({ game: "tool-1", players: "tool-2", prices: "tool-3", search: "tool-4",
+    rename: "tool-5", collections: "tool-6", achievements: "tool-7", library: "tool-8", library_game: "tool-9", wishlist: "tool-10" });
   const STORE_SEARCH_TOOL_ID = PROVIDER_TOOL_IDS.search;
   const searchOptions = description => ({ type: "array", items: { type: "string" }, description });
   const STORE_SEARCH_PROPERTIES = Object.freeze({
@@ -559,12 +562,47 @@
       description: "Sort by relevance (default), releaseDate (newest first), name (A–Z), priceAsc (lowest first), priceDesc (highest first), or reviews (Steam user review order)." },
     start: { type: "integer", minimum: 0, description: "Page offset, default 0. Keep the same filters and sort order and pass the previous nextStart as start. Stop when nextStart is null. An empty items array can still have a nextStart." },
   });
+  const idsProperty = { type: "array", items: { type: "integer", minimum: 1, maximum: TOOL_APP_ID_MAX }, description: "Steam 游戏 AppID 列表，传整数。" };
+  const pageProperty = { type: "integer", minimum: 0, description: "从 0 开始；翻页时使用上次返回的 nextStart。" };
+  const keywordProperty = { type: "string", description: "按游戏名称筛选，省略表示不限。" };
+  const accountOptions = (label, values) => ({ type: "array", items: { type: "string", enum: values.split(" ") },
+    description: `${label}。可选 ${values.replaceAll(" ", "、")}。` });
+  const ACCOUNT_TOOLS = Object.freeze(Object.fromEntries([
+    ["rename", "批量游戏名汉化", "为 Steam 库内指定游戏生成中文排序名称，已有排序名称或名称已含汉字时跳过。修改前会请求确认。", { appIds: idsProperty }, ["appIds"], true],
+    ["collections", "批量添加到收藏分组", "把指定游戏加入现有可写收藏分组。可按名称或 ID 指定分组，也可省略，让 AI 根据游戏资料选择合适分组。修改前会请求确认。", { appIds: idsProperty, collection: { type: "string", description: "现有分组的精确名称或 ID。" } }, ["appIds"], true],
+    ["achievements", "批量游戏成就翻译", "分批翻译指定游戏尚无译文的成就，使用配置的目标语言。保存前会请求确认。", { appIds: idsProperty }, ["appIds"], true],
+    ["library", "查询我的 Steam 游戏库", "按游戏名称及可选筛选条件查询当前 Steam 库，返回 AppID、名称、游玩时间和翻页位置。", {
+      term: keywordProperty, start: pageProperty,
+      modes: accountOptions("游戏模式", "single multiplayer coop local_multiplayer"),
+      status: accountOptions("游戏状态", "ready installed played unplayed private"),
+      languages: searchOptions("支持的语言，如 schinese、english、japanese。"),
+      genres: accountOptions("游戏类型", "action adventure casual indie massively_multiplayer racing rpg simulation sports strategy"),
+      controllers: accountOptions("控制器", "controller_recommended controller_full controller_partial dualshock dualshock_bluetooth dualsense dualsense_bluetooth steam_input"),
+      deck: accountOptions("Steam Deck 兼容性", "deck_verified deck_playable deck_unsupported deck_unknown"),
+      vr: accountOptions("虚拟现实", "vr non_vr"),
+      features: accountOptions("特色", "trading_cards workshop achievements remote_play family_sharing"),
+      tags: searchOptions("Steam 商店标签的名称或数字 ID（以文字传入）。"),
+      friends: searchOptions("拥有该游戏的 Steam 好友精确昵称或好友代码。"),
+      gameplay: accountOptions("玩法辅助", "adjustable_difficulty save_anytime"),
+      visual: accountOptions("视觉辅助", "adjustable_text subtitles color_alternatives contrast camera_comfort playable_without_vision"),
+      audio: accountOptions("音频辅助", "custom_volume stereo surround narrated_menus"),
+      input: accountOptions("输入辅助", "keyboard_only mouse_only touch_only without_quick_time own_pace speech_to_text text_to_speech"),
+    }, []],
+    ["library_game", "查询我的游戏详情", "按 AppID 查询当前账号在 Steam 库中的游戏详情、游玩时间、成就总数与已解锁数。", { appIds: idsProperty }, ["appIds"]],
+    ["wishlist", "查询我的 Steam 愿望单", "查询当前账号的愿望单和添加时间，返回配置地区的 Steam 商店原价、现价、折扣和史低，并支持翻页。", {
+      start: pageProperty, appIds: idsProperty, discountsOnly: { type: "boolean", description: "仅返回目前有折扣的游戏。本页没有命中时，仍应按 nextStart 翻页。" },
+    }, []],
+  ].map(([key, name, description, properties, required, writes = false]) => [key, Object.freeze({
+    id: PROVIDER_TOOL_IDS[key], label: "ai_chat_tool_" + key, name, description, properties, required, writes,
+  })])));
   const CHAT_TOOLS = Object.freeze([
     Object.freeze({ id: PROVIDER_TOOL_IDS.game, label: "ai_chat_tool_game", name: "Steam 游戏资料", description: "按 AppID 查询 Steam 商店公开游戏资料。" }),
     Object.freeze({ id: PROVIDER_TOOL_IDS.players, label: "ai_chat_tool_players", name: "Steam 在线人数", description: "按 AppID 查询当前在线人数。" }),
     Object.freeze({ id: PROVIDER_TOOL_IDS.prices, label: "ai_chat_tool_prices", name: "ITAD 价格与史低", description: "按 AppID 查询配置地区的当前报价和历史最低价。" }),
     Object.freeze({ id: STORE_SEARCH_TOOL_ID, label: "ai_chat_tool_search", name: "Steam 商店搜索",
-      description: '搜索 Steam 国区商店的游戏和商品，返回当前价、折扣、评测摘要及链接。全部参数可省略，无需 AppID。查 50 元以下、支持简中且正打折的游戏：{"types":["游戏"],"discountsOnly":true,"priceBelow":50,"languages":["schinese"]}。价格结果以分计，items 是本页命中，candidateTotal 是 Steam 候选总数，未扣除本页价格筛除的商品。nextStart 非空时可用原条件继续翻页。' }),
+      description: '搜索 Steam 国区商店的游戏和商品，返回当前价、折扣、评测摘要及链接。全部参数可省略，无需 AppID。查 50 元以下、支持简中且正打折的游戏：{"types":["游戏"],"discountsOnly":true,"priceBelow":50,"languages":["schinese"]}。价格结果以分计，items 是本页命中，candidateTotal 是 Steam 候选总数，未扣除本页价格筛除的商品。nextStart 非空时可用原条件继续翻页。' +
+        "\n\n按游戏名查 AppID 时，用 term 传游戏名，查本体可传 types 为 [\"游戏\"]。从 items 中选名称明确匹配且 type 为 app 的条目，将它的 id 作为后续工具的 appId。sub 和 bundle 的 id 不能用作 AppID。" }),
+    ...Object.values(ACCOUNT_TOOLS),
   ]);
 
   function toolSchema(tool) {
@@ -574,8 +612,8 @@
       description: tool.description,
       parameters: {
         type: "object",
-        properties: search ? STORE_SEARCH_PROPERTIES : { appId: { type: "integer", minimum: 1, maximum: TOOL_APP_ID_MAX } },
-        required: search ? [] : ["appId"],
+        properties: tool.properties ?? (search ? STORE_SEARCH_PROPERTIES : { appId: { type: "integer", minimum: 1, maximum: TOOL_APP_ID_MAX } }),
+        required: tool.required ?? (search ? [] : ["appId"]),
         additionalProperties: false,
       },
     } };
@@ -635,6 +673,8 @@
     DEFAULT_SERVICE_ID,
     MANUAL_TASKS,
     PRESET_PROMPTS,
+    isChatPromptId,
+    CHAT_ENTRY_FEATURES,
     SERVICE_FIELDS,
     TRANSLATION,
     TRANSLATION_SERVICE,
@@ -667,7 +707,7 @@
     modelListIssue,
     hostPermissionPattern,
     chatRequest,
-    CHAT_TOOLS, PROVIDER_TOOL_IDS, TOOL_APP_ID_MAX, isToolAppId, STORE_SEARCH_TOOL_ID, STORE_SEARCH_PROPERTIES, toolSchema,
+    CHAT_TOOLS, ACCOUNT_TOOLS, PROVIDER_TOOL_IDS, TOOL_APP_ID_MAX, isToolAppId, STORE_SEARCH_TOOL_ID, STORE_SEARCH_PROPERTIES, toolSchema,
     validateChatToolIds, chatToolsFromWorkflow,
     chatBody,
     chatText,

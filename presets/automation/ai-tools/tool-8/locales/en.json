@@ -1,0 +1,23 @@
+{
+  ".name": "Search my Steam library",
+  ".note": "Search the active Steam library with optional filters and pagination. Return AppID, game name, playtime, and nextStart.",
+  ".description": "Search the active Steam library with optional filters and pagination. Return AppID, game name, playtime, and nextStart.",
+  ".variables.args": "Tool parameters",
+  ".variables.result": "Query result",
+  ".parameters.0.description": "Filter by game name.",
+  ".parameters.1.description": "Start at zero. Use nextStart for the next page.",
+  ".parameters.2.description": "Game modes: single, multiplayer, coop, local_multiplayer.",
+  ".parameters.3.description": "Library status: ready, installed, played, unplayed, private.",
+  ".parameters.4.description": "Supported languages, e.g. schinese, english, japanese.",
+  ".parameters.5.description": "Genres: action, adventure, casual, indie, massively_multiplayer, racing, rpg, simulation, sports, strategy.",
+  ".parameters.6.description": "Controller support: controller_recommended, controller_full, controller_partial, dualshock, dualshock_bluetooth, dualsense, dualsense_bluetooth, steam_input.",
+  ".parameters.7.description": "Steam Deck compatibility: deck_verified, deck_playable, deck_unsupported, deck_unknown.",
+  ".parameters.8.description": "Virtual reality: vr, non_vr.",
+  ".parameters.9.description": "Steam features: trading_cards, workshop, achievements, remote_play, family_sharing.",
+  ".parameters.10.description": "Steam Store tag names or numeric tag IDs as strings.",
+  ".parameters.11.description": "Exact names or friend codes of Steam friends who own the game.",
+  ".parameters.12.description": "Gameplay accessibility: adjustable_difficulty, save_anytime.",
+  ".parameters.13.description": "Visual accessibility: adjustable_text, subtitles, color_alternatives, contrast, camera_comfort, playable_without_vision.",
+  ".parameters.14.description": "Audio accessibility: custom_volume, stereo, surround, narrated_menus.",
+  ".parameters.15.description": "Input accessibility: keyboard_only, mouse_only, touch_only, without_quick_time, own_pace, speech_to_text, text_to_speech."
+}

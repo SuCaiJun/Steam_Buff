@@ -1,5 +1,6 @@
 {
   ".name": "Add games to collections",
+  ".note": "Add games to suitable existing collections based on Steam Store information.",
   ".variables.var-17.name": "Input AppID",
   ".variables.var-18.name": "Input game title",
   ".variables.var-22.name": "Dictionary",

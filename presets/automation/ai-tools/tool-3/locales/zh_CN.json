@@ -1,5 +1,6 @@
 {
   ".name": "ITAD 价格与史低",
+  ".note": "按 AppID 查询所设地区的当前报价和历史最低价。",
   ".variables.var-108.name": "appId",
   ".variables.var-112.name": "查询结果",
   ".steps.step-109.branches.0.steps.step-110.value.literal": "AppID 超出范围。请传入 1 到 4294967295 之间的整数后重新调用。",

@@ -1,0 +1,8 @@
+{
+  ".name": "Get my game details",
+  ".note": "Look up your playtime, total achievements, and unlocked achievements for the supplied Steam AppIDs.",
+  ".description": "Look up your playtime, total achievements, and unlocked achievements for the supplied Steam AppIDs.",
+  ".variables.args": "Tool parameters",
+  ".variables.result": "Query result",
+  ".parameters.0.description": "List of Steam AppIDs as integers."
+}

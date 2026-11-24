@@ -1,0 +1,21 @@
+{
+  ".name": "Batch localize game names",
+  ".note": "Propose Chinese sort names for selected Steam library games. Skip games with a sort name or a title containing Han characters. Ask for confirmation before saving.",
+  ".description": "Propose Chinese sort names for selected Steam library games. Skip games with a sort name or a title containing Han characters. Ask for confirmation before saving.",
+  ".parameters.0.description": "List of Steam AppIDs as integers.",
+  ".errors.appIds": "Enter one or more integer Steam AppIDs between 1 and 4294967295.",
+  ".errors.name": "The AI did not return a valid Chinese sort name.",
+  ".prompts.P-2.0": "Steam original name",
+  ".variables.ids": "Unique AppIDs",
+  ".variables.size": "Game count",
+  ".variables.items": "Results by AppID",
+  ".variables.app": "Current AppID",
+  ".variables.index": "Game index",
+  ".variables.row": "Current game result",
+  ".variables.error": "Current game error",
+  ".variables.name": "Original Steam name",
+  ".variables.saved": "Steam action result",
+  ".variables.sort": "Existing sort name",
+  ".variables.reply": "AI response",
+  ".variables.proposed": "Proposed sort name"
+}

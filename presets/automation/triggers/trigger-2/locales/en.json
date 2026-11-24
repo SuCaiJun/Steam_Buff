@@ -1,3 +1,4 @@
 {
-  ".name": "Organize newly added games"
+  ".name": "Organize newly added games",
+  ".note": "Run the collection workflow when a game is added to the library."
 }

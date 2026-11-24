@@ -1,7 +1,9 @@
 {
   ".name": "Steam 商店搜索",
+  ".note": "按关键词和筛选条件搜索 Steam 国区商店，可翻页查看结果。",
   ".variables.var-115.name": "查询结果",
-  ".description": "搜索 Steam 国区商店的游戏和商品，返回当前价、折扣、评测摘要及链接。全部参数可省略，无需 AppID。查 50 元以下、支持简中且正打折的游戏：{\"types\":[\"游戏\"],\"discountsOnly\":true,\"priceBelow\":50,\"languages\":[\"schinese\"]}。价格结果以分计，items 是本页命中，candidateTotal 是 Steam 候选总数，未扣除本页价格筛除的商品。nextStart 非空时可用原条件继续翻页。",
+  ".variables.var-search-parameters.name": "商店查询参数",
+  ".description": "搜索 Steam 国区商店的游戏和商品，返回当前价、折扣、评测摘要及链接。全部参数可省略，无需 AppID。查 50 元以下、支持简中且正打折的游戏：{\"types\":[\"游戏\"],\"discountsOnly\":true,\"priceBelow\":50,\"languages\":[\"schinese\"]}。价格结果以分计，items 是本页命中，candidateTotal 是 Steam 候选总数，未扣除本页价格筛除的商品。nextStart 非空时可用原条件继续翻页。\n\n按游戏名查 AppID 时，用 term 传游戏名，查本体可传 types 为 [\"游戏\"]。从 items 中选名称明确匹配且 type 为 app 的条目，将它的 id 作为后续工具的 appId。sub 和 bundle 的 id 不能用作 AppID。",
   ".parameters.0.description": "游戏名或关键词，最多 64 个字符，可以使用游戏原名。留空时不限制关键词。",
   ".parameters.1.description": "当前展示价严格低于该金额，单位为人民币元，最多两位小数。例如 50 不包含恰好 50 元的商品。不能与 freeOnly: true 同用。",
   ".parameters.2.description": "传 true 使用 Steam 的免费价格档，只保留展示价为 0 的商品。此时请省略 priceBelow，且不要把 hideFreeToPlay 设为 true。",

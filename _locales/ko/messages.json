@@ -8111,6 +8111,9 @@
   "promptToken_task_summary_language": {
     "message": "요약 언어"
   },
+  "promptToken_task_chat_message": {
+    "message": "채팅 메시지"
+  },
   "promptToken_task_title": {
     "message": "문서 제목"
   },
@@ -10125,6 +10128,12 @@
   "workflow_ui_achievements": {
     "message": "도전 과제"
   },
+  "workflow_ui_store_and_prices": {
+    "message": "상점과 가격"
+  },
+  "workflow_ui_library_and_wishlist": {
+    "message": "라이브러리와 찜 목록"
+  },
   "workflow_ui_application_and_status": {
     "message": "앱 및 상태"
   },
@@ -10602,11 +10611,65 @@
   "ai_chat_tool_search": {
     "message": "Steam 상점 검색"
   },
+  "ai_chat_tool_rename": {
+    "message": "게임 이름 일괄 중국어 번역"
+  },
+  "workflow_command_steam_batch_sort_name_hint": {
+    "message": "지정한 Steam 게임의 중국어 정렬 이름을 제안합니다. 기존 정렬 이름이 있거나 이름에 한자가 들어 있으면 건너뛰고 저장 전 확인합니다."
+  },
+  "ai_chat_tool_collections": {
+    "message": "Steam 컬렉션에 일괄 추가"
+  },
+  "workflow_command_steam_batch_collections_hint": {
+    "message": "지정한 게임을 기존 편집 가능 컬렉션에 추가합니다. 이름이나 ID를 지정하거나 AI가 제안하도록 둘 수 있고 추가 전 확인합니다."
+  },
+  "ai_chat_tool_achievements": {
+    "message": "게임 도전 과제 일괄 번역"
+  },
+  "workflow_command_steam_batch_achievements_hint": {
+    "message": "번역이 저장되지 않은 도전 과제를 설정한 언어로 번역하고 저장 전 확인합니다."
+  },
+  "ai_chat_tool_library": {
+    "message": "내 Steam 라이브러리 검색"
+  },
+  "workflow_command_steam_account_library_hint": {
+    "message": "이름이나 필터로 현재 Steam 라이브러리를 검색하고 페이지별 결과를 가져옵니다."
+  },
+  "ai_chat_tool_library_game": {
+    "message": "내 게임 상세 정보 조회"
+  },
+  "workflow_command_steam_account_game_hint": {
+    "message": "AppID로 현재 계정의 플레이 시간과 전체 및 달성 도전 과제 수를 확인합니다."
+  },
+  "ai_chat_tool_wishlist": {
+    "message": "내 Steam 찜 목록 조회"
+  },
+  "workflow_command_steam_account_wishlist_hint": {
+    "message": "내 Steam 찜 목록의 추가 날짜, 지역별 가격, 할인율, 역대 최저가를 페이지별로 확인합니다."
+  },
+  "ai_chat_tool_approval_confirm": {
+    "message": "변경 확인"
+  },
+  "ai_chat_tool_approval_achievements": {
+    "message": "도전 과제 $count$개 번역",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "ai_chat_tool_changed": {
+    "message": "변경됨"
+  },
   "ai_chat_tool_search_result": {
     "message": "이 페이지 $matched$개, Steam 후보 총 $total$개",
     "placeholders": {
-      "matched": { "content": "$1" },
-      "total": { "content": "$2" }
+      "matched": {
+        "content": "$1"
+      },
+      "total": {
+        "content": "$2"
+      }
     }
   },
   "workflow_tool_title": {
@@ -10627,7 +10690,9 @@
   "workflow_parameter_duplicate": {
     "message": "‘$name$’ 명령은 하나만 추가할 수 있습니다.",
     "placeholders": {
-      "name": { "content": "$1" }
+      "name": {
+        "content": "$1"
+      }
     }
   },
   "workflow_parameter_first": {
@@ -10690,9 +10755,6 @@
   },
   "workflow_tool_description": {
     "message": "도구 설명"
-  },
-  "workflow_tool_inputs": {
-    "message": "도구 입력"
   },
   "workflow_tool_test": {
     "message": "도구 테스트"
@@ -10840,11 +10902,97 @@
   "workflow_tool_key_required": {
     "message": "인증 값을 입력하세요"
   },
-  "workflow_command_query_provider_data_hint": {
-    "message": "선택한 데이터 소스의 조건으로 Steam 또는 ITAD를 조회합니다"
+  "workflow_query_result": {
+    "message": "조회 결과"
   },
-  "workflow_tool_provider": {
-    "message": "데이터 소스"
+  "workflow_query_filters": {
+    "message": "검색 매개변수"
+  },
+  "workflow_command_steam_game_details_hint": {
+    "message": "AppID로 Steam 상점의 공개 게임 정보 조회"
+  },
+  "workflow_command_steam_current_players_hint": {
+    "message": "AppID로 Steam의 현재 플레이어 수 조회"
+  },
+  "workflow_command_itad_price_history_hint": {
+    "message": "AppID로 설정된 지역의 현재 가격과 역대 최저가 조회"
+  },
+  "workflow_command_steam_store_search_hint": {
+    "message": "지정한 조건으로 Steam 중국 상점 검색"
+  },
+  "workflow_record_mode": {
+    "message": "사전 입력 방식"
+  },
+  "workflow_record_fields": {
+    "message": "필드별 입력"
+  },
+  "workflow_record_whole": {
+    "message": "전체 사전"
+  },
+  "workflow_record_missing_policy": {
+    "message": "값이 없을 때"
+  },
+  "workflow_record_omit": {
+    "message": "생략"
+  },
+  "workflow_record_fail": {
+    "message": "오류 표시"
+  },
+  "workflow_record_source": {
+    "message": "값 출처"
+  },
+  "workflow_record_add": {
+    "message": "필드 추가"
+  },
+  "workflow_record_from_ai": {
+    "message": "AI 매개변수에서 추가"
+  },
+  "workflow_record_sample_include": {
+    "message": "$name$ 샘플 제공",
+    "placeholders": {
+      "name": {
+        "content": "$1"
+      }
+    }
+  },
+  "workflow_record_input_invalid": {
+    "message": "사전 입력 방식을 하나 선택하세요"
+  },
+  "workflow_record_missing_policy_invalid": {
+    "message": "필드 값이 없을 때의 처리 방식을 선택하세요"
+  },
+  "workflow_record_duplicate_key": {
+    "message": "중복된 사전 필드 이름: $name$",
+    "placeholders": {
+      "name": {
+        "content": "$1"
+      }
+    }
+  },
+  "workflow_error_unknown_action": {
+    "message": "‘$name$’의 명령 $step$에 사용할 수 없거나 삭제된 유형이 있습니다: $action$",
+    "placeholders": {
+      "name": {
+        "content": "$1"
+      },
+      "step": {
+        "content": "$2"
+      },
+      "action": {
+        "content": "$3"
+      }
+    }
+  },
+  "workflow_error_tool_input": {
+    "message": "‘$name$’의 명령 $step$에서는 선언된 매개변수 변수를 사용해야 합니다",
+    "placeholders": {
+      "name": {
+        "content": "$1"
+      },
+      "step": {
+        "content": "$2"
+      }
+    }
   },
   "workflow_tool_builtin": {
     "message": "기본 제공"
@@ -10911,8 +11059,16 @@
   "workflow_error_tool_instruction": {
     "message": "여기에서는 이 작업을 사용할 수 없습니다."
   },
-  "workflow_error_tool_input": {
-    "message": "선언된 도구 입력을 선택하세요"
+  "workflow_clipboard_context": {
+    "message": "‘$name$’ 명령은 ‘$editor$’에서만 사용할 수 있습니다.",
+    "placeholders": {
+      "name": {
+        "content": "$1"
+      },
+      "editor": {
+        "content": "$2"
+      }
+    }
   },
   "workflow_error_tool_http": {
     "message": "도구는 GET 조회, URL 텍스트 템플릿, 로컬 인증 참조를 지원합니다."
@@ -10928,6 +11084,18 @@
   },
   "settings_ai_services_section": {
     "message": "서비스 목록"
+  },
+  "settings_ai_chat_prompt": {
+    "message": "연결할 프롬프트"
+  },
+  "settings_ai_chat_prompt_default": {
+    "message": "기본 채팅 프롬프트"
+  },
+  "settings_ai_chat_preferences_error": {
+    "message": "설정을 불러오거나 저장하지 못했습니다. 다시 시도하세요."
+  },
+  "ai_chat_prompt_unavailable": {
+    "message": "연결한 프롬프트를 사용할 수 없습니다. AI 서비스 → 채팅 진입점에서 다시 선택하세요."
   },
   "settings_ai_entry_section": {
     "message": "대화 진입점"
@@ -12094,12 +12262,6 @@
   "workflow_ui_format_json": {
     "message": "JSON 서식 지정"
   },
-  "workflow_ui_edit_the_system_and_user_prompts_for_this_turn": {
-    "message": "이번 차례의 시스템 및 사용자 프롬프트를 편집합니다."
-  },
-  "workflow_ui_the_chat_history_token_can_be_a_string_element_of_the_messag": {
-    "message": "대화 기록 토큰을 messages 배열의 문자열 요소로 넣을 수 있습니다."
-  },
   "workflow_ui_preview_ai_service": {
     "message": "미리보기용 AI 서비스"
   },
@@ -12262,8 +12424,8 @@
   "workflow_ui_all_placeholders": {
     "message": "모든 자리표시자"
   },
-  "workflow_ui_mode_details": {
-    "message": "모드 설명"
+  "workflow_item_note_invalid": {
+    "message": "메모 형식이 올바르지 않습니다"
   },
   "workflow_ui_loading": {
     "message": "불러오는 중…"

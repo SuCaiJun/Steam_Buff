@@ -33,25 +33,25 @@
     date_last_played: "返回最后运行日期的毫秒时间戳",
     playtime_minutes: "返回游戏时长，单位为分钟",
   };
-  const effect = (id, name, group, fields, outputType, details = {}) =>
-    Object.freeze({ id, name, category: "Steam 操作", group, fields, outputType, hint: name, ...details });
-  const gameReads = Object.entries(root.STWorkflowFields.gameReads).map(([key, { id, label, group, type }]) =>
-    effect(id, (/^[A-Za-z]/.test(label) ? "读取 " : "读取") + label, group, [game()], type, {
+  const effect = (id, name, group, icon, order, fields, outputType, details = {}) =>
+    Object.freeze({ id, name, category: "Steam 操作", group, icon, order, fields, outputType, hint: name, ...details });
+  const gameReads = Object.entries(root.STWorkflowFields.gameReads).map(([key, { id, label, group, type, icon, order }]) =>
+    effect(id, (/^[A-Za-z]/.test(label) ? "读取 " : "读取") + label, group, icon, order, [game()], type, {
       gameField: key, outputName: label, hint: gameReadNotes[key] || "保存" + label + "到变量",
     }));
   const steamCommands = [
-    ["steam-set-custom-name", "设置独立自定义名称", "游戏名称", [game(), data.field("value", "名称", "text", "")], "text",
+    ["steam-set-custom-name", "设置独立自定义名称", "游戏名称", "tag-star", 90, [game(), data.field("value", "名称", "text", "")], "text",
       { nameField: "custom_name", hint: "留空会清空独立名称及其助记符与拼音" }],
-    ["steam-set-aliases", "设置游戏别名", "游戏名称", [game(), data.field("value", "别名列表（整组替换）", "list", [])], "list", { nameField: "aliases" }],
-    ["steam-set-mnemonic", "设置游戏助记符", "游戏名称", [game(), data.field("value", "游戏助记符", "text", "")], "text", { nameField: "mnemonic" }],
-    ["steam-set-pinyin", "设置游戏拼音全拼", "游戏名称", [game(), data.field("value", "游戏拼音全拼", "text", "")], "text", { nameField: "pinyin" }],
-    ["steam-set-sort-name", "设置自定义排序名称", "游戏名称", [game(), data.field("value", "排序名称", "text", "")], "text"],
-    ["steam-achievements", "读取游戏成就列表", "游戏成就", [game()], "list"],
-    ["steam-translations", "读取已保存的成就译文", "游戏成就", [game(), language()], "list"],
-    ["steam-save-translations", "保存成就译文", "游戏成就", [game(), language(), data.field("value", "译文列表", "list", []), data.field("origin", "译文来源", "text", "manual", [["manual", "用户数据"], ["ai", "AI 回复"]])], "object"],
-    ["steam-collections", "读取收藏分组列表", "收藏分组", [], "list"],
-    ["steam-add-collections", "将游戏加入收藏分组", "收藏分组", [game(), data.field("value", "分组 ID 列表", "list", [])], "object"],
-    ["family-refresh", "刷新家庭库", "家庭库", [], "object"],
+    ["steam-set-aliases", "设置游戏别名", "游戏名称", "tags", 100, [game(), data.field("value", "别名列表（整组替换）", "list", [])], "list", { nameField: "aliases" }],
+    ["steam-set-mnemonic", "设置游戏助记符", "游戏名称", "letter-case-upper", 120, [game(), data.field("value", "游戏助记符", "text", "")], "text", { nameField: "mnemonic" }],
+    ["steam-set-pinyin", "设置游戏拼音全拼", "游戏名称", "language", 110, [game(), data.field("value", "游戏拼音全拼", "text", "")], "text", { nameField: "pinyin" }],
+    ["steam-set-sort-name", "设置自定义排序名称", "游戏名称", "sort-descending-letters", 130, [game(), data.field("value", "排序名称", "text", "")], "text"],
+    ["steam-achievements", "读取游戏成就列表", "游戏成就", "trophy", 30, [game()], "list"],
+    ["steam-translations", "读取已保存的成就译文", "游戏成就", "language", 20, [game(), language()], "list"],
+    ["steam-save-translations", "保存成就译文", "游戏成就", "file-check", 10, [game(), language(), data.field("value", "译文列表", "list", []), data.field("origin", "译文来源", "text", "manual", [["manual", "用户数据"], ["ai", "AI 回复"]])], "object"],
+    ["steam-collections", "读取收藏分组列表", "收藏分组", "folders", 10, [], "list"],
+    ["steam-add-collections", "将游戏加入收藏分组", "收藏分组", "folder-plus", 40, [game(), data.field("value", "分组 ID 列表", "list", [])], "object"],
+    ["family-refresh", "刷新家庭库", "家庭库", "refresh", 10, [], "object"],
   ].map(args => effect(...args));
   const effectDefinitions = [...gameReads, ...steamCommands];
   const effects = Object.freeze(Object.fromEntries(effectDefinitions.map(item => [item.id, item])));
@@ -80,44 +80,93 @@
   const httpMethods = Object.freeze(["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD"]);
   const httpMaxTimeout = 30;
   const hasHttpBody = method => method !== "GET" && method !== "HEAD";
-  const http = Object.freeze({ id: "http-request", name: "HTTP 请求", category: "网络", outputType: "object", outputName: "HTTP 响应", fields: [
+  const http = Object.freeze({ id: "http-request", name: "HTTP 请求", category: "网络", icon: "link", order: 10,
+    hint: "向已授权的站点发送请求并保存响应", outputType: "object", outputName: "HTTP 响应", fields: [
     data.field("url", "URL"), data.field("headers", "请求头", "object", {}), data.field("body", "请求体", "any", ""),
   ] });
-  const aiTool = Object.freeze({ id: "tool-call", name: "调用工具", category: "AI", outputType: "object", outputName: "工具结果", fields: [
+  const aiTool = Object.freeze({ id: "tool-call", name: "调用工具", category: "AI", icon: "link", order: 20,
+    hint: "执行登记的工具，或为 AI 记录一条已有结果", outputType: "object", outputName: "工具结果", fields: [
     data.field("toolRequest", "工具请求", "object", {}),
     data.field("toolArgs", "工具参数", "object", {}),
     data.field("toolData", "工具结果", "any", ""),
     data.field("toolReason", "跳过原因"),
   ] });
-  const toolQuery = Object.freeze({ id: "query-provider-data", name: "查询平台数据", category: "网络", outputType: "object", outputName: "查询结果",
-    fields: [data.field("appId", "AppID", "number", 0)] });
-  const storeSearchFields = [data.field("filters", "工具参数", "object", {})];
+  const providerDefinitions = [
+    ["steam-game-details", "game", "Steam 游戏资料", "按 AppID 查询 Steam 商店的公开游戏资料", "商店与价格", { order: 10, argument: "appId" }],
+    ["steam-current-players", "players", "Steam 在线人数", "按 AppID 查询 Steam 当前在线人数", "应用与状态", { order: 10, argument: "appId" }],
+    ["itad-price-history", "prices", "ITAD 价格与史低", "按 AppID 查询配置地区的当前报价和历史最低价", "商店与价格", { order: 20, argument: "appId" }],
+    ["steam-store-search", "search", "Steam 商店搜索", "按查询参数搜索 Steam 国区商店", "商店与价格", { order: 30, argument: "filters" }],
+    ["steam-account-library", "library", "查询我的 Steam 游戏库", "按筛选条件查询当前账号的 Steam 库", "游戏库与愿望单", { order: 10 }],
+    ["steam-account-game", "library_game", "查询我的游戏详情", "读取当前账号的游玩时间和成就进度", "游戏库与愿望单", { order: 20 }],
+    ["steam-account-wishlist", "wishlist", "查询我的 Steam 愿望单", "读取当前账号愿望单、添加时间和价格", "游戏库与愿望单", { order: 30 }],
+    // 2.2.65 已保存的旧节点仍可打开。新建步骤使用单 AppID 的 Steam 指令
+    ["steam-batch-sort-name", "rename", "批量游戏名汉化", "为 Steam 库内指定游戏生成中文排序名称", "游戏名称", { legacy: true }],
+    ["steam-batch-collections", "collections", "批量添加到收藏分组", "为指定游戏选择现有可写收藏分组", "收藏分组", { legacy: true }],
+    ["steam-batch-achievements", "achievements", "批量游戏成就翻译", "处理指定游戏尚无译文的成就", "游戏成就", { legacy: true }],
+  ].map(([id, provider, name, hint, group, { order, argument = "taskArgs", legacy = false } = {}]) => {
+    const fields = argument === "appId" ? [data.field("appId", "AppID", "number", 0)] : [data.field(argument, "查询参数", "object", {})];
+    return Object.freeze({ id, provider, argument, name, label: "ai_chat_tool_" + provider, hint, icon: "database",
+      category: "Steam 操作", group, order, legacy, fields, outputType: "object", outputName: "查询结果" });
+  });
+  const providerQueries = Object.freeze(Object.fromEntries(providerDefinitions.map(definition => [definition.id, definition])));
   const toolFields = Object.freeze({
     request: ["toolRequest", "toolArgs"], registered: ["toolArgs"],
     result: ["toolRequest", "toolData"], skipped: ["toolRequest", "toolReason"], failed: ["toolRequest", "toolReason"],
   });
-  const definitions = Object.freeze({ ...data.byId, ...effects, [http.id]: http, [aiTool.id]: aiTool, [toolQuery.id]: toolQuery });
-  const actionFields = node => node.action === toolQuery.id && node.provider === root.STAI.STORE_SEARCH_TOOL_ID
-    ? storeSearchFields : definitions[node.action]?.fields.filter(field =>
-      node.action !== aiTool.id || toolFields[node.toolMode]?.includes(field.key));
+  const definitions = Object.freeze({ ...data.byId, ...effects, [http.id]: http, [aiTool.id]: aiTool, ...providerQueries });
+  const actionFields = node => node.action === "record" && Object.hasOwn(node, "entries") ? [] : definitions[node.action]?.fields.filter(field =>
+    node.action !== aiTool.id || toolFields[node.toolMode]?.includes(field.key));
   const failable = node => !!definitions[node.action] || ["script", "ai-call", "library-call"].includes(node.action);
-  const catalog = [...data.definitions, ...effectDefinitions, http, aiTool, toolQuery, ...[
-    ["if", "IF 判断", "条件判断"], ["if-many", "IF 多条件", "条件判断"],
-    ["else-if", "Else IF", "条件判断"], ["else-if-many", "Else IF 多条件", "条件判断"],
-    ["else", "Else", "条件判断"], ["end-if", "End IF", "条件判断"],
-    ["for", "For 次数循环", "循环"], ["while", "While 条件循环", "循环"],
-    ["foreach", "ForEach 列表循环", "循环"], ["entries", "ForEach 字典循环", "循环"],
-    ["forever", "无限循环", "循环"], ["continue", "继续下一次循环", "循环"],
-    ["break", "退出循环", "循环"], ["end-loop", "循环结束标记", "循环"],
-    ["ai-call", "调用 AI", "AI"], ["notify", "发送通知", "消息"],
-    ["interactive", "发送交互消息并等待", "消息"], ["wait", "等待", "等待与控制"],
-    ["stop", "结束本次运行", "等待与控制"], ["tool-return", "返回工具结果", "等待与控制"], ["log", "打印日志", "日志与备注"],
-    ["library-call", "调用自定义库", "数据处理"], ["library-return", "指令输出", "等待与控制"],
-    ["comment", "添加备注说明", "日志与备注"], ["try", "Try", "异常处理"],
-    ["catch", "Catch", "异常处理"], ["finally", "Finally", "异常处理"],
-    ["end-try", "End Try", "异常处理"], ["raise", "Raise", "异常处理"],
-    ["script", "运行 JavaScript", "脚本"],
-  ].map(([id, name, category]) => Object.freeze({ id, name, category, ...(id === "library-call" && { group: "输入与变量" }) }))];
+  const catalog = [...data.definitions, ...effectDefinitions, http, aiTool, ...providerDefinitions, ...[
+    ["if", "IF 判断", "条件判断", "git-branch", 10, "条件满足时执行内部指令"],
+    ["if-many", "IF 多条件", "条件判断", "sitemap", 20, "按全部满足或任一满足组合多个条件"],
+    ["else-if", "Else IF", "条件判断", "git-compare", 40, "前面的条件不满足时继续判断"],
+    ["else-if-many", "Else IF 多条件", "条件判断", "git-pull-request", 50, "前面的条件不满足时判断一组条件"],
+    ["else", "Else", "条件判断", "arrow-back-up", 30, "以上条件均不满足时执行"],
+    ["end-if", "End IF", "条件判断", "git-merge", 60, "结束条件判断"],
+    ["for", "For 次数循环", "循环", "list-numbers", 10, "按指定次数执行内部指令"],
+    ["while", "While 条件循环", "循环", "list-check", 20, "每轮开始前判断条件，满足时继续循环"],
+    ["foreach", "ForEach 列表循环", "循环", "list-details", 40, "逐项读取列表并执行内部指令"],
+    ["entries", "ForEach 字典循环", "循环", "list-letters", 50, "逐项读取字典的键和值"],
+    ["forever", "无限循环", "循环", "infinity", 30, "重复执行内部指令，直到流程退出循环"],
+    ["continue", "继续下一次循环", "循环", "player-skip-forward", 60, "跳过当前轮剩余指令，开始下一轮"],
+    ["break", "退出循环", "循环", "logout", 70, "退出当前循环"],
+    ["end-loop", "循环结束标记", "循环", "repeat-off", 80, "结束当前循环区域"],
+    ["ai-call", "调用 AI", "AI", "sparkles", 10, "发送内容给 AI，保存回复原文"],
+    ["notify", "发送通知", "消息", "bell", 20, "按配置的级别、范围和方式发送通知"],
+    ["interactive", "发送交互消息并等待", "消息", "message-question", 10, "发送带操作按钮的消息并等待用户操作或超时"],
+    ["wait", "等待", "等待与控制", "hourglass", 30, "等待指定时间后继续执行"],
+    ["stop", "结束本次运行", "等待与控制", "player-stop", 40, "结束本次工作流运行"],
+    ["tool-return", "返回工具结果", "等待与控制", "arrow-back-up", 10, "返回数据并结束工具执行", { context: "tool" }],
+    ["log", "打印日志", "日志与备注", "article", 10, "将内容写入本次运行日志"],
+    ["library-call", "调用自定义库", "数据处理", "link", 40, undefined, { group: "输入与变量" }],
+    ["library-return", "指令输出", "等待与控制", "arrow-back-up", 20, undefined, { context: "library" }],
+    ["comment", "添加备注说明", "日志与备注", "message", 20, "为流程添加不参与执行的备注"],
+    ["try", "Try", "异常处理", "shield", 10, "尝试执行内部指令"],
+    ["catch", "Catch", "异常处理", "shield-check", 20, "发生异常时执行，并保存异常信息"],
+    ["finally", "Finally", "异常处理", "flag-check", 30, "无论成功或失败都执行"],
+    ["end-try", "End Try", "异常处理", "shield-off", 40, "结束异常处理区域"],
+    ["raise", "Raise", "异常处理", "alert-triangle", 50, "主动抛出异常，由 Catch 处理或结束失败"],
+    ["script", "运行 JavaScript", "脚本", "code", 10, "执行 JavaScript，可直接读取流程变量并返回结果"],
+  ].map(([id, name, category, icon, order, hint, details]) => Object.freeze({ id, name, category, icon, order, hint, ...details }))];
+  // 传参与折叠提供编辑器行，分别保存在参数定义和折叠位置中
+  const entries = [
+    ["trigger-parameters", "触发器传参", "workflow", 10],
+    ["ai-parameters", "AI 传参", "tool", 20],
+    ["library-parameters", "指令输入", "library", 30],
+  ].map(([id, name, context, order]) => Object.freeze({ id, name, context, order, category: "数据处理", group: "输入与变量", icon: "download", entry: true }));
+  const folds = [
+    ["fold-start", "折叠开始", "square-minus", 10, "从这里开始折叠一组指令"],
+    ["fold-end", "折叠结束", "square-plus", 20, "结束当前折叠区域"],
+  ].map(([id, name, icon, order, hint]) => Object.freeze({ id, name, icon, order, hint, category: "折叠" }));
+  const instructions = Object.freeze([...catalog, ...entries, ...folds]);
+  const byInstructionId = new Map();
+  for (const definition of instructions) {
+    if (byInstructionId.has(definition.id)) throw new Error("自动化指令 ID 重复：" + definition.id);
+    byInstructionId.set(definition.id, definition);
+  }
+  const instruction = id => byInstructionId.get(id);
+  const entryInstruction = context => entries.find(item => item.context === context);
   const names = Object.fromEntries(catalog.map(item => [item.id, item.name]));
   const loops = new Set(["for", "while", "foreach", "entries", "forever"]);
   const markers = new Set(["else-if", "else-if-many", "else", "end-if", "end-loop", "catch", "finally", "end-try"]);
@@ -289,11 +338,12 @@
       const definition = definitions[key];
       const command = text("workflow.command." + key + ".name", definition.name);
       const outputName = definition.outputName
-        ? text("workflow.output." + key, definition.outputName)
+        ? text(Object.hasOwn(providerQueries, key) ? "workflow_query_result" : "workflow.output." + key, definition.outputName)
         : text("workflow.format.result_var", command + "结果", { command });
       const fields = definition.fields.map(field => {
         if (field.key !== "game") return [field.key, literal(clone(field.value))];
-        return [field.key, workflow.inputParameters ? literal(0) : reference("input", "", ["game"])];
+        return [field.key, workflow.inputParameters || isToolId(workflow.id) || isLibraryId(workflow.id)
+          ? literal(0) : reference("input", "", ["game"])];
       });
       Object.assign(node, Object.fromEntries(fields), {
         output: variable(workflow, outputName, definition.outputType),
@@ -301,7 +351,6 @@
       if (key === "family-refresh") node.requestTimeoutSeconds = 12;
       if (key === http.id) Object.assign(node, { method: "GET", requestTimeoutSeconds: httpMaxTimeout });
       if (key === aiTool.id) node.toolMode = "request";
-      if (key === toolQuery.id) node.provider = root.STAI.CHAT_TOOLS[0].id;
       return node;
     }
     if (key === "script") return Object.assign(node, { code: [""], seconds: 10, output: variable(workflow, text("workflow_ui_script_result", "脚本结果")) });
@@ -382,8 +431,9 @@
       !Number.isSafeInteger(workflow.revision) || workflow.revision < 1 || !Array.isArray(workflow.variables) || !Array.isArray(workflow.steps))
       throw configurationError("工作流结构无效", "workflow_error_workflow");
     const vars = new Set(), labels = new Set(), ids = new Set();
-    const inLibrary = isLibraryId(workflow.id);
-    const inTool = isToolId(workflow.id) || inLibrary;
+    const context = instructionContext(workflow);
+    const inLibrary = context === "library";
+    const inTool = context !== "workflow";
     for (const item of workflow.variables) {
       if (!validId(item.id) || vars.has(item.id) || typeof item.name !== "string" || !item.name.trim() || labels.has(item.name) ||
         !["any", "text", "number", "boolean", "list", "object", "result"].includes(item.type)) throw configurationError("变量 ID、名称或类型无效", "workflow_error_variable");
@@ -391,20 +441,10 @@
     }
     if (workflow.description !== undefined && typeof workflow.description !== "string")
       throw configurationError("描述格式无效", "workflow_parameter_description_invalid");
+    if (workflow.note !== undefined && typeof workflow.note !== "string")
+      throw configurationError("备注格式无效", "workflow_item_note_invalid");
     if (workflow.inputParameters !== undefined && (!Array.isArray(workflow.inputParameters) || inTool))
       throw configurationError("触发器参数列表无效", "workflow_parameter_invalid");
-    const parameterIds = new Set(), parameterNames = new Set();
-    for (const parameter of entryParameters(workflow)) {
-      if (inTool && !inLibrary && !parameter?.variableId) continue;
-      const variable = workflow.variables.find(item => item.id === parameter?.variableId);
-      if (!parameter || typeof parameter.name !== "string" || !parameter.name.trim() ||
-          ["__proto__", "constructor", "prototype"].includes(parameter.name) || parameterNames.has(parameter.name) ||
-          parameterIds.has(parameter.variableId) || !variable || (!inTool && variable.name !== parameter.name) ||
-          (!inTool && !["any", "text", "integer", "number", "boolean", "list", "object"].includes(parameter.type)) ||
-          variable.type !== parameterVariableType(parameter.type))
-        throw configurationError("参数名称、类型或变量定义不一致", "workflow_parameter_invalid");
-      parameterIds.add(parameter.variableId); parameterNames.add(parameter.name);
-    }
     function output(id, required = false) {
       if ((!id && required) || (id && !vars.has(id))) throw configurationError("请选择保存结果的变量", "workflow_error_output");
     }
@@ -412,12 +452,15 @@
       if (!Array.isArray(list)) throw configurationError("流程块需要步骤列表", "workflow_error_steps");
       for (const node of list) {
         if (target && node !== target) continue;
-        if (!node || !validId(node.id) || ids.has(node.id) || !Object.hasOwn(names, type(node)) || markers.has(type(node))) throw configurationError("指令 ID 或类型无效", "workflow_error_action");
+        if (!node || !validId(node.id) || ids.has(node.id)) throw configurationError("指令 ID 或类型无效", "workflow_error_action");
         ids.add(node.id);
         try {
+          if (!Object.hasOwn(names, type(node)) || markers.has(type(node)))
+            throw configurationError(`「${workflow.name}」的指令 ${node.id} 使用了无效或已移除的类型：${type(node)}`,
+              "workflow_error_unknown_action", { name: workflow.name, step: node.id, action: String(type(node)) });
           if (!target && (node.draftMissingStart || node.draftMissingEnd))
             throw configurationError("流程块起止指令不完整", "workflow_draft_incomplete_block");
-          if (!instructionAvailable(type(node), inLibrary ? "library" : inTool ? "tool" : "workflow"))
+          if (!instructionAvailable(type(node), context))
             throw configurationError("此处不能使用该指令", "workflow_error_tool_instruction");
           if (workflow.inputParameters && node.action === "receive")
             throw configurationError("请用「触发器传参」声明变量，再替换旧的「接收输入」指令", "workflow_parameter_replace_receive");
@@ -471,6 +514,19 @@
               output(node.output, true);
               if (node.action === "set" && node.valueType !== undefined && !["any", "text", "number", "boolean", "list", "object"].includes(node.valueType)) throw configurationError("变量类型无效", "workflow_error_var_type");
             }
+            if (node.action === "record" && Object.hasOwn(node, "entries")) {
+              if (Object.hasOwn(node, "value") || !Array.isArray(node.entries)) throw configurationError("请选择一种字典输入方式", "workflow_record_input_invalid");
+              const keys = new Set();
+              for (const entry of node.entries) {
+                const key = entry?.key;
+                if (typeof key !== "string" || !key.trim() || key !== key.trim() || ["__proto__", "constructor", "prototype"].includes(key))
+                  throw configurationError("请输入有效的字典字段名", "workflow_error_input_name");
+                if (keys.has(key)) throw configurationError("字典字段名重复：" + key, "workflow_record_duplicate_key", { name: key });
+                if (typeof entry.omitIfUnset !== "boolean") throw configurationError("请选择字段未赋值时的处理方式", "workflow_record_missing_policy_invalid");
+                keys.add(key);
+                validateValue(entry.value, vars);
+              }
+            }
             if (node.action === "script") {
               if (!Number.isSafeInteger(node.seconds) || node.seconds < 1 || node.seconds * 1000 > 2147483647) throw configurationError("请设置有效的脚本执行超时秒数", "workflow_error_script_timeout");
               if (Object.hasOwn(node, "inputs") || !Array.isArray(node.code) || !node.code.some(part => typeof part !== "string" || part.trim())) throw configurationError("请填写 JavaScript 代码", "workflow_error_script");
@@ -506,8 +562,13 @@
               if (!["any", "object"].includes(workflow.variables.find(item => item.id === node.output).type))
                 throw configurationError("工具结果需要保存到字典或动态变量", "workflow_error_tool_output");
             }
-            if (node.action === toolQuery.id && !isProviderToolId(node.provider))
-              throw configurationError("请选择数据来源", "workflow_tool_provider");
+            if (Object.hasOwn(providerQueries, node.action)) {
+              if (Object.hasOwn(node, "provider") || ["appId", "filters", "taskArgs"].some(key =>
+                key !== providerQueries[node.action].argument && Object.hasOwn(node, key)))
+                throw configurationError("查询指令包含无效字段", "workflow_error_action_input");
+              if (!["any", "object"].includes(workflow.variables.find(item => item.id === node.output).type))
+                throw configurationError("查询结果需要保存到字典或动态变量", "workflow_error_tool_output");
+            }
             if (node.onError !== undefined) {
               if (!failable(node) || !["throw", "continue"].includes(node.onError)) throw configurationError("错误处理方式无效", "workflow_error_error_mode");
             }
@@ -559,10 +620,23 @@
               }
             }
           }
+          if (inTool && implicitToolInput(node))
+            throw configurationError(`「${workflow.name}」的指令 ${node.id} 必须使用已声明的参数变量`, "workflow_error_tool_input", { name: workflow.name, step: node.id });
         } catch (error) { error.nodeId ??= node.id; throw error; }
       }
     }
     sequence(target ? [target] : workflow.steps, loopDepth);
+    const parameterIds = new Set(), parameterNames = new Set();
+    for (const parameter of entryParameters(workflow)) {
+      const variable = workflow.variables.find(item => item.id === parameter?.variableId);
+      if (!parameter || typeof parameter.name !== "string" || !parameter.name.trim() ||
+          ["__proto__", "constructor", "prototype"].includes(parameter.name) || parameterNames.has(parameter.name) ||
+          parameterIds.has(parameter.variableId) || !variable || (!inTool && variable.name !== parameter.name) ||
+          (!inTool && !["any", "text", "integer", "number", "boolean", "list", "object"].includes(parameter.type)) ||
+          variable.type !== parameterVariableType(parameter.type))
+        throw configurationError("参数名称、类型或变量定义不一致", "workflow_parameter_invalid");
+      parameterIds.add(parameter.variableId); parameterNames.add(parameter.name);
+    }
     if (!target) {
       entryRowLayout(workflow, foldLayout(workflow, ids));
       if (!structureOnly) {
@@ -582,9 +656,6 @@
       for (const ref of nodeReferences(node)) {
         if (workflow.inputParameters && ref.source === "input")
           throw Object.assign(configurationError("请改用「触发器传参」声明的变量", "workflow_parameter_legacy_reference"), { nodeId: node.id });
-        if (inTool && (ref.source === "meta" || ref.source === "input" && ref.path.length &&
-          !workflow.parameters?.some(parameter => parameter.name === ref.path[0])))
-          throw Object.assign(configurationError("请选择已声明的工具输入", "workflow_error_tool_input"), { nodeId: node.id });
         if (ref.source === "variable" && !ready.has(ref.id)) {
           const name = workflow.variables.find(item => item.id === ref.id)?.name || ref.id;
           throw Object.assign(configurationError(`变量“${name}”尚未在此前指令中创建`, "workflow_error_unassigned", { name }), { nodeId: node.id });
@@ -609,6 +680,11 @@
     for (const [, value] of inputs(node)) yield* references(value, includeInactive);
     for (const value of conditionInputs(node)) yield* references(value, includeInactive);
   }
+  function implicitToolInput(node) {
+    for (const ref of nodeReferences(node, true)) if (ref.source === "input" ||
+      ref.source === "meta" && (ref.path.length !== 1 || ref.path[0] !== "translationLanguage")) return true;
+    return false;
+  }
   /** 指令公开输出的成员目录；只描述真实返回字段，不给动态值补造结果包装 */
   function outputFields(node, slot = "output") {
     const result = { status: "执行状态", code: "原因代码", reason: "失败原因" };
@@ -623,7 +699,7 @@
     if (node.action === "steam-add-collections") return [["saved", "已确认保存"]];
     if (node.action === "family-refresh") return Object.entries({ accountSteamId: "Steam 账号", familyGroupId: "家庭组 ID", familyName: "家庭组名称", updatedAt: "更新时间", expiresAt: "缓存到期时间", membersBySteamId: "家庭成员", appsById: "家庭游戏" });
     if (node.action === "date-parts") return Object.entries({ year: "年", month: "月", day: "日", hour: "时", minute: "分", second: "秒", weekday: "星期", millisecond: "毫秒" });
-    if (node.action === "record" && activeValue(node.value)?.literal) return Object.keys(activeValue(node.value).literal).map(key => [key, key]);
+    if (node.action === "record") return (node.entries?.map(entry => entry.key) ?? Object.keys(activeValue(node.value)?.literal || {})).map(key => [key, key]);
     return [];
   }
   /** 指令执行前可引用的变量；分支互不借用，循环项目退出后按运行器契约恢复 */
@@ -748,22 +824,15 @@
   const isProviderToolId = id => root.STAI.CHAT_TOOLS.some(tool => tool.id === id);
   const isToolId = id => typeof id === "string" && /^tool-[1-9][0-9]{0,19}$/.test(id);
   const isLibraryId = id => typeof id === "string" && /^lib-[1-9][0-9]{0,19}$/.test(id);
-  const toolOnlyAction = key => key === "tool-return";
   const toolIds = node => node.action === "ai-call" ? node.toolIds || []
     : node.action === "tool-call" && node.toolMode === "registered" ? [node.toolId] : [];
-  const commonAction = key => key === toolQuery.id || Object.hasOwn(data.byId, key) && key !== "receive" ||
-    loops.has(key) && key !== "forever" || ["http-request", "script", "wait", "log", "if", "if-many", "else-if", "else-if-many", "else", "end-if",
-      "continue", "break", "end-loop", "try", "catch", "finally", "end-try", "raise", "comment", "fold-start", "fold-end"].includes(key);
-  const toolAction = key => commonAction(key) || toolOnlyAction(key) || key === "library-call" || key === "receive";
+  const instructionContext = workflow => isLibraryId(workflow.id) ? "library" : isToolId(workflow.id) ? "tool" : "workflow";
   function instructionAvailable(key, context) {
-    if (key === "trigger-parameters") return context === "workflow";
-    if (key === "ai-parameters") return context === "tool";
-    if (key === "library-parameters" || key === "library-return") return context === "library";
-    if (context === "library") return commonAction(key);
-    return context === "tool" ? toolAction(key) : !toolOnlyAction(key);
+    const definition = instruction(key);
+    return !!definition && (!definition.context || definition.context === context);
   }
-  /** 指令契约中的输入值；运行、编辑器引用与表达式求值共用此边界。 */
-  function inputs(node) {
+  /** 输入值用于定位引用；求值时提供运行状态，以跳过明确配置为省略的未赋值项。 */
+  function inputs(node, state) {
     const result = [];
     const keys = new Set([...(actionFields(node)?.map(field => field.key) || []), "body", "seconds", "value", "count"]);
     for (const key of keys) if (node[key] && typeof node[key] === "object" && (node.action !== http.id || key !== "body" || hasHttpBody(node.method))) result.push([key, node[key]]);
@@ -771,6 +840,10 @@
     if (node.action === "ai-call" && node.toolResults !== undefined) result.push(["toolResults", node.toolResults]);
     if (node.action === "script" && Array.isArray(node.code)) node.code.forEach((part, index) => { if (typeof part !== "string") result.push(["code." + index, part]); });
     if (node.action === "ai-call") for (const [key, value] of Object.entries(node.inputs || {})) result.push(["inputs." + key, value]);
+    if (node.action === "record" && Array.isArray(node.entries))
+      node.entries.forEach((entry, index) => {
+        if (!state || !recordEntryUnset(entry, state)) result.push(["entries." + index + ".value", entry.value]);
+      });
     if (node.action === "library-call") for (const [key, value] of Object.entries(node.libraryInputs || {})) result.push(["libraryInputs." + key, value]);
     return result;
   }
@@ -843,7 +916,9 @@
     return data.compareValues(condition.op, left, right);
   }
   function state(input = {}, meta = {}, workflow = null) {
-    const current = { input: clone(input), meta: clone(meta), vars: {},
+    const parameterOnly = isToolId(workflow?.id) || isLibraryId(workflow?.id);
+    const context = parameterOnly ? (Object.hasOwn(meta, "translationLanguage") ? { translationLanguage: meta.translationLanguage } : {}) : clone(meta);
+    const current = { input: parameterOnly ? {} : clone(input), meta: context, vars: {},
       types: workflow ? Object.fromEntries(workflow.variables.map(item => [item.id, item.type])) : {},
       stack: [{ kind: "sequence", path: ["steps"], index: 0 }], done: false };
     for (const { name, variableId } of entryParameters(workflow)) {
@@ -948,7 +1023,7 @@
       if (node.disabled) { frame.index++; return { kind: "control" }; }
       if (node.kind === "action") {
         // 宿主先确认配置和权限，再求值；脚本只读取代码中的变量引用。
-        if (!["ai-call", aiTool.id, http.id, toolQuery.id, "library-call", "script"].includes(node.action)) await evaluateValues(inputs(node), state, evaluate);
+        if (!Object.hasOwn(providerQueries, node.action) && !["ai-call", aiTool.id, http.id, "library-call", "script"].includes(node.action)) await evaluateValues(inputs(node, state), state, evaluate);
         return { kind: "action", node };
       }
       const path = [...frame.path, frame.index];
@@ -1014,7 +1089,8 @@
     if (data.readingActions.includes(node.action)) return false;
     if (data.byId[node.action]) {
       try {
-        const args = Object.fromEntries(data.byId[node.action].fields.map(field => [field.key, read(node[field.key], state)]));
+        const args = node.action === "record" && node.entries ? { value: recordEntries(node.entries, state) }
+          : Object.fromEntries(data.byId[node.action].fields.map(field => [field.key, read(node[field.key], state)]));
         result = data.execute(node.action, args);
         if (node.action === "set" && node.valueType && node.valueType !== "any") write({ vars: {}, types: { check: node.valueType } }, "check", result);
         complete(workflow, state, node, result);
@@ -1034,6 +1110,31 @@
     else return false;
     complete(workflow, state, node, result);
     return true;
+  }
+  function recordEntries(entries, state) {
+    const fields = [];
+    for (const entry of entries) {
+      if (recordEntryUnset(entry, state)) continue;
+      const resolved = read(entry.value, state, true);
+      if (resolved === undefined) throw Object.assign(missing(entry.key), { field: entry.key });
+      fields.push([entry.key, resolved]);
+    }
+    return Object.fromEntries(fields);
+  }
+  function recordEntryUnset(entry, state) {
+    if (!entry.omitIfUnset) return false;
+    for (const ref of references(entry.value)) if (referenceValue(ref, state, true) === undefined) return true;
+    return false;
+  }
+  /** 单步样例只有可省略字段使用的变量可留空。 */
+  function optionalRecordVariables(node) {
+    const optional = new Set(), required = new Set();
+    if (node.action !== "record" || !Array.isArray(node.entries)) return optional;
+    for (const entry of node.entries) for (const ref of references(entry?.value)) {
+      if (ref.source === "variable") (entry.omitIfUnset === true ? optional : required).add(ref.id);
+    }
+    for (const id of required) optional.delete(id);
+    return optional;
   }
   // 编辑草稿中的展示标记按同一列表就近配对，保存时由编辑器移出执行步骤。
   function foldPairs(list) {
@@ -1170,9 +1271,10 @@
     sequence(workflow.steps, ["steps"], 0, "root-gap");
     return out;
   }
-  const previewable = node => node.kind === "if" || !!(data.byId[node.action] || effects[node.action]?.gameField || ["script", "ai-call", http.id, toolQuery.id].includes(node.action));
-  root.STWorkflow = Object.freeze({ catalog: Object.freeze(catalog), definitions, actionFields, effects, failable, previewable, names: Object.freeze(names), loops, markers, operations, clone, literal, constant, reference, isToolId, isProviderToolId, isLibraryId, instructionAvailable, toolIds,
+  const previewable = node => node.kind === "if" || !!(data.byId[node.action] || effects[node.action]?.gameField || Object.hasOwn(providerQueries, node.action) || ["script", "ai-call", http.id].includes(node.action));
+  root.STWorkflow = Object.freeze({ catalog: Object.freeze(catalog), definitions, actionFields, effects, providerQueries, failable, previewable, names: Object.freeze(names), loops, markers, operations, clone, literal, constant, reference, isToolId, isProviderToolId, isLibraryId, instructionAvailable, toolIds,
+    instructions, instruction, entryInstruction, instructionContext,
     httpMethods, httpMaxTimeout, hasHttpBody, httpUrl, staticHttpOrigin, instructionPermission, permissionNotice, permissionDenial,
-    numericId, variable, condition, comparison, multiple, unary, inputs, conditionInputs, inputValue, activeValue, references, nodeReferences, scopes, outputFields, evaluateValues, type, walk, createNode, validate, validateValue, validateCondition, read, write, matches, state, next, local, failed,
+    numericId, variable, condition, comparison, multiple, unary, inputs, conditionInputs, inputValue, activeValue, references, nodeReferences, implicitToolInput, optionalRecordVariables, scopes, outputFields, evaluateValues, type, walk, createNode, validate, validateValue, validateCondition, read, write, matches, state, next, local, failed,
     complete, currentNode, raise, transfer, rows, insertionIndex, endMarker, foldPairs, foldLayout, entryRowLayout, entryPositionError, validateEntryPosition, validateLibraryOutputPosition, visitSequences, pathGet, errorData, errorObject, parameterVariableType, entryParameters, gameAppId });
 })(globalThis);

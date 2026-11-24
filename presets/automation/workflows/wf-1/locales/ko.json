@@ -1,5 +1,6 @@
 {
   ".name": "게임 이름 중국어 번역",
+  ".note": "사용자 지정 정렬 이름이 없으면 외국어 게임 이름을 중국어로 번역해 정렬 이름으로 저장합니다.",
   ".variables.var-1.name": "입력 AppID",
   ".variables.var-2.name": "입력 게임 이름",
   ".variables.var-8.name": "사용자 지정 정렬 이름",

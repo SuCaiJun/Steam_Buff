@@ -262,7 +262,7 @@
   const walkSteps = engine.walk;
   function newWorkflow(id = "wf-1", name = "未命名工作流") { return { id, name, revision: 1, variables: [], steps: [] }; }
   const TOOL_CREDENTIALS_KEY = "st.automation.tool-credentials.v1";
-  const PRESET_TOOL_EXECUTION_ID = "00000000-0000-4000-8000-000000000001";
+  const PRESET_TOOL_EXECUTION_ID = "00000000-0000-4000-8000-000000000002";
   const TOOL_LIBRARY_VERSION = 1;
   const toolTypes = Object.freeze(["string", "integer", "number", "boolean", "array", "object"]);
   function newTool(name) {
@@ -313,9 +313,8 @@
   /** 验证工具定义和指令能力，保存、导入和试运行共用 */
   function validateTool(tool, { structureOnly = false } = {}) {
     const parameters = toolDefinition(tool);
-    const { id, name, revision, executionId, enabled, description, variables, steps, folds, entryRow } = tool;
-    const definition = clone({ id, name, revision, executionId, enabled, description, parameters, variables, steps, ...(folds ? { folds } : {}), ...(entryRow !== undefined && { entryRow }) });
-    if (Array.isArray(definition.variables) && Array.isArray(definition.steps)) upgradeToolParameters(definition);
+    const { id, name, revision, executionId, enabled, description, note, variables, steps, folds, entryRow } = tool;
+    const definition = clone({ id, name, revision, executionId, enabled, description, note, parameters, variables, steps, ...(folds ? { folds } : {}), ...(entryRow !== undefined && { entryRow }) });
     engine.validate(definition, { structureOnly });
     requireToolResult(definition);
     return definition;
@@ -342,10 +341,10 @@
   function validateLibrary(library, { structureOnly = false } = {}) {
     if (!engine.isLibraryId(library?.id) || typeof library.enabled !== "boolean" || typeof library.description !== "string")
       throw libraryDefinitionError();
-    const { id, name, revision, executionId, enabled, description, variables, steps, folds, entryRow } = library;
+    const { id, name, revision, executionId, enabled, description, note, variables, steps, folds, entryRow } = library;
     if (executionId !== undefined && (typeof executionId !== "string" || !/^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/.test(executionId)))
       throw libraryDefinitionError();
-    const definition = clone({ id, name, revision, enabled, description, parameters: toolParameters(library.parameters),
+    const definition = clone({ id, name, revision, enabled, description, note, parameters: toolParameters(library.parameters),
       outputs: libraryOutputs(library), variables, steps, ...(executionId !== undefined && { executionId }),
       ...(folds ? { folds } : {}), ...(entryRow !== undefined && { entryRow }) });
     engine.validate(definition, { structureOnly });
@@ -380,27 +379,6 @@
         return invalid(field?.name || id);
     }
     return null;
-  }
-  function upgradeToolParameters(tool) {
-    const ids = new Set(tool.variables.map(variable => variable.id)), names = new Set(tool.variables.map(variable => variable.name));
-    let serial = 0;
-    for (const parameter of tool.parameters) {
-      if (parameter.variableId !== undefined) continue;
-      let id, name = parameter.name, suffix = 1;
-      do { id = "var-param-" + ++serial; } while (ids.has(id));
-      while (names.has(name)) name = parameter.name + ++suffix;
-      ids.add(id); names.add(name);
-      parameter.variableId = id;
-      tool.variables.push({ id, name, type: engine.parameterVariableType(parameter.type) });
-    }
-    const variables = new Map(tool.parameters.map(parameter => [parameter.name, parameter.variableId]));
-    for (const node of engine.walk(tool.steps)) {
-      for (const ref of engine.nodeReferences(node, true)) {
-        if (ref.source === "input" && variables.has(ref.path[0]))
-          Object.assign(ref, engine.reference("variable", variables.get(ref.path[0]), ref.path.slice(1)));
-      }
-      if (node.action === "receive") node.action = "set";
-    }
   }
   function parameterAccepts(type, value) {
     if (value === undefined) return false;
@@ -482,7 +460,8 @@
     return args;
   }
   function toolSchema(tool) {
-    const preset = tool.id === root.STAI.STORE_SEARCH_TOOL_ID ? root.STAI.STORE_SEARCH_PROPERTIES : {};
+    const preset = tool.id === root.STAI.STORE_SEARCH_TOOL_ID ? root.STAI.STORE_SEARCH_PROPERTIES
+      : Object.values(root.STAI.ACCOUNT_TOOLS).find(item => item.id === tool.id)?.properties ?? {};
     return { type: "function", function: {
       name: tool.id, description: tool.description,
       parameters: { type: "object", additionalProperties: false,
@@ -494,7 +473,7 @@
     } };
   }
   function workflowDefinitionKey(workflow) {
-    const { entryRow, ...definition } = workflow;
+    const { entryRow, note, ...definition } = workflow;
     return JSON.stringify({ ...definition, revision: 0, ...(engine.isToolId(workflow.id) ? { name: "", executionId: "" } : {}) });
   }
   function newTrigger(id = "trigger-1", workflowId = "", name = "未命名触发器") {
@@ -749,6 +728,8 @@
       if (!/^trigger-\d+$/.test(trigger.id) || ids.has(trigger.id) || typeof trigger.name !== "string" || !trigger.name.trim() ||
         typeof trigger.enabled !== "boolean" || !Number.isSafeInteger(trigger.revision) || trigger.revision < 1 || !/^wf-\d+$/.test(trigger.workflowId) ||
         !["queue", "ignore"].includes(trigger.busy) || !trigger.inputs || typeof trigger.inputs !== "object" || Array.isArray(trigger.inputs)) throw new TypeError("触发器配置无效");
+      if (trigger.note !== undefined && typeof trigger.note !== "string")
+        throw toolConfigError("备注格式无效", "workflow_item_note_invalid");
       ids.add(trigger.id);
       const event = trigger.event;
       if (!isTriggerType(event?.type)) throw new TypeError("触发类型无效");

@@ -1,5 +1,6 @@
 {
   ".name": "遊戲名稱漢化",
+  ".note": "未設定自訂排序名稱時，將外文遊戲名稱翻成中文並儲存為排序名稱。",
   ".variables.var-1.name": "傳入APPID",
   ".variables.var-2.name": "傳入遊戲名稱",
   ".variables.var-8.name": "自定義排序名稱",
