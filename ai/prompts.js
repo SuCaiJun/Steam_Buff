@@ -21,11 +21,13 @@
     "聊天消息": "chat_message",
   });
   const SERVICE_TOKENS = Object.freeze({ "模型": "ai.model", "温度": "ai.temperature" });
+  const CHAT_MESSAGE = "聊天消息";
   const HISTORY_NAME = "对话历史";
   const DISPLAY_LANGUAGE = "显示语言";
   const TOKEN = /\{\{\s*([^{}]*?)\s*\}\}/g;
   const WHOLE_TOKEN = /^\{\{\s*([^{}]*?)\s*\}\}$/;
   const CHAT = "chat-completions";
+  const CHAT_ROLES = new Set(["developer", "system", "user", "assistant", "tool", "function"]);
   const clone = (value) => JSON.parse(JSON.stringify(value));
 
   function gameTokenGroups() {
@@ -93,7 +95,7 @@
 
   function valueAt(values, name) {
     if (!Object.hasOwn(values, name) || values[name] === undefined)
-      throw Object.assign(new TypeError("占位符数据不可用：" + name), { code: "PROMPT_VALUE_UNAVAILABLE" });
+      throw Object.assign(new TypeError("占位符数据不可用：" + name), { code: "PROMPT_VALUE_UNAVAILABLE", parameter: name });
     return values[name];
   }
 
@@ -120,7 +122,8 @@
     if (template && typeof template === "object") {
       const out = Object.create(null);
       for (const [key, value] of Object.entries(template)) {
-        if (["__proto__", "prototype", "constructor"].includes(key)) throw new TypeError("模板包含不允许的键");
+        if (["__proto__", "prototype", "constructor"].includes(key))
+          throw Object.assign(new TypeError("模板包含不允许的键"), { promptIssue: "format" });
         out[key] = expand(value, values);
       }
       return out;
@@ -143,16 +146,23 @@
     return { id, name, enabled: true, revision: 1, mode: "basic", ...modes(basic) };
   }
 
-  const promptError = message => Object.assign(new TypeError(message), { code: "PROMPT_INVALID" });
+  const promptError = (message, code = "PROMPT_INVALID") => Object.assign(new TypeError(message), { code });
 
   function advancedTemplate(plan) {
-    const body = JSON.parse(plan.advanced[CHAT]);
+    let body;
+    try {
+      body = JSON.parse(plan.advanced[CHAT]);
+    } catch (error) {
+      if (error instanceof SyntaxError) error.promptIssue = "json";
+      throw error;
+    }
     const key = "messages";
     let historyIndex = -1;
     if (Array.isArray(body?.[key])) {
       body[key] = body[key].filter((item, index) => {
         if (typeof item !== "string" || bindingName(plan, WHOLE_TOKEN.exec(item.trim())?.[1]) !== HISTORY_NAME) return true;
-        if (historyIndex !== -1) throw promptError("高级提示词只能放置一次「{{对话历史}}」");
+        if (historyIndex !== -1)
+          throw Object.assign(promptError("高级提示词只能放置一次「{{对话历史}}」"), { promptIssue: "history" });
         historyIndex = index;
         return false;
       });
@@ -276,6 +286,22 @@
     throw promptError("保存对话上下文需要本轮用户消息包含可保存的纯文本");
   }
 
+  function validChatMessage(message) {
+    if (!CHAT_ROLES.has(message?.role)) return false;
+    const { content, role, tool_calls: calls, tool_call_id: toolCallId, function_call: functionCall } = message;
+    if (role === "tool" && (typeof toolCallId !== "string" || !toolCallId.trim())) return false;
+    if (calls !== undefined && (!Array.isArray(calls) || calls.some(call =>
+      typeof call?.id !== "string" || !call.id.trim() || typeof call.type !== "string"))) return false;
+    if (typeof content === "string") return true;
+    if (Array.isArray(content)) return content.length > 0 && content.every(part => {
+      if (part?.type === "text") return typeof part.text === "string";
+      if (part?.type === "image_url") return typeof part.image_url?.url === "string" && !!part.image_url.url.trim();
+      return typeof part?.type === "string" && !!part.type.trim();
+    });
+    return content == null && (role === "function" && typeof message.name === "string" ||
+      role === "assistant" && (calls?.length > 0 || typeof functionCall?.name === "string"));
+  }
+
   /** 调用方按名称提供值，已展开的文本与消息不会再次解释为占位符 */
   function prepare(plan, ai, input, { history, requestHistory, captureTurn = false, displayLanguage } = {}) {
     const values = { ...input, "模型": ai.model, "温度": ai.temperature };
@@ -288,7 +314,10 @@
       const { body: source, key, historyIndex } = advancedTemplate(plan);
       if (history !== undefined && historyIndex === -1)
         throw promptError("请在高级提示词的 " + key + " 数组中添加「{{对话历史}}」");
-      const body = root.STAI.validateBody(expand(source, values), ai.protocol);
+      const expanded = expand(source, values);
+      const issue = root.STAI.bodyIssue(expanded, ai.protocol);
+      if (issue) throw Object.assign(new TypeError(issue), { promptIssue: "format" });
+      const body = clone(expanded);
       const turn = captureTurn ? [...previous, { role: "user", content: userMessage(body[key]) }] : undefined;
       if (historyIndex !== -1 && previous.length) {
         const messages = body[key];
@@ -304,35 +333,30 @@
     return { messages, ...(captureTurn ? { turn } : {}) };
   }
 
-  /** 聊天只提供当前消息、已有消息和内置服务字段。 */
-  function chatInput(plan) {
-    if (!plan?.enabled) return null;
-    try {
-      const names = parameters(plan, CHAT, { validateRequest: true });
-      const field = names.find(name => bindingName(plan, name) === "聊天消息") ?? userParameter(plan);
-      if (names.some(name => name !== field)) return null;
-      if (plan.mode === "advanced") {
-        const { body, historyIndex } = advancedTemplate(plan);
-        const user = body.messages.at(-1);
-        if (!field || historyIndex < 0 || historyIndex >= body.messages.length ||
-            user?.role !== "user" || !templateTokens(user.content).has(field)) return null;
-      } else if (field && !templateTokens(plan.basic.user).has(field)) return null;
-      return { field: names.includes(field) ? field : null };
-    } catch (error) {
-      if (error.name === "SyntaxError" || error.code === "PROMPT_INVALID") return null;
-      throw error;
-    }
-  }
-
+  /** 渲染已启用的聊天模板。当前用户消息必须显式绑定，缺少数据时抛出错误。 */
   function prepareChat(plan, service, text, history, displayLanguage, requestHistory) {
-    const input = chatInput(plan);
-    if (!input) throw Object.assign(new Error("关联提示词无法用于聊天，请重新选择"), { code: "CHAT_PROMPT_UNAVAILABLE" });
-    if (input.field) {
-      const prepared = prepare(plan, service, { [input.field]: text }, { history, displayLanguage, requestHistory });
-      return prepared.messages ?? prepared.body.messages;
+    const names = parameters(plan, service.protocol, { validateRequest: true });
+    const chatFields = names.filter(name => bindingName(plan, name) === CHAT_MESSAGE);
+    let userContent = plan.basic.user;
+    if (plan.mode === "advanced") {
+      const { body, historyIndex } = advancedTemplate(plan);
+      const user = body.messages.at(-1);
+      if (historyIndex < 0 || historyIndex >= body.messages.length)
+        throw promptError("高级提示词需要在最后一条用户消息前放置「{{对话历史}}」", "PROMPT_HISTORY_INVALID");
+      if (user?.role !== "user") throw promptError("高级提示词的最后一条消息必须属于用户", "CHAT_PROMPT_USER_INVALID");
+      userContent = Array.isArray(user.content)
+        ? user.content.filter(part => part?.type === "text" && typeof part.text === "string").map(part => part.text)
+        : typeof user.content === "string" ? user.content : "";
     }
-    const withMessage = { ...plan, basic: { ...plan.basic, user: [plan.basic.user, "{{聊天消息}}"].filter(Boolean).join("\n\n") } };
-    return prepare(withMessage, service, { 聊天消息: text }, { history, displayLanguage, requestHistory }).messages;
+    const userTokens = templateTokens(userContent);
+    if (!chatFields.some(field => userTokens.has(field)))
+      throw promptError("用户提示词缺少「{{聊天消息}}」", "CHAT_PROMPT_MESSAGE_MISSING");
+    const values = Object.fromEntries(chatFields.map(field => [field, text]));
+    const prepared = prepare(plan, service, values, { history, displayLanguage, requestHistory });
+    if (prepared.messages) return prepared.messages;
+    const { messages } = prepared.body;
+    if (!messages.every(validChatMessage)) throw promptError("高级提示词的消息格式无效");
+    return messages;
   }
 
   root.STPromptPlans = Object.freeze({
@@ -350,7 +374,6 @@
     validate,
     resolve,
     prepare,
-    chatInput,
     prepareChat,
   });
 })(globalThis);

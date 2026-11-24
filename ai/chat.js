@@ -99,48 +99,117 @@
   }
 
   let toolApproval;
+  const approvalLabels = {
+    "steam-read": ["ai_chat_approval_steam_read", "读取 Steam 数据"],
+    write: ["ai_chat_approval_steam_write", "Steam 修改"],
+    network: ["workflow_ui_network", "网络"],
+    script: ["workflow_ui_run_javascript", "运行 JavaScript"],
+  };
+  const atTranscriptEnd = () => transcript.scrollHeight - transcript.clientHeight - transcript.scrollTop < 40;
+
   function clearApproval() {
     if (!toolApproval) return;
-    toolApproval.remove();
+    const follow = atTranscriptEnd();
+    send.before(stop);
+    toolApproval.card.remove();
     toolApproval = null;
+    composer.hidden = false;
+    composerView?.syncSize();
+    if (follow) transcript.scrollTop = transcript.scrollHeight;
   }
-  function showApproval(channel, message) {
+  function approvalRows(message, category) {
+    if (message.kind === "write") return message.items.map(item => [
+      `${item.name || "Steam"} · AppID ${item.appId}`,
+      item.sortName ?? item.collections?.map(group => group.name).join("、") ??
+        text("ai_chat_tool_approval_achievements", "保存 $count$ 条成就译文", { count: item.count }),
+    ]);
+    const rows = [], operations = new Map();
+    const { appIds, term } = message.parameters;
+    if (appIds?.length) rows.push([text("ai_chat_approval_app_id", "当前查询 AppID"), appIds.join(", ")]);
+    if (term) rows.push([text("ai_chat_approval_keyword", "搜索词"), term]);
+    for (const operation of message.operations) {
+      const title = operation.kind === category ? "" : text(...approvalLabels[operation.kind]);
+      const detail = operation.kind === "network" ? operation.method + " " + operation.origin
+        : operation.kind === "script" ? operation.owner
+          : operation.account ? text("ai_chat_approval_account", "本次调用可读取当前 Steam 账号的数据")
+            : text("ai_chat_approval_public", "本次调用可读取 Steam 相关公开数据");
+      const key = JSON.stringify([title, detail, operation.code]);
+      if (!operations.has(key)) operations.set(key, [title, detail, operation.code]);
+    }
+    rows.push(...operations.values());
+    return rows;
+  }
+  function showApproval(notice, message, sendDecision) {
     clearApproval();
-    const dialog = document.createElement("dialog"), title = document.createElement("h2");
+    const card = document.createElement("article"), title = document.createElement("h2");
     const definition = STAI.CHAT_TOOLS.find(tool => tool.id === message.toolId);
-    const list = document.createElement("ul"), form = document.createElement("form");
-    const cancel = document.createElement("button"), confirm = document.createElement("button");
-    dialog.className = "chat-tool-approval";
+    const name = message.toolName ?? (definition ? text(definition.label, definition.name) : text("ai_chat_tool_call", "工具调用"));
+    const kinds = new Set(message.kind === "write" ? ["write"] : message.operations.map(operation => operation.kind));
+    const kind = kinds.size === 1 ? kinds.values().next().value : "mixed";
+    const header = document.createElement("header"), category = document.createElement("span");
+    const list = document.createElement("ul"), actions = document.createElement("footer");
+    card.className = "chat-tool-approval";
+    card.dataset.kind = kind;
+    card.tabIndex = -1;
+    category.className = "chat-approval-category";
+    category.textContent = kind === "mixed" ? text("ai_chat_approval_title", "工具授权") : text(...approvalLabels[kind]);
     title.id = "chat-tool-approval-title";
-    title.textContent = text(definition.label, definition.name);
-    dialog.setAttribute("aria-labelledby", title.id);
-    for (const item of message.items) {
-      const row = document.createElement("li"), label = document.createElement("strong");
-      label.textContent = `${item.name || "AppID"} · ${item.appId}`;
-      const detail = document.createElement("span");
-      detail.textContent = item.sortName || item.collections?.map(group => group.name).join("、") ||
-        text("ai_chat_tool_approval_achievements", "翻译 $count$ 条成就", { count: item.count });
-      row.append(label, detail);
+    title.textContent = text("ai_chat_approval_question", "允许「$tool$」执行以下操作？", { tool: name });
+    card.setAttribute("aria-labelledby", title.id);
+    list.tabIndex = 0;
+    list.setAttribute("aria-labelledby", title.id);
+    for (const [label, detail, code] of approvalRows(message, kind)) {
+      const row = document.createElement("li");
+      if (label) {
+        const caption = document.createElement("strong");
+        caption.textContent = label;
+        row.append(caption);
+      }
+      if (detail) {
+        const value = document.createElement("span");
+        value.textContent = detail;
+        row.append(value);
+      }
+      if (code) {
+        const value = document.createElement("code");
+        value.textContent = code;
+        row.append(value);
+      }
       list.append(row);
     }
-    form.method = "dialog";
-    cancel.value = "decline";
-    cancel.autofocus = true;
-    cancel.textContent = text("common_cancel", "取消");
-    confirm.value = "approve";
-    confirm.textContent = text("ai_chat_tool_approval_confirm", "确认修改");
-    form.append(cancel, confirm);
-    dialog.append(title, list, form);
-    dialog.addEventListener("close", () => {
-      if (toolApproval !== dialog) return;
+    function decide(approved) {
+      if (toolApproval?.card !== card) return;
       clearApproval();
-      if (port === channel && pending?.sequence === message.sequence) channel.postMessage({
-        action: "decide-tool", sequence: message.sequence, id: message.id, approved: dialog.returnValue === "approve",
-      });
-    }, { once: true });
-    document.body.append(dialog);
-    toolApproval = dialog;
-    dialog.showModal();
+      notice.dataset.phase = "active";
+      notice.textContent = approved ? text("ai_chat_approval_executing", "正在执行…") : text("ai_chat_approval_declined", "已拒绝本次操作");
+      stop.focus({ preventScroll: true });
+      sendDecision(approved);
+    }
+    for (const [approved, label, shortcut] of [
+      [false, text("ai_chat_approval_reject", "拒绝"), "Esc"],
+      [true, text("ai_chat_approval_once", "允许一次"), "↵"],
+    ]) {
+      const button = document.createElement("button"), key = document.createElement("kbd");
+      button.type = "button";
+      button.className = approved ? "chat-approval-allow" : "";
+      if (!approved) button.setAttribute("aria-keyshortcuts", "Escape");
+      key.textContent = shortcut;
+      key.setAttribute("aria-hidden", "true");
+      button.append(label, key);
+      button.addEventListener("click", () => decide(approved));
+      actions.append(button);
+    }
+    const follow = atTranscriptEnd();
+    header.append(category, stop);
+    card.append(header, title, list, actions);
+    toolApproval = { card, decide };
+    notice.dataset.phase = "tool";
+    notice.textContent = text("ai_chat_approval_waiting", "等待授权");
+    composer.hidden = true;
+    composer.after(card);
+    if (list.scrollHeight <= list.clientHeight) list.removeAttribute("tabindex");
+    card.focus({ preventScroll: true });
+    if (follow) transcript.scrollTop = transcript.scrollHeight;
   }
 
   function connect() {
@@ -151,12 +220,16 @@
       if (message.type === "thread-title") { updateThreadTitle(message.id, message.title); return; }
       if (message.sequence !== pending?.sequence) return;
       const { progress, resolve, reject } = pending;
-      if (message.type === "tool-approval") return showApproval(opened, message);
+      if (message.type === "tool-approval") return progress?.(message, approved => {
+        if (port === opened && pending?.sequence === message.sequence) opened.postMessage({
+          action: "decide-tool", sequence: message.sequence, id: message.id, approved,
+        });
+      });
       if (["delta", "tools", "thinking"].includes(message.type)) return progress?.(message);
       clearApproval();
       pending = null;
       if (message.type === "done") resolve(message.result);
-      else reject(Object.assign(new Error("AI chat operation failed"), { code: message.code }));
+      else reject(Object.assign(new Error("AI chat operation failed"), { code: message.code, parameter: message.parameter }));
     });
     opened.onDisconnect.addListener(() => {
       const reason = chrome.runtime.lastError;
@@ -417,6 +490,7 @@
 
   const toolStates = {
     running: ["ai_chat_tool_running", "查询中"],
+    waiting: ["ai_chat_approval_waiting", "等待授权"],
     done: ["ai_chat_tool_done", "已完成"],
     blocked: ["ai_chat_tool_blocked", "未执行"],
     failed: ["common_failed", "失败"],
@@ -820,13 +894,20 @@
     if (window.parent !== window) window.parent.postMessage({ type: "st-ai-chat-ready" }, "*");
   }
 
-  function failureText(code) {
+  function failureText(code, parameter) {
     const caption = {
       CHAT_STOPPED: ["ai_chat_stopped", "已停止生成"],
       CHAT_TIMEOUT: ["ai_chat_timeout", "请求超时。可以重新发送。"],
       CHAT_CONNECTION_LOST: ["ai_chat_disconnected", "对话连接已断开。可以重新发送。"],
       CHAT_CONTEXT_LIMIT: ["ai_chat_context_limit", "对话上下文过长，请新建对话。"],
       CHAT_PROMPT_UNAVAILABLE: ["ai_chat_prompt_unavailable", "关联提示词不可用，请在「AI 服务 → 对话入口」重新选择。"],
+      CHAT_PROMPT_DISABLED: ["ai_chat_prompt_disabled", "关联提示词已停用，请启用或重新选择。"],
+      CHAT_PROMPT_MESSAGE_MISSING: ["ai_chat_prompt_message_missing", "所选提示词的用户消息缺少「聊天消息」占位符。请在「自动化 → 提示词」中修改。"],
+      PROMPT_HISTORY_INVALID: ["ai_chat_prompt_history_invalid", "请在高级提示词的最后一条用户消息前放置一次「对话历史」占位符。"],
+      CHAT_PROMPT_USER_INVALID: ["ai_chat_prompt_user_invalid", "高级提示词的最后一条消息必须是用户消息。请在「自动化 → 提示词」中修改。"],
+      PROMPT_VALUE_UNAVAILABLE: ["ai_chat_prompt_value_unavailable", "所选提示词缺少「$parameter$」的数据。请修改提示词或重新选择。"],
+      PROMPT_JSON_INVALID: ["ai_chat_prompt_json_invalid", "高级提示词的 JSON 格式无效，请在「自动化 → 提示词」中修改。"],
+      PROMPT_INVALID: ["ai_chat_prompt_invalid", "所选提示词的请求格式无效，请在「自动化 → 提示词」中修改。"],
       CHAT_BUSY: ["ai_chat_busy", "此对话正在另一个窗口生成。"],
       CHAT_CHANGED: ["ai_chat_changed", "此对话已更新，请查看最新记录后重新发送。"],
       CHAT_REASONING_INVALID: ["ai_chat_effort_invalid", "推理设置已失效，请检查 AI 服务和当前模型的推理档位。"],
@@ -838,13 +919,19 @@
       PROVIDER_DISABLED: ["ai_chat_itad_key", "请先在第三方服务中配置 ITAD API Key。"],
       CHAT_TOOL_NOT_ALLOWED: ["ai_chat_tool_not_allowed", "蒸汽机请求了未启用的工具。"],
       CHAT_TOOL_INVALID: ["ai_chat_tool_invalid", "工具请求参数无效。"],
+      CHAT_TOOL_DECLINED: ["ai_chat_approval_declined", "已拒绝本次操作"],
+      CHAT_APPROVAL_STALE: ["ai_chat_approval_stale", "操作范围已变化，本次授权已失效。请重新发送。"],
+      CHAT_APPROVAL_TIMEOUT: ["ai_chat_approval_timeout", "等待授权超时。请重新发送。"],
+      CHAT_APPROVAL_REOPEN: ["ai_chat_approval_reopen", "请重新打开聊天，以处理工具审批。"],
+      WORKFLOW_TOOL_UNAVAILABLE: ["ai_chat_approval_stale", "操作范围已变化，本次授权已失效。请重新发送。"],
+      WORKFLOW_LIBRARY_UNAVAILABLE: ["ai_chat_approval_stale", "操作范围已变化，本次授权已失效。请重新发送。"],
       CHAT_HISTORY_WRITE_FAILED: ["ai_chat_save_failed", "保存对话失败，请检查扩展存储空间。"],
     }[code] || ["ai_chat_failed", "请求失败。可以再次发送或检查 AI 服务设置。"];
-    return text(...caption);
+    return text(...caption, { parameter });
   }
 
   function failed(error, notice = status) {
-    notice.textContent = failureText(error.code);
+    notice.textContent = failureText(error.code, error.parameter);
     if (["AI_HOST_PERMISSION_REQUIRED", "AI_CONFIG_UNAVAILABLE", "PROVIDER_CONFIG_MISSING", "PROVIDER_DISABLED", "CHAT_REASONING_INVALID"].includes(error.code))
       needsSettings = true;
     if (!error.code) log.error("chat-ui-failed", "AI 对话界面操作失败", { error });
@@ -902,7 +989,7 @@
 
     function flush(preview = true) {
       previewTimer = 0;
-      const follow = transcript.scrollHeight - transcript.clientHeight - transcript.scrollTop < 40;
+      const follow = atTranscriptEnd();
       for (const update of updates) {
         if (update.type === "thinking") {
           notice.dataset.phase = "active";
@@ -945,19 +1032,25 @@
 
     return {
       row,
-      progress(update) {
+      progress(update, decide) {
+        if (update.type === "tool-approval") {
+          if (stop.hasAttribute("aria-busy")) return;
+          if (previewTimer) { clearTimeout(previewTimer); flush(); }
+          showApproval(notice, update, decide);
+          return;
+        }
         updates.push(update);
         if (!previewTimer) previewTimer = setTimeout(flush, STREAM_PREVIEW_MS);
       },
       finish(answer, error) {
-        const follow = transcript.scrollHeight - transcript.clientHeight - transcript.scrollTop < 40;
+        const follow = atTranscriptEnd();
         if (previewTimer) clearTimeout(previewTimer);
         flush(false);
         notice.removeAttribute("data-phase");
         finishText(answer?.content);
         if (error) {
           for (const { step, tool } of tools.values()) {
-            if (step.state === "running")
+            if (step.state === "running" || step.state === "waiting")
               replyTool({
                 ...step, state: error.code === "CHAT_STOPPED" ? "stopped" : "failed", errorCode: error.code,
               }, sources, tool);
@@ -975,9 +1068,11 @@
 
   async function submit(event) {
     event.preventDefault();
-    const message = input.value.trim();
+    const draft = input.value;
+    const message = draft.trim();
     if (composerBusy || !message || !service.value || pending || composerView?.hasImages()) return;
     const serviceId = service.value;
+    const approvalMode = composerView?.getApprovalMode() ?? "ask";
     const reasoning = composerView?.getReasoning();
     const serviceRevision = services.find(item => item.id === serviceId)?.revision;
     if (desktop) stashDraft();
@@ -994,7 +1089,7 @@
     syncComposer();
     transcript.scrollTop = transcript.scrollHeight;
     let failure;
-    const request = { id: thread.id, revision: thread.revision, serviceId, text: message, appId,
+    const request = { id: thread.id, revision: thread.revision, serviceId, text: message, appId, approvalMode,
       ...(reasoning !== undefined && { reasoning, serviceRevision }) };
     try {
       thread = await call("send", request, reply.progress);
@@ -1002,7 +1097,7 @@
       if (desktop) drafts.delete(thread.id);
       needsSettings = false;
     } catch (error) {
-      input.value = message;
+      input.value = draft;
       failure = error;
       if (error.code === "CHAT_CHANGED") {
         try {
@@ -1030,6 +1125,7 @@
     for (const node of document.querySelectorAll("[data-text]")) node.textContent = text(node.dataset.text, node.textContent);
     iconControl(toolsTrigger, toolsTrigger.textContent);
     if (pane) mountPane();
+    else stop.title = stop.textContent;
     if (web) mountWeb();
     chrome.storage.onChanged.addListener(onPreferenceChanged);
     const version = toolSyncVersion;
@@ -1071,10 +1167,17 @@
   stop.addEventListener("click", () => {
     stop.disabled = true;
     stop.setAttribute("aria-busy", "true");
+    clearApproval();
     port?.postMessage({ action: "cancel" });
   });
   window.addEventListener("keydown", event => {
     if (event.key !== "Escape" || event.defaultPrevented || event.isComposing || event.keyCode === 229) return;
+    if (toolApproval) {
+      event.preventDefault();
+      event.stopPropagation();
+      toolApproval.decide(false);
+      return;
+    }
     if (composerView?.dismiss()) {
       event.preventDefault();
       return;
@@ -1085,6 +1188,7 @@
     } else if (window.parent !== window) requestClose(event);
   });
   window.addEventListener("pagehide", () => {
+    clearApproval();
     composerView?.dispose();
     chrome.storage.onChanged.removeListener(onPreferenceChanged);
     avatarPort?.close();

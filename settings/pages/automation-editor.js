@@ -49,8 +49,12 @@
     .aw-page-heading{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:16px}.aw-page-heading .page-title{margin:0}.aw-tabs{display:flex;gap:8px;flex-wrap:nowrap;overflow-x:auto;border-bottom:1px solid var(--st-dialog-divider);margin-bottom:16px;scrollbar-width:thin}
     .aw .aw-tabs [role=tab]{position:relative;flex:none;padding:8px 12px;min-height:40px;border:0;border-radius:0;background:transparent;box-shadow:none;color:var(--st-color-text-secondary);font-size:var(--st-font-size-body-small);font-weight:var(--st-font-weight-medium);white-space:nowrap;transition:color var(--st-motion-fast)}
     .aw .aw-tabs [role=tab]:hover{background:transparent;color:var(--st-color-text-primary)}.aw .aw-tabs [role=tab]:focus-visible{outline:2px solid var(--st-color-steam-blue);outline-offset:-4px;box-shadow:none}.aw .aw-tabs [role=tab][aria-selected=true]{color:var(--st-color-steam-blue)}.aw-tabs [aria-selected=true]::after{content:"";position:absolute;inset:auto 12px 0;border-block-end:2px solid currentColor}
-    .aw-list{display:grid;gap:8px}.aw-card{display:flex;align-items:center;gap:12px;padding:12px;border:1px solid var(--st-dialog-border);border-radius:var(--st-radius-md);background:var(--st-color-surface-subtle)}.aw-card>div:first-child{flex:1;min-width:0}.aw-card strong,.aw-card small{display:block;overflow-wrap:anywhere}.aw-card small{margin-top:4px;color:var(--st-color-text-secondary)}.aw-icon{display:inline-grid;place-items:center;width:28px;height:28px;padding:0!important;flex:none}.aw-icon>.aw-command-icon{width:16px;height:16px}.aw-icon[aria-pressed=true]{color:var(--st-color-success)}
-    .aw-card .aw-item-summary{display:flex;gap:4px;align-items:baseline}.aw-item-summary>span{min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}.aw-item-summary>span[aria-hidden]{flex:none}.aw-item-note{flex:0 1 auto}.aw-icon[data-has-note]{color:var(--st-color-steam-blue)}
+    .aw-list{display:grid;grid-template-columns:minmax(0,1fr);gap:8px}.aw-card{display:flex;align-items:center;gap:12px;padding:12px;border:1px solid var(--st-dialog-border);border-radius:var(--st-radius-md);background:var(--st-color-surface-subtle)}.aw-card>div:first-child{flex:1;min-width:0}.aw-card>.aw-tools{flex:none;max-inline-size:50%;justify-content:flex-end}.aw-card strong,.aw-card small{display:block;overflow-wrap:anywhere}.aw-card small{margin-top:4px;color:var(--st-color-text-secondary)}.aw-icon{display:inline-grid;place-items:center;width:28px;height:28px;padding:0!important;flex:none}.aw-icon>.aw-command-icon{width:16px;height:16px}.aw-icon[aria-pressed=true]{color:var(--st-color-success)}
+    .aw-card .aw-item-summary{display:flex;gap:4px;align-items:baseline}.aw-item-summary>span{min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+    .aw-item-summary>span[aria-hidden],.aw-item-meta{flex:none}.aw-item-meta{max-inline-size:100%}.aw-item-meta:has(~.aw-item-note){max-inline-size:calc(100% - 3em)}
+    .aw-item-note{flex:0 1 auto}.aw-item-note:focus-visible{outline:1px solid var(--st-color-steam-blue);outline-offset:1px}
+    .aw-item-note-tip{position:fixed;inset:auto;margin:0;box-sizing:border-box;inline-size:max-content;max-inline-size:min(400px,calc(100vw - 16px));max-block-size:min(280px,var(--aw-note-space,calc(100vh - 16px)));padding:8px 12px;border:1px solid var(--st-dialog-border);border-radius:var(--st-radius-md);background:var(--st-dialog-surface);color:var(--st-color-text-primary);box-shadow:var(--st-shadow-lg);font:inherit;line-height:1.5;white-space:pre-wrap;overflow-wrap:anywhere;overflow:auto;overscroll-behavior:contain}
+    .aw-icon[data-has-note]{color:var(--st-color-steam-blue)}
     .aw-trigger-name{display:flex;align-items:center;gap:8px;min-width:0}.aw-param-dialog .aw-trigger-name>label{flex:1;grid-template-columns:112px minmax(0,1fr);gap:16px;align-items:center}
     @media(max-width:480px){.aw-trigger-name{align-items:end}.aw-param-dialog .aw-trigger-name>label{grid-template-columns:minmax(0,1fr);gap:8px}}
     .aw-empty{padding:32px 16px;text-align:center;color:var(--st-color-text-secondary);border:1px dashed var(--st-dialog-border);border-radius:var(--st-radius-md)}.aw-error{color:var(--st-color-danger-text);white-space:pre-wrap;overflow-wrap:anywhere;margin-top:8px}.aw-error:empty{display:none}.aw-note{color:var(--st-color-text-secondary);font-size:var(--st-font-size-caption)}
@@ -402,8 +406,7 @@
       openWorkflowParameters(workflow);
       referenceIssues.push(...importReferenceIssues(workflow));
     }
-    const issues = [...referenceIssues, ...toolIssues(workflow, state.bundle.tools || []),
-      ...libraryIssues(workflow, state.bundle.libraries).filter(issue => issue.severity !== "warning")];
+    const issues = [...referenceIssues, ...toolIssues(workflow, state.bundle.tools || []), ...libraryIssues(workflow, state.bundle.libraries)];
     const calls = [...flow.walk(workflow.steps)].filter(node => node.action === "ai-call");
     if (calls.length) {
       const registry = await state.ctx.storage.getAi();
@@ -997,7 +1000,7 @@
       ["http-request", "script", "ai-call", "library-call"].includes(node.action) || executesTool(node));
     const libraries = new Map();
     if (nodes.some(node => node.action === "library-call"))
-      for (const library of editor.customLibraries) if (library.enabled) libraries.set(library.id, library);
+      for (const library of editor.customLibraries) libraries.set(library.id, library);
     if (editor.runtimeSites.size) {
       const byId = new Map(nodes.map(node => [node.id, node]));
       for (const [id, site] of editor.runtimeSites) {
@@ -1071,10 +1074,8 @@
     const byId = new Map(libraries.map(library => [library.id, library]));
     return [...flow.walk(workflow.steps)].flatMap(node => {
       if (node.action !== "library-call") return [];
-      const library = byId.get(node.libraryId);
-      const issue = model.libraryBindingIssue(library, node, workflow);
-      if (issue) return [Object.assign(issue, { nodeId: node.id })];
-      return library.enabled ? [] : [{ nodeId: node.id, severity: "warning", message: tr("workflow_library_disabled", "自定义库已停用") }];
+      const issue = model.libraryBindingIssue(byId.get(node.libraryId), node, workflow);
+      return issue ? [Object.assign(issue, { nodeId: node.id })] : [];
     });
   }
   function inspectorIssues(editor) {
@@ -1416,7 +1417,6 @@
     root.addEventListener("resize", () => close(), { signal: lifetime.signal });
   }
   const toolTitle = () => tr("workflow_tool_title", "工具");
-  const toolTestLabel = () => tr("workflow_tool_test", "测试工具");
   const toolNameLabel = () => tr("workflow_tool_name", "工具名称");
   const toolDescriptionLabel = () => tr("workflow_tool_description", "工具描述");
   const toolTypeLabel = type => ({ string: tools.typeNames.text, integer: tr("workflow_tool_integer", "整数"), number: tools.typeNames.number,
@@ -1765,7 +1765,7 @@
   }
   function previewPlan(definition, { libraries = [], tools = [] } = {}) {
     const libraryVersions = {}, toolVersions = {}, steps = new Set(), scripts = new Set(), visited = new Set();
-    const definitions = new Map([...libraries, ...tools].filter(item => item.enabled).map(item => [item.id, item]));
+    const definitions = new Map([...libraries, ...tools.filter(tool => tool.enabled)].map(item => [item.id, item]));
     // 确认提示与发送给后台的版本取自同一份定义
     function collect(owner, scriptNetworkAllowed) {
       const key = owner.id + ":" + scriptNetworkAllowed;
@@ -1826,72 +1826,11 @@
     const text = entry.text ?? view().errorCaption(entry);
     return entry.libraryNodeId ? `${entry.libraryNodeId} · ${text}` : text;
   }
-  async function testToolDialog(state, tool) {
-    const library = flow.isLibraryId(tool.id);
-    tool = library ? model.validateLibrary(tool) : model.validateTool(tool);
-    let dialog, start, plan, closed = false, runId = null;
-    async function run() {
-      const id = crypto.randomUUID(), output = dialog.querySelector("[data-test-result]");
-      runId = id; start.textContent = tr("workflow_ui_stop_test", "停止试运行");
-      output.textContent = tr("workflow_ui_running", "正在运行…");
-      try {
-        const inputs = readToolSamples(dialog, tool);
-        const result = await view().rpc(library ? "test-library" : "test-tool", { id, tool, inputs, ...plan.request });
-        if (runId !== id || !dialog.isConnected) return;
-        const outcome = result.uncertain ? tr("workflow_script_preview_uncertain", "试运行已停止，已发送的写请求结果待核实")
-          : result.cancelled ? tr("workflow_ui_test_stopped", "试运行已停止")
-            : result.error ? previewEntryText(result.error) : JSON.stringify(result.value, null, 2);
-        output.textContent = [outcome, ...(result.entries ?? []).map(previewEntryText),
-          ...(result.steps ?? []).map(step => `${step.nodeId} · ${instructions.name(step.action)} · ${step.status === "success" ? tr("workflow_ui_run_completed", "运行完成") : tr("workflow_ui_run_failed", "运行失败")} ×${step.count}`)].join("\n");
-      } catch (error) {
-        if (runId === id && dialog.isConnected) output.textContent = view().errorCaption(error);
-      } finally {
-        if (runId === id) { runId = null; start.textContent = tr("workflow_ui_run", "运行"); }
-      }
-    }
-    try {
-      const done = state.ctx.dialog(state.shadow, {
-        title: library ? tr("workflow_library_test", "试运行自定义库") : toolTestLabel(), className: "aw-param-dialog", form: true,
-        render(node) {
-          dialog = node;
-          formHtml(node, `<div class="aw aw-form"><div data-preview-notice hidden></div>${toolSampleFields(tool)}
-            <pre class="aw-pre" data-test-result role="status"></pre></div>`);
-        },
-        actions: [{ id: "cancel", label: tr("common_close", "关闭") }, { id: "run", label: tr("workflow_ui_run", "运行"), primary: true }],
-        renderFooter(footer) {
-          start = footer.querySelector('[data-dialog-action="run"]');
-          start.disabled = true;
-        },
-        onAction(action) {
-          if (action !== "run") return true;
-          if (!plan) return false;
-          if (runId) void view().rpc("cancel-instruction-test", { id: runId }).catch(error => reportFailure(error, dialog.querySelector("[data-test-result]")));
-          else void run();
-          return false;
-        },
-      });
-      if (dialog && start) void (async () => {
-        const bundle = await state.ctx.storage.getWorkflow();
-        if (closed || !dialog.isConnected) return;
-        const current = await toolPreview(tool, bundle);
-        if (closed || !dialog.isConnected) return;
-        plan = current;
-        const notice = dialog.querySelector("[data-preview-notice]");
-        const markup = toolSampleNotice(plan);
-        html(notice, markup);
-        notice.hidden = !markup.trim();
-        start.disabled = false;
-      })().catch(error => reportFailure(error, closed ? null : dialog.querySelector("[data-test-result]")));
-      await done;
-    } finally {
-      closed = true;
-      if (runId) { const id = runId; runId = null; await view().rpc("cancel-instruction-test", { id }); }
-    }
-  }
   async function editorToolSamples(state, tool, plan) {
     if (!tool.parameters.length && !plan.request.confirmNetwork && !plan.providers.length) return {};
     let inputs;
-    const answer = await state.ctx.dialog(state.shadow, { title: toolTestLabel(), className: "aw-param-dialog", form: true,
+    const title = flow.isLibraryId(tool.id) ? tr("workflow_library_test", "试运行自定义库") : tr("workflow_tool_test", "测试工具");
+    const answer = await state.ctx.dialog(state.shadow, { title, className: "aw-param-dialog", form: true,
       render: node => formHtml(node, `<div class="aw aw-form">${toolSampleNotice(plan)}${toolSampleFields(tool)}<div class="aw-error" role="alert"></div></div>`),
       actions: [{ id: "cancel", label: tr("common_cancel", "取消") }, { id: "run", label: tr("workflow_ui_run", "运行"), primary: true }],
       onAction(action, node) {
@@ -1918,7 +1857,7 @@
       if (executesTool(node)) changed.add(node.id);
       if (node.action !== "library-call") continue;
       const before = previous.get(node.libraryId), after = current.get(node.libraryId);
-      if (before?.enabled !== after?.enabled || before?.revision !== after?.revision || before?.executionId !== after?.executionId)
+      if (before?.revision !== after?.revision || before?.executionId !== after?.executionId)
         changed.add(node.id);
     }
     editor.customLibraries = libraries;
@@ -2875,7 +2814,7 @@
         if (key === "library-call") {
           const libraries = editor.customLibraries, library = libraries.find(item => item.id === working.libraryId);
           content += prop(tr("workflow_libraries_tab", "自定义库"), "libraryId", working.libraryId,
-            [["", tr("common_select", "请选择")], ...libraries.map(item => [item.id, item.name, !item.enabled && item.id !== working.libraryId])]);
+            [["", tr("common_select", "请选择")], ...libraries.map(item => [item.id, item.name])]);
           for (const field of library?.parameters ?? []) {
             const fieldId = field.variableId, path = "libraryInputs." + fieldId;
             if (!field.required) content += `<label class="aw-trigger-check"><input type="checkbox" data-library-input="${esc(fieldId)}" ${Object.hasOwn(working.libraryInputs, fieldId) ? "checked" : ""}>${esc(field.name)}</label>`;
@@ -3955,7 +3894,7 @@
       return [tr("workflow_format_line", "第 $count$ 行", { count: number }), name, view().errorCaption(issue)].join(" · ");
     });
     const importLabel = tr("workflow_tool_import", "导入 AI 工具");
-    if (issues.some(issue => issue.severity !== "warning")) {
+    if (issues.length) {
       await state.ctx.dialog(state.shadow, {
         title: importLabel,
         message: [tool.name, ...dependencyDetails, tr("workflow_library_import_dependency", "请先导入所需的自定义库，核对字段后再导入 AI 工具。")].join("\n"),
@@ -4028,13 +3967,12 @@
     return `<div class="aw-toolbar"><span>${esc(count)}</span>
       <div class="aw-tools">${button(prefix + "import", importLabel)}${button(prefix + "new", newLabel, 'class="aw-primary"', "plus")}</div></div><div class="aw-list">
       ${library.map(tool => `<div class="aw-card" data-id="${esc(tool.id)}"><div><strong>${esc(tool.name)}</strong>
-        ${view().itemSummary([...(flow.isProviderToolId(tool.id) ? [tr("workflow_tool_builtin", "内置")] : []),
-          tool.enabled ? tr("common_enable", "启用") : tr("common_disable", "停用")].join(" · "), tool.note)}</div>
+        ${view().itemSummary(inLibrary ? "" : [flow.isProviderToolId(tool.id) && tr("workflow_tool_builtin", "内置"),
+          tool.enabled ? tr("common_enable", "启用") : tr("common_disable", "停用")].filter(Boolean).join(" · "), tool.note)}</div>
         <div class="aw-tools">
           ${iconButton(prefix + "edit", editLabel + " " + tool.name, "pencil")}
-          ${iconButton(prefix + "test", (inLibrary ? tr("workflow_ui_run", "运行") : toolTestLabel()) + " " + tool.name, "player-play")}
           ${!inLibrary && [...flow.walk(tool.steps, true)].some(node => node.keyHeader) ? iconButton("tool-key", tr("workflow_tool_credentials", "本机密钥") + " " + tool.name, "key") : ""}
-          ${iconButton(prefix + "toggle", (tool.enabled ? tr("common_disable", "停用") : tr("common_enable", "启用")) + " " + tool.name, tool.enabled ? "circle-check" : "circle-off", `aria-pressed="${tool.enabled}"`)}
+          ${inLibrary ? "" : iconButton("tool-toggle", (tool.enabled ? tr("common_disable", "停用") : tr("common_enable", "启用")) + " " + tool.name, tool.enabled ? "circle-check" : "circle-off", `aria-pressed="${tool.enabled}"`)}
           ${iconButton(prefix + "copy", tr("common_copy", "复制") + " " + tool.name, "copy")}
           ${iconButton(prefix + "export", tr("common_export", "导出") + " " + tool.name, "download")}
           ${iconButton(prefix + "delete", tr("common_delete", "删除") + " " + tool.name, "trash")}
@@ -4047,7 +3985,6 @@
     if (index < 0) return;
     const tool = next.tools[index];
     if (action === "tool-edit") return editWorkflow(state, tool);
-    if (action === "tool-test") return testToolDialog(state, tool);
     if (action === "tool-key") return editToolCredential(state, tool);
     if (action === "tool-export") return downloadJson({ type: "steam-buff-tool", schemaVersion: 1, tool }, tool.name, ".tool.json");
     if (action === "tool-copy") {
@@ -4119,28 +4056,82 @@
     if (index < 0) return;
     const library = next.libraries[index];
     if (action === "library-edit") return editWorkflow(state, library);
-    if (action === "library-test") return testToolDialog(state, library);
     if (action === "library-export") return downloadJson({ type: "steam-buff-library", schemaVersion: 1, library }, library.name, ".library.json");
     if (action === "library-copy") {
       library.id = model.newLibrary(library.name).id; library.name = tools.copyName(library.name);
-      library.enabled = false; library.revision = 1;
+      library.revision = 1;
       return saveLibraryDefinition(state, library);
     }
-    if (action === "library-toggle") library.enabled = !library.enabled;
-    else if (action === "library-delete") {
-      const refs = libraryReferences(next, id);
-      if (refs.length) {
-        return state.ctx.dialog(state.shadow, { title: tr("workflow_library_in_use", "自定义库正在使用"),
-          message: referencesText(refs).join("\n"), actions: [{ id: "close", label: tr("common_close", "关闭") }] });
-      }
-      if (!await confirmDelete(state, tr("workflow_library_delete", "删除自定义库"),
-        tr("workflow_tool_delete_confirm", "将删除「$name$」。", { name: library.name }))) return;
-      next.libraries.splice(index, 1);
-    } else return;
+    if (action !== "library-delete") return;
+    const refs = libraryReferences(next, id);
+    if (refs.length) {
+      return state.ctx.dialog(state.shadow, { title: tr("workflow_library_in_use", "自定义库正在使用"),
+        message: referencesText(refs).join("\n"), actions: [{ id: "close", label: tr("common_close", "关闭") }] });
+    }
+    if (!await confirmDelete(state, tr("workflow_library_delete", "删除自定义库"),
+      tr("workflow_tool_delete_confirm", "将删除「$name$」。", { name: library.name }))) return;
+    next.libraries.splice(index, 1);
     await save(state, next);
+  }
+  function bindItemNoteTips(node) {
+    let anchor, tip, lifetime;
+    const close = () => {
+      lifetime?.abort();
+      tip?.remove();
+      anchor = tip = lifetime = null;
+    };
+    const open = event => {
+      const note = event.target.closest(".aw-item-note");
+      if (!note || note === anchor || note.scrollWidth <= note.clientWidth) return;
+      close();
+      anchor = note;
+      tip = node.ownerDocument.createElement("div");
+      tip.className = "aw-item-note-tip";
+      tip.popover = "auto";
+      tip.tabIndex = -1;
+      tip.setAttribute("aria-hidden", "true");
+      tip.textContent = note.textContent;
+      note.closest("[data-aw-panel]").append(tip);
+      tip.showPopover();
+      const { left, top, bottom } = note.getBoundingClientRect();
+      const { clientWidth, clientHeight } = node.ownerDocument.documentElement;
+      const above = top - 8, below = clientHeight - bottom - 8;
+      const placeAbove = tip.offsetHeight > below && above > below;
+      tip.style.setProperty("--aw-note-space", Math.max(0, placeAbove ? above : below) + "px");
+      tip.style.left = Math.max(8, Math.min(left, clientWidth - tip.offsetWidth - 8)) + "px";
+      tip.style.top = (placeAbove ? top - tip.offsetHeight : bottom) + "px";
+      lifetime = new AbortController();
+      const signal = lifetime.signal, popup = tip;
+      popup.addEventListener("toggle", event => {
+        if (event.newState === "closed" && tip === popup) close();
+      }, { signal });
+      const observer = new ResizeObserver(() => {
+        if (tip === popup && (!note.isConnected || !note.clientWidth)) close();
+      });
+      observer.observe(note);
+      signal.addEventListener("abort", () => observer.disconnect(), { once: true });
+      root.addEventListener("resize", close, { signal });
+      node.closest(".body")?.addEventListener("scroll", close, { passive: true, signal });
+    };
+    node.addEventListener("pointerover", open);
+    node.addEventListener("focusin", open);
+    node.addEventListener("pointerout", event => {
+      if (!tip || event.target !== anchor && !tip.contains(event.target)) return;
+      if (event.relatedTarget !== anchor && !tip.contains(event.relatedTarget) && node.getRootNode().activeElement !== anchor) close();
+    });
+    node.addEventListener("focusout", event => {
+      if (event.target === anchor && !anchor.matches(":hover") && !tip.matches(":hover")) close();
+    });
+    node.addEventListener("keydown", event => {
+      if (!tip || event.target !== anchor || tip.scrollHeight <= tip.clientHeight || event.altKey || event.ctrlKey || event.metaKey) return;
+      const offset = { ArrowUp: -40, ArrowDown: 40, PageUp: -tip.clientHeight, PageDown: tip.clientHeight, Home: -tip.scrollHeight, End: tip.scrollHeight };
+      if (Object.hasOwn(offset, event.key)) { event.preventDefault(); tip.scrollTop += offset[event.key]; }
+    });
+    return close;
   }
   function renderPage(state) {
     const { node, bundle, tab } = state;
+    state.closeNoteTip?.();
     if (!node.isConnected) return;
     if (!node.querySelector("[data-aw-panel]")) html(node, `<div class="aw"><div class="aw-page-heading"><h2 class="page-title">${esc(root.STI18n.text("settings.page.automation.name", "自动化"))}</h2>${button("reset", tr("workflow_ui_restore_defaults", "恢复初始化"))}</div>
       <div class="aw-tabs aw-module-tabs" role="tablist" aria-label="${esc(tr("workflow_ui_automation_pages", "自动化页面"))}">${tabs().map(([id, name]) => button("tab", name, `id="aw-tab-${id}" data-tab="${id}" role="tab" aria-selected="${tab === id}" tabindex="${tab === id ? 0 : -1}"`)).join("")}</div>
@@ -4312,6 +4303,7 @@
     pageStates.set(node, state);
     state.render = () => renderPage(state);
     renderPage(state);
+    state.closeNoteTip = bindItemNoteTips(node);
     if (configError) node.querySelector("[data-page-error]").textContent = view().validationCaption(configError);
     node.addEventListener("click", event => {
       const control = event.target.closest("[data-aw],[data-wf]"); if (!control || control.disabled) return;

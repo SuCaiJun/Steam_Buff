@@ -1052,7 +1052,16 @@
       kind: "ai-services",
       items: Object.freeze([
         { id: "ai", name: "AI 模块", desc: "控制 AI 请求是否可用。", area: "settings", enabled: false },
-        { id: "ai-chat-prompt", name: "关联提示词", area: "settings", control: "prompt", default: "" },
+        {
+          id: "ai-chat-prompt",
+          name: "关联提示词",
+          nameKey: "settings_ai_chat_prompt",
+          desc: "选择蒸汽姬对话使用的提示词。",
+          descKey: "settings_ai_chat_prompt_desc",
+          area: "settings",
+          control: "prompt",
+          default: "P-7",
+        },
         {
           id: "ai-chat-web",
           name: "网页 AI 对话入口",

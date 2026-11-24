@@ -10647,11 +10647,8 @@
   "workflow_command_steam_account_wishlist_hint": {
     "message": "List your Steam wishlist with dates added, regional price, discounts, and Steam historical lows. Use nextStart to advance."
   },
-  "ai_chat_tool_approval_confirm": {
-    "message": "Confirm changes"
-  },
   "ai_chat_tool_approval_achievements": {
-    "message": "Translate $count$ achievements",
+    "message": "Save $count$ achievement translations",
     "placeholders": {
       "count": {
         "content": "$1"
@@ -11088,14 +11085,40 @@
   "settings_ai_chat_prompt": {
     "message": "Linked prompt"
   },
-  "settings_ai_chat_prompt_default": {
-    "message": "Default chat prompt"
+  "settings_ai_chat_prompt_desc": {
+    "message": "Choose the prompt used for Steam Buff AI chats."
   },
   "settings_ai_chat_preferences_error": {
     "message": "Could not load or save settings. Please try again."
   },
   "ai_chat_prompt_unavailable": {
     "message": "The linked prompt is unavailable. Select another one in AI Services → Chat Entry."
+  },
+  "ai_chat_prompt_disabled": {
+    "message": "The linked prompt is disabled. Enable it or select another prompt."
+  },
+  "ai_chat_prompt_message_missing": {
+    "message": "The selected prompt's user message is missing the Chat message placeholder. Edit it in Automation → Prompts."
+  },
+  "ai_chat_prompt_history_invalid": {
+    "message": "Place one Conversation history placeholder before the final user message in the advanced prompt."
+  },
+  "ai_chat_prompt_user_invalid": {
+    "message": "The final message in an advanced prompt must be a user message. Edit it in Automation → Prompts."
+  },
+  "ai_chat_prompt_value_unavailable": {
+    "message": "The selected prompt is missing data for “$parameter$”. Edit the prompt or select another one.",
+    "placeholders": {
+      "parameter": {
+        "content": "$1"
+      }
+    }
+  },
+  "ai_chat_prompt_json_invalid": {
+    "message": "The advanced prompt contains invalid JSON. Edit it in Automation → Prompts."
+  },
+  "ai_chat_prompt_invalid": {
+    "message": "The selected prompt has an invalid request format. Edit it in Automation → Prompts."
   },
   "settings_ai_entry_section": {
     "message": "Chat entry points"
@@ -11154,20 +11177,79 @@
   "ai_chat_remove_image": {
     "message": "Remove image"
   },
-  "ai_chat_approval_preview": {
-    "message": "Approval mode preview"
+  "ai_chat_approval_mode": {
+    "message": "Approval mode"
   },
   "ai_chat_approval_request": {
     "message": "Request approval"
   },
   "ai_chat_approval_request_description": {
-    "message": "Always ask before running tools that make changes."
+    "message": "Ask before reading or changing Steam data, making network requests, or running scripts."
+  },
+  "ai_chat_approval_read_only": {
+    "message": "Read-only access"
+  },
+  "ai_chat_approval_read_only_description": {
+    "message": "Allow reads and network requests. Ask before changing Steam data or running scripts."
   },
   "ai_chat_approval_full": {
     "message": "Full access"
   },
   "ai_chat_approval_full_description": {
-    "message": "Run any tool without restrictions."
+    "message": "Run enabled tools without prompts, including Steam changes, network requests, and scripts."
+  },
+  "ai_chat_approval_title": {
+    "message": "Tool approval"
+  },
+  "ai_chat_approval_question": {
+    "message": "Allow “$tool$” to perform these actions?",
+    "placeholders": {
+      "tool": {
+        "content": "$1"
+      }
+    }
+  },
+  "ai_chat_approval_steam_read": {
+    "message": "Read Steam data"
+  },
+  "ai_chat_approval_steam_write": {
+    "message": "Change Steam data"
+  },
+  "ai_chat_approval_keyword": {
+    "message": "Current search term"
+  },
+  "ai_chat_approval_app_id": {
+    "message": "Current AppID query"
+  },
+  "ai_chat_approval_account": {
+    "message": "This call can read data from the current Steam account"
+  },
+  "ai_chat_approval_public": {
+    "message": "This call can read public Steam-related data"
+  },
+  "ai_chat_approval_executing": {
+    "message": "Running…"
+  },
+  "ai_chat_approval_declined": {
+    "message": "Action declined"
+  },
+  "ai_chat_approval_reject": {
+    "message": "Decline"
+  },
+  "ai_chat_approval_once": {
+    "message": "Allow once"
+  },
+  "ai_chat_approval_waiting": {
+    "message": "Waiting for approval"
+  },
+  "ai_chat_approval_stale": {
+    "message": "The operation changed while awaiting approval. Submit a new request."
+  },
+  "ai_chat_approval_timeout": {
+    "message": "Approval timed out. Try again."
+  },
+  "ai_chat_approval_reopen": {
+    "message": "Reopen the chat to approve tool actions."
   },
   "ai_chat_context_window": {
     "message": "Context usage"
@@ -14474,9 +14556,6 @@
   },
   "workflow_library_output_add": {
     "message": "Add output"
-  },
-  "workflow_library_disabled": {
-    "message": "Library item disabled"
   },
   "workflow_library_definition_invalid": {
     "message": "Invalid library name, inputs, or outputs"

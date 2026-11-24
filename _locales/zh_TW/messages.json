@@ -10647,11 +10647,8 @@
   "workflow_command_steam_account_wishlist_hint": {
     "message": "查詢目前帳號願望清單的加入日期、區域價格、折扣與歷史最低價，可分頁查看。"
   },
-  "ai_chat_tool_approval_confirm": {
-    "message": "確認修改"
-  },
   "ai_chat_tool_approval_achievements": {
-    "message": "翻譯 $count$ 條成就",
+    "message": "儲存 $count$ 條成就譯文",
     "placeholders": {
       "count": {
         "content": "$1"
@@ -11088,14 +11085,40 @@
   "settings_ai_chat_prompt": {
     "message": "關聯提示詞"
   },
-  "settings_ai_chat_prompt_default": {
-    "message": "預設聊天提示詞"
+  "settings_ai_chat_prompt_desc": {
+    "message": "選擇蒸汽姬對話使用的提示詞。"
   },
   "settings_ai_chat_preferences_error": {
     "message": "讀取或儲存設定失敗，請重試。"
   },
   "ai_chat_prompt_unavailable": {
     "message": "關聯提示詞無法使用，請到「AI 服務 → 對話入口」重新選擇。"
+  },
+  "ai_chat_prompt_disabled": {
+    "message": "關聯提示詞已停用，請啟用或重新選擇。"
+  },
+  "ai_chat_prompt_message_missing": {
+    "message": "所選提示詞的使用者訊息缺少「聊天訊息」預留位置。請在「自動化 → 提示詞」中修改。"
+  },
+  "ai_chat_prompt_history_invalid": {
+    "message": "請在進階提示詞的最後一則使用者訊息前放置一次「對話歷史」預留位置。"
+  },
+  "ai_chat_prompt_user_invalid": {
+    "message": "進階提示詞的最後一則訊息必須是使用者訊息。請在「自動化 → 提示詞」中修改。"
+  },
+  "ai_chat_prompt_value_unavailable": {
+    "message": "所選提示詞缺少「$parameter$」的資料。請修改提示詞或重新選擇。",
+    "placeholders": {
+      "parameter": {
+        "content": "$1"
+      }
+    }
+  },
+  "ai_chat_prompt_json_invalid": {
+    "message": "進階提示詞的 JSON 格式無效，請在「自動化 → 提示詞」中修改。"
+  },
+  "ai_chat_prompt_invalid": {
+    "message": "所選提示詞的請求格式無效，請在「自動化 → 提示詞」中修改。"
   },
   "settings_ai_entry_section": {
     "message": "對話入口"
@@ -11154,20 +11177,79 @@
   "ai_chat_remove_image": {
     "message": "移除圖片"
   },
-  "ai_chat_approval_preview": {
-    "message": "審批模式預覽"
+  "ai_chat_approval_mode": {
+    "message": "審批模式"
   },
   "ai_chat_approval_request": {
     "message": "請求審批"
   },
   "ai_chat_approval_request_description": {
-    "message": "呼叫修改類工具時始終詢問"
+    "message": "讀取或修改 Steam 資料、傳送網路請求、執行指令碼前詢問。"
+  },
+  "ai_chat_approval_read_only": {
+    "message": "唯讀存取"
+  },
+  "ai_chat_approval_read_only_description": {
+    "message": "可直接查詢與連線，修改 Steam 資料或執行指令碼前詢問。"
   },
   "ai_chat_approval_full": {
     "message": "完全存取"
   },
   "ai_chat_approval_full_description": {
-    "message": "可不受限制地呼叫任何工具"
+    "message": "直接執行已啟用的工具，包括修改 Steam 資料、網路請求和指令碼。"
+  },
+  "ai_chat_approval_title": {
+    "message": "工具授權"
+  },
+  "ai_chat_approval_question": {
+    "message": "允許「$tool$」執行下列操作？",
+    "placeholders": {
+      "tool": {
+        "content": "$1"
+      }
+    }
+  },
+  "ai_chat_approval_steam_read": {
+    "message": "讀取 Steam 資料"
+  },
+  "ai_chat_approval_steam_write": {
+    "message": "修改 Steam 資料"
+  },
+  "ai_chat_approval_keyword": {
+    "message": "目前搜尋詞"
+  },
+  "ai_chat_approval_app_id": {
+    "message": "目前查詢 AppID"
+  },
+  "ai_chat_approval_account": {
+    "message": "這次呼叫可讀取目前 Steam 帳號的資料"
+  },
+  "ai_chat_approval_public": {
+    "message": "這次呼叫可讀取 Steam 相關公開資料"
+  },
+  "ai_chat_approval_executing": {
+    "message": "正在執行…"
+  },
+  "ai_chat_approval_declined": {
+    "message": "已拒絕這次操作"
+  },
+  "ai_chat_approval_reject": {
+    "message": "拒絕"
+  },
+  "ai_chat_approval_once": {
+    "message": "允許一次"
+  },
+  "ai_chat_approval_waiting": {
+    "message": "等待授權"
+  },
+  "ai_chat_approval_stale": {
+    "message": "待審批的操作已變更，請重新發出請求。"
+  },
+  "ai_chat_approval_timeout": {
+    "message": "等待授權逾時，請重試。"
+  },
+  "ai_chat_approval_reopen": {
+    "message": "請重新開啟聊天以處理工具審批。"
   },
   "ai_chat_context_window": {
     "message": "上下文用量"
@@ -14474,9 +14556,6 @@
   },
   "workflow_library_output_add": {
     "message": "新增輸出"
-  },
-  "workflow_library_disabled": {
-    "message": "自訂庫已停用"
   },
   "workflow_library_definition_invalid": {
     "message": "自訂庫的名稱、輸入或輸出定義無效"

@@ -210,7 +210,6 @@
 
   const isServiceId = (id) => typeof id === "string" && /^AI-(?:0|[1-9][0-9]{0,19})$/.test(id);
   const isPromptId = (id) => typeof id === "string" && /^P-[1-9][0-9]{0,19}$/.test(id);
-  const isChatPromptId = id => id === "" || isPromptId(id);
   const CHAT_ENTRY_FEATURES = Object.freeze(["ai-chat-web", "ai-chat-main", "ai-chat-friends"]);
 
   /** 随机编号避免按现有最大值编号时复用已删除的引用。低位编号保留给预置方案 */
@@ -810,6 +809,7 @@
   ].map(([key, name, description, properties, required, writes = false]) => [key, Object.freeze({
     id: PROVIDER_TOOL_IDS[key], label: "ai_chat_tool_" + key, name, description, properties, required, writes,
   })])));
+  const CHAT_APPROVAL_MODES = Object.freeze(["ask", "read-only", "full"]);
   const CHAT_TOOLS = Object.freeze([
     Object.freeze({ id: PROVIDER_TOOL_IDS.game, label: "ai_chat_tool_game", name: "Steam 游戏资料", description: "按 AppID 查询 Steam 商店公开游戏资料。" }),
     Object.freeze({ id: PROVIDER_TOOL_IDS.players, label: "ai_chat_tool_players", name: "Steam 在线人数", description: "按 AppID 查询当前在线人数。" }),
@@ -888,7 +888,6 @@
     DEFAULT_SERVICE_ID,
     MANUAL_TASKS,
     PRESET_PROMPTS,
-    isChatPromptId,
     CHAT_ENTRY_FEATURES,
     SERVICE_FIELDS,
     TRANSLATION,
@@ -922,7 +921,7 @@
     modelListIssue,
     hostPermissionPattern,
     chatRequest,
-    CHAT_TOOLS, ACCOUNT_TOOLS, PROVIDER_TOOL_IDS, TOOL_APP_ID_MAX, isToolAppId, STORE_SEARCH_TOOL_ID, STORE_SEARCH_PROPERTIES, toolSchema,
+    CHAT_TOOLS, CHAT_APPROVAL_MODES, ACCOUNT_TOOLS, PROVIDER_TOOL_IDS, TOOL_APP_ID_MAX, isToolAppId, STORE_SEARCH_TOOL_ID, STORE_SEARCH_PROPERTIES, toolSchema,
     validateChatToolIds, chatToolsFromWorkflow,
     chatBody,
     chatText,

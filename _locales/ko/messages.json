@@ -10647,11 +10647,8 @@
   "workflow_command_steam_account_wishlist_hint": {
     "message": "내 Steam 찜 목록의 추가 날짜, 지역별 가격, 할인율, 역대 최저가를 페이지별로 확인합니다."
   },
-  "ai_chat_tool_approval_confirm": {
-    "message": "변경 확인"
-  },
   "ai_chat_tool_approval_achievements": {
-    "message": "도전 과제 $count$개 번역",
+    "message": "도전 과제 번역 $count$개 저장",
     "placeholders": {
       "count": {
         "content": "$1"
@@ -11088,14 +11085,40 @@
   "settings_ai_chat_prompt": {
     "message": "연결할 프롬프트"
   },
-  "settings_ai_chat_prompt_default": {
-    "message": "기본 채팅 프롬프트"
+  "settings_ai_chat_prompt_desc": {
+    "message": "Steam Buff AI 채팅에서 사용할 프롬프트를 선택합니다."
   },
   "settings_ai_chat_preferences_error": {
     "message": "설정을 불러오거나 저장하지 못했습니다. 다시 시도하세요."
   },
   "ai_chat_prompt_unavailable": {
     "message": "연결한 프롬프트를 사용할 수 없습니다. AI 서비스 → 채팅 진입점에서 다시 선택하세요."
+  },
+  "ai_chat_prompt_disabled": {
+    "message": "연결한 프롬프트가 비활성화되어 있습니다. 활성화하거나 다른 프롬프트를 선택하세요."
+  },
+  "ai_chat_prompt_message_missing": {
+    "message": "사용자 메시지에 ‘채팅 메시지’ 자리표시자가 없습니다. ‘자동화 → 프롬프트’에서 수정하세요."
+  },
+  "ai_chat_prompt_history_invalid": {
+    "message": "고급 프롬프트의 마지막 사용자 메시지 앞에 ‘대화 내역’ 자리표시자를 하나 넣으세요."
+  },
+  "ai_chat_prompt_user_invalid": {
+    "message": "고급 프롬프트의 마지막 메시지는 사용자 메시지여야 합니다. ‘자동화 → 프롬프트’에서 수정하세요."
+  },
+  "ai_chat_prompt_value_unavailable": {
+    "message": "선택한 프롬프트에 ‘$parameter$’ 데이터가 없습니다. 프롬프트를 수정하거나 다시 선택하세요.",
+    "placeholders": {
+      "parameter": {
+        "content": "$1"
+      }
+    }
+  },
+  "ai_chat_prompt_json_invalid": {
+    "message": "고급 프롬프트의 JSON 형식이 잘못되었습니다. ‘자동화 → 프롬프트’에서 수정하세요."
+  },
+  "ai_chat_prompt_invalid": {
+    "message": "선택한 프롬프트의 요청 형식이 잘못되었습니다. ‘자동화 → 프롬프트’에서 수정하세요."
   },
   "settings_ai_entry_section": {
     "message": "대화 진입점"
@@ -11154,20 +11177,79 @@
   "ai_chat_remove_image": {
     "message": "이미지 제거"
   },
-  "ai_chat_approval_preview": {
-    "message": "승인 모드 미리 보기"
+  "ai_chat_approval_mode": {
+    "message": "승인 모드"
   },
   "ai_chat_approval_request": {
     "message": "승인 요청"
   },
   "ai_chat_approval_request_description": {
-    "message": "변경을 수행하는 도구를 실행하기 전에 항상 확인합니다."
+    "message": "Steam 데이터 읽기·변경, 네트워크 요청, 스크립트 실행 전에 확인합니다."
+  },
+  "ai_chat_approval_read_only": {
+    "message": "읽기 전용 액세스"
+  },
+  "ai_chat_approval_read_only_description": {
+    "message": "읽기와 네트워크 요청을 허용합니다. Steam 데이터 변경이나 스크립트 실행 전에는 확인합니다."
   },
   "ai_chat_approval_full": {
     "message": "전체 액세스"
   },
   "ai_chat_approval_full_description": {
-    "message": "모든 도구를 제한 없이 실행할 수 있습니다."
+    "message": "Steam 변경, 네트워크 요청, 스크립트를 포함해 활성화된 도구를 확인 없이 실행합니다."
+  },
+  "ai_chat_approval_title": {
+    "message": "도구 승인"
+  },
+  "ai_chat_approval_question": {
+    "message": "‘$tool$’에 다음 작업을 허용할까요?",
+    "placeholders": {
+      "tool": {
+        "content": "$1"
+      }
+    }
+  },
+  "ai_chat_approval_steam_read": {
+    "message": "Steam 데이터 읽기"
+  },
+  "ai_chat_approval_steam_write": {
+    "message": "Steam 데이터 변경"
+  },
+  "ai_chat_approval_keyword": {
+    "message": "현재 검색어"
+  },
+  "ai_chat_approval_app_id": {
+    "message": "현재 조회 AppID"
+  },
+  "ai_chat_approval_account": {
+    "message": "이 호출에서 현재 Steam 계정의 데이터를 읽을 수 있습니다"
+  },
+  "ai_chat_approval_public": {
+    "message": "이 호출에서 Steam 관련 공개 데이터를 읽을 수 있습니다"
+  },
+  "ai_chat_approval_executing": {
+    "message": "실행 중…"
+  },
+  "ai_chat_approval_declined": {
+    "message": "작업을 거부했습니다"
+  },
+  "ai_chat_approval_reject": {
+    "message": "거부"
+  },
+  "ai_chat_approval_once": {
+    "message": "한 번 허용"
+  },
+  "ai_chat_approval_waiting": {
+    "message": "승인 대기 중"
+  },
+  "ai_chat_approval_stale": {
+    "message": "승인 대기 중에 작업이 변경되었습니다. 다시 요청하세요."
+  },
+  "ai_chat_approval_timeout": {
+    "message": "승인 시간이 초과되었습니다. 다시 시도하세요."
+  },
+  "ai_chat_approval_reopen": {
+    "message": "도구 작업을 승인하려면 채팅을 다시 여세요."
   },
   "ai_chat_context_window": {
     "message": "컨텍스트 사용량"
@@ -14474,9 +14556,6 @@
   },
   "workflow_library_output_add": {
     "message": "출력 추가"
-  },
-  "workflow_library_disabled": {
-    "message": "라이브러리 항목이 비활성화되었습니다"
   },
   "workflow_library_definition_invalid": {
     "message": "라이브러리 이름, 입력 또는 출력 정의가 잘못되었습니다"

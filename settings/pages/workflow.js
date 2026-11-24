@@ -494,7 +494,7 @@
   function itemSummary(meta, note) {
     const hasNote = Boolean(note?.trim());
     if (!meta && !hasNote) return "";
-    return `<small class="aw-item-summary">${meta ? `<span>${esc(meta)}</span>` : ""}${meta && hasNote ? '<span aria-hidden="true">·</span>' : ""}${hasNote ? `<span class="aw-item-note">${esc(note)}</span>` : ""}</small>`;
+    return `<small class="aw-item-summary">${meta ? `<span class="aw-item-meta">${esc(meta)}</span>` : ""}${meta && hasNote ? '<span aria-hidden="true">·</span>' : ""}${hasNote ? `<span class="aw-item-note" tabindex="0">${esc(note)}</span>` : ""}</small>`;
   }
   /** 提示词与自动化宿主使用同一配置快照，保存后只刷新当前页签 */
   function promptsHtml(bundle) {

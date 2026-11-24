@@ -38,7 +38,9 @@
   const gameReads = Object.entries(root.STWorkflowFields.gameReads).map(([key, { id, label, group, type, icon, order }]) =>
     effect(id, (/^[A-Za-z]/.test(label) ? "读取 " : "读取") + label, group, icon, order, [game()], type, {
       gameField: key, outputName: label, hint: gameReadNotes[key] || "保存" + label + "到变量",
+      chatAccess: "steam-read", chatAccount: true,
     }));
+  const accountRead = { chatAccess: "steam-read", chatAccount: true };
   const steamCommands = [
     ["steam-set-custom-name", "设置独立自定义名称", "游戏名称", "tag-star", 90, [game(), data.field("value", "名称", "text", "")], "text",
       { nameField: "custom_name", hint: "留空会清空独立名称及其助记符与拼音" }],
@@ -46,13 +48,14 @@
     ["steam-set-mnemonic", "设置游戏助记符", "游戏名称", "letter-case-upper", 120, [game(), data.field("value", "游戏助记符", "text", "")], "text", { nameField: "mnemonic" }],
     ["steam-set-pinyin", "设置游戏拼音全拼", "游戏名称", "language", 110, [game(), data.field("value", "游戏拼音全拼", "text", "")], "text", { nameField: "pinyin" }],
     ["steam-set-sort-name", "设置自定义排序名称", "游戏名称", "sort-descending-letters", 130, [game(), data.field("value", "排序名称", "text", "")], "text"],
-    ["steam-achievements", "读取游戏成就列表", "游戏成就", "trophy", 30, [game()], "list"],
-    ["steam-translations", "读取已保存的成就译文", "游戏成就", "language", 20, [game(), language()], "list"],
+    ["steam-achievements", "读取游戏成就列表", "游戏成就", "trophy", 30, [game()], "list", accountRead],
+    ["steam-translations", "读取已保存的成就译文", "游戏成就", "language", 20, [game(), language()], "list", accountRead],
     ["steam-save-translations", "保存成就译文", "游戏成就", "file-check", 10, [game(), language(), data.field("value", "译文列表", "list", []), data.field("origin", "译文来源", "text", "manual", [["manual", "用户数据"], ["ai", "AI 回复"]])], "object"],
-    ["steam-collections", "读取收藏分组列表", "收藏分组", "folders", 10, [], "list"],
+    ["steam-collections", "读取收藏分组列表", "收藏分组", "folders", 10, [], "list", accountRead],
     ["steam-add-collections", "将游戏加入收藏分组", "收藏分组", "folder-plus", 40, [game(), data.field("value", "分组 ID 列表", "list", [])], "object"],
     ["family-refresh", "刷新家庭库", "家庭库", "refresh", 10, [], "object"],
-  ].map(args => effect(...args));
+  ].map(([id, name, group, icon, order, fields, outputType, details]) =>
+    effect(id, name, group, icon, order, fields, outputType, { chatAccess: "steam-write", ...details }));
   const effectDefinitions = [...gameReads, ...steamCommands];
   const effects = Object.freeze(Object.fromEntries(effectDefinitions.map(item => [item.id, item])));
   const permissionLabels = Object.freeze({ workflowAdvanced: "自动化高级指令", customNames: "独立自定义名称" });
@@ -80,7 +83,7 @@
   const httpMethods = Object.freeze(["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD"]);
   const httpMaxTimeout = 30;
   const hasHttpBody = method => method !== "GET" && method !== "HEAD";
-  const http = Object.freeze({ id: "http-request", name: "HTTP 请求", category: "网络", icon: "link", order: 10,
+  const http = Object.freeze({ id: "http-request", name: "HTTP 请求", category: "网络", icon: "link", order: 10, chatAccess: "network",
     hint: "向已授权的站点发送请求并保存响应", outputType: "object", outputName: "HTTP 响应", fields: [
     data.field("url", "URL"), data.field("headers", "请求头", "object", {}), data.field("body", "请求体", "any", ""),
   ] });
@@ -96,17 +99,18 @@
     ["steam-current-players", "players", "Steam 在线人数", "按 AppID 查询 Steam 当前在线人数", "应用与状态", { order: 10, argument: "appId" }],
     ["itad-price-history", "prices", "ITAD 价格与史低", "按 AppID 查询配置地区的当前报价和历史最低价", "商店与价格", { order: 20, argument: "appId" }],
     ["steam-store-search", "search", "Steam 商店搜索", "按查询参数搜索 Steam 国区商店", "商店与价格", { order: 30, argument: "filters" }],
-    ["steam-account-library", "library", "查询我的 Steam 游戏库", "按筛选条件查询当前账号的 Steam 库", "游戏库与愿望单", { order: 10 }],
-    ["steam-account-game", "library_game", "查询我的游戏详情", "读取当前账号的游玩时间和成就进度", "游戏库与愿望单", { order: 20 }],
-    ["steam-account-wishlist", "wishlist", "查询我的 Steam 愿望单", "读取当前账号愿望单、添加时间和价格", "游戏库与愿望单", { order: 30 }],
+    ["steam-account-library", "library", "查询我的 Steam 游戏库", "按筛选条件查询当前账号的 Steam 库", "游戏库与愿望单", { order: 10, account: true }],
+    ["steam-account-game", "library_game", "查询我的游戏详情", "读取当前账号的游玩时间和成就进度", "游戏库与愿望单", { order: 20, account: true }],
+    ["steam-account-wishlist", "wishlist", "查询我的 Steam 愿望单", "读取当前账号愿望单、添加时间和价格", "游戏库与愿望单", { order: 30, account: true }],
     // 2.2.65 已保存的旧节点仍可打开。新建步骤使用单 AppID 的 Steam 指令
     ["steam-batch-sort-name", "rename", "批量游戏名汉化", "为 Steam 库内指定游戏生成中文排序名称", "游戏名称", { legacy: true }],
     ["steam-batch-collections", "collections", "批量添加到收藏分组", "为指定游戏选择现有可写收藏分组", "收藏分组", { legacy: true }],
     ["steam-batch-achievements", "achievements", "批量游戏成就翻译", "处理指定游戏尚无译文的成就", "游戏成就", { legacy: true }],
-  ].map(([id, provider, name, hint, group, { order, argument = "taskArgs", legacy = false } = {}]) => {
+  ].map(([id, provider, name, hint, group, { order, argument = "taskArgs", account = false, legacy = false } = {}]) => {
     const fields = argument === "appId" ? [data.field("appId", "AppID", "number", 0)] : [data.field(argument, "查询参数", "object", {})];
     return Object.freeze({ id, provider, argument, name, label: "ai_chat_tool_" + provider, hint, icon: "database",
-      category: "Steam 操作", group, order, legacy, fields, outputType: "object", outputName: "查询结果" });
+      category: "Steam 操作", chatAccess: legacy ? "steam-write" : "steam-read", chatAccount: account,
+      group, order, legacy, fields, outputType: "object", outputName: "查询结果" });
   });
   const providerQueries = Object.freeze(Object.fromEntries(providerDefinitions.map(definition => [definition.id, definition])));
   const toolFields = Object.freeze({
@@ -147,7 +151,7 @@
     ["finally", "Finally", "异常处理", "flag-check", 30, "无论成功或失败都执行"],
     ["end-try", "End Try", "异常处理", "shield-off", 40, "结束异常处理区域"],
     ["raise", "Raise", "异常处理", "alert-triangle", 50, "主动抛出异常，由 Catch 处理或结束失败"],
-    ["script", "运行 JavaScript", "脚本", "code", 10, "执行 JavaScript，可直接读取流程变量并返回结果"],
+    ["script", "运行 JavaScript", "脚本", "code", 10, "执行 JavaScript，可直接读取流程变量并返回结果", { chatAccess: "script" }],
   ].map(([id, name, category, icon, order, hint, details]) => Object.freeze({ id, name, category, icon, order, hint, ...details }))];
   // 传参与折叠提供编辑器行，分别保存在参数定义和折叠位置中
   const entries = [

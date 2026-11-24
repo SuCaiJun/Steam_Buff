@@ -70,19 +70,26 @@
             <span id="composer-approval-mode"></span>
           </button>
           <section id="composer-approval-panel" class="composer-menu" hidden>
-            <div id="composer-approval-choices">
+            <div id="composer-approval-choices" role="radiogroup">
               <label>
                 <input type="radio" name="composer-approval-mode" value="ask" aria-labelledby="composer-approval-ask-title" aria-describedby="composer-approval-ask-description" checked>
                 <span class="composer-approval-copy">
                   <span id="composer-approval-ask-title" data-text="ai_chat_approval_request">请求审批</span>
-                  <small id="composer-approval-ask-description" data-text="ai_chat_approval_request_description">调用修改类工具时始终询问</small>
+                  <small id="composer-approval-ask-description" data-text="ai_chat_approval_request_description">读取或修改 Steam 数据、发送网络请求、运行脚本前询问。</small>
+                </span>
+              </label>
+              <label>
+                <input type="radio" name="composer-approval-mode" value="read-only" aria-labelledby="composer-approval-read-title" aria-describedby="composer-approval-read-description">
+                <span class="composer-approval-copy">
+                  <span id="composer-approval-read-title" data-text="ai_chat_approval_read_only">只读访问</span>
+                  <small id="composer-approval-read-description" data-text="ai_chat_approval_read_only_description">可直接查询和联网，修改 Steam 数据或运行脚本前询问。</small>
                 </span>
               </label>
               <label>
                 <input type="radio" name="composer-approval-mode" value="full" aria-labelledby="composer-approval-full-title" aria-describedby="composer-approval-full-description">
                 <span class="composer-approval-copy">
                   <span id="composer-approval-full-title" data-text="ai_chat_approval_full">完全访问</span>
-                  <small id="composer-approval-full-description" data-text="ai_chat_approval_full_description">可不受限制的调用任何工具</small>
+                  <small id="composer-approval-full-description" data-text="ai_chat_approval_full_description">直接执行已启用的工具，包括 Steam 修改、网络请求和脚本。</small>
                 </span>
               </label>
             </div>

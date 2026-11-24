@@ -276,9 +276,9 @@
       const choice = approvals.querySelector("input:checked");
       approval.dataset.mode = choice.value;
       approvalMode.textContent = get(choice.getAttribute("aria-labelledby")).textContent;
-      approval.title = text("ai_chat_approval_preview", "审批模式预览") + " · " + approvalMode.textContent;
+      approval.title = text("ai_chat_approval_mode", "审批模式") + " · " + approvalMode.textContent;
       approval.setAttribute("aria-label", approval.title);
-      approvalPanel.setAttribute("aria-label", text("ai_chat_approval_preview", "审批模式预览"));
+      approvals.setAttribute("aria-label", text("ai_chat_approval_mode", "审批模式"));
     }
 
     function setUsage(snapshot) {
@@ -710,6 +710,7 @@
         toolsEnabled = value;
         if (effortSelection === undefined && effortProfile) setEffort("default");
       },
+      getApprovalMode: () => approvals.querySelector("input:checked").value,
       hasImages: () => images.size > 0,
       setBusy(value) {
         busy = value;
@@ -729,6 +730,8 @@
         if (id === draftId) return;
         draftId = id;
         setEffort("default");
+        approvals.querySelector("input[checked]").checked = true;
+        syncApproval();
         clearImages();
         closeUsage(true);
         setUsage(null);

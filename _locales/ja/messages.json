@@ -10647,11 +10647,8 @@
   "workflow_command_steam_account_wishlist_hint": {
     "message": "自分のウィッシュリストの追加日、地域別価格、割引、Steam 過去最安値をページごとに取得します。"
   },
-  "ai_chat_tool_approval_confirm": {
-    "message": "変更を確認"
-  },
   "ai_chat_tool_approval_achievements": {
-    "message": "$count$ 件の実績を翻訳",
+    "message": "$count$ 件の実績の翻訳を保存",
     "placeholders": {
       "count": {
         "content": "$1"
@@ -11088,14 +11085,40 @@
   "settings_ai_chat_prompt": {
     "message": "関連付けるプロンプト"
   },
-  "settings_ai_chat_prompt_default": {
-    "message": "既定のチャットプロンプト"
+  "settings_ai_chat_prompt_desc": {
+    "message": "Steam Buff の AI チャットで使うプロンプトを選択します。"
   },
   "settings_ai_chat_preferences_error": {
     "message": "設定を読み込み、または保存できませんでした。再試行してください。"
   },
   "ai_chat_prompt_unavailable": {
     "message": "関連付けたプロンプトは利用できません。「AI サービス → チャット入口」で選び直してください。"
+  },
+  "ai_chat_prompt_disabled": {
+    "message": "関連付けたプロンプトは無効です。有効にするか、別のプロンプトを選んでください。"
+  },
+  "ai_chat_prompt_message_missing": {
+    "message": "ユーザーメッセージに「チャットメッセージ」のプレースホルダーがありません。「自動化 → プロンプト」で修正してください。"
+  },
+  "ai_chat_prompt_history_invalid": {
+    "message": "詳細プロンプトの最後のユーザーメッセージの前に「会話履歴」のプレースホルダーを一つ配置してください。"
+  },
+  "ai_chat_prompt_user_invalid": {
+    "message": "詳細プロンプトの最後のメッセージはユーザーメッセージである必要があります。「自動化 → プロンプト」で修正してください。"
+  },
+  "ai_chat_prompt_value_unavailable": {
+    "message": "選択したプロンプトに「$parameter$」のデータがありません。プロンプトを修正するか、選び直してください。",
+    "placeholders": {
+      "parameter": {
+        "content": "$1"
+      }
+    }
+  },
+  "ai_chat_prompt_json_invalid": {
+    "message": "詳細プロンプトの JSON が無効です。「自動化 → プロンプト」で修正してください。"
+  },
+  "ai_chat_prompt_invalid": {
+    "message": "選択したプロンプトのリクエスト形式が無効です。「自動化 → プロンプト」で修正してください。"
   },
   "settings_ai_entry_section": {
     "message": "チャットの入口"
@@ -11154,20 +11177,79 @@
   "ai_chat_remove_image": {
     "message": "画像を削除"
   },
-  "ai_chat_approval_preview": {
-    "message": "承認モードのプレビュー"
+  "ai_chat_approval_mode": {
+    "message": "承認モード"
   },
   "ai_chat_approval_request": {
     "message": "承認を求める"
   },
   "ai_chat_approval_request_description": {
-    "message": "変更を行うツールを呼び出す前に毎回確認します。"
+    "message": "Steam データの読み取り・変更、ネットワーク通信、スクリプト実行の前に確認します。"
+  },
+  "ai_chat_approval_read_only": {
+    "message": "読み取りアクセス"
+  },
+  "ai_chat_approval_read_only_description": {
+    "message": "読み取りとネットワーク通信を許可します。Steam データの変更やスクリプト実行の前に確認します。"
   },
   "ai_chat_approval_full": {
     "message": "フルアクセス"
   },
   "ai_chat_approval_full_description": {
-    "message": "すべてのツールを制限なく呼び出せます。"
+    "message": "Steam の変更、通信、スクリプトを含め、有効なツールを確認なしで実行します。"
+  },
+  "ai_chat_approval_title": {
+    "message": "ツールの承認"
+  },
+  "ai_chat_approval_question": {
+    "message": "「$tool$」に以下の操作を許可しますか？",
+    "placeholders": {
+      "tool": {
+        "content": "$1"
+      }
+    }
+  },
+  "ai_chat_approval_steam_read": {
+    "message": "Steam データを読み取る"
+  },
+  "ai_chat_approval_steam_write": {
+    "message": "Steam データを変更する"
+  },
+  "ai_chat_approval_keyword": {
+    "message": "現在の検索語"
+  },
+  "ai_chat_approval_app_id": {
+    "message": "現在の検索対象 AppID"
+  },
+  "ai_chat_approval_account": {
+    "message": "この呼び出しでは現在の Steam アカウントのデータを読み取れます"
+  },
+  "ai_chat_approval_public": {
+    "message": "この呼び出しでは Steam 関連の公開データを読み取れます"
+  },
+  "ai_chat_approval_executing": {
+    "message": "実行中…"
+  },
+  "ai_chat_approval_declined": {
+    "message": "操作を拒否しました"
+  },
+  "ai_chat_approval_reject": {
+    "message": "拒否"
+  },
+  "ai_chat_approval_once": {
+    "message": "今回のみ許可"
+  },
+  "ai_chat_approval_waiting": {
+    "message": "承認待ち"
+  },
+  "ai_chat_approval_stale": {
+    "message": "承認待ちの操作が変更されました。もう一度リクエストしてください。"
+  },
+  "ai_chat_approval_timeout": {
+    "message": "承認待ちがタイムアウトしました。もう一度お試しください。"
+  },
+  "ai_chat_approval_reopen": {
+    "message": "ツールの操作を承認するにはチャットを開き直してください。"
   },
   "ai_chat_context_window": {
     "message": "コンテキスト使用量"
@@ -14474,9 +14556,6 @@
   },
   "workflow_library_output_add": {
     "message": "出力を追加"
-  },
-  "workflow_library_disabled": {
-    "message": "ライブラリ項目は無効です"
   },
   "workflow_library_definition_invalid": {
     "message": "ライブラリの名前、入力、または出力が無効です"

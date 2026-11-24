@@ -10647,11 +10647,8 @@
   "workflow_command_steam_account_wishlist_hint": {
     "message": "查询当前账号的愿望单和添加时间，返回配置地区的 Steam 商店原价、现价、折扣和史低，并支持翻页。"
   },
-  "ai_chat_tool_approval_confirm": {
-    "message": "确认修改"
-  },
   "ai_chat_tool_approval_achievements": {
-    "message": "翻译 $count$ 条成就",
+    "message": "保存 $count$ 条成就译文",
     "placeholders": {
       "count": {
         "content": "$1"
@@ -11088,14 +11085,40 @@
   "settings_ai_chat_prompt": {
     "message": "关联提示词"
   },
-  "settings_ai_chat_prompt_default": {
-    "message": "默认聊天提示词"
+  "settings_ai_chat_prompt_desc": {
+    "message": "选择蒸汽姬对话使用的提示词。"
   },
   "settings_ai_chat_preferences_error": {
     "message": "读取或保存设置失败，请重试。"
   },
   "ai_chat_prompt_unavailable": {
     "message": "关联提示词不可用，请在「AI 服务 → 对话入口」重新选择。"
+  },
+  "ai_chat_prompt_disabled": {
+    "message": "关联提示词已停用，请启用或重新选择。"
+  },
+  "ai_chat_prompt_message_missing": {
+    "message": "所选提示词的用户消息缺少「聊天消息」占位符。请在「自动化 → 提示词」中修改。"
+  },
+  "ai_chat_prompt_history_invalid": {
+    "message": "请在高级提示词的最后一条用户消息前放置一次「对话历史」占位符。"
+  },
+  "ai_chat_prompt_user_invalid": {
+    "message": "高级提示词的最后一条消息必须是用户消息。请在「自动化 → 提示词」中修改。"
+  },
+  "ai_chat_prompt_value_unavailable": {
+    "message": "所选提示词缺少「$parameter$」的数据。请修改提示词或重新选择。",
+    "placeholders": {
+      "parameter": {
+        "content": "$1"
+      }
+    }
+  },
+  "ai_chat_prompt_json_invalid": {
+    "message": "高级提示词的 JSON 格式无效，请在「自动化 → 提示词」中修改。"
+  },
+  "ai_chat_prompt_invalid": {
+    "message": "所选提示词的请求格式无效，请在「自动化 → 提示词」中修改。"
   },
   "settings_ai_entry_section": {
     "message": "对话入口"
@@ -11154,20 +11177,79 @@
   "ai_chat_remove_image": {
     "message": "移除图片"
   },
-  "ai_chat_approval_preview": {
-    "message": "审批模式预览"
+  "ai_chat_approval_mode": {
+    "message": "审批模式"
   },
   "ai_chat_approval_request": {
     "message": "请求审批"
   },
   "ai_chat_approval_request_description": {
-    "message": "调用修改类工具时始终询问"
+    "message": "读取或修改 Steam 数据、发送网络请求、运行脚本前询问。"
+  },
+  "ai_chat_approval_read_only": {
+    "message": "只读访问"
+  },
+  "ai_chat_approval_read_only_description": {
+    "message": "可直接查询和联网，修改 Steam 数据或运行脚本前询问。"
   },
   "ai_chat_approval_full": {
     "message": "完全访问"
   },
   "ai_chat_approval_full_description": {
-    "message": "可不受限制的调用任何工具"
+    "message": "直接执行已启用的工具，包括 Steam 修改、网络请求和脚本。"
+  },
+  "ai_chat_approval_title": {
+    "message": "工具授权"
+  },
+  "ai_chat_approval_question": {
+    "message": "允许「$tool$」执行以下操作？",
+    "placeholders": {
+      "tool": {
+        "content": "$1"
+      }
+    }
+  },
+  "ai_chat_approval_steam_read": {
+    "message": "读取 Steam 数据"
+  },
+  "ai_chat_approval_steam_write": {
+    "message": "修改 Steam 数据"
+  },
+  "ai_chat_approval_keyword": {
+    "message": "当前搜索词"
+  },
+  "ai_chat_approval_app_id": {
+    "message": "当前查询 AppID"
+  },
+  "ai_chat_approval_account": {
+    "message": "本次调用可读取当前 Steam 账号的数据"
+  },
+  "ai_chat_approval_public": {
+    "message": "本次调用可读取 Steam 相关公开数据"
+  },
+  "ai_chat_approval_executing": {
+    "message": "正在执行…"
+  },
+  "ai_chat_approval_declined": {
+    "message": "已拒绝本次操作"
+  },
+  "ai_chat_approval_reject": {
+    "message": "拒绝"
+  },
+  "ai_chat_approval_once": {
+    "message": "允许一次"
+  },
+  "ai_chat_approval_waiting": {
+    "message": "等待授权"
+  },
+  "ai_chat_approval_stale": {
+    "message": "待审批的操作已变化，请重新发起请求。"
+  },
+  "ai_chat_approval_timeout": {
+    "message": "等待授权超时，请重试。"
+  },
+  "ai_chat_approval_reopen": {
+    "message": "请重新打开聊天，以处理工具审批。"
   },
   "ai_chat_context_window": {
     "message": "上下文用量"
@@ -14474,9 +14556,6 @@
   },
   "workflow_library_output_add": {
     "message": "添加输出"
-  },
-  "workflow_library_disabled": {
-    "message": "自定义库已停用"
   },
   "workflow_library_definition_invalid": {
     "message": "自定义库的名称、输入或输出定义无效"

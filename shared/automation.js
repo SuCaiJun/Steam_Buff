@@ -271,7 +271,7 @@
   }
   function newLibrary(name) {
     const library = { ...newWorkflow(engine.numericId("lib-"), name), executionId: crypto.randomUUID(),
-      enabled: true, description: "", parameters: [], outputs: [] };
+      description: "", parameters: [], outputs: [] };
     library.steps.push(engine.createNode("library-return", library));
     return library;
   }
@@ -339,12 +339,12 @@
     });
   }
   function validateLibrary(library, { structureOnly = false } = {}) {
-    if (!engine.isLibraryId(library?.id) || typeof library.enabled !== "boolean" || typeof library.description !== "string")
+    if (!engine.isLibraryId(library?.id) || typeof library.description !== "string")
       throw libraryDefinitionError();
-    const { id, name, revision, executionId, enabled, description, note, variables, steps, folds, entryRow } = library;
+    const { id, name, revision, executionId, description, note, variables, steps, folds, entryRow } = library;
     if (executionId !== undefined && (typeof executionId !== "string" || !/^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/.test(executionId)))
       throw libraryDefinitionError();
-    const definition = clone({ id, name, revision, enabled, description, note, parameters: toolParameters(library.parameters),
+    const definition = clone({ id, name, revision, description, note, parameters: toolParameters(library.parameters),
       outputs: libraryOutputs(library), variables, steps, ...(executionId !== undefined && { executionId }),
       ...(folds ? { folds } : {}), ...(entryRow !== undefined && { entryRow }) });
     engine.validate(definition, { structureOnly });

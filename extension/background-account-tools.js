@@ -58,7 +58,9 @@
         signal.throwIfAborted();
         const current = await deps.native("account-query", { action: "owner" });
         signal.throwIfAborted();
-        if (owner && owner !== current) throw toolError("Steam 账号已切换，操作已停止", "ACCOUNT_CHANGED");
+        const approvedOwner = options.approvalOwner?.();
+        if (owner && owner !== current || approvedOwner && approvedOwner !== current)
+          throw toolError("Steam 账号已切换，操作已停止", "ACCOUNT_CHANGED");
         owner = current;
       };
       const query = async (action, args) => {
@@ -78,6 +80,7 @@
       let groups;
       return {
         async read(command, value) {
+          await options.beforeDetails?.();
           if (command === "game-field" && ["official", "sort"].includes(value.field)) {
             const row = await game(value.appid);
             return value.field === "official" ? row.name : row.sortName;
@@ -110,19 +113,24 @@
             throw toolError("修改确认与工具结果中的 AppID 不符", "AI_TOOL_RESPONSE_INVALID");
           const summary = () => ({ ...mutationSummary(items), source: "Steam", checkedAt: new Date().toISOString() });
           if (!options.approve) return { ...summary(), confirmationRequired: true };
+          await options.beforeDetails?.();
+          const proposal = [];
           for (const item of changes) {
             const { value: operation } = operations.get(item.appId);
-            if (action === "rename") item.sortName = operation.name;
+            delete item.savedCount;
+            const display = { appId: item.appId, name: (await game(item.appId)).name };
+            if (action === "rename") display.sortName = operation.name;
             if (action === "collections") {
               groups ??= (await query("collections", {})).filter(group => group.writable);
-              item.collections = operation.ids.map(id => {
+              display.collections = operation.ids.map(id => {
                 const group = groups.find(candidate => candidate.id === id);
                 if (!group) throw toolError("收藏分组已不存在或不能写入", "ACTION_NOT_WRITTEN");
                 return { id, name: group.name };
               });
             }
-            if (action === "achievements") item.count = operation.batches.reduce((total, batch) => total + batch.length, 0);
-            item.name = (await game(item.appId)).name;
+            if (action === "achievements") display.count = operation.batches.reduce((total, batch) => total + batch.length, 0);
+            Object.assign(item, display);
+            proposal.push(display);
           }
           const guards = new Set(changes.map(item => operations.get(item.appId).checkDefinition).filter(Boolean));
           const checkDefinitions = async () => {
@@ -131,12 +139,12 @@
           };
           await checkOwner();
           await checkDefinitions();
-          if (!await options.approve(tool, changes)) {
+          if (!await options.approve(tool, proposal)) {
             for (const item of changes) { item.status = "skipped"; item.reason = "用户没有确认修改"; }
-            return { ...summary(), declined: true };
+            return { ...summary(), status: "skipped", declined: true, code: "CHAT_TOOL_DECLINED" };
           }
           await checkDefinitions();
-          const receipt = () => options.receipt?.(items.map(({ appId, status, savedCount }) => ({ appId, status, savedCount })));
+          const receipt = () => options.receipt?.(changes.map(({ appId, status, savedCount }) => ({ appId, status, savedCount })));
           for (const item of changes) {
             let submitted = false, saved = 0;
             const { value, checkDefinition } = operations.get(item.appId);

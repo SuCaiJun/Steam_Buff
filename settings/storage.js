@@ -62,7 +62,7 @@
 
   function normalizeStored(id, value, fallback) {
     const control = api.catalog?.valueControl?.(id);
-    if (control === "prompt") return globalThis.STAI.isChatPromptId(value) ? value : fallback;
+    if (control === "prompt") return value === undefined ? fallback : globalThis.STAI.isPromptId(value) ? value : "";
     if (control === "choice") {
       const allowed = new Set((api.catalog?.featureById?.(id)?.options || []).map((option) => String(option.value)));
       const next = typeof value === "string" ? value : "";
@@ -1041,10 +1041,11 @@
     const config = globalThis.STConfig;
     const data = await get([config.automationConfigKey, config.aiChatPromptKey], { strict: true });
     const workflow = data[config.automationConfigKey];
+    const savedPromptId = data[config.aiChatPromptKey];
     return {
       tools: globalThis.STAI.chatToolsFromWorkflow(workflow),
       prompts: workflow?.prompts ?? [],
-      promptId: data[config.aiChatPromptKey] ?? "",
+      promptId: normalizeStored("ai-chat-prompt", savedPromptId, api.catalog.featureById("ai-chat-prompt").default),
     };
   }
 

@@ -453,7 +453,7 @@
     function chatHtml() {
       const catalog = options.catalog || root.STSettings.catalog;
       const title = uiText("settings_ai_entry_section", "对话入口");
-      const prompt = uiText("settings_ai_chat_prompt", "关联提示词");
+      const prompt = catalog.featureById(CHAT_PROMPT);
       const switches = chatEntries.map(id => {
         const item = catalog.featureById(id);
         return `<label class="settings-row form-row">
@@ -466,7 +466,7 @@
       return `<form class="settings-card section-card ai-entry-card" data-ai-chat-form aria-labelledby="st-ai-chat-entry-title">
         <h3 class="section-header" id="st-ai-chat-entry-title"><span class="title">${esc(title)}</span></h3>
         <fieldset class="settings-grid ai-chat-entry-fields" disabled>
-          ${row(prompt, `<select class="settings-control" name="${CHAT_PROMPT}"></select>`)}
+          ${row(uiText(prompt.nameKey, prompt.name), `<select class="settings-control" name="${CHAT_PROMPT}"></select>`)}
           ${switches}
           <div class="settings-row form-row">
             <span class="settings-label label">${esc(shortcutName)}<small class="ai-chat-entry-description">${esc(uiText(shortcut.descKey, shortcut.desc))}</small></span>
@@ -476,7 +476,7 @@
           </div>
         </fieldset>
         <footer class="form-footer">
-          <span data-ai-chat-status role="status"></span>
+          <span id="st-ai-chat-entry-status" data-ai-chat-status role="status"></span>
           <button type="submit" class="btn btn-secondary" disabled>${esc(uiText("common.saveSettings", "保存设置"))}</button>
         </footer>
       </form>`;
@@ -494,23 +494,28 @@
         for (const input of shortcut) input.parentElement.classList.toggle("selected", input.checked);
       };
       const unavailable = () => uiText("ai_chat_prompt_unavailable", "关联提示词不可用，请在「AI 服务 → 对话入口」重新选择。");
+      function showStatus(message = "") {
+        const invalid = select.selectedOptions[0]?.disabled === true;
+        select.setAttribute("aria-invalid", String(invalid));
+        if (invalid) select.setAttribute("aria-describedby", status.id);
+        else select.removeAttribute("aria-describedby");
+        status.textContent = invalid ? unavailable() : message;
+      }
       let saved;
       try {
         const [states, workflow] = await Promise.all([storage.getAll({ strict: true }), storage.getWorkflow()]);
         if (!form.isConnected) return;
         saved = states;
-        select.add(new Option(uiText("settings_ai_chat_prompt_default", "默认聊天提示词"), ""));
-        for (const plan of workflow.prompts) {
-          if (root.STPromptPlans.chatInput(plan)) select.add(new Option(plan.name, plan.id));
+        for (const [id, name] of root.STWorkflowView.promptChoices(workflow.prompts)) {
+          select.add(new Option(name, id));
         }
-        if (states[CHAT_PROMPT] && ![...select.options].some(option => option.value === states[CHAT_PROMPT])) {
-          const name = workflow.prompts.find(plan => plan.id === states[CHAT_PROMPT])?.name ?? states[CHAT_PROMPT];
-          const option = new Option(name, states[CHAT_PROMPT]);
+        if (![...select.options].some(option => option.value === states[CHAT_PROMPT])) {
+          const option = new Option(uiText("common.unavailable", "暂不可用"), states[CHAT_PROMPT]);
           option.disabled = true;
           select.add(option);
-          status.textContent = unavailable();
         }
         select.value = states[CHAT_PROMPT];
+        showStatus();
         for (const id of chatEntries) {
           const toggle = form.elements.namedItem(id);
           toggle.checked = states[id];
@@ -535,7 +540,7 @@
       }
       form.addEventListener("change", () => {
         syncShortcut();
-        status.textContent = "";
+        showStatus();
         save.disabled = !Object.keys(changes()).length;
       });
       form.addEventListener("submit", async event => {
@@ -547,16 +552,30 @@
         try {
           await storage.setChatPreferences(values, { operationId });
           Object.assign(saved, values);
+          if (Object.hasOwn(values, CHAT_PROMPT)) {
+            for (const option of select.querySelectorAll("option[disabled]")) option.remove();
+          }
           for (const input of fields.elements) root.STSettingsFields.acceptEdit(input);
-          status.textContent = uiText("settings_savePrompt_title", "保存成功");
+          showStatus();
         } catch (error) {
           log.error("ai-chat-settings-save-failed", "保存对话入口设置失败", { operationId, error });
-          status.textContent = error.code === "CHAT_PROMPT_UNAVAILABLE" ? unavailable()
-            : uiText("settings_ai_chat_preferences_error", "读取或保存设置失败，请重试。");
+          if (error.code === "CHAT_PROMPT_UNAVAILABLE") {
+            const missing = select.selectedOptions[0];
+            select.value = saved[CHAT_PROMPT];
+            missing.remove();
+            showStatus(unavailable());
+          } else status.textContent = uiText("settings_ai_chat_preferences_error", "读取或保存设置失败，请重试。");
+          return;
         } finally {
           fields.disabled = false;
           save.disabled = !Object.keys(changes()).length;
         }
+        if (!form.isConnected) return;
+        await root.STSettingsDialogs.notice(shadow, {
+          title: uiText("settings_savePrompt_title", "保存成功"),
+          message: uiText("settings.ai.settingsSaved", "AI 设置已保存。"),
+          focus: select,
+        });
       });
     }
 
