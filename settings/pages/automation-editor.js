@@ -110,6 +110,9 @@
     .aw-record-columns,.aw-record-entry{display:grid;grid-template-columns:minmax(90px,1fr) minmax(0,2fr) minmax(98px,.8fr) 28px;align-items:center;gap:8px}
     .aw-record-columns{color:var(--st-color-text-muted);font-size:var(--st-font-size-caption)}
     .aw-record-entry{padding-block:5px;border-block-end:1px solid var(--st-dialog-divider)}
+    .aw-record-entry>.aw-icon{grid-column:4}
+    .aw-record-fields[data-all-required] :is(.aw-record-columns,.aw-record-entry){grid-template-columns:minmax(90px,1fr) minmax(0,2fr) 28px}
+    .aw-record-fields[data-all-required] .aw-record-entry>.aw-icon{grid-column:3}
     .aw-param-dialog .aw-record-entry>.aw-value{display:block;min-width:0}
     .aw-record-entry .aw-value-label{position:absolute;inline-size:1px;block-size:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
     @media(max-width:590px){.aw-record-columns{display:none}.aw-record-entry{grid-template-columns:minmax(0,1fr) minmax(0,1fr) 28px}.aw-record-entry>[data-prop$=".omitIfUnset"]{grid-column:2;grid-row:1}.aw-record-entry>.aw-value{grid-column:1/3;grid-row:2}.aw-record-entry>.aw-icon{grid-column:3;grid-row:1/3}}
@@ -2682,9 +2685,20 @@
     let preparingPreview = false;
     const lifetime = new AbortController(), dataDefinition = flow.definitions[working.action];
     const http = working.action === "http-request";
-    let recordValue = working.value, recordEntries = working.entries;
-    const recordParameters = () => editor.context === "tool" ? workspace.parameters.filter(item => item.variableId &&
-      !working.entries.some(entry => entry.key === item.name)) : [];
+    let recordValue = working.value, recordEntries = working.entries, recordExpanded = false;
+    const toolParameters = editor.context === "tool" && working.action === "record" ? workspace.parameters : [];
+    const requiredInputs = new Set(toolParameters.filter(item => item.required).map(item => item.variableId));
+    const recordParameters = () => toolParameters.filter(item => item.variableId && !working.entries.some(entry => entry.key === item.name));
+    const requiredBinding = ({ value, omitIfUnset }) => {
+      const ref = flow.activeValue(value);
+      return omitIfUnset === false && ref?.source === "variable" && ref.path?.length === 0 && requiredInputs.has(ref.id);
+    };
+    const requiredDictionary = () => !!working.entries?.length && working.entries.every(requiredBinding);
+    function useWholeDictionaryValue() {
+      recordEntries = working.entries;
+      delete working.entries;
+      working.value = recordValue ?? flow.literal({});
+    }
     working.onError ||= "throw";
     const initialValue = flow.activeValue(working.value);
     if (working.action === "set") working.valueType ||= Object.hasOwn(initialValue, "literal") ? ({ string: "text", number: "number", boolean: "boolean", list: "list", object: "object" }[Array.isArray(initialValue.literal) ? "list" : typeof initialValue.literal] || "any") : "any";
@@ -2745,11 +2759,20 @@
     }
     function recordInputs() {
       const rows = Array.isArray(working.entries);
+      // 完整字典只折叠必填变量绑定的表单，仍使用原有字典字段参与执行和变量候选
+      const mapped = !recordExpanded && requiredDictionary();
       const mode = tr("workflow_record_mode", "字典输入方式");
       const fields = tr("workflow_record_fields", "逐项填写");
       const whole = tr("workflow_record_whole", "完整字典");
-      let content = `<label>${esc(mode)}<select data-record-mode>${options([["fields", fields], ["whole", whole]], rows ? "fields" : "whole")}</select></label>`;
+      let content = `<label>${esc(mode)}<select data-record-mode>${options([["fields", fields], ["whole", whole]], rows && !mapped ? "fields" : "whole")}</select></label>`;
       if (!rows) return content + valueField(whole, working.value, "value", workspace, [], "object");
+      if (mapped) {
+        const pickerLabel = esc(tr("workflow_ui_show_variables", "显示变量"));
+        return content + `<div class="aw-value"><span class="aw-value-label">${esc(whole)}</span><div class="aw-value-body"><div class="aw-input-shell">
+          ${values.collectionButton("object", working.entries.length, 'data-aw="record-edit-bindings" data-variable-target="value"')}
+          <button type="button" class="aw-fx" data-variable-toggle aria-label="${pickerLabel}" title="${pickerLabel}">${icon("math-function")}</button>
+          </div></div></div>`;
+      }
       const policy = tr("workflow_record_missing_policy", "未赋值时");
       const name = tr("workflow_ui_field_name", "字段名称"), source = tr("workflow_record_source", "值来源");
       const rowsHtml = working.entries.map((entry, index) => {
@@ -2758,13 +2781,22 @@
         return `<div class="aw-record-entry" role="group" aria-label="${esc(entry.key || name)}">
           <input type="text" data-prop="${path}.key" aria-label="${esc(name)}" value="${esc(entry.key)}">
           ${valueField(source, entry.value, path + ".value", workspace, [], "any", false, [], true)}
-          <select data-prop="${path}.omitIfUnset" aria-label="${esc(policy)}">${options([["true", tr("workflow_record_omit", "省略")],
+          <select data-prop="${path}.omitIfUnset" data-record-policy="${index}" aria-label="${esc(policy)}"${requiredBinding(entry) ? " hidden" : ""}>${options([["true", tr("workflow_record_omit", "省略")],
             ["false", tr("workflow_record_fail", "报错")]], entry.omitIfUnset)}</select>
           ${iconButton("record-remove", remove, "trash", `data-index="${index}"`)}</div>`;
       }).join("");
-      if (rowsHtml) content += `<div><div class="aw-record-columns" aria-hidden="true"><span>${esc(name)}</span><span>${esc(source)}</span><span>${esc(policy)}</span></div>${rowsHtml}</div>`;
+      const allRequired = requiredDictionary();
+      if (rowsHtml) content += `<div class="aw-record-fields"${allRequired ? " data-all-required" : ""}><div class="aw-record-columns" aria-hidden="true"><span>${esc(name)}</span><span>${esc(source)}</span><span data-record-policy-heading${allRequired ? " hidden" : ""}>${esc(policy)}</span></div>${rowsHtml}</div>`;
       return content + `<div class="aw-tools">${button("record-add", tr("workflow_record_add", "添加字段"), "", "plus")}${recordParameters().length
         ? button("record-fill", tr("workflow_record_from_ai", "从 AI 传参带入")) : ""}</div>`;
+    }
+    function syncRecordPolicies() {
+      const fields = requiredInputs.size && container.querySelector(".aw-record-fields");
+      if (!fields) return;
+      for (const policy of fields.querySelectorAll("[data-record-policy]")) policy.hidden = requiredBinding(working.entries[Number(policy.dataset.recordPolicy)]);
+      const allRequired = requiredDictionary();
+      fields.toggleAttribute("data-all-required", allRequired);
+      fields.querySelector("[data-record-policy-heading]").hidden = allRequired;
     }
     function render() {
       codeEditor?.destroy(); codeEditor = null;
@@ -2916,6 +2948,7 @@
     function draftSignature() {
       const { mapping, inputs, ...config } = working;
       delete config._timeout; delete config._timeoutSeconds;
+      if (working.action === "record") { delete config.value; delete config.entries; }
       for (const [key, value] of flow.inputs(working)) {
         if (!key.startsWith("inputs.") && !key.startsWith("libraryInputs.") && !key.startsWith("entries.")) config[key] = values.comparable(value);
       }
@@ -3098,12 +3131,14 @@
           node.querySelector(".aw-error").textContent = view().errorCaption(issue);
           promptErrorControl(issue)?.setAttribute("aria-invalid", "true");
         }
-        root.STWorkflowValues.bind(node, working, workspace, { dialog: state.ctx.dialog, shadow: state.shadow, render, scriptEditor: () => codeEditor, signal: lifetime.signal });
+        values.bind(node, working, workspace, { dialog: state.ctx.dialog, shadow: state.shadow, render, scriptEditor: () => codeEditor,
+          selectValue(value) { useWholeDictionaryValue(); working.value = flow.inputValue(value); }, signal: lifetime.signal });
         node.addEventListener("input", event => {
           if (event.target.matches("[data-tool-search]")) {
             searchToolChoices(node, event.target.value);
             return;
           }
+          syncRecordPolicies();
           if (working.action === "ai-call") {
             const invalid = node.querySelector('[aria-invalid="true"]');
             if (invalid) {
@@ -3144,14 +3179,16 @@
             }
             if (event.target.matches("[data-record-mode]")) {
               if (event.target.value === "fields") {
-                recordValue = working.value; delete working.value;
-                working.entries = recordEntries ?? [];
-              } else {
-                recordEntries = working.entries; delete working.entries;
-                working.value = recordValue ?? flow.literal({});
-              }
+                recordExpanded = true;
+                if (!working.entries) {
+                  recordValue = working.value; delete working.value;
+                  working.entries = recordEntries ?? [];
+                }
+              } else if (requiredDictionary() && recordValue === undefined) recordExpanded = false;
+              else if (working.entries) useWholeDictionaryValue();
               render(); node.querySelector("[data-record-mode]").focus(); return;
             }
+            if (event.target.matches("[data-record-policy]")) syncRecordPolicies();
             if (http && event.target.matches('[data-prop="method"]') || event.target.matches('[data-prop="toolMode"]')) { render(); return; }
             if (event.target.matches('[data-prop="valueType"]') && Object.hasOwn(flow.activeValue(working.value), "literal")) {
               const type = working.valueType, old = flow.activeValue(working.value).literal;
@@ -3200,16 +3237,25 @@
           event.stopPropagation();
           void (async () => {
             collectAll(); const action = control.dataset.aw;
+            if (action === "record-edit-bindings") {
+              recordExpanded = true;
+              render(); node.querySelector('[data-prop="entries.0.key"]').focus();
+              return;
+            }
             if (action === "record-add" || action === "record-fill" || action === "record-remove") {
               const entries = working.entries;
               let index = entries.length;
               if (action === "record-add") entries.push({ key: "", value: flow.literal(""), omitIfUnset: false });
-              else if (action === "record-fill") entries.push(...recordParameters().map(item => ({
-                key: item.name, value: flow.reference("variable", item.variableId), omitIfUnset: !item.required,
-              })));
+              else if (action === "record-fill") {
+                entries.push(...recordParameters().map(item => ({
+                  key: item.name, value: flow.reference("variable", item.variableId), omitIfUnset: !item.required,
+                })));
+                if (requiredDictionary() && recordValue === undefined) recordExpanded = false;
+              }
               else { index = Number(control.dataset.index); entries.splice(index, 1); }
               render();
-              (node.querySelector(`[data-prop="entries.${Math.min(index, entries.length - 1)}.key"]`) ?? node.querySelector('[data-aw="record-add"]')).focus();
+              (node.querySelector(`[data-prop="entries.${Math.min(index, entries.length - 1)}.key"]`) ??
+                node.querySelector('[data-aw="record-add"],[data-aw="record-edit-bindings"]')).focus();
               return;
             }
             if (action === "variable-new") { const id = await editVariable(state, workspace); if (id) set(working, control.dataset.target, id); }

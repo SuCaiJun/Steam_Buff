@@ -87,6 +87,12 @@
     }
     parts.push(value.slice(start)); return { template: parts };
   }
+  function collectionButton(type, count, attrs, unset = false) {
+    const name = type === "list" ? tr("seed_variable_list", "列表") : tr("seed_variable_record", "字典");
+    const summary = type === "list" ? tr("workflow_format_list_count", "$count$ 项列表", { count })
+      : tr("workflow_format_field_count", "$count$ 个字段", { count });
+    return `<button type="button" class="aw-collection-edit" ${attrs}>${esc(unset ? tr("common_select", "请选择") : summary)}<span>${esc(tr("store_titleCustomName_edit", "编辑"))}${esc(name)}</span></button>`;
+  }
   function field(label, value, path, workflow, choices = [], expected = "any", multiline = false, suggestions = [], selectLiteralType = false, explicitValue = false) {
     const enabled = !workflow.literalOnly && !workflow.triggerInput;
     const refs = !workflow.literalOnly && (!workflow.triggerInput || workflow.eventFields.length > 0);
@@ -106,7 +112,8 @@
     else if (editable) control = `<div data-value-host class="aw-value-host" aria-busy="true"><span class="aw-value-preview">${esc(text(active, workflow))}</span></div>`;
     else if (type === "boolean") control = enumField(label, "data-value-text", [...(explicitValue ? [["", tr("common_select", "请选择")]] : []),
       ["true", tr("workflow_ui_true", "真")], ["false", tr("workflow_ui_false", "假")]], unset ? "" : String(active.literal));
-    else if (["list", "object"].includes(type)) control = `<button type="button" class="aw-collection-edit" data-field-action="collection">${unset ? esc(tr("common_select", "请选择")) : type === "list" ? tr("workflow_format_list_count", "$count$ 项列表", { count: active.literal.length }) : tr("workflow_format_field_count", "$count$ 个字段", { count: Object.keys(active.literal).length })}<span>${esc(tr("store_titleCustomName_edit", "编辑"))}${type === "list" ? tr("seed_variable_list", "列表") : tr("seed_variable_record", "字典")}</span></button>`;
+    else if (["list", "object"].includes(type)) control = collectionButton(type,
+      type === "list" ? active.literal.length : Object.keys(active.literal).length, 'data-field-action="collection"', unset);
     else if (type === "null") control = `<span class="aw-empty-value" tabindex="-1" aria-label="${esc(label)}">null</span>`;
     else if (choices.length) control = enumField(label, "data-value-text", choices, active.literal);
     else control = `<input type="number" data-value-text aria-label="${esc(label)}" value="${unset ? "" : esc(active.literal)}">`;
@@ -317,7 +324,7 @@
     }
   }
   /** 候选按当前指令的可用变量生成；输出声明与输入引用分别处理 */
-  function bind(container, object, workflow, { dialog, shadow, render, scriptEditor, signal: outerSignal }) {
+  function bind(container, object, workflow, { dialog, shadow, render, scriptEditor, selectValue, signal: outerSignal }) {
     bindings.get(container)?.dispose();
     const lifetime = new AbortController(), signal = lifetime.signal;
     const available = workflow.literalOnly || workflow.triggerInput ? new Map() : object.id ? flow.scopes(workflow).get(object.id) : new Map(workflow.variables.map(item => [item.id, []]));
@@ -473,7 +480,15 @@
         }
         else if (control.hasAttribute("data-output")) { control.value = selected.name; control.dispatchEvent(new Event("change", { bubbles: true })); control.focus(); }
         else if (editor) { editor.insert(selected.value, selected.constant ? selected.name : "", range); editor.contentDOM.dispatchEvent(new Event("change", { bubbles: true })); }
-        else { collect(container, object, workflow); storeValue(element, object, selected.value); redraw(); container.dispatchEvent(new Event("input", { bubbles: true })); }
+        else {
+          const path = control.dataset.variableTarget;
+          collect(container, object, workflow);
+          if (path) selectValue(selected.value);
+          else storeValue(element, object, selected.value);
+          redraw();
+          if (path) container.querySelector(`[data-value="${CSS.escape(path)}"] [data-variable-toggle]`)?.focus();
+          container.dispatchEvent(new Event("input", { bubbles: true }));
+        }
       } catch (error) { context.fail(error); }
       finally { context.suppress = false; }
     }
@@ -575,5 +590,5 @@
     .aw-collection-row{display:grid;grid-template-columns:minmax(40px,1fr) 100px minmax(120px,2fr) 28px;gap:8px;align-items:center}.aw-collection-rows{display:grid;gap:8px}.aw-collection-dialog{width:min(720px,calc(100vw - 32px))!important}.aw .aw-json-editor{min-height:240px;font-family:monospace}
     @media(max-width:600px){.aw-collection-row{grid-template-columns:minmax(0,1fr) 100px 28px}.aw-collection-row>[data-entry-value],.aw-collection-row>[data-st-combo]:has([data-entry-value]){grid-column:1/3;grid-row:2}.aw-collection-row>[data-entry-delete]{grid-column:3;grid-row:1/3}}
   `;
-  root.STWorkflowValues = Object.freeze({ field, read, text, summaryParts, template, output, collect, comparable, commitOutputs, outputEntries, clearOutputs, inputNames, bind, refresh, compile, paths, style });
+  root.STWorkflowValues = Object.freeze({ field, collectionButton, read, text, summaryParts, template, output, collect, comparable, commitOutputs, outputEntries, clearOutputs, inputNames, bind, refresh, compile, paths, style });
 })(globalThis);
