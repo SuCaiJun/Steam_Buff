@@ -1,0 +1,11 @@
+{
+  ".name": "读取游戏成就",
+  ".note": "分页读取成就原文、译文状态与修订号。使用 nextStart 继续翻页。",
+  ".parameters.appId": "Steam 游戏 AppID。",
+  ".parameters.language": "目标语言标识，例如 chinese_simplified。",
+  ".parameters.start": "开始位置，首次传 0，后续用上一页的 nextStart。",
+  ".variables.source": "成就原文",
+  ".variables.records": "已有译文",
+  ".description": "分页读取成就原文、译文状态与修订号。使用 nextStart 继续翻页。",
+  ".error.badAchievementQuery": "请传入有效的 AppID、目标语言和分页起点。"
+}

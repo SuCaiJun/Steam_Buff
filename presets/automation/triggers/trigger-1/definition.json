@@ -4,7 +4,7 @@
   "note": "$text:.note",
   "revision": 1,
   "enabled": false,
-  "workflowId": "wf-1",
+  "workflowId": "wf-6",
   "event": {
     "type": "added"
   },
@@ -13,18 +13,14 @@
     "children": []
   },
   "inputs": {
-    "var-1": {
+    "var-app": {
       "source": "input",
       "path": [
         "appid"
       ]
     },
-    "var-2": {
-      "source": "input",
-      "path": [
-        "game",
-        "official"
-      ]
+    "var-name": {
+      "literal": ""
     }
   },
   "busy": "queue"

@@ -1,0 +1,264 @@
+{
+  "id": "tool-11",
+  "name": "$text:.name",
+  "note": "$text:.note",
+  "revision": 1,
+  "executionId": "00000000-0000-4000-8000-000000000002",
+  "enabled": true,
+  "description": "$text:.description",
+  "parameters": [
+    {
+      "name": "changes",
+      "type": "array",
+      "required": true,
+      "description": "$text:.parameters.changes",
+      "variableId": "var-changes"
+    }
+  ],
+  "variables": [
+    {
+      "id": "var-changes",
+      "name": "changes",
+      "type": "list"
+    },
+    {
+      "id": "var-items",
+      "name": "$text:.variables.items",
+      "type": "list"
+    },
+    {
+      "id": "var-item",
+      "name": "$text:.variables.item",
+      "type": "object"
+    },
+    {
+      "id": "var-index",
+      "name": "$text:.variables.index",
+      "type": "number"
+    },
+    {
+      "id": "var-error",
+      "name": "$text:.variables.error",
+      "type": "object"
+    },
+    {
+      "id": "var-prepared",
+      "name": "$text:.variables.prepared",
+      "type": "text"
+    }
+  ],
+  "steps": [
+    {
+      "id": "step-validate",
+      "kind": "if",
+      "branches": [
+        {
+          "condition": {
+            "op": "isFalse",
+            "left": {
+              "expression": [
+                "((rows) => rows.length > 0 && rows.every(x => x && (id => Number.isInteger(id) && id >= 1 && id <= 4294967295)(x.appId) && typeof x.name === 'string' && x.name.trim() && rows.every(y => !y || y.appId !== x.appId || x.name.trim() === y.name?.trim())))(",
+                {
+                  "source": "variable",
+                  "id": "var-changes",
+                  "path": []
+                },
+                ")"
+              ]
+            }
+          },
+          "steps": [
+            {
+              "id": "step-invalid",
+              "kind": "action",
+              "action": "raise",
+              "value": {
+                "literal": {
+                  "code": "CHAT_TOOL_INVALID",
+                  "message": "$text:.error.badName"
+                }
+              }
+            }
+          ]
+        }
+      ],
+      "otherwise": null
+    },
+    {
+      "id": "step-items",
+      "kind": "action",
+      "action": "list",
+      "value": {
+        "literal": []
+      },
+      "output": "var-items"
+    },
+    {
+      "id": "step-loop",
+      "kind": "foreach",
+      "value": {
+        "expression": [
+          "Array.from(new Map(",
+          {
+            "source": "variable",
+            "id": "var-changes",
+            "path": []
+          },
+          ".map(row => [row.appId, row])).values())"
+        ]
+      },
+      "item": "var-item",
+      "index": "var-index",
+      "body": [
+        {
+          "id": "step-write",
+          "kind": "try",
+          "error": "var-error",
+          "body": [
+            {
+              "id": "step-steam",
+              "kind": "action",
+              "action": "steam-set-custom-name",
+              "game": {
+                "source": "variable",
+                "id": "var-item",
+                "path": [
+                  "appId"
+                ]
+              },
+              "value": {
+                "source": "variable",
+                "id": "var-item",
+                "path": [
+                  "name"
+                ]
+              },
+              "output": "var-prepared"
+            },
+            {
+              "id": "step-result-staged",
+              "kind": "action",
+              "action": "append",
+              "value": {
+                "source": "variable",
+                "id": "var-items",
+                "path": []
+              },
+              "item": {
+                "expression": [
+                  "({appId:",
+                  {
+                    "source": "variable",
+                    "id": "var-item",
+                    "path": [
+                      "appId"
+                    ]
+                  },
+                  ",status:'proposed'})"
+                ]
+              },
+              "output": "var-items"
+            }
+          ],
+          "catch": [
+            {
+              "id": "step-catch",
+              "kind": "if",
+              "branches": [
+                {
+                  "condition": {
+                    "op": "isTrue",
+                    "left": {
+                      "expression": [
+                        "['ACTION_NOT_WRITTEN','ACTION_INPUT_INVALID','ACTION_WRITE_CONFLICT','ACTION_SOURCE_CHANGED','STEAM_ACHIEVEMENTS_UNAVAILABLE','ACHIEVEMENT_VALUE_INVALID'].includes(",
+                        {
+                          "source": "variable",
+                          "id": "var-error",
+                          "path": [
+                            "code"
+                          ]
+                        },
+                        ")"
+                      ]
+                    }
+                  },
+                  "steps": [
+                    {
+                      "id": "step-result-failed",
+                      "kind": "action",
+                      "action": "append",
+                      "value": {
+                        "source": "variable",
+                        "id": "var-items",
+                        "path": []
+                      },
+                      "item": {
+                        "expression": [
+                          "({appId:",
+                          {
+                            "source": "variable",
+                            "id": "var-item",
+                            "path": [
+                              "appId"
+                            ]
+                          },
+                          ",status:'failed',code:",
+                          {
+                            "source": "variable",
+                            "id": "var-error",
+                            "path": [
+                              "code"
+                            ]
+                          },
+                          ",reason:",
+                          {
+                            "source": "variable",
+                            "id": "var-error",
+                            "path": [
+                              "message"
+                            ]
+                          },
+                          "})"
+                        ]
+                      },
+                      "output": "var-items"
+                    }
+                  ]
+                }
+              ],
+              "otherwise": [
+                {
+                  "id": "step-rethrow",
+                  "kind": "action",
+                  "action": "raise",
+                  "value": {
+                    "source": "variable",
+                    "id": "var-error",
+                    "path": []
+                  }
+                }
+              ]
+            }
+          ],
+          "finally": null
+        }
+      ]
+    },
+    {
+      "id": "step-return",
+      "kind": "action",
+      "action": "tool-return",
+      "value": {
+        "expression": [
+          "((items) => ({items, changed:0, skipped:0, failed:items.filter(item => item.status === 'failed').length, ...(items.some(item => item.status === 'proposed') ? {confirmationRequired:true} : {})}))(",
+          {
+            "source": "variable",
+            "id": "var-items",
+            "path": []
+          },
+          ")"
+        ]
+      }
+    }
+  ]
+}

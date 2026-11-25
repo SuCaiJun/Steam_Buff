@@ -1,0 +1,10 @@
+{
+  ".name": "修改游戏自定义排序名称",
+  ".note": "修改 Steam 游戏排序位置。",
+  ".variables.current": "当前名称",
+  ".variables.saved": "已保存的名称",
+  ".inputs.app": "游戏 AppID",
+  ".inputs.name": "目标名称",
+  ".error.badApp": "请提供有效的 Steam AppID。",
+  ".error.badName": "请为每个有效的 AppID 提供一个明确的名称。"
+}

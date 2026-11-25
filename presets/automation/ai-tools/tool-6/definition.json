@@ -10,16 +10,23 @@
     {
       "name": "appIds",
       "type": "array",
-      "required": true,
-      "description": "$text:.parameters.0.description",
+      "required": false,
+      "description": "$text:.parameters.appIds",
       "variableId": "var-appIds"
     },
     {
       "name": "collection",
       "type": "string",
       "required": false,
-      "description": "$text:.parameters.1.description",
+      "description": "$text:.parameters.collection",
       "variableId": "var-collection"
+    },
+    {
+      "name": "changes",
+      "type": "array",
+      "required": false,
+      "description": "$text:.parameters.changes",
+      "variableId": "var-changes"
     }
   ],
   "variables": [
@@ -34,14 +41,9 @@
       "type": "text"
     },
     {
-      "id": "var-ids",
-      "name": "$text:.variables.ids",
+      "id": "var-changes",
+      "name": "changes",
       "type": "list"
-    },
-    {
-      "id": "var-size",
-      "name": "$text:.variables.size",
-      "type": "number"
     },
     {
       "id": "var-items",
@@ -49,9 +51,9 @@
       "type": "list"
     },
     {
-      "id": "var-app",
-      "name": "$text:.variables.app",
-      "type": "number"
+      "id": "var-item",
+      "name": "$text:.variables.item",
+      "type": "object"
     },
     {
       "id": "var-index",
@@ -59,23 +61,13 @@
       "type": "number"
     },
     {
-      "id": "var-row",
-      "name": "$text:.variables.row",
-      "type": "object"
-    },
-    {
       "id": "var-error",
       "name": "$text:.variables.error",
       "type": "object"
     },
     {
-      "id": "var-name",
-      "name": "$text:.variables.name",
-      "type": "text"
-    },
-    {
-      "id": "var-saved",
-      "name": "$text:.variables.saved",
+      "id": "var-args",
+      "name": "$text:.variables.args",
       "type": "object"
     },
     {
@@ -84,29 +76,54 @@
       "type": "list"
     },
     {
-      "id": "var-choices",
-      "name": "$text:.variables.choices",
+      "id": "var-rows",
+      "name": "$text:.variables.rows",
       "type": "list"
     },
     {
-      "id": "var-details",
-      "name": "$text:.variables.details",
+      "id": "var-prepared",
+      "name": "$text:.variables.prepared",
       "type": "object"
-    },
-    {
-      "id": "var-reply",
-      "name": "$text:.variables.reply",
-      "type": "text"
-    },
-    {
-      "id": "var-parsed",
-      "name": "$text:.variables.parsed",
-      "type": "any"
     }
   ],
   "steps": [
     {
-      "id": "step-2",
+      "id": "step-args",
+      "kind": "action",
+      "action": "record",
+      "entries": [
+        {
+          "key": "appIds",
+          "value": {
+            "source": "variable",
+            "id": "var-appIds",
+            "path": []
+          },
+          "omitIfUnset": true
+        },
+        {
+          "key": "collection",
+          "value": {
+            "source": "variable",
+            "id": "var-collection",
+            "path": []
+          },
+          "omitIfUnset": true
+        },
+        {
+          "key": "changes",
+          "value": {
+            "source": "variable",
+            "id": "var-changes",
+            "path": []
+          },
+          "omitIfUnset": true
+        }
+      ],
+      "output": "var-args"
+    },
+    {
+      "id": "step-validate",
       "kind": "if",
       "branches": [
         {
@@ -114,30 +131,25 @@
             "op": "isFalse",
             "left": {
               "expression": [
+                "((a) => a.changes !== undefined ? !Object.hasOwn(a,'appIds') && !Object.hasOwn(a,'collection') && a.changes.length > 0 && a.changes.every(row => row && (id => Number.isInteger(id) && id >= 1 && id <= 4294967295)(row.appId) && Array.isArray(row.collectionIds) && row.collectionIds.length > 0 && row.collectionIds.every(id => typeof id === 'string' && id.trim())) : a.appIds?.length > 0 && a.appIds.every((id => Number.isInteger(id) && id >= 1 && id <= 4294967295)) && !!a.collection?.trim())(",
                 {
                   "source": "variable",
-                  "id": "var-appIds",
+                  "id": "var-args",
                   "path": []
                 },
-                ".length > 0 && ",
-                {
-                  "source": "variable",
-                  "id": "var-appIds",
-                  "path": []
-                },
-                ".every(id => Number.isInteger(id) && id >= 1 && id <= 4294967295)"
+                ")"
               ]
             }
           },
           "steps": [
             {
-              "id": "step-1",
+              "id": "step-invalid",
               "kind": "action",
               "action": "raise",
               "value": {
                 "literal": {
                   "code": "CHAT_TOOL_INVALID",
-                  "message": "$text:.errors.appIds"
+                  "message": "$text:.error.badCollection"
                 }
               }
             }
@@ -147,29 +159,66 @@
       "otherwise": null
     },
     {
-      "id": "step-3",
+      "id": "step-groups",
       "kind": "action",
-      "action": "list-unique",
-      "value": {
-        "source": "variable",
-        "id": "var-appIds",
-        "path": []
-      },
-      "output": "var-ids"
+      "action": "steam-collections",
+      "output": "var-groups"
     },
     {
-      "id": "step-4",
+      "id": "step-prepare",
       "kind": "action",
-      "action": "list-length",
+      "action": "list",
       "value": {
-        "source": "variable",
-        "id": "var-ids",
-        "path": []
+        "expression": [
+          "((a,groups) => { if (a.changes) { const ids = new Map(); for (const row of a.changes) { const list = ids.get(row.appId) ?? new Set(); for (const id of row.collectionIds) list.add(id.trim()); ids.set(row.appId,list); } return Array.from(ids, ([appId, list]) => ({appId, collectionIds:[...list]})); } const name = a.collection.trim(); const writable = groups.filter(group => group.writable); const exact = writable.find(group => group.id === name); const matches = exact ? [exact] : writable.filter(group => group.name === name); return matches.length === 1 ? Array.from(new Set(a.appIds),appId => ({appId,collectionIds:[matches[0].id]})) : []; })(",
+          {
+            "source": "variable",
+            "id": "var-args",
+            "path": []
+          },
+          ",",
+          {
+            "source": "variable",
+            "id": "var-groups",
+            "path": []
+          },
+          ")"
+        ]
       },
-      "output": "var-size"
+      "output": "var-rows"
     },
     {
-      "id": "step-5",
+      "id": "step-match",
+      "kind": "if",
+      "branches": [
+        {
+          "condition": {
+            "op": "empty",
+            "left": {
+              "source": "variable",
+              "id": "var-rows",
+              "path": []
+            }
+          },
+          "steps": [
+            {
+              "id": "step-group-missing",
+              "kind": "action",
+              "action": "raise",
+              "value": {
+                "literal": {
+                  "code": "ACTION_NOT_WRITTEN",
+                  "message": "$text:.error.noCollection"
+                }
+              }
+            }
+          ]
+        }
+      ],
+      "otherwise": null
+    },
+    {
+      "id": "step-items",
       "kind": "action",
       "action": "list",
       "value": {
@@ -178,1025 +227,69 @@
       "output": "var-items"
     },
     {
-      "id": "step-6",
-      "kind": "action",
-      "action": "steam-collections",
-      "output": "var-groups"
-    },
-    {
-      "id": "step-7",
-      "kind": "action",
-      "action": "set",
+      "id": "step-loop",
+      "kind": "foreach",
       "value": {
-        "expression": [
-          {
-            "source": "variable",
-            "id": "var-groups",
-            "path": []
-          },
-          ".filter(group => group.writable)"
-        ]
+        "source": "variable",
+        "id": "var-rows",
+        "path": []
       },
-      "output": "var-groups"
-    },
-    {
-      "id": "step-54",
-      "kind": "if",
-      "branches": [
+      "item": "var-item",
+      "index": "var-index",
+      "body": [
         {
-          "condition": {
-            "op": "gt",
-            "left": {
-              "source": "variable",
-              "id": "var-size",
-              "path": []
-            },
-            "right": {
-              "literal": 1
-            }
-          },
-          "steps": [
-            {
-              "id": "step-30",
-              "kind": "foreach",
-              "value": {
-                "source": "variable",
-                "id": "var-ids",
-                "path": []
-              },
-              "item": "var-app",
-              "index": "var-index",
-              "body": [
-                {
-                  "id": "step-8",
-                  "kind": "try",
-                  "error": "var-error",
-                  "body": [
-                    {
-                      "id": "step-9",
-                      "kind": "action",
-                      "action": "record",
-                      "entries": [
-                        {
-                          "key": "appId",
-                          "value": {
-                            "source": "variable",
-                            "id": "var-app",
-                            "path": []
-                          },
-                          "omitIfUnset": false
-                        },
-                        {
-                          "key": "status",
-                          "value": {
-                            "literal": "skipped"
-                          },
-                          "omitIfUnset": false
-                        }
-                      ],
-                      "output": "var-row"
-                    },
-                    {
-                      "id": "step-10",
-                      "kind": "action",
-                      "action": "steam-original-name",
-                      "game": {
-                        "source": "variable",
-                        "id": "var-app",
-                        "path": []
-                      },
-                      "output": "var-name"
-                    },
-                    {
-                      "id": "step-11",
-                      "kind": "action",
-                      "action": "record",
-                      "entries": [
-                        {
-                          "key": "appId",
-                          "value": {
-                            "source": "variable",
-                            "id": "var-app",
-                            "path": []
-                          },
-                          "omitIfUnset": false
-                        },
-                        {
-                          "key": "name",
-                          "value": {
-                            "source": "variable",
-                            "id": "var-name",
-                            "path": []
-                          },
-                          "omitIfUnset": false
-                        },
-                        {
-                          "key": "status",
-                          "value": {
-                            "literal": "skipped"
-                          },
-                          "omitIfUnset": false
-                        }
-                      ],
-                      "output": "var-row"
-                    },
-                    {
-                      "id": "step-25",
-                      "kind": "if",
-                      "branches": [
-                        {
-                          "condition": {
-                            "op": "notEmpty",
-                            "left": {
-                              "source": "variable",
-                              "id": "var-groups",
-                              "path": []
-                            }
-                          },
-                          "steps": [
-                            {
-                              "id": "step-21",
-                              "kind": "if",
-                              "branches": [
-                                {
-                                  "condition": {
-                                    "op": "all",
-                                    "children": [
-                                      {
-                                        "op": "exists",
-                                        "left": {
-                                          "source": "variable",
-                                          "id": "var-collection",
-                                          "path": []
-                                        }
-                                      },
-                                      {
-                                        "op": "notEmpty",
-                                        "left": {
-                                          "source": "variable",
-                                          "id": "var-collection",
-                                          "path": []
-                                        }
-                                      }
-                                    ]
-                                  },
-                                  "steps": [
-                                    {
-                                      "id": "step-12",
-                                      "kind": "action",
-                                      "action": "set",
-                                      "value": {
-                                        "expression": [
-                                          {
-                                            "source": "variable",
-                                            "id": "var-groups",
-                                            "path": []
-                                          },
-                                          ".filter(group => group.id === ",
-                                          {
-                                            "source": "variable",
-                                            "id": "var-collection",
-                                            "path": []
-                                          },
-                                          ".trim() || group.name === ",
-                                          {
-                                            "source": "variable",
-                                            "id": "var-collection",
-                                            "path": []
-                                          },
-                                          ".trim()).map(group => group.id)"
-                                        ]
-                                      },
-                                      "output": "var-choices"
-                                    },
-                                    {
-                                      "id": "step-14",
-                                      "kind": "if",
-                                      "branches": [
-                                        {
-                                          "condition": {
-                                            "op": "notEquals",
-                                            "left": {
-                                              "expression": [
-                                                {
-                                                  "source": "variable",
-                                                  "id": "var-choices",
-                                                  "path": []
-                                                },
-                                                ".length"
-                                              ]
-                                            },
-                                            "right": {
-                                              "literal": 1
-                                            }
-                                          },
-                                          "steps": [
-                                            {
-                                              "id": "step-13",
-                                              "kind": "action",
-                                              "action": "raise",
-                                              "value": {
-                                                "literal": {
-                                                  "code": "ACTION_INPUT_INVALID",
-                                                  "message": "$text:.errors.group"
-                                                }
-                                              }
-                                            }
-                                          ]
-                                        }
-                                      ],
-                                      "otherwise": null
-                                    }
-                                  ]
-                                }
-                              ],
-                              "otherwise": [
-                                {
-                                  "id": "step-15",
-                                  "kind": "action",
-                                  "action": "steam-game-details",
-                                  "appId": {
-                                    "source": "variable",
-                                    "id": "var-app",
-                                    "path": []
-                                  },
-                                  "output": "var-details"
-                                },
-                                {
-                                  "id": "step-16",
-                                  "kind": "action",
-                                  "action": "ai-call",
-                                  "serviceId": "AI-0",
-                                  "promptId": "P-6",
-                                  "requestTimeoutSeconds": 60,
-                                  "inputs": {
-                                    "$text:.prompts.P-6.0": {
-                                      "expression": [
-                                        "({... ",
-                                        {
-                                          "source": "variable",
-                                          "id": "var-details",
-                                          "path": []
-                                        },
-                                        ", name: ",
-                                        {
-                                          "source": "variable",
-                                          "id": "var-name",
-                                          "path": []
-                                        },
-                                        "})"
-                                      ]
-                                    },
-                                    "$text:.prompts.P-6.1": {
-                                      "expression": [
-                                        {
-                                          "source": "variable",
-                                          "id": "var-groups",
-                                          "path": []
-                                        },
-                                        ".map(({id,name}) => ({id,name}))"
-                                      ]
-                                    }
-                                  },
-                                  "output": "var-reply"
-                                },
-                                {
-                                  "id": "step-17",
-                                  "kind": "action",
-                                  "action": "json",
-                                  "value": {
-                                    "expression": [
-                                      {
-                                        "source": "variable",
-                                        "id": "var-reply",
-                                        "path": []
-                                      },
-                                      ".trim().replace(/^\\x60{3}(?:json)?\\s*/i, \"\").replace(/\\s*\\x60{3}$/, \"\")"
-                                    ]
-                                  },
-                                  "output": "var-parsed"
-                                },
-                                {
-                                  "id": "step-19",
-                                  "kind": "if",
-                                  "branches": [
-                                    {
-                                      "condition": {
-                                        "op": "isFalse",
-                                        "left": {
-                                          "expression": [
-                                            "Array.isArray(",
-                                            {
-                                              "source": "variable",
-                                              "id": "var-parsed",
-                                              "path": []
-                                            },
-                                            "?.collection_ids) && ",
-                                            {
-                                              "source": "variable",
-                                              "id": "var-parsed",
-                                              "path": []
-                                            },
-                                            ".collection_ids.every(id => ",
-                                            {
-                                              "source": "variable",
-                                              "id": "var-groups",
-                                              "path": []
-                                            },
-                                            ".some(group => group.id === id))"
-                                          ]
-                                        }
-                                      },
-                                      "steps": [
-                                        {
-                                          "id": "step-18",
-                                          "kind": "action",
-                                          "action": "raise",
-                                          "value": {
-                                            "literal": {
-                                              "code": "AI_OUTPUT_INVALID",
-                                              "message": "$text:.errors.selected"
-                                            }
-                                          }
-                                        }
-                                      ]
-                                    }
-                                  ],
-                                  "otherwise": null
-                                },
-                                {
-                                  "id": "step-20",
-                                  "kind": "action",
-                                  "action": "set",
-                                  "value": {
-                                    "expression": [
-                                      {
-                                        "source": "variable",
-                                        "id": "var-groups",
-                                        "path": []
-                                      },
-                                      ".filter(group => ",
-                                      {
-                                        "source": "variable",
-                                        "id": "var-parsed",
-                                        "path": [
-                                          "collection_ids"
-                                        ]
-                                      },
-                                      ".includes(group.id)).map(group => group.id)"
-                                    ]
-                                  },
-                                  "output": "var-choices"
-                                }
-                              ]
-                            },
-                            {
-                              "id": "step-24",
-                              "kind": "if",
-                              "branches": [
-                                {
-                                  "condition": {
-                                    "op": "notEmpty",
-                                    "left": {
-                                      "source": "variable",
-                                      "id": "var-choices",
-                                      "path": []
-                                    }
-                                  },
-                                  "steps": [
-                                    {
-                                      "id": "step-22",
-                                      "kind": "action",
-                                      "action": "steam-add-collections",
-                                      "game": {
-                                        "source": "variable",
-                                        "id": "var-app",
-                                        "path": []
-                                      },
-                                      "value": {
-                                        "source": "variable",
-                                        "id": "var-choices",
-                                        "path": []
-                                      },
-                                      "output": "var-saved"
-                                    },
-                                    {
-                                      "id": "step-23",
-                                      "kind": "action",
-                                      "action": "record",
-                                      "entries": [
-                                        {
-                                          "key": "appId",
-                                          "value": {
-                                            "source": "variable",
-                                            "id": "var-app",
-                                            "path": []
-                                          },
-                                          "omitIfUnset": false
-                                        },
-                                        {
-                                          "key": "name",
-                                          "value": {
-                                            "source": "variable",
-                                            "id": "var-name",
-                                            "path": []
-                                          },
-                                          "omitIfUnset": false
-                                        },
-                                        {
-                                          "key": "status",
-                                          "value": {
-                                            "literal": "proposed"
-                                          },
-                                          "omitIfUnset": false
-                                        },
-                                        {
-                                          "key": "collections",
-                                          "value": {
-                                            "expression": [
-                                              {
-                                                "source": "variable",
-                                                "id": "var-groups",
-                                                "path": []
-                                              },
-                                              ".filter(group => ",
-                                              {
-                                                "source": "variable",
-                                                "id": "var-choices",
-                                                "path": []
-                                              },
-                                              ".includes(group.id)).map(({id,name}) => ({id,name}))"
-                                            ]
-                                          },
-                                          "omitIfUnset": false
-                                        }
-                                      ],
-                                      "output": "var-row"
-                                    }
-                                  ]
-                                }
-                              ],
-                              "otherwise": null
-                            }
-                          ]
-                        }
-                      ],
-                      "otherwise": null
-                    }
-                  ],
-                  "catch": [
-                    {
-                      "id": "step-28",
-                      "kind": "if",
-                      "branches": [
-                        {
-                          "condition": {
-                            "op": "isTrue",
-                            "left": {
-                              "expression": [
-                                "['ACTION_NOT_WRITTEN','ACTION_INPUT_INVALID','AI_OUTPUT_INVALID','STEAM_ACHIEVEMENTS_UNAVAILABLE','AI_RESPONSE_INVALID','AI_RESPONSE_REFUSED','WORKFLOW_GAME_FIELD_UNAVAILABLE'].includes(",
-                                {
-                                  "source": "variable",
-                                  "id": "var-error",
-                                  "path": [
-                                    "code"
-                                  ]
-                                },
-                                ")"
-                              ]
-                            }
-                          },
-                          "steps": [
-                            {
-                              "id": "step-26",
-                              "kind": "action",
-                              "action": "record",
-                              "entries": [
-                                {
-                                  "key": "appId",
-                                  "value": {
-                                    "source": "variable",
-                                    "id": "var-app",
-                                    "path": []
-                                  },
-                                  "omitIfUnset": false
-                                },
-                                {
-                                  "key": "status",
-                                  "value": {
-                                    "expression": [
-                                      {
-                                        "source": "variable",
-                                        "id": "var-error",
-                                        "path": [
-                                          "code"
-                                        ]
-                                      },
-                                      " === 'ACTION_NOT_WRITTEN' ? 'skipped' : 'failed'"
-                                    ]
-                                  },
-                                  "omitIfUnset": false
-                                },
-                                {
-                                  "key": "code",
-                                  "value": {
-                                    "source": "variable",
-                                    "id": "var-error",
-                                    "path": [
-                                      "code"
-                                    ]
-                                  },
-                                  "omitIfUnset": false
-                                },
-                                {
-                                  "key": "reason",
-                                  "value": {
-                                    "source": "variable",
-                                    "id": "var-error",
-                                    "path": [
-                                      "message"
-                                    ]
-                                  },
-                                  "omitIfUnset": false
-                                }
-                              ],
-                              "output": "var-row"
-                            }
-                          ]
-                        }
-                      ],
-                      "otherwise": [
-                        {
-                          "id": "step-27",
-                          "kind": "action",
-                          "action": "raise",
-                          "value": {
-                            "source": "variable",
-                            "id": "var-error",
-                            "path": []
-                          }
-                        }
-                      ]
-                    }
-                  ],
-                  "finally": null
-                },
-                {
-                  "id": "step-29",
-                  "kind": "action",
-                  "action": "append",
-                  "value": {
-                    "source": "variable",
-                    "id": "var-items",
-                    "path": []
-                  },
-                  "item": {
-                    "source": "variable",
-                    "id": "var-row",
-                    "path": []
-                  },
-                  "output": "var-items"
-                }
-              ]
-            }
-          ]
-        }
-      ],
-      "otherwise": [
-        {
-          "id": "step-31",
-          "kind": "action",
-          "action": "list-get",
-          "value": {
-            "source": "variable",
-            "id": "var-ids",
-            "path": []
-          },
-          "index": {
-            "literal": 0
-          },
-          "output": "var-app"
-        },
-        {
-          "id": "step-32",
+          "id": "step-write",
           "kind": "try",
           "error": "var-error",
           "body": [
             {
-              "id": "step-33",
+              "id": "step-steam",
               "kind": "action",
-              "action": "record",
-              "entries": [
-                {
-                  "key": "appId",
-                  "value": {
-                    "source": "variable",
-                    "id": "var-app",
-                    "path": []
-                  },
-                  "omitIfUnset": false
-                },
-                {
-                  "key": "status",
-                  "value": {
-                    "literal": "skipped"
-                  },
-                  "omitIfUnset": false
-                }
-              ],
-              "output": "var-row"
-            },
-            {
-              "id": "step-34",
-              "kind": "action",
-              "action": "steam-original-name",
+              "action": "steam-add-collections",
               "game": {
                 "source": "variable",
-                "id": "var-app",
+                "id": "var-item",
+                "path": [
+                  "appId"
+                ]
+              },
+              "value": {
+                "source": "variable",
+                "id": "var-item",
+                "path": [
+                  "collectionIds"
+                ]
+              },
+              "output": "var-prepared"
+            },
+            {
+              "id": "step-result-staged",
+              "kind": "action",
+              "action": "append",
+              "value": {
+                "source": "variable",
+                "id": "var-items",
                 "path": []
               },
-              "output": "var-name"
-            },
-            {
-              "id": "step-35",
-              "kind": "action",
-              "action": "record",
-              "entries": [
-                {
-                  "key": "appId",
-                  "value": {
+              "item": {
+                "expression": [
+                  "({appId:",
+                  {
                     "source": "variable",
-                    "id": "var-app",
-                    "path": []
+                    "id": "var-item",
+                    "path": [
+                      "appId"
+                    ]
                   },
-                  "omitIfUnset": false
-                },
-                {
-                  "key": "name",
-                  "value": {
-                    "source": "variable",
-                    "id": "var-name",
-                    "path": []
-                  },
-                  "omitIfUnset": false
-                },
-                {
-                  "key": "status",
-                  "value": {
-                    "literal": "skipped"
-                  },
-                  "omitIfUnset": false
-                }
-              ],
-              "output": "var-row"
-            },
-            {
-              "id": "step-49",
-              "kind": "if",
-              "branches": [
-                {
-                  "condition": {
-                    "op": "notEmpty",
-                    "left": {
-                      "source": "variable",
-                      "id": "var-groups",
-                      "path": []
-                    }
-                  },
-                  "steps": [
-                    {
-                      "id": "step-45",
-                      "kind": "if",
-                      "branches": [
-                        {
-                          "condition": {
-                            "op": "all",
-                            "children": [
-                              {
-                                "op": "exists",
-                                "left": {
-                                  "source": "variable",
-                                  "id": "var-collection",
-                                  "path": []
-                                }
-                              },
-                              {
-                                "op": "notEmpty",
-                                "left": {
-                                  "source": "variable",
-                                  "id": "var-collection",
-                                  "path": []
-                                }
-                              }
-                            ]
-                          },
-                          "steps": [
-                            {
-                              "id": "step-36",
-                              "kind": "action",
-                              "action": "set",
-                              "value": {
-                                "expression": [
-                                  {
-                                    "source": "variable",
-                                    "id": "var-groups",
-                                    "path": []
-                                  },
-                                  ".filter(group => group.id === ",
-                                  {
-                                    "source": "variable",
-                                    "id": "var-collection",
-                                    "path": []
-                                  },
-                                  ".trim() || group.name === ",
-                                  {
-                                    "source": "variable",
-                                    "id": "var-collection",
-                                    "path": []
-                                  },
-                                  ".trim()).map(group => group.id)"
-                                ]
-                              },
-                              "output": "var-choices"
-                            },
-                            {
-                              "id": "step-38",
-                              "kind": "if",
-                              "branches": [
-                                {
-                                  "condition": {
-                                    "op": "notEquals",
-                                    "left": {
-                                      "expression": [
-                                        {
-                                          "source": "variable",
-                                          "id": "var-choices",
-                                          "path": []
-                                        },
-                                        ".length"
-                                      ]
-                                    },
-                                    "right": {
-                                      "literal": 1
-                                    }
-                                  },
-                                  "steps": [
-                                    {
-                                      "id": "step-37",
-                                      "kind": "action",
-                                      "action": "raise",
-                                      "value": {
-                                        "literal": {
-                                          "code": "ACTION_INPUT_INVALID",
-                                          "message": "$text:.errors.group"
-                                        }
-                                      }
-                                    }
-                                  ]
-                                }
-                              ],
-                              "otherwise": null
-                            }
-                          ]
-                        }
-                      ],
-                      "otherwise": [
-                        {
-                          "id": "step-39",
-                          "kind": "action",
-                          "action": "steam-game-details",
-                          "appId": {
-                            "source": "variable",
-                            "id": "var-app",
-                            "path": []
-                          },
-                          "output": "var-details"
-                        },
-                        {
-                          "id": "step-40",
-                          "kind": "action",
-                          "action": "ai-call",
-                          "serviceId": "AI-0",
-                          "promptId": "P-6",
-                          "requestTimeoutSeconds": 60,
-                          "inputs": {
-                            "$text:.prompts.P-6.0": {
-                              "expression": [
-                                "({... ",
-                                {
-                                  "source": "variable",
-                                  "id": "var-details",
-                                  "path": []
-                                },
-                                ", name: ",
-                                {
-                                  "source": "variable",
-                                  "id": "var-name",
-                                  "path": []
-                                },
-                                "})"
-                              ]
-                            },
-                            "$text:.prompts.P-6.1": {
-                              "expression": [
-                                {
-                                  "source": "variable",
-                                  "id": "var-groups",
-                                  "path": []
-                                },
-                                ".map(({id,name}) => ({id,name}))"
-                              ]
-                            }
-                          },
-                          "output": "var-reply"
-                        },
-                        {
-                          "id": "step-41",
-                          "kind": "action",
-                          "action": "json",
-                          "value": {
-                            "expression": [
-                              {
-                                "source": "variable",
-                                "id": "var-reply",
-                                "path": []
-                              },
-                              ".trim().replace(/^\\x60{3}(?:json)?\\s*/i, \"\").replace(/\\s*\\x60{3}$/, \"\")"
-                            ]
-                          },
-                          "output": "var-parsed"
-                        },
-                        {
-                          "id": "step-43",
-                          "kind": "if",
-                          "branches": [
-                            {
-                              "condition": {
-                                "op": "isFalse",
-                                "left": {
-                                  "expression": [
-                                    "Array.isArray(",
-                                    {
-                                      "source": "variable",
-                                      "id": "var-parsed",
-                                      "path": []
-                                    },
-                                    "?.collection_ids) && ",
-                                    {
-                                      "source": "variable",
-                                      "id": "var-parsed",
-                                      "path": []
-                                    },
-                                    ".collection_ids.every(id => ",
-                                    {
-                                      "source": "variable",
-                                      "id": "var-groups",
-                                      "path": []
-                                    },
-                                    ".some(group => group.id === id))"
-                                  ]
-                                }
-                              },
-                              "steps": [
-                                {
-                                  "id": "step-42",
-                                  "kind": "action",
-                                  "action": "raise",
-                                  "value": {
-                                    "literal": {
-                                      "code": "AI_OUTPUT_INVALID",
-                                      "message": "$text:.errors.selected"
-                                    }
-                                  }
-                                }
-                              ]
-                            }
-                          ],
-                          "otherwise": null
-                        },
-                        {
-                          "id": "step-44",
-                          "kind": "action",
-                          "action": "set",
-                          "value": {
-                            "expression": [
-                              {
-                                "source": "variable",
-                                "id": "var-groups",
-                                "path": []
-                              },
-                              ".filter(group => ",
-                              {
-                                "source": "variable",
-                                "id": "var-parsed",
-                                "path": [
-                                  "collection_ids"
-                                ]
-                              },
-                              ".includes(group.id)).map(group => group.id)"
-                            ]
-                          },
-                          "output": "var-choices"
-                        }
-                      ]
-                    },
-                    {
-                      "id": "step-48",
-                      "kind": "if",
-                      "branches": [
-                        {
-                          "condition": {
-                            "op": "notEmpty",
-                            "left": {
-                              "source": "variable",
-                              "id": "var-choices",
-                              "path": []
-                            }
-                          },
-                          "steps": [
-                            {
-                              "id": "step-46",
-                              "kind": "action",
-                              "action": "steam-add-collections",
-                              "game": {
-                                "source": "variable",
-                                "id": "var-app",
-                                "path": []
-                              },
-                              "value": {
-                                "source": "variable",
-                                "id": "var-choices",
-                                "path": []
-                              },
-                              "output": "var-saved"
-                            },
-                            {
-                              "id": "step-47",
-                              "kind": "action",
-                              "action": "record",
-                              "entries": [
-                                {
-                                  "key": "appId",
-                                  "value": {
-                                    "source": "variable",
-                                    "id": "var-app",
-                                    "path": []
-                                  },
-                                  "omitIfUnset": false
-                                },
-                                {
-                                  "key": "name",
-                                  "value": {
-                                    "source": "variable",
-                                    "id": "var-name",
-                                    "path": []
-                                  },
-                                  "omitIfUnset": false
-                                },
-                                {
-                                  "key": "status",
-                                  "value": {
-                                    "literal": "proposed"
-                                  },
-                                  "omitIfUnset": false
-                                },
-                                {
-                                  "key": "collections",
-                                  "value": {
-                                    "expression": [
-                                      {
-                                        "source": "variable",
-                                        "id": "var-groups",
-                                        "path": []
-                                      },
-                                      ".filter(group => ",
-                                      {
-                                        "source": "variable",
-                                        "id": "var-choices",
-                                        "path": []
-                                      },
-                                      ".includes(group.id)).map(({id,name}) => ({id,name}))"
-                                    ]
-                                  },
-                                  "omitIfUnset": false
-                                }
-                              ],
-                              "output": "var-row"
-                            }
-                          ]
-                        }
-                      ],
-                      "otherwise": null
-                    }
-                  ]
-                }
-              ],
-              "otherwise": null
+                  ",status:'proposed'})"
+                ]
+              },
+              "output": "var-items"
             }
           ],
           "catch": [
             {
-              "id": "step-52",
+              "id": "step-catch",
               "kind": "if",
               "branches": [
                 {
@@ -1204,7 +297,7 @@
                     "op": "isTrue",
                     "left": {
                       "expression": [
-                        "['ACTION_NOT_WRITTEN','ACTION_INPUT_INVALID','AI_OUTPUT_INVALID','STEAM_ACHIEVEMENTS_UNAVAILABLE','AI_RESPONSE_INVALID','AI_RESPONSE_REFUSED','WORKFLOW_GAME_FIELD_UNAVAILABLE'].includes(",
+                        "['ACTION_NOT_WRITTEN','ACTION_INPUT_INVALID','ACTION_WRITE_CONFLICT','ACTION_SOURCE_CHANGED','STEAM_ACHIEVEMENTS_UNAVAILABLE','ACHIEVEMENT_VALUE_INVALID'].includes(",
                         {
                           "source": "variable",
                           "id": "var-error",
@@ -1218,66 +311,51 @@
                   },
                   "steps": [
                     {
-                      "id": "step-50",
+                      "id": "step-result-failed",
                       "kind": "action",
-                      "action": "record",
-                      "entries": [
-                        {
-                          "key": "appId",
-                          "value": {
+                      "action": "append",
+                      "value": {
+                        "source": "variable",
+                        "id": "var-items",
+                        "path": []
+                      },
+                      "item": {
+                        "expression": [
+                          "({appId:",
+                          {
                             "source": "variable",
-                            "id": "var-app",
-                            "path": []
-                          },
-                          "omitIfUnset": false
-                        },
-                        {
-                          "key": "status",
-                          "value": {
-                            "expression": [
-                              {
-                                "source": "variable",
-                                "id": "var-error",
-                                "path": [
-                                  "code"
-                                ]
-                              },
-                              " === 'ACTION_NOT_WRITTEN' ? 'skipped' : 'failed'"
+                            "id": "var-item",
+                            "path": [
+                              "appId"
                             ]
                           },
-                          "omitIfUnset": false
-                        },
-                        {
-                          "key": "code",
-                          "value": {
+                          ",status:'failed',code:",
+                          {
                             "source": "variable",
                             "id": "var-error",
                             "path": [
                               "code"
                             ]
                           },
-                          "omitIfUnset": false
-                        },
-                        {
-                          "key": "reason",
-                          "value": {
+                          ",reason:",
+                          {
                             "source": "variable",
                             "id": "var-error",
                             "path": [
                               "message"
                             ]
                           },
-                          "omitIfUnset": false
-                        }
-                      ],
-                      "output": "var-row"
+                          "})"
+                        ]
+                      },
+                      "output": "var-items"
                     }
                   ]
                 }
               ],
               "otherwise": [
                 {
-                  "id": "step-51",
+                  "id": "step-rethrow",
                   "kind": "action",
                   "action": "raise",
                   "value": {
@@ -1290,32 +368,16 @@
             }
           ],
           "finally": null
-        },
-        {
-          "id": "step-53",
-          "kind": "action",
-          "action": "append",
-          "value": {
-            "source": "variable",
-            "id": "var-items",
-            "path": []
-          },
-          "item": {
-            "source": "variable",
-            "id": "var-row",
-            "path": []
-          },
-          "output": "var-items"
         }
       ]
     },
     {
-      "id": "step-55",
+      "id": "step-return",
       "kind": "action",
       "action": "tool-return",
       "value": {
         "expression": [
-          "((items) => ({items, changed:0, skipped:items.filter(item => item.status === 'skipped').length, failed:items.filter(item => item.status === 'failed').length, ...(items.some(item => item.status === 'proposed') ? {confirmationRequired:true} : {})}))(",
+          "((items) => ({items, changed:0, skipped:0, failed:items.filter(item => item.status === 'failed').length, ...(items.some(item => item.status === 'proposed') ? {confirmationRequired:true} : {})}))(",
           {
             "source": "variable",
             "id": "var-items",

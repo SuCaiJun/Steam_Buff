@@ -1,0 +1,12 @@
+{
+  ".name": "Set custom game names",
+  ".note": "Save an independent Steam Buff game name, using a translated or user-specified title.",
+  ".parameters.changes": "Provide a Steam AppID and the exact new name for each game.",
+  ".variables.items": "Item results",
+  ".variables.item": "Current item",
+  ".variables.index": "Index",
+  ".variables.error": "Item error",
+  ".description": "Save an independent Steam Buff game name, using a translated or user-specified title.",
+  ".error.badName": "Provide one explicit name per valid Steam AppID.",
+  ".variables.prepared": "Prepared change"
+}

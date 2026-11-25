@@ -1,0 +1,14 @@
+{
+  ".name": "讀取遊戲名稱",
+  ".note": "讀取遊戲的官方名稱和目前的排序名或獨立自訂名稱。",
+  ".parameters.appIds": "Steam 遊戲 AppID 清單。",
+  ".parameters.field": "指定 sort 讀取排序名，或 custom 讀取 Steam Buff 獨立自訂名稱。",
+  ".variables.items": "逐項結果",
+  ".variables.item": "本項",
+  ".variables.index": "序號",
+  ".variables.original": "Steam 原名稱",
+  ".variables.current": "目前名稱",
+  ".variables.error": "本項錯誤",
+  ".description": "讀取遊戲的官方名稱和目前的排序名或獨立自訂名稱。",
+  ".error.badApp": "請提供有效的 Steam AppID。"
+}

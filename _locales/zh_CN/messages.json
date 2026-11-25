@@ -10612,7 +10612,7 @@
     "message": "Steam 商店搜索"
   },
   "ai_chat_tool_rename": {
-    "message": "批量游戏名汉化"
+    "message": "修改游戏自定义排序名称"
   },
   "workflow_command_steam_batch_sort_name_hint": {
     "message": "为 Steam 库内指定游戏生成中文排序名称，已有排序名称或名称已含汉字时跳过。修改前会请求确认。"

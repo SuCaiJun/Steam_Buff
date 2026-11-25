@@ -10612,7 +10612,7 @@
     "message": "Steam 상점 검색"
   },
   "ai_chat_tool_rename": {
-    "message": "게임 이름 일괄 중국어 번역"
+    "message": "게임 사용자 지정 정렬 이름 변경"
   },
   "workflow_command_steam_batch_sort_name_hint": {
     "message": "지정한 Steam 게임의 중국어 정렬 이름을 제안합니다. 기존 정렬 이름이 있거나 이름에 한자가 들어 있으면 건너뛰고 저장 전 확인합니다."

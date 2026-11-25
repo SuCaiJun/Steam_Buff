@@ -1,0 +1,6 @@
+{
+  ".name": "List writable collections",
+  ".note": "List IDs and names of collections the current Steam account can edit.",
+  ".variables.groups": "Writable collections",
+  ".description": "List IDs and names of collections the current Steam account can edit."
+}

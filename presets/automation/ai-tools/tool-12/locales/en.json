@@ -1,0 +1,14 @@
+{
+  ".name": "Read game names",
+  ".note": "Read a game's official name and the current sort or independent name.",
+  ".parameters.appIds": "List of Steam game AppIDs.",
+  ".parameters.field": "Use sort for the sort name or custom for the independent Steam Buff name.",
+  ".variables.items": "Item results",
+  ".variables.item": "Current item",
+  ".variables.index": "Index",
+  ".variables.original": "Steam original name",
+  ".variables.current": "Current name",
+  ".variables.error": "Item error",
+  ".description": "Read a game's official name and the current sort or independent name.",
+  ".error.badApp": "Provide a valid Steam AppID."
+}

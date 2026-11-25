@@ -2549,19 +2549,99 @@
     for (const id of byId.keys()) visit(id);
   }
 
-  function originalBatchBody(tool) {
-    if (tool.entryRow?.disabled || tool.steps.length !== 3 || !providerSpec(tool.id)?.writes) return false;
-    const [parameters, work, output] = tool.steps;
-    const spec = flow.providerQueries[work.action];
-    if (!spec?.legacy || root.STAI.PROVIDER_TOOL_IDS[spec.provider] !== tool.id) return false;
+  // 旧版出厂内容的签名包含步骤与原始语言。启停变化不影响比对
+  const previousFactoryDefinitions = {
+    "tool-5": {
+      zh_CN: "fe83d3449226b47717e8cc0b63432324973441dba4d32c1e33a44304379d1fe1",
+      zh_TW: "0924253beb52fbc1713b9db22910c1176c50627cf80d0803f640aceee3506b01",
+      en: "82a4cc72e53423b5138c047df1c974a35f8a02a5cd0ec71844e1b796bac1a9f8",
+      ja: "6f0d8cf9085ecc4e28132f40461ec59f86223ffb11a8fca8485520e91ad013af",
+      ko: "9b1639346eaeeb7aed520ed6ecc7708173a9ef633da1f75dfd15726f7c79b13b",
+    },
+    "tool-6": {
+      zh_CN: "7ebe7b1ca3eaf33f82eb6e906f229163092329c21a318e90840f3b84c79df3e7",
+      zh_TW: "d0fb4c9b1626dc80b3761d1ced09989bb028c0243bca2d030e9762e32c49c79d",
+      en: "5de96085eac975cc80bb36e2e91e352d8704ec3c36571c8069a32781ffb3a2d2",
+      ja: "479003a479046011a412712bd2638d486010768a223ae0e9a45d9c55a3635aef",
+      ko: "185902fabe20d3c7495463b8186745356c46709def291760f282ede11b4c8c55",
+    },
+    "tool-7": {
+      zh_CN: "449dd500f06407149b82d795e162f159a66d062b344881f84e37652037fccf28",
+      zh_TW: "f41130043b8f3ccc6e15049950423a2e4a7c8a8ce4294784c770bae5a5f2740b",
+      en: "a342a549616dad8aea2eb194e934d9b91190fd6f49a69185f939d141223c1d01",
+      ja: "a5909ff323106f8e52c32a85677142ed8e4752ba0c8b1a28b1249489895759dc",
+      ko: "79164e08156a7ca7c3b729ea9ea33bfe519a3d0b0f1647712c6a2f076ea70c23",
+    },
+    "trigger-1": {
+      zh_CN: "e32b0625328ce194b9dcd64e2cbbcfefdb703ddc11230b50014fd4f5ff506e4b",
+      zh_TW: "923624c129c2b568e5a17bf2fdb6011727fbdc63291500005404f480f5ffb518",
+      en: "5ab34096d355829ba79c221ec1d188d81e11d437a6361aee82f02e53160279b1",
+      ja: "17618eef94e781563b2e1cc6d5596df0fb19437e4c7c49495fdc1678587e0258",
+      ko: "93b4d6f5f31c5cc444426c011e39093e476281355dec8c32f16007116e6da3e3",
+    },
+  };
+  // 2.2.65 的三步包装定义使用相同入参和本地化文案，步骤 ID 不参与旧包装识别
+  const previousBatchLabels = {
+    "tool-5": {
+      zh_CN: "e2524b3085eac8733af4a0077360e7ddad7663d807e54d815ee6ac502d2d3c57",
+      zh_TW: "14e3b6f638829f366e32b14e6a346c3c17a4ce18c2fcea471925f09db3af21e2",
+      en: "cc291222195e8059b6173fd8068e80bfc10fa289e75ee6d66bfd168e11e5eaf2",
+      ja: "394f65d3839477c824278d0381bba223af071a2a232cfaa028fe9b031e913761",
+      ko: "87c8a253c4d5c927048ae637d2a03f29aa153456df7c75009085725ffb149c02",
+    },
+    "tool-6": {
+      zh_CN: "850663c76665dd15c9fefeeda08e6b0f24da3a94a6cc322f400b4fe35b38a5ee",
+      zh_TW: "ec2b67913e33f11402baac2346433724d34f8e3f1a6a25f6a2685e03c2b8de05",
+      en: "7c6e0afaa98b970674adb461dd01c4dc0eca73442c308352f6210a6415413940",
+      ja: "8cc736898a81f5a9984253b91da73eb16f36ed8c1bbedc540cfdb6d2d57fbe5f",
+      ko: "5e29e8ec7117e425ffedee224ff7adb3ae4bacec41c8a4022036483303c8555e",
+    },
+    "tool-7": {
+      zh_CN: "e3bae95bbedfb27d21958d2ecbc58a4b8336b6ebfcfb3b0ca144b7e8e8565474",
+      zh_TW: "bc6f92237fd2f6b74cf0ba7d5ce14ffdc64ced02e4cd6a95808e7b9cd2a69d47",
+      en: "de2ed4497d2a19dffd1d28d2b8d668ec36c4b8961aefdbe9cb665942f7db292c",
+      ja: "f0838600a23e354a569421ce53c7c067d00074b4b56a16a032db42570b3ae94b",
+      ko: "23b54a8b72cf6d5685a2aa17ebcbf09092516e92f2ce68886601c036acddcca2",
+    },
+  };
+  async function previousBatchLocale(tool, load) {
+    const labels = previousBatchLabels[tool.id];
+    if (!labels || tool.entryRow !== undefined || tool.folds?.length || tool.steps.length !== 3) return null;
+    const [parameters, work, output] = tool.steps, spec = flow.providerQueries[work.action];
+    if (!spec?.legacy || root.STAI.PROVIDER_TOOL_IDS[spec.provider] !== tool.id) return null;
     const only = (node, keys) => Object.keys(node).every(key => ["id", "kind", "action", ...keys].includes(key));
     const reads = (value, id) => value?.source === "variable" && value.id === id && value.path.length === 0;
-    return parameters.action === "record" && only(parameters, ["entries", "output"]) &&
+    const valid = parameters.action === "record" && only(parameters, ["entries", "output"]) &&
       parameters.entries?.length === tool.parameters.length && tool.variables.length === tool.parameters.length + 2 &&
       parameters.entries.every(entry => tool.parameters.some(parameter => parameter.name === entry.key &&
         reads(entry.value, parameter.variableId) && entry.omitIfUnset === !parameter.required)) &&
       only(work, ["taskArgs", "output"]) && reads(work.taskArgs, parameters.output) &&
       output.action === "tool-return" && only(output, ["value"]) && reads(output.value, work.output);
+    if (!valid) return null;
+    const variables = tool.variables.filter(variable => tool.parameters.some(parameter => parameter.variableId === variable.id));
+    const { id, name, note, description } = tool;
+    const digest = await jsonDigest(canonicalPreset({ id, name, note, description, parameters: tool.parameters, variables }));
+    const locale = Object.keys(labels).find(language => labels[language] === digest);
+    if (!locale) return null;
+    const reader = (await load(locale)).tools.find(item => item.id === root.STAI.PROVIDER_TOOL_IDS.library_game);
+    const standardName = variableId => reader.variables.find(variable => variable.id === variableId)?.name;
+    const args = tool.variables.find(variable => variable.id === parameters.output);
+    const result = tool.variables.find(variable => variable.id === work.output);
+    return args?.type === "object" && args.name === standardName("var-task-args") &&
+      result?.type === "object" && result.name === standardName("var-result") ? locale : null;
+  }
+
+  function canonicalPreset(value) {
+    if (Array.isArray(value)) return value.map(canonicalPreset);
+    if (!value || typeof value !== "object") return value;
+    return Object.fromEntries(Object.keys(value).sort().map(key => [key, canonicalPreset(value[key])]));
+  }
+  async function previousFactoryLocale(item) {
+    const known = previousFactoryDefinitions[item.id];
+    if (!known) return null;
+    const { enabled, executionId, revision, ...content } = item;
+    const digest = await jsonDigest(canonicalPreset(content));
+    return Object.keys(known).find(locale => known[locale] === digest) ?? null;
   }
 
   function presetInputs(node, packaged, saved) {
@@ -2581,7 +2661,7 @@
     return true;
   }
 
-  function addMissingPresets(current, presets, version) {
+  async function addMissingPresets(current, presets, version, locale) {
     const next = model.clone(current);
     const factory = model.clone(presets);
     for (const section of Object.keys(model.presetSections)) {
@@ -2601,23 +2681,25 @@
       const saved = next.prompts.find(plan => plan.id === node.promptId);
       return bindPresetInputs(node, packaged, saved);
     };
-    next.tools = next.tools.map(tool => {
-      if (!originalBatchBody(tool)) return tool;
-      const packaged = presets.tools.find(item => item.id === tool.id);
-      if (!packaged || packaged.parameters.length !== tool.parameters.length || packaged.parameters.some(parameter =>
-        !tool.parameters.some(prior => ["name", "type", "required", "variableId"].every(key => prior[key] === parameter[key])))) return tool;
-      const candidate = copy(packaged);
-      if (![...flow.walk(candidate.steps)].every(node => !missingDependency(node, candidate) && adaptPrompt(node))) return tool;
-      const parameterIds = new Set(tool.parameters.map(parameter => parameter.variableId));
-      const variables = candidate.variables.map(variable => parameterIds.has(variable.id) ? tool.variables.find(item => item.id === variable.id) : variable);
-      return { ...tool, variables, steps: candidate.steps };
-    });
+    const packaged = language => language === locale ? presets : model.loadDefaults(language);
+    next.tools = await Promise.all(next.tools.map(async tool => {
+      if (!providerSpec(tool.id)?.writes || model.hasExplicitWrites(tool)) return tool;
+      const language = await previousFactoryLocale(tool) ?? await previousBatchLocale(tool, packaged);
+      if (!language) return tool;
+      const original = (await packaged(language)).tools.find(item => item.id === tool.id);
+      return { ...copy(original), enabled: tool.enabled };
+    }));
     for (const section of ["libraries", "tools", "workflows"]) {
       const existing = new Set(current[section]?.map(item => item.id));
       next[section] = next[section].filter(item => existing.has(item.id) ||
         [...flow.walk(item.steps)].every(node => !missingDependency(node, item) && adaptPrompt(node)));
     }
     const existingTriggers = new Set(current.triggers.map(item => item.id));
+    const presetTrigger = next.triggers.find(item => item.id === "trigger-1" && !item.enabled && item.workflowId === "wf-1");
+    if (presetTrigger && has("workflows", "wf-6")) {
+      const language = await previousFactoryLocale(presetTrigger);
+      if (language) Object.assign(presetTrigger, copy((await packaged(language)).triggers.find(item => item.id === "trigger-1")));
+    }
     next.triggers = next.triggers.filter(item => {
       if (existingTriggers.has(item.id)) return true;
       const workflow = next.workflows.find(row => row.id === item.workflowId);
@@ -3355,7 +3437,9 @@
       await configExclusive(async () => {
         const storage = root.STSettings.storage, family = root.STFamilyLibrary;
         const current = await storage.getWorkflow();
-        const includePresets = current.presetImportVersion !== chrome.runtime.getManifest().version;
+        const missingPreset = (section, id) => !current[section].some(item => item.id === id) && !(current.deletedPresets?.[section] ?? []).includes(id);
+        const includePresets = current.presetImportVersion !== chrome.runtime.getManifest().version ||
+          ["tool-11", "tool-12", "tool-13", "tool-14"].some(id => missingPreset("tools", id)) || missingPreset("workflows", "wf-5");
         const patch = {};
         if (family.hasReleasedSchedule(previousVersion) && current.epoch === "initial" && current.revision === 1 &&
           !current.triggers.some(trigger => trigger.id === "trigger-0")) {

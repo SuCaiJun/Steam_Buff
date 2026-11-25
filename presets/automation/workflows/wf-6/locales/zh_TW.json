@@ -1,0 +1,14 @@
+{
+  ".name": "修改遊戲自訂名稱",
+  ".note": "傳入新名稱直接儲存。留空時依 Steam 原名稱自動產生，僅處理尚未設定獨立名稱的遊戲。",
+  ".variables.original": "Steam 原名稱",
+  ".variables.current": "目前名稱",
+  ".variables.translated": "產生的名稱",
+  ".variables.saved": "已儲存的名稱",
+  ".inputs.app": "遊戲 AppID",
+  ".inputs.name": "目標名稱",
+  ".error.badApp": "請提供有效的 Steam AppID。",
+  ".error.badName": "請為每個有效的 AppID 提供一個明確的名稱。",
+  ".inputs.promptSteamName": "Steam 原名",
+  ".variables.nameError": "名稱寫入錯誤"
+}

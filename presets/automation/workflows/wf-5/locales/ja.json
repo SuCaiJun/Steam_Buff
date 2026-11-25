@@ -1,0 +1,10 @@
+{
+  ".name": "ゲームのカスタム並び替え名を設定",
+  ".note": "Steam ゲームの並び順を変更します。",
+  ".variables.current": "現在の名前",
+  ".variables.saved": "保存した名前",
+  ".inputs.app": "ゲーム AppID",
+  ".inputs.name": "設定する名前",
+  ".error.badApp": "有効な Steam AppID を指定してください。",
+  ".error.badName": "有効な Steam AppID ごとに名前を 1 つ指定してください。"
+}

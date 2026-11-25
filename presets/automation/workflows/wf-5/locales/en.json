@@ -1,0 +1,10 @@
+{
+  ".name": "Set game sort names",
+  ".note": "Change the position of Steam games in the sort order.",
+  ".variables.current": "Current name",
+  ".variables.saved": "Saved name",
+  ".inputs.app": "Game AppID",
+  ".inputs.name": "Target name",
+  ".error.badApp": "Provide a valid Steam AppID.",
+  ".error.badName": "Provide one explicit name per valid Steam AppID."
+}

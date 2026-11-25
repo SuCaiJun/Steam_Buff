@@ -1,0 +1,14 @@
+{
+  ".name": "ゲーム名を取得",
+  ".note": "ゲームの公式名と現在の並び替え名またはカスタム名を取得します。",
+  ".parameters.appIds": "Steam ゲームの AppID の一覧。",
+  ".parameters.field": "並び替え名には sort、Steam Buff のカスタム名には custom を指定します。",
+  ".variables.items": "項目別結果",
+  ".variables.item": "現在の項目",
+  ".variables.index": "行番号",
+  ".variables.original": "Steam の元の名前",
+  ".variables.current": "現在の名前",
+  ".variables.error": "項目のエラー",
+  ".description": "ゲームの公式名と現在の並び替え名またはカスタム名を取得します。",
+  ".error.badApp": "有効な Steam AppID を指定してください。"
+}

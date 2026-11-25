@@ -1,0 +1,14 @@
+{
+  ".name": "게임 이름 조회",
+  ".note": "게임의 공식 이름과 현재 정렬 이름 또는 독립 사용자 지정 이름을 조회합니다.",
+  ".parameters.appIds": "Steam 게임 AppID 목록.",
+  ".parameters.field": "정렬 이름은 sort, Steam Buff 독립 이름은 custom을 사용하세요.",
+  ".variables.items": "항목별 결과",
+  ".variables.item": "현재 항목",
+  ".variables.index": "순서",
+  ".variables.original": "Steam 원래 이름",
+  ".variables.current": "현재 이름",
+  ".variables.error": "항목 오류",
+  ".description": "게임의 공식 이름과 현재 정렬 이름 또는 독립 사용자 지정 이름을 조회합니다.",
+  ".error.badApp": "유효한 Steam AppID를 입력하세요."
+}

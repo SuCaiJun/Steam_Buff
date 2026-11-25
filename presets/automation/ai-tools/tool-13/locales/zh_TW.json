@@ -1,0 +1,6 @@
+{
+  ".name": "查詢可寫收藏分組",
+  ".note": "讀取目前 Steam 帳號可寫收藏分組的 ID 和名稱。",
+  ".variables.groups": "可寫收藏分組",
+  ".description": "讀取目前 Steam 帳號可寫收藏分組的 ID 和名稱。"
+}

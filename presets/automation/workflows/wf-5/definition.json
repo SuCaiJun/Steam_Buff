@@ -1,0 +1,148 @@
+{
+  "id": "wf-5",
+  "name": "$text:.name",
+  "note": "$text:.note",
+  "revision": 1,
+  "inputParameters": [
+    {
+      "name": "$text:.inputs.app",
+      "type": "integer",
+      "variableId": "var-app"
+    },
+    {
+      "name": "$text:.inputs.name",
+      "type": "text",
+      "variableId": "var-name"
+    }
+  ],
+  "variables": [
+    {
+      "id": "var-app",
+      "name": "$text:.inputs.app",
+      "type": "number"
+    },
+    {
+      "id": "var-name",
+      "name": "$text:.inputs.name",
+      "type": "text"
+    },
+    {
+      "id": "var-current",
+      "name": "$text:.variables.current",
+      "type": "text"
+    },
+    {
+      "id": "var-saved",
+      "name": "$text:.variables.saved",
+      "type": "text"
+    }
+  ],
+  "steps": [
+    {
+      "id": "step-appid",
+      "kind": "if",
+      "branches": [
+        {
+          "condition": {
+            "op": "any",
+            "children": [
+              {
+                "op": "lt",
+                "left": {
+                  "source": "variable",
+                  "id": "var-app",
+                  "path": []
+                },
+                "right": {
+                  "literal": 1
+                }
+              },
+              {
+                "op": "gt",
+                "left": {
+                  "source": "variable",
+                  "id": "var-app",
+                  "path": []
+                },
+                "right": {
+                  "literal": 4294967295
+                }
+              }
+            ]
+          },
+          "steps": [
+            {
+              "id": "step-invalid",
+              "kind": "action",
+              "action": "raise",
+              "value": {
+                "literal": {
+                  "code": "ACTION_INPUT_INVALID",
+                  "message": "$text:.error.badApp"
+                }
+              }
+            }
+          ]
+        }
+      ],
+      "otherwise": null
+    },
+    {
+      "id": "step-trim",
+      "kind": "action",
+      "action": "text-trim",
+      "value": {
+        "source": "variable",
+        "id": "var-name",
+        "path": []
+      },
+      "output": "var-current"
+    },
+    {
+      "id": "step-check-name",
+      "kind": "if",
+      "branches": [
+        {
+          "condition": {
+            "op": "empty",
+            "left": {
+              "source": "variable",
+              "id": "var-current",
+              "path": []
+            }
+          },
+          "steps": [
+            {
+              "id": "step-no-name",
+              "kind": "action",
+              "action": "raise",
+              "value": {
+                "literal": {
+                  "code": "ACTION_INPUT_INVALID",
+                  "message": "$text:.error.badName"
+                }
+              }
+            }
+          ]
+        }
+      ],
+      "otherwise": null
+    },
+    {
+      "id": "step-steam",
+      "kind": "action",
+      "action": "steam-set-sort-name",
+      "game": {
+        "source": "variable",
+        "id": "var-app",
+        "path": []
+      },
+      "value": {
+        "source": "variable",
+        "id": "var-current",
+        "path": []
+      },
+      "output": "var-saved"
+    }
+  ]
+}

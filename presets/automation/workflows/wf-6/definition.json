@@ -1,0 +1,326 @@
+{
+  "id": "wf-6",
+  "name": "$text:.name",
+  "note": "$text:.note",
+  "revision": 1,
+  "inputParameters": [
+    {
+      "name": "$text:.inputs.app",
+      "type": "integer",
+      "variableId": "var-app"
+    },
+    {
+      "name": "$text:.inputs.name",
+      "type": "text",
+      "variableId": "var-name"
+    }
+  ],
+  "variables": [
+    {
+      "id": "var-app",
+      "name": "$text:.inputs.app",
+      "type": "number"
+    },
+    {
+      "id": "var-name",
+      "name": "$text:.inputs.name",
+      "type": "text"
+    },
+    {
+      "id": "var-original",
+      "name": "$text:.variables.original",
+      "type": "text"
+    },
+    {
+      "id": "var-current",
+      "name": "$text:.variables.current",
+      "type": "text"
+    },
+    {
+      "id": "var-translated",
+      "name": "$text:.variables.translated",
+      "type": "text"
+    },
+    {
+      "id": "var-saved",
+      "name": "$text:.variables.saved",
+      "type": "text"
+    },
+    {
+      "id": "var-name-error",
+      "name": "$text:.variables.nameError",
+      "type": "object"
+    }
+  ],
+  "steps": [
+    {
+      "id": "step-appid",
+      "kind": "if",
+      "branches": [
+        {
+          "condition": {
+            "op": "any",
+            "children": [
+              {
+                "op": "lt",
+                "left": {
+                  "source": "variable",
+                  "id": "var-app",
+                  "path": []
+                },
+                "right": {
+                  "literal": 1
+                }
+              },
+              {
+                "op": "gt",
+                "left": {
+                  "source": "variable",
+                  "id": "var-app",
+                  "path": []
+                },
+                "right": {
+                  "literal": 4294967295
+                }
+              }
+            ]
+          },
+          "steps": [
+            {
+              "id": "step-invalid",
+              "kind": "action",
+              "action": "raise",
+              "value": {
+                "literal": {
+                  "code": "ACTION_INPUT_INVALID",
+                  "message": "$text:.error.badApp"
+                }
+              }
+            }
+          ]
+        }
+      ],
+      "otherwise": null
+    },
+    {
+      "id": "step-trim",
+      "kind": "action",
+      "action": "text-trim",
+      "value": {
+        "source": "variable",
+        "id": "var-name",
+        "path": []
+      },
+      "output": "var-translated"
+    },
+    {
+      "id": "step-automatic",
+      "kind": "if",
+      "branches": [
+        {
+          "condition": {
+            "op": "empty",
+            "left": {
+              "source": "variable",
+              "id": "var-translated",
+              "path": []
+            }
+          },
+          "steps": [
+            {
+              "id": "step-current",
+              "kind": "action",
+              "action": "steam-custom-name",
+              "game": {
+                "source": "variable",
+                "id": "var-app",
+                "path": []
+              },
+              "output": "var-current"
+            },
+            {
+              "id": "step-has-name",
+              "kind": "if",
+              "branches": [
+                {
+                  "condition": {
+                    "op": "notEmpty",
+                    "left": {
+                      "source": "variable",
+                      "id": "var-current",
+                      "path": []
+                    }
+                  },
+                  "steps": [
+                    {
+                      "id": "step-has-name-stop",
+                      "kind": "action",
+                      "action": "stop"
+                    }
+                  ]
+                }
+              ],
+              "otherwise": null
+            },
+            {
+              "id": "step-official",
+              "kind": "action",
+              "action": "steam-original-name",
+              "game": {
+                "source": "variable",
+                "id": "var-app",
+                "path": []
+              },
+              "output": "var-original"
+            },
+            {
+              "id": "step-generate",
+              "kind": "action",
+              "action": "ai-call",
+              "serviceId": "AI-0",
+              "promptId": "P-2",
+              "requestTimeoutSeconds": 60,
+              "inputs": {
+                "$text:.inputs.promptSteamName": {
+                  "source": "variable",
+                  "id": "var-original",
+                  "path": []
+                }
+              },
+              "output": "var-translated"
+            },
+            {
+              "id": "step-trim-ai",
+              "kind": "action",
+              "action": "text-trim",
+              "value": {
+                "source": "variable",
+                "id": "var-translated",
+                "path": []
+              },
+              "output": "var-translated"
+            },
+            {
+              "id": "step-check-name",
+              "kind": "if",
+              "branches": [
+                {
+                  "condition": {
+                    "op": "empty",
+                    "left": {
+                      "source": "variable",
+                      "id": "var-translated",
+                      "path": []
+                    }
+                  },
+                  "steps": [
+                    {
+                      "id": "step-no-name",
+                      "kind": "action",
+                      "action": "raise",
+                      "value": {
+                        "literal": {
+                          "code": "ACTION_INPUT_INVALID",
+                          "message": "$text:.error.badName"
+                        }
+                      }
+                    }
+                  ]
+                }
+              ],
+              "otherwise": null
+            },
+            {
+              "id": "step-guard-generated-name",
+              "kind": "try",
+              "error": "var-name-error",
+              "body": [
+                {
+                  "id": "step-save-generated-name",
+                  "kind": "action",
+                  "action": "steam-set-custom-name",
+                  "game": {
+                    "source": "variable",
+                    "id": "var-app",
+                    "path": []
+                  },
+                  "value": {
+                    "source": "variable",
+                    "id": "var-translated",
+                    "path": []
+                  },
+                  "output": "var-saved"
+                }
+              ],
+              "catch": [
+                {
+                  "id": "step-name-conflict",
+                  "kind": "if",
+                  "branches": [
+                    {
+                      "condition": {
+                        "op": "equals",
+                        "left": {
+                          "source": "variable",
+                          "id": "var-name-error",
+                          "path": [
+                            "code"
+                          ]
+                        },
+                        "right": {
+                          "literal": "ACTION_WRITE_CONFLICT"
+                        }
+                      },
+                      "steps": [
+                        {
+                          "id": "step-name-conflict-skip",
+                          "kind": "action",
+                          "action": "stop"
+                        }
+                      ]
+                    }
+                  ],
+                  "otherwise": [
+                    {
+                      "id": "step-name-error",
+                      "kind": "action",
+                      "action": "raise",
+                      "value": {
+                        "source": "variable",
+                        "id": "var-name-error",
+                        "path": []
+                      }
+                    }
+                  ]
+                }
+              ],
+              "finally": null
+            },
+            {
+              "id": "step-generated-done",
+              "kind": "action",
+              "action": "stop"
+            }
+          ]
+        }
+      ],
+      "otherwise": null
+    },
+    {
+      "id": "step-steam",
+      "kind": "action",
+      "action": "steam-set-custom-name",
+      "game": {
+        "source": "variable",
+        "id": "var-app",
+        "path": []
+      },
+      "value": {
+        "source": "variable",
+        "id": "var-translated",
+        "path": []
+      },
+      "output": "var-saved"
+    }
+  ]
+}

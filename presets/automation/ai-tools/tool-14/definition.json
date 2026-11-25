@@ -1,0 +1,176 @@
+{
+  "id": "tool-14",
+  "name": "$text:.name",
+  "note": "$text:.note",
+  "revision": 1,
+  "executionId": "00000000-0000-4000-8000-000000000002",
+  "enabled": true,
+  "description": "$text:.description",
+  "parameters": [
+    {
+      "name": "appId",
+      "type": "integer",
+      "required": true,
+      "description": "$text:.parameters.appId",
+      "variableId": "var-appId"
+    },
+    {
+      "name": "language",
+      "type": "string",
+      "required": true,
+      "description": "$text:.parameters.language",
+      "variableId": "var-language"
+    },
+    {
+      "name": "start",
+      "type": "integer",
+      "required": true,
+      "description": "$text:.parameters.start",
+      "variableId": "var-start"
+    }
+  ],
+  "variables": [
+    {
+      "id": "var-appId",
+      "name": "appId",
+      "type": "number"
+    },
+    {
+      "id": "var-language",
+      "name": "language",
+      "type": "text"
+    },
+    {
+      "id": "var-start",
+      "name": "start",
+      "type": "number"
+    },
+    {
+      "id": "var-source",
+      "name": "$text:.variables.source",
+      "type": "list"
+    },
+    {
+      "id": "var-records",
+      "name": "$text:.variables.records",
+      "type": "list"
+    }
+  ],
+  "steps": [
+    {
+      "id": "step-validate",
+      "kind": "if",
+      "branches": [
+        {
+          "condition": {
+            "op": "isFalse",
+            "left": {
+              "expression": [
+                "((id,language,start) => Number.isInteger(id) && id >= 1 && id <= 4294967295 && /^[a-z][a-z0-9_-]{0,40}$/i.test(language) && start >= 0)(",
+                {
+                  "source": "variable",
+                  "id": "var-appId",
+                  "path": []
+                },
+                ",",
+                {
+                  "source": "variable",
+                  "id": "var-language",
+                  "path": []
+                },
+                ",",
+                {
+                  "source": "variable",
+                  "id": "var-start",
+                  "path": []
+                },
+                ")"
+              ]
+            }
+          },
+          "steps": [
+            {
+              "id": "step-invalid",
+              "kind": "action",
+              "action": "raise",
+              "value": {
+                "literal": {
+                  "code": "CHAT_TOOL_INVALID",
+                  "message": "$text:.error.badAchievementQuery"
+                }
+              }
+            }
+          ]
+        }
+      ],
+      "otherwise": null
+    },
+    {
+      "id": "step-read",
+      "kind": "action",
+      "action": "steam-achievements",
+      "game": {
+        "source": "variable",
+        "id": "var-appId",
+        "path": []
+      },
+      "output": "var-source"
+    },
+    {
+      "id": "step-translation",
+      "kind": "action",
+      "action": "steam-translations",
+      "game": {
+        "source": "variable",
+        "id": "var-appId",
+        "path": []
+      },
+      "language": {
+        "source": "variable",
+        "id": "var-language",
+        "path": []
+      },
+      "output": "var-records"
+    },
+    {
+      "id": "step-return",
+      "kind": "action",
+      "action": "tool-return",
+      "value": {
+        "expression": [
+          "((appId,language,start,source,records) => { const saved = new Map(records.map(record => [record.id,record])); const items = []; let chars = 0; for (const {id,title,description} of source.slice(start,start + 20)) { const record = saved.get(id); const hasTranslation = !!record && record.cleared !== true; const item={id,title,description,revision:record?.revision ?? 0,hasTranslation,savedLanguage:hasTranslation ? record.language : null,translationCurrent:hasTranslation && record.language === language && record.sourceTitle === title && record.sourceDescription === description}; chars += JSON.stringify(item).length; if (items.length && chars > 24000) break; items.push(item); } return {appId,language,items,total:source.length,nextStart:start + items.length < source.length ? start + items.length : null}; })(",
+          {
+            "source": "variable",
+            "id": "var-appId",
+            "path": []
+          },
+          ",",
+          {
+            "source": "variable",
+            "id": "var-language",
+            "path": []
+          },
+          ",",
+          {
+            "source": "variable",
+            "id": "var-start",
+            "path": []
+          },
+          ",",
+          {
+            "source": "variable",
+            "id": "var-source",
+            "path": []
+          },
+          ",",
+          {
+            "source": "variable",
+            "id": "var-records",
+            "path": []
+          },
+          ")"
+        ]
+      }
+    }
+  ]
+}

@@ -1,0 +1,10 @@
+{
+  ".name": "修改遊戲自訂排序名稱",
+  ".note": "修改 Steam 遊戲排序位置。",
+  ".variables.current": "目前名稱",
+  ".variables.saved": "已儲存的名稱",
+  ".inputs.app": "遊戲 AppID",
+  ".inputs.name": "目標名稱",
+  ".error.badApp": "請提供有效的 Steam AppID。",
+  ".error.badName": "請為每個有效的 AppID 提供一個明確的名稱。"
+}

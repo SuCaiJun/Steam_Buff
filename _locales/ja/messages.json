@@ -10612,7 +10612,7 @@
     "message": "Steam ストア検索"
   },
   "ai_chat_tool_rename": {
-    "message": "ゲーム名の一括中国語化"
+    "message": "ゲームのカスタム並び替え名を設定"
   },
   "workflow_command_steam_batch_sort_name_hint": {
     "message": "Steam ライブラリのゲームの中国語ソート名を提案します。設定済みの名前と漢字を含む名前はスキップし、保存前に確認します。"

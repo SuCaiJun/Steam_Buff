@@ -1,4 +1,4 @@
 {
   ".name": "Process names when games are added",
-  ".note": "Run the game title translation workflow when a game is added to the library."
+  ".note": "Generate and save a custom name when a newly added game does not have one."
 }

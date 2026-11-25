@@ -10612,7 +10612,7 @@
     "message": "Steam Store Search"
   },
   "ai_chat_tool_rename": {
-    "message": "Batch localize game names"
+    "message": "Set game sort names"
   },
   "workflow_command_steam_batch_sort_name_hint": {
     "message": "Propose Chinese sort names for selected Steam library games. Skip games with a sort name or a title containing Han characters. Ask for confirmation before saving."

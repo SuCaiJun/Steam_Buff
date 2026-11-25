@@ -8,28 +8,30 @@
   "description": "$text:.description",
   "parameters": [
     {
-      "name": "appIds",
+      "name": "language",
+      "type": "string",
+      "required": true,
+      "description": "$text:.parameters.language",
+      "variableId": "var-language"
+    },
+    {
+      "name": "changes",
       "type": "array",
       "required": true,
-      "description": "$text:.parameters.0.description",
-      "variableId": "var-appIds"
+      "description": "$text:.parameters.changes",
+      "variableId": "var-changes"
     }
   ],
   "variables": [
     {
-      "id": "var-appIds",
-      "name": "appIds",
-      "type": "list"
+      "id": "var-language",
+      "name": "language",
+      "type": "text"
     },
     {
-      "id": "var-ids",
-      "name": "$text:.variables.ids",
+      "id": "var-changes",
+      "name": "changes",
       "type": "list"
-    },
-    {
-      "id": "var-size",
-      "name": "$text:.variables.size",
-      "type": "number"
     },
     {
       "id": "var-items",
@@ -37,9 +39,9 @@
       "type": "list"
     },
     {
-      "id": "var-app",
-      "name": "$text:.variables.app",
-      "type": "number"
+      "id": "var-item",
+      "name": "$text:.variables.item",
+      "type": "object"
     },
     {
       "id": "var-index",
@@ -47,74 +49,19 @@
       "type": "number"
     },
     {
-      "id": "var-row",
-      "name": "$text:.variables.row",
-      "type": "object"
-    },
-    {
       "id": "var-error",
       "name": "$text:.variables.error",
       "type": "object"
     },
     {
-      "id": "var-name",
-      "name": "$text:.variables.name",
-      "type": "text"
-    },
-    {
-      "id": "var-saved",
-      "name": "$text:.variables.saved",
+      "id": "var-prepared",
+      "name": "$text:.variables.prepared",
       "type": "object"
-    },
-    {
-      "id": "var-achievements",
-      "name": "$text:.variables.achievements",
-      "type": "list"
-    },
-    {
-      "id": "var-existing",
-      "name": "$text:.variables.existing",
-      "type": "list"
-    },
-    {
-      "id": "var-untranslated",
-      "name": "$text:.variables.untranslated",
-      "type": "list"
-    },
-    {
-      "id": "var-chunks",
-      "name": "$text:.variables.chunks",
-      "type": "list"
-    },
-    {
-      "id": "var-chunk",
-      "name": "$text:.variables.chunk",
-      "type": "list"
-    },
-    {
-      "id": "var-chunkIndex",
-      "name": "$text:.variables.chunkIndex",
-      "type": "number"
-    },
-    {
-      "id": "var-reply",
-      "name": "$text:.variables.reply",
-      "type": "text"
-    },
-    {
-      "id": "var-parsed",
-      "name": "$text:.variables.parsed",
-      "type": "any"
-    },
-    {
-      "id": "var-translations",
-      "name": "$text:.variables.translations",
-      "type": "list"
     }
   ],
   "steps": [
     {
-      "id": "step-2",
+      "id": "step-validate",
       "kind": "if",
       "branches": [
         {
@@ -122,30 +69,31 @@
             "op": "isFalse",
             "left": {
               "expression": [
+                "((rows, language) => /^[a-z][a-z0-9_-]{0,40}$/i.test(language) && rows.length > 0 && rows.every(row => row && (id => Number.isInteger(id) && id >= 1 && id <= 4294967295)(row.appId) && Array.isArray(row.translations) && row.translations.length > 0 && row.translations.every(t => t && typeof t.id === 'string' && t.id.trim() && typeof t.title === 'string' && typeof t.description === 'string' && Number.isSafeInteger(t.revision) && t.revision >= 0 && typeof t.translatedTitle === 'string' && t.translatedTitle.trim() && typeof t.translatedDescription === 'string')))(",
                 {
                   "source": "variable",
-                  "id": "var-appIds",
+                  "id": "var-changes",
                   "path": []
                 },
-                ".length > 0 && ",
+                ",",
                 {
                   "source": "variable",
-                  "id": "var-appIds",
+                  "id": "var-language",
                   "path": []
                 },
-                ".every(id => Number.isInteger(id) && id >= 1 && id <= 4294967295)"
+                ")"
               ]
             }
           },
           "steps": [
             {
-              "id": "step-1",
+              "id": "step-invalid",
               "kind": "action",
               "action": "raise",
               "value": {
                 "literal": {
                   "code": "CHAT_TOOL_INVALID",
-                  "message": "$text:.errors.appIds"
+                  "message": "$text:.error.badTranslation"
                 }
               }
             }
@@ -155,29 +103,7 @@
       "otherwise": null
     },
     {
-      "id": "step-3",
-      "kind": "action",
-      "action": "list-unique",
-      "value": {
-        "source": "variable",
-        "id": "var-appIds",
-        "path": []
-      },
-      "output": "var-ids"
-    },
-    {
-      "id": "step-4",
-      "kind": "action",
-      "action": "list-length",
-      "value": {
-        "source": "variable",
-        "id": "var-ids",
-        "path": []
-      },
-      "output": "var-size"
-    },
-    {
-      "id": "step-5",
+      "id": "step-items",
       "kind": "action",
       "action": "list",
       "value": {
@@ -186,977 +112,83 @@
       "output": "var-items"
     },
     {
-      "id": "step-52",
-      "kind": "if",
-      "branches": [
-        {
-          "condition": {
-            "op": "gt",
-            "left": {
-              "source": "variable",
-              "id": "var-size",
-              "path": []
-            },
-            "right": {
-              "literal": 1
-            }
-          },
-          "steps": [
-            {
-              "id": "step-28",
-              "kind": "foreach",
-              "value": {
-                "source": "variable",
-                "id": "var-ids",
-                "path": []
-              },
-              "item": "var-app",
-              "index": "var-index",
-              "body": [
-                {
-                  "id": "step-6",
-                  "kind": "try",
-                  "error": "var-error",
-                  "body": [
-                    {
-                      "id": "step-7",
-                      "kind": "action",
-                      "action": "record",
-                      "entries": [
-                        {
-                          "key": "appId",
-                          "value": {
-                            "source": "variable",
-                            "id": "var-app",
-                            "path": []
-                          },
-                          "omitIfUnset": false
-                        },
-                        {
-                          "key": "status",
-                          "value": {
-                            "literal": "skipped"
-                          },
-                          "omitIfUnset": false
-                        }
-                      ],
-                      "output": "var-row"
-                    },
-                    {
-                      "id": "step-8",
-                      "kind": "action",
-                      "action": "steam-original-name",
-                      "game": {
-                        "source": "variable",
-                        "id": "var-app",
-                        "path": []
-                      },
-                      "output": "var-name"
-                    },
-                    {
-                      "id": "step-9",
-                      "kind": "action",
-                      "action": "record",
-                      "entries": [
-                        {
-                          "key": "appId",
-                          "value": {
-                            "source": "variable",
-                            "id": "var-app",
-                            "path": []
-                          },
-                          "omitIfUnset": false
-                        },
-                        {
-                          "key": "name",
-                          "value": {
-                            "source": "variable",
-                            "id": "var-name",
-                            "path": []
-                          },
-                          "omitIfUnset": false
-                        },
-                        {
-                          "key": "status",
-                          "value": {
-                            "literal": "skipped"
-                          },
-                          "omitIfUnset": false
-                        }
-                      ],
-                      "output": "var-row"
-                    },
-                    {
-                      "id": "step-10",
-                      "kind": "action",
-                      "action": "steam-achievements",
-                      "game": {
-                        "source": "variable",
-                        "id": "var-app",
-                        "path": []
-                      },
-                      "output": "var-achievements"
-                    },
-                    {
-                      "id": "step-11",
-                      "kind": "action",
-                      "action": "steam-translations",
-                      "game": {
-                        "source": "variable",
-                        "id": "var-app",
-                        "path": []
-                      },
-                      "language": {
-                        "source": "meta",
-                        "path": [
-                          "translationLanguage"
-                        ]
-                      },
-                      "output": "var-existing"
-                    },
-                    {
-                      "id": "step-12",
-                      "kind": "action",
-                      "action": "set",
-                      "value": {
-                        "expression": [
-                          {
-                            "source": "variable",
-                            "id": "var-achievements",
-                            "path": []
-                          },
-                          ".filter(achievement => !",
-                          {
-                            "source": "variable",
-                            "id": "var-existing",
-                            "path": []
-                          },
-                          ".some(translation => translation.id === achievement.id)).map(({id,title,description}) => ({id,title,description}))"
-                        ]
-                      },
-                      "output": "var-untranslated"
-                    },
-                    {
-                      "id": "step-23",
-                      "kind": "if",
-                      "branches": [
-                        {
-                          "condition": {
-                            "op": "notEmpty",
-                            "left": {
-                              "source": "variable",
-                              "id": "var-untranslated",
-                              "path": []
-                            }
-                          },
-                          "steps": [
-                            {
-                              "id": "step-13",
-                              "kind": "action",
-                              "action": "list-chunk",
-                              "value": {
-                                "source": "variable",
-                                "id": "var-untranslated",
-                                "path": []
-                              },
-                              "size": {
-                                "literal": 20
-                              },
-                              "output": "var-chunks"
-                            },
-                            {
-                              "id": "step-14",
-                              "kind": "action",
-                              "action": "list",
-                              "value": {
-                                "literal": []
-                              },
-                              "output": "var-translations"
-                            },
-                            {
-                              "id": "step-20",
-                              "kind": "foreach",
-                              "value": {
-                                "source": "variable",
-                                "id": "var-chunks",
-                                "path": []
-                              },
-                              "item": "var-chunk",
-                              "index": "var-chunkIndex",
-                              "body": [
-                                {
-                                  "id": "step-15",
-                                  "kind": "action",
-                                  "action": "ai-call",
-                                  "serviceId": "AI-0",
-                                  "promptId": "P-4",
-                                  "requestTimeoutSeconds": 60,
-                                  "inputs": {
-                                    "$text:.prompts.P-4.0": {
-                                      "source": "variable",
-                                      "id": "var-chunk",
-                                      "path": []
-                                    },
-                                    "$text:.prompts.P-4.1": {
-                                      "source": "variable",
-                                      "id": "var-name",
-                                      "path": []
-                                    },
-                                    "$text:.prompts.P-4.2": {
-                                      "source": "meta",
-                                      "path": [
-                                        "translationLanguage"
-                                      ]
-                                    }
-                                  },
-                                  "output": "var-reply"
-                                },
-                                {
-                                  "id": "step-16",
-                                  "kind": "action",
-                                  "action": "json",
-                                  "value": {
-                                    "expression": [
-                                      {
-                                        "source": "variable",
-                                        "id": "var-reply",
-                                        "path": []
-                                      },
-                                      ".trim().replace(/^\\x60{3}(?:json)?\\s*/i, \"\").replace(/\\s*\\x60{3}$/, \"\")"
-                                    ]
-                                  },
-                                  "output": "var-parsed"
-                                },
-                                {
-                                  "id": "step-18",
-                                  "kind": "if",
-                                  "branches": [
-                                    {
-                                      "condition": {
-                                        "op": "isFalse",
-                                        "left": {
-                                          "expression": [
-                                            "Array.isArray(",
-                                            {
-                                              "source": "variable",
-                                              "id": "var-parsed",
-                                              "path": []
-                                            },
-                                            ") && ",
-                                            {
-                                              "source": "variable",
-                                              "id": "var-parsed",
-                                              "path": []
-                                            },
-                                            ".length === ",
-                                            {
-                                              "source": "variable",
-                                              "id": "var-chunk",
-                                              "path": []
-                                            },
-                                            ".length && new Set(",
-                                            {
-                                              "source": "variable",
-                                              "id": "var-parsed",
-                                              "path": []
-                                            },
-                                            ".map(entry => entry?.id)).size === ",
-                                            {
-                                              "source": "variable",
-                                              "id": "var-chunk",
-                                              "path": []
-                                            },
-                                            ".length && ",
-                                            {
-                                              "source": "variable",
-                                              "id": "var-parsed",
-                                              "path": []
-                                            },
-                                            ".every(entry => entry && typeof entry.title === 'string' && entry.title.trim() && typeof entry.description === 'string' && ",
-                                            {
-                                              "source": "variable",
-                                              "id": "var-chunk",
-                                              "path": []
-                                            },
-                                            ".some(source => source.id === entry.id))"
-                                          ]
-                                        }
-                                      },
-                                      "steps": [
-                                        {
-                                          "id": "step-17",
-                                          "kind": "action",
-                                          "action": "raise",
-                                          "value": {
-                                            "literal": {
-                                              "code": "AI_OUTPUT_INVALID",
-                                              "message": "$text:.errors.achievements"
-                                            }
-                                          }
-                                        }
-                                      ]
-                                    }
-                                  ],
-                                  "otherwise": null
-                                },
-                                {
-                                  "id": "step-19",
-                                  "kind": "action",
-                                  "action": "set",
-                                  "value": {
-                                    "expression": [
-                                      {
-                                        "source": "variable",
-                                        "id": "var-translations",
-                                        "path": []
-                                      },
-                                      ".concat(",
-                                      {
-                                        "source": "variable",
-                                        "id": "var-parsed",
-                                        "path": []
-                                      },
-                                      ".map(({ id,title,description }) => { const source = ",
-                                      {
-                                        "source": "variable",
-                                        "id": "var-chunk",
-                                        "path": []
-                                      },
-                                      ".find(item => item.id === id); return {id,title:source.title,description:source.description,translatedTitle:title,translatedDescription:description,expectedRevision:0}; }))"
-                                    ]
-                                  },
-                                  "output": "var-translations"
-                                }
-                              ]
-                            },
-                            {
-                              "id": "step-21",
-                              "kind": "action",
-                              "action": "steam-save-translations",
-                              "game": {
-                                "source": "variable",
-                                "id": "var-app",
-                                "path": []
-                              },
-                              "language": {
-                                "source": "meta",
-                                "path": [
-                                  "translationLanguage"
-                                ]
-                              },
-                              "value": {
-                                "source": "variable",
-                                "id": "var-translations",
-                                "path": []
-                              },
-                              "origin": {
-                                "literal": "ai"
-                              },
-                              "output": "var-saved"
-                            },
-                            {
-                              "id": "step-22",
-                              "kind": "action",
-                              "action": "record",
-                              "entries": [
-                                {
-                                  "key": "appId",
-                                  "value": {
-                                    "source": "variable",
-                                    "id": "var-app",
-                                    "path": []
-                                  },
-                                  "omitIfUnset": false
-                                },
-                                {
-                                  "key": "name",
-                                  "value": {
-                                    "source": "variable",
-                                    "id": "var-name",
-                                    "path": []
-                                  },
-                                  "omitIfUnset": false
-                                },
-                                {
-                                  "key": "status",
-                                  "value": {
-                                    "literal": "proposed"
-                                  },
-                                  "omitIfUnset": false
-                                },
-                                {
-                                  "key": "count",
-                                  "value": {
-                                    "expression": [
-                                      {
-                                        "source": "variable",
-                                        "id": "var-translations",
-                                        "path": []
-                                      },
-                                      ".length"
-                                    ]
-                                  },
-                                  "omitIfUnset": false
-                                },
-                                {
-                                  "key": "language",
-                                  "value": {
-                                    "source": "meta",
-                                    "path": [
-                                      "translationLanguage"
-                                    ]
-                                  },
-                                  "omitIfUnset": false
-                                }
-                              ],
-                              "output": "var-row"
-                            }
-                          ]
-                        }
-                      ],
-                      "otherwise": null
-                    }
-                  ],
-                  "catch": [
-                    {
-                      "id": "step-26",
-                      "kind": "if",
-                      "branches": [
-                        {
-                          "condition": {
-                            "op": "isTrue",
-                            "left": {
-                              "expression": [
-                                "['ACTION_NOT_WRITTEN','ACTION_INPUT_INVALID','AI_OUTPUT_INVALID','STEAM_ACHIEVEMENTS_UNAVAILABLE','AI_RESPONSE_INVALID','AI_RESPONSE_REFUSED','WORKFLOW_GAME_FIELD_UNAVAILABLE'].includes(",
-                                {
-                                  "source": "variable",
-                                  "id": "var-error",
-                                  "path": [
-                                    "code"
-                                  ]
-                                },
-                                ")"
-                              ]
-                            }
-                          },
-                          "steps": [
-                            {
-                              "id": "step-24",
-                              "kind": "action",
-                              "action": "record",
-                              "entries": [
-                                {
-                                  "key": "appId",
-                                  "value": {
-                                    "source": "variable",
-                                    "id": "var-app",
-                                    "path": []
-                                  },
-                                  "omitIfUnset": false
-                                },
-                                {
-                                  "key": "status",
-                                  "value": {
-                                    "expression": [
-                                      {
-                                        "source": "variable",
-                                        "id": "var-error",
-                                        "path": [
-                                          "code"
-                                        ]
-                                      },
-                                      " === 'ACTION_NOT_WRITTEN' ? 'skipped' : 'failed'"
-                                    ]
-                                  },
-                                  "omitIfUnset": false
-                                },
-                                {
-                                  "key": "code",
-                                  "value": {
-                                    "source": "variable",
-                                    "id": "var-error",
-                                    "path": [
-                                      "code"
-                                    ]
-                                  },
-                                  "omitIfUnset": false
-                                },
-                                {
-                                  "key": "reason",
-                                  "value": {
-                                    "source": "variable",
-                                    "id": "var-error",
-                                    "path": [
-                                      "message"
-                                    ]
-                                  },
-                                  "omitIfUnset": false
-                                }
-                              ],
-                              "output": "var-row"
-                            }
-                          ]
-                        }
-                      ],
-                      "otherwise": [
-                        {
-                          "id": "step-25",
-                          "kind": "action",
-                          "action": "raise",
-                          "value": {
-                            "source": "variable",
-                            "id": "var-error",
-                            "path": []
-                          }
-                        }
-                      ]
-                    }
-                  ],
-                  "finally": null
-                },
-                {
-                  "id": "step-27",
-                  "kind": "action",
-                  "action": "append",
-                  "value": {
-                    "source": "variable",
-                    "id": "var-items",
-                    "path": []
-                  },
-                  "item": {
-                    "source": "variable",
-                    "id": "var-row",
-                    "path": []
-                  },
-                  "output": "var-items"
-                }
-              ]
-            }
-          ]
-        }
-      ],
-      "otherwise": [
-        {
-          "id": "step-29",
-          "kind": "action",
-          "action": "list-get",
-          "value": {
+      "id": "step-loop",
+      "kind": "foreach",
+      "value": {
+        "expression": [
+          "((changes) => { const games = new Map(); for(const {appId,translations} of changes) { const entries = games.get(appId) ?? new Map(); for (const entry of translations) { const {id,title,description,revision,translatedTitle,translatedDescription} = entry; const next={id,title,description,revision,translatedTitle,translatedDescription}; if (entries.has(id) && JSON.stringify(entries.get(id)) !== JSON.stringify(next)) throw new Error('Conflicting translations for the same achievement'); entries.set(id,next); } games.set(appId,entries); } return Array.from(games,([appId, entries]) => ({appId, translations:[...entries.values()]})); })(",
+          {
             "source": "variable",
-            "id": "var-ids",
+            "id": "var-changes",
             "path": []
           },
-          "index": {
-            "literal": 0
-          },
-          "output": "var-app"
-        },
+          ")"
+        ]
+      },
+      "item": "var-item",
+      "index": "var-index",
+      "body": [
         {
-          "id": "step-30",
+          "id": "step-write",
           "kind": "try",
           "error": "var-error",
           "body": [
             {
-              "id": "step-31",
+              "id": "step-steam",
               "kind": "action",
-              "action": "record",
-              "entries": [
-                {
-                  "key": "appId",
-                  "value": {
-                    "source": "variable",
-                    "id": "var-app",
-                    "path": []
-                  },
-                  "omitIfUnset": false
-                },
-                {
-                  "key": "status",
-                  "value": {
-                    "literal": "skipped"
-                  },
-                  "omitIfUnset": false
-                }
-              ],
-              "output": "var-row"
-            },
-            {
-              "id": "step-32",
-              "kind": "action",
-              "action": "steam-original-name",
+              "action": "steam-save-translations",
               "game": {
                 "source": "variable",
-                "id": "var-app",
-                "path": []
+                "id": "var-item",
+                "path": [
+                  "appId"
+                ]
               },
-              "output": "var-name"
-            },
-            {
-              "id": "step-33",
-              "kind": "action",
-              "action": "record",
-              "entries": [
-                {
-                  "key": "appId",
-                  "value": {
-                    "source": "variable",
-                    "id": "var-app",
-                    "path": []
-                  },
-                  "omitIfUnset": false
-                },
-                {
-                  "key": "name",
-                  "value": {
-                    "source": "variable",
-                    "id": "var-name",
-                    "path": []
-                  },
-                  "omitIfUnset": false
-                },
-                {
-                  "key": "status",
-                  "value": {
-                    "literal": "skipped"
-                  },
-                  "omitIfUnset": false
-                }
-              ],
-              "output": "var-row"
-            },
-            {
-              "id": "step-34",
-              "kind": "action",
-              "action": "steam-achievements",
-              "game": {
+              "value": {
                 "source": "variable",
-                "id": "var-app",
-                "path": []
-              },
-              "output": "var-achievements"
-            },
-            {
-              "id": "step-35",
-              "kind": "action",
-              "action": "steam-translations",
-              "game": {
-                "source": "variable",
-                "id": "var-app",
-                "path": []
+                "id": "var-item",
+                "path": [
+                  "translations"
+                ]
               },
               "language": {
-                "source": "meta",
-                "path": [
-                  "translationLanguage"
-                ]
+                "source": "variable",
+                "id": "var-language",
+                "path": []
               },
-              "output": "var-existing"
+              "origin": {
+                "literal": "ai"
+              },
+              "output": "var-prepared"
             },
             {
-              "id": "step-36",
+              "id": "step-result-staged",
               "kind": "action",
-              "action": "set",
+              "action": "append",
               "value": {
+                "source": "variable",
+                "id": "var-items",
+                "path": []
+              },
+              "item": {
                 "expression": [
+                  "({appId:",
                   {
                     "source": "variable",
-                    "id": "var-achievements",
-                    "path": []
+                    "id": "var-item",
+                    "path": [
+                      "appId"
+                    ]
                   },
-                  ".filter(achievement => !",
-                  {
-                    "source": "variable",
-                    "id": "var-existing",
-                    "path": []
-                  },
-                  ".some(translation => translation.id === achievement.id)).map(({id,title,description}) => ({id,title,description}))"
+                  ",status:'proposed'})"
                 ]
               },
-              "output": "var-untranslated"
-            },
-            {
-              "id": "step-47",
-              "kind": "if",
-              "branches": [
-                {
-                  "condition": {
-                    "op": "notEmpty",
-                    "left": {
-                      "source": "variable",
-                      "id": "var-untranslated",
-                      "path": []
-                    }
-                  },
-                  "steps": [
-                    {
-                      "id": "step-37",
-                      "kind": "action",
-                      "action": "list-chunk",
-                      "value": {
-                        "source": "variable",
-                        "id": "var-untranslated",
-                        "path": []
-                      },
-                      "size": {
-                        "literal": 20
-                      },
-                      "output": "var-chunks"
-                    },
-                    {
-                      "id": "step-38",
-                      "kind": "action",
-                      "action": "list",
-                      "value": {
-                        "literal": []
-                      },
-                      "output": "var-translations"
-                    },
-                    {
-                      "id": "step-44",
-                      "kind": "foreach",
-                      "value": {
-                        "source": "variable",
-                        "id": "var-chunks",
-                        "path": []
-                      },
-                      "item": "var-chunk",
-                      "index": "var-chunkIndex",
-                      "body": [
-                        {
-                          "id": "step-39",
-                          "kind": "action",
-                          "action": "ai-call",
-                          "serviceId": "AI-0",
-                          "promptId": "P-4",
-                          "requestTimeoutSeconds": 60,
-                          "inputs": {
-                            "$text:.prompts.P-4.0": {
-                              "source": "variable",
-                              "id": "var-chunk",
-                              "path": []
-                            },
-                            "$text:.prompts.P-4.1": {
-                              "source": "variable",
-                              "id": "var-name",
-                              "path": []
-                            },
-                            "$text:.prompts.P-4.2": {
-                              "source": "meta",
-                              "path": [
-                                "translationLanguage"
-                              ]
-                            }
-                          },
-                          "output": "var-reply"
-                        },
-                        {
-                          "id": "step-40",
-                          "kind": "action",
-                          "action": "json",
-                          "value": {
-                            "expression": [
-                              {
-                                "source": "variable",
-                                "id": "var-reply",
-                                "path": []
-                              },
-                              ".trim().replace(/^\\x60{3}(?:json)?\\s*/i, \"\").replace(/\\s*\\x60{3}$/, \"\")"
-                            ]
-                          },
-                          "output": "var-parsed"
-                        },
-                        {
-                          "id": "step-42",
-                          "kind": "if",
-                          "branches": [
-                            {
-                              "condition": {
-                                "op": "isFalse",
-                                "left": {
-                                  "expression": [
-                                    "Array.isArray(",
-                                    {
-                                      "source": "variable",
-                                      "id": "var-parsed",
-                                      "path": []
-                                    },
-                                    ") && ",
-                                    {
-                                      "source": "variable",
-                                      "id": "var-parsed",
-                                      "path": []
-                                    },
-                                    ".length === ",
-                                    {
-                                      "source": "variable",
-                                      "id": "var-chunk",
-                                      "path": []
-                                    },
-                                    ".length && new Set(",
-                                    {
-                                      "source": "variable",
-                                      "id": "var-parsed",
-                                      "path": []
-                                    },
-                                    ".map(entry => entry?.id)).size === ",
-                                    {
-                                      "source": "variable",
-                                      "id": "var-chunk",
-                                      "path": []
-                                    },
-                                    ".length && ",
-                                    {
-                                      "source": "variable",
-                                      "id": "var-parsed",
-                                      "path": []
-                                    },
-                                    ".every(entry => entry && typeof entry.title === 'string' && entry.title.trim() && typeof entry.description === 'string' && ",
-                                    {
-                                      "source": "variable",
-                                      "id": "var-chunk",
-                                      "path": []
-                                    },
-                                    ".some(source => source.id === entry.id))"
-                                  ]
-                                }
-                              },
-                              "steps": [
-                                {
-                                  "id": "step-41",
-                                  "kind": "action",
-                                  "action": "raise",
-                                  "value": {
-                                    "literal": {
-                                      "code": "AI_OUTPUT_INVALID",
-                                      "message": "$text:.errors.achievements"
-                                    }
-                                  }
-                                }
-                              ]
-                            }
-                          ],
-                          "otherwise": null
-                        },
-                        {
-                          "id": "step-43",
-                          "kind": "action",
-                          "action": "set",
-                          "value": {
-                            "expression": [
-                              {
-                                "source": "variable",
-                                "id": "var-translations",
-                                "path": []
-                              },
-                              ".concat(",
-                              {
-                                "source": "variable",
-                                "id": "var-parsed",
-                                "path": []
-                              },
-                              ".map(({ id,title,description }) => { const source = ",
-                              {
-                                "source": "variable",
-                                "id": "var-chunk",
-                                "path": []
-                              },
-                              ".find(item => item.id === id); return {id,title:source.title,description:source.description,translatedTitle:title,translatedDescription:description,expectedRevision:0}; }))"
-                            ]
-                          },
-                          "output": "var-translations"
-                        }
-                      ]
-                    },
-                    {
-                      "id": "step-45",
-                      "kind": "action",
-                      "action": "steam-save-translations",
-                      "game": {
-                        "source": "variable",
-                        "id": "var-app",
-                        "path": []
-                      },
-                      "language": {
-                        "source": "meta",
-                        "path": [
-                          "translationLanguage"
-                        ]
-                      },
-                      "value": {
-                        "source": "variable",
-                        "id": "var-translations",
-                        "path": []
-                      },
-                      "origin": {
-                        "literal": "ai"
-                      },
-                      "output": "var-saved"
-                    },
-                    {
-                      "id": "step-46",
-                      "kind": "action",
-                      "action": "record",
-                      "entries": [
-                        {
-                          "key": "appId",
-                          "value": {
-                            "source": "variable",
-                            "id": "var-app",
-                            "path": []
-                          },
-                          "omitIfUnset": false
-                        },
-                        {
-                          "key": "name",
-                          "value": {
-                            "source": "variable",
-                            "id": "var-name",
-                            "path": []
-                          },
-                          "omitIfUnset": false
-                        },
-                        {
-                          "key": "status",
-                          "value": {
-                            "literal": "proposed"
-                          },
-                          "omitIfUnset": false
-                        },
-                        {
-                          "key": "count",
-                          "value": {
-                            "expression": [
-                              {
-                                "source": "variable",
-                                "id": "var-translations",
-                                "path": []
-                              },
-                              ".length"
-                            ]
-                          },
-                          "omitIfUnset": false
-                        },
-                        {
-                          "key": "language",
-                          "value": {
-                            "source": "meta",
-                            "path": [
-                              "translationLanguage"
-                            ]
-                          },
-                          "omitIfUnset": false
-                        }
-                      ],
-                      "output": "var-row"
-                    }
-                  ]
-                }
-              ],
-              "otherwise": null
+              "output": "var-items"
             }
           ],
           "catch": [
             {
-              "id": "step-50",
+              "id": "step-catch",
               "kind": "if",
               "branches": [
                 {
@@ -1164,7 +196,7 @@
                     "op": "isTrue",
                     "left": {
                       "expression": [
-                        "['ACTION_NOT_WRITTEN','ACTION_INPUT_INVALID','AI_OUTPUT_INVALID','STEAM_ACHIEVEMENTS_UNAVAILABLE','AI_RESPONSE_INVALID','AI_RESPONSE_REFUSED','WORKFLOW_GAME_FIELD_UNAVAILABLE'].includes(",
+                        "['ACTION_NOT_WRITTEN','ACTION_INPUT_INVALID','ACTION_WRITE_CONFLICT','ACTION_SOURCE_CHANGED','STEAM_ACHIEVEMENTS_UNAVAILABLE','ACHIEVEMENT_VALUE_INVALID'].includes(",
                         {
                           "source": "variable",
                           "id": "var-error",
@@ -1178,66 +210,51 @@
                   },
                   "steps": [
                     {
-                      "id": "step-48",
+                      "id": "step-result-failed",
                       "kind": "action",
-                      "action": "record",
-                      "entries": [
-                        {
-                          "key": "appId",
-                          "value": {
+                      "action": "append",
+                      "value": {
+                        "source": "variable",
+                        "id": "var-items",
+                        "path": []
+                      },
+                      "item": {
+                        "expression": [
+                          "({appId:",
+                          {
                             "source": "variable",
-                            "id": "var-app",
-                            "path": []
-                          },
-                          "omitIfUnset": false
-                        },
-                        {
-                          "key": "status",
-                          "value": {
-                            "expression": [
-                              {
-                                "source": "variable",
-                                "id": "var-error",
-                                "path": [
-                                  "code"
-                                ]
-                              },
-                              " === 'ACTION_NOT_WRITTEN' ? 'skipped' : 'failed'"
+                            "id": "var-item",
+                            "path": [
+                              "appId"
                             ]
                           },
-                          "omitIfUnset": false
-                        },
-                        {
-                          "key": "code",
-                          "value": {
+                          ",status:'failed',code:",
+                          {
                             "source": "variable",
                             "id": "var-error",
                             "path": [
                               "code"
                             ]
                           },
-                          "omitIfUnset": false
-                        },
-                        {
-                          "key": "reason",
-                          "value": {
+                          ",reason:",
+                          {
                             "source": "variable",
                             "id": "var-error",
                             "path": [
                               "message"
                             ]
                           },
-                          "omitIfUnset": false
-                        }
-                      ],
-                      "output": "var-row"
+                          "})"
+                        ]
+                      },
+                      "output": "var-items"
                     }
                   ]
                 }
               ],
               "otherwise": [
                 {
-                  "id": "step-49",
+                  "id": "step-rethrow",
                   "kind": "action",
                   "action": "raise",
                   "value": {
@@ -1250,32 +267,16 @@
             }
           ],
           "finally": null
-        },
-        {
-          "id": "step-51",
-          "kind": "action",
-          "action": "append",
-          "value": {
-            "source": "variable",
-            "id": "var-items",
-            "path": []
-          },
-          "item": {
-            "source": "variable",
-            "id": "var-row",
-            "path": []
-          },
-          "output": "var-items"
         }
       ]
     },
     {
-      "id": "step-53",
+      "id": "step-return",
       "kind": "action",
       "action": "tool-return",
       "value": {
         "expression": [
-          "((items) => ({items, changed:0, skipped:items.filter(item => item.status === 'skipped').length, failed:items.filter(item => item.status === 'failed').length, ...(items.some(item => item.status === 'proposed') ? {confirmationRequired:true} : {})}))(",
+          "((items) => ({items, changed:0, skipped:0, failed:items.filter(item => item.status === 'failed').length, ...(items.some(item => item.status === 'proposed') ? {confirmationRequired:true} : {})}))(",
           {
             "source": "variable",
             "id": "var-items",

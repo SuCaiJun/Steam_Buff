@@ -1,0 +1,41 @@
+{
+  "id": "tool-13",
+  "name": "$text:.name",
+  "note": "$text:.note",
+  "revision": 1,
+  "executionId": "00000000-0000-4000-8000-000000000002",
+  "enabled": true,
+  "description": "$text:.description",
+  "parameters": [],
+  "variables": [
+    {
+      "id": "var-groups",
+      "name": "$text:.variables.groups",
+      "type": "list"
+    }
+  ],
+  "steps": [
+    {
+      "id": "step-groups",
+      "kind": "action",
+      "action": "steam-collections",
+      "output": "var-groups"
+    },
+    {
+      "id": "step-return",
+      "kind": "action",
+      "action": "tool-return",
+      "value": {
+        "expression": [
+          "({items:",
+          {
+            "source": "variable",
+            "id": "var-groups",
+            "path": []
+          },
+          ".filter(group => group.writable).map(({id,name}) => ({id,name}))})"
+        ]
+      }
+    }
+  ]
+}

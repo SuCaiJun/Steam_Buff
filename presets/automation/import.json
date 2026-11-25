@@ -4,7 +4,9 @@
     "workflows/wf-1/definition.json",
     "workflows/wf-2/definition.json",
     "workflows/wf-3/definition.json",
-    "workflows/wf-4/definition.json"
+    "workflows/wf-4/definition.json",
+    "workflows/wf-5/definition.json",
+    "workflows/wf-6/definition.json"
   ],
   "prompts": [
     "prompts/P-1/definition.json",
@@ -28,7 +30,11 @@
     "ai-tools/tool-7/definition.json",
     "ai-tools/tool-8/definition.json",
     "ai-tools/tool-9/definition.json",
-    "ai-tools/tool-10/definition.json"
+    "ai-tools/tool-10/definition.json",
+    "ai-tools/tool-11/definition.json",
+    "ai-tools/tool-12/definition.json",
+    "ai-tools/tool-13/definition.json",
+    "ai-tools/tool-14/definition.json"
   ],
   "triggers": [
     "triggers/trigger-1/definition.json",

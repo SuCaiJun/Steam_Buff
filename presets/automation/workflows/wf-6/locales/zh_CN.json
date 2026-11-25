@@ -1,0 +1,14 @@
+{
+  ".name": "修改游戏自定义名称",
+  ".note": "传入新名称直接保存。留空时根据 Steam 原名称自动生成，仅补尚未设置独立名称的游戏。",
+  ".variables.original": "Steam 原名称",
+  ".variables.current": "当前名称",
+  ".variables.translated": "生成的名称",
+  ".variables.saved": "已保存的名称",
+  ".inputs.app": "游戏 AppID",
+  ".inputs.name": "目标名称",
+  ".error.badApp": "请提供有效的 Steam AppID。",
+  ".error.badName": "请为每个有效的 AppID 提供一个明确的名称。",
+  ".inputs.promptSteamName": "Steam 原名",
+  ".variables.nameError": "名称写入错误"
+}

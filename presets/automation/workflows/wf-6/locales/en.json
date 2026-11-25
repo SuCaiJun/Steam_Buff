@@ -1,0 +1,14 @@
+{
+  ".name": "Set custom game names",
+  ".note": "Supply a new name to save it directly. Leave it blank to generate a name only when the game has no custom name yet.",
+  ".variables.original": "Steam original name",
+  ".variables.current": "Current name",
+  ".variables.translated": "Generated name",
+  ".variables.saved": "Saved name",
+  ".inputs.app": "Game AppID",
+  ".inputs.name": "Target name",
+  ".error.badApp": "Provide a valid Steam AppID.",
+  ".error.badName": "Provide one explicit name per valid Steam AppID.",
+  ".inputs.promptSteamName": "Steam original name",
+  ".variables.nameError": "Name write error"
+}

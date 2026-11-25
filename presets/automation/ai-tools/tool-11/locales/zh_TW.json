@@ -1,0 +1,12 @@
+{
+  ".name": "修改遊戲自訂名稱",
+  ".note": "儲存 Steam Buff 獨立自訂名稱，用於譯名或指定名稱。",
+  ".parameters.changes": "每項傳 Steam AppID 和確定的名稱。",
+  ".variables.items": "逐項結果",
+  ".variables.item": "本項",
+  ".variables.index": "序號",
+  ".variables.error": "本項錯誤",
+  ".description": "儲存 Steam Buff 獨立自訂名稱，用於譯名或指定名稱。",
+  ".error.badName": "請為每個有效的 AppID 提供一個明確的名稱。",
+  ".variables.prepared": "準備的修改"
+}
