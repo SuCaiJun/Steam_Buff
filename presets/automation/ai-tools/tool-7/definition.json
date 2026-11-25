@@ -3,7 +3,7 @@
   "name": "$text:.name",
   "note": "$text:.note",
   "revision": 1,
-  "executionId": "00000000-0000-4000-8000-000000000002",
+  "executionId": "00000000-0000-4000-8000-000000000003",
   "enabled": true,
   "description": "$text:.description",
   "parameters": [
@@ -15,14 +15,98 @@
       "variableId": "var-language"
     },
     {
+      "name": "appId",
+      "type": "integer",
+      "required": false,
+      "description": "$text:.parameters.appId",
+      "variableId": "var-appId"
+    },
+    {
+      "name": "id",
+      "type": "string",
+      "required": false,
+      "description": "$text:.parameters.id",
+      "variableId": "var-id"
+    },
+    {
+      "name": "title",
+      "type": "string",
+      "required": false,
+      "description": "$text:.parameters.title",
+      "variableId": "var-title"
+    },
+    {
+      "name": "description",
+      "type": "string",
+      "required": false,
+      "description": "$text:.parameters.description",
+      "variableId": "var-description"
+    },
+    {
+      "name": "revision",
+      "type": "integer",
+      "required": false,
+      "description": "$text:.parameters.revision",
+      "variableId": "var-revision"
+    },
+    {
+      "name": "translatedTitle",
+      "type": "string",
+      "required": false,
+      "description": "$text:.parameters.translatedTitle",
+      "variableId": "var-translatedTitle"
+    },
+    {
+      "name": "translatedDescription",
+      "type": "string",
+      "required": false,
+      "description": "$text:.parameters.translatedDescription",
+      "variableId": "var-translatedDescription"
+    },
+    {
       "name": "changes",
       "type": "array",
-      "required": true,
+      "required": false,
       "description": "$text:.parameters.changes",
       "variableId": "var-changes"
     }
   ],
   "variables": [
+    {
+      "id": "var-appId",
+      "name": "appId",
+      "type": "number"
+    },
+    {
+      "id": "var-id",
+      "name": "id",
+      "type": "text"
+    },
+    {
+      "id": "var-title",
+      "name": "title",
+      "type": "text"
+    },
+    {
+      "id": "var-description",
+      "name": "description",
+      "type": "text"
+    },
+    {
+      "id": "var-revision",
+      "name": "revision",
+      "type": "number"
+    },
+    {
+      "id": "var-translatedTitle",
+      "name": "translatedTitle",
+      "type": "text"
+    },
+    {
+      "id": "var-translatedDescription",
+      "name": "translatedDescription",
+      "type": "text"
+    },
     {
       "id": "var-language",
       "name": "language",
@@ -286,5 +370,6 @@
         ]
       }
     }
-  ]
+  ],
+  "providerInputVersion": 1
 }

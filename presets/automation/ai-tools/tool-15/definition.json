@@ -1,0 +1,119 @@
+{
+  "id": "tool-15",
+  "name": "$text:.name",
+  "note": "$text:.note",
+  "revision": 1,
+  "executionId": "00000000-0000-4000-8000-000000000003",
+  "enabled": true,
+  "description": "$text:.description",
+  "parameters": [
+    {
+      "name": "appIds",
+      "type": "array",
+      "required": true,
+      "description": "$text:.parameters.appIds",
+      "variableId": "var-appIds"
+    }
+  ],
+  "variables": [
+    {
+      "id": "var-appIds",
+      "name": "appIds",
+      "type": "list"
+    },
+    {
+      "id": "var-items",
+      "name": "$text:.variables.result",
+      "type": "list"
+    },
+    {
+      "id": "var-appId",
+      "name": "$text:.variables.appId",
+      "type": "number"
+    },
+    {
+      "id": "var-index",
+      "name": "$text:.variables.index",
+      "type": "number"
+    },
+    {
+      "id": "var-detail",
+      "name": "$text:.variables.detail",
+      "type": "object"
+    }
+  ],
+  "steps": [
+    {
+      "id": "step-items",
+      "kind": "action",
+      "action": "list",
+      "value": {
+        "literal": []
+      },
+      "output": "var-items"
+    },
+    {
+      "id": "step-loop",
+      "kind": "foreach",
+      "item": "var-appId",
+      "index": "var-index",
+      "value": {
+        "expression": [
+          "[...new Set(",
+          {
+            "source": "variable",
+            "id": "var-appIds",
+            "path": []
+          },
+          ")]"
+        ]
+      },
+      "body": [
+        {
+          "id": "step-operation",
+          "kind": "action",
+          "action": "steam-account-wishlist-game",
+          "appId": {
+            "source": "variable",
+            "id": "var-appId",
+            "path": []
+          },
+          "output": "var-detail"
+        },
+        {
+          "id": "step-append",
+          "kind": "action",
+          "action": "append",
+          "value": {
+            "source": "variable",
+            "id": "var-items",
+            "path": []
+          },
+          "item": {
+            "source": "variable",
+            "id": "var-detail",
+            "path": []
+          },
+          "output": "var-items"
+        }
+      ]
+    },
+    {
+      "id": "step-result",
+      "kind": "action",
+      "action": "tool-return",
+      "value": {
+        "expression": [
+          "({items:",
+          {
+            "source": "variable",
+            "id": "var-items",
+            "path": []
+          },
+          "})"
+        ]
+      }
+    }
+  ],
+  "providerInputVersion": 1
+}

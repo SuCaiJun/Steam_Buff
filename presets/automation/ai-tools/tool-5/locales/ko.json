@@ -8,5 +8,7 @@
   ".variables.error": "항목 오류",
   ".description": "Steam 게임의 정렬 위치를 변경합니다.",
   ".error.badName": "각 유효한 Steam AppID에 이름을 하나씩 지정하세요.",
-  ".variables.prepared": "준비된 변경"
+  ".variables.prepared": "준비된 변경",
+  ".parameters.appId": "Steam 게임 AppID(정수).",
+  ".parameters.name": "이 AppID에 설정할 이름입니다."
 }

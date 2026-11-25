@@ -16,6 +16,7 @@
   const ALARM = "steam-buff-automation",
     FRAME_KEY = "st.automation.native-frame.v1";
   const running = new Map(), flushing = new Map(), requests = new Map(), previews = new Map();
+  const querySnapshots = new Map();
   let services = null,
     initialization = null,
     startup = null,
@@ -238,6 +239,7 @@
       ownerId,
       independent,
       sortEnabled,
+      customNamesAllowed: !!ownerId && membership.permissions.customNames === true,
       snapshot: root.STUserNamesSnapshot.readUser(data["st.userNames.snapshot"], ownerId),
     };
   }
@@ -444,6 +446,7 @@
   }
   async function finishEffects(job, error = null) {
     const { id: jobId, status } = job;
+    querySnapshots.delete(jobId);
     requests.get(jobId)?.abort(Object.assign(new Error("工作流运行已结束"), { code: "AUTOMATION_EXPIRED" }));
     if (error && status !== "cancelled") {
       if (error.name === "SyntaxError") root.STLoggerSchema.markJsonError(error);
@@ -1125,7 +1128,8 @@
       // 旧版等待领取的只读预设没有修订号，仍然只允许原始定义
       if (batch && revision === undefined && !model.isOriginalProviderTool(workflow))
         throw invalidToolExchange("本批工具配置已变化，请重新请求 AI");
-      const local = await childState(workflow, model.toolArguments(workflow, useOriginal ? original.function.arguments : args), state.meta);
+      const input = useOriginal ? original.function.arguments : args;
+      const local = await childState(workflow, model.toolArguments(workflow, input), state.meta);
       return { child: { workflow, flow: local, binding, callId: node.id, trace: {} } };
     } catch (error) {
       signal.throwIfAborted();
@@ -1403,17 +1407,62 @@
 
   const isToolQuery = node => Object.hasOwn(flow.providerQueries, node.action);
   const providerSpec = id => Object.values(root.STAI.ACCOUNT_TOOLS).find(item => item.id === id);
-  async function runQuery(node, state, signal, tool, checkpoint, beforeSend, expectedSteamId, accountChat) {
+  const filterTool = id => [root.STAI.PROVIDER_TOOL_IDS.library, root.STAI.PROVIDER_TOOL_IDS.wishlist].includes(id);
+  const releasedQueryTool = id => filterTool(id) ||
+    [root.STAI.STORE_SEARCH_TOOL_ID, root.STAI.PROVIDER_TOOL_IDS.library_game, root.STAI.PROVIDER_TOOL_IDS.wishlist_game].includes(id);
+  const hasQueryValue = value => value != null && (typeof value !== "string" || !!value.trim()) && (!Array.isArray(value) || !!value.length);
+  function queryArguments(node, definition, state) {
+    if (flow.outdatedQuery(node)) throw Object.assign(new Error("这条指令的查询参数已更新，请打开指令重新配置"), {
+      code: "WORKFLOW_CONFIG_INVALID", messageKey: "workflow_query_reconfigure", nodeId: node.id,
+    });
+    if (definition.legacy) return flow.read(node.taskArgs, state);
+    const args = {};
+    for (const field of definition.fields) {
+      if (field.key === "conditions" && node.conditionMode !== "custom") continue;
+      const value = flow.read(node[field.key], state, field.optional);
+      if (!field.optional || hasQueryValue(value)) args[field.key] = value;
+    }
+    if (!definition.filter) return args;
+    if (args.conditions !== undefined && !Array.isArray(args.conditions))
+      throw actionError("自定义筛选条件必须是一份列表", "CHAT_TOOL_INVALID");
+    const conditions = [...args.conditions ?? []];
+    for (const [field, row] of Object.entries(node.filterRows ?? {})) {
+      if (!row.op) continue;
+      if (root.STWorkflowFields.query.unaryOps.includes(row.op)) conditions.push({ field, op: row.op });
+      else conditions.push({ field, op: row.op, value: flow.read(row.value, state, true) });
+    }
+    return { ...args, conditions };
+  }
+
+  async function queryPersonalNames(required) {
+    const info = required ? await customNameState() : await nameState({ forContext: true, requireLogin: false });
+    const record = info.customNamesAllowed ? id => personalNameRecord(info.snapshot, String(id)) : undefined;
+    return { record, current: row => info.independent ? (record?.(row.appId)?.custom_name || row.name)
+      : info.sortEnabled ? row.values.current : row.name };
+  }
+
+  async function runQuery(node, state, signal, tool, checkpoint, beforeSend, expectedSteamId, accountChat, jobId) {
     if (!isToolQuery(node)) return runHttp(node, state, signal, tool, checkpoint, beforeSend, accountChat?.scope);
     try {
       if (beforeSend) await beforeSend();
       signal.throwIfAborted();
-      const { provider, argument, legacy } = flow.providerQueries[node.action];
-      const input = flow.read(node[argument], state);
-      const args = argument === "appId" ? { appId: input } : input;
+      const definition = flow.providerQueries[node.action], { provider, legacy } = definition;
+      const args = queryArguments(node, definition, state);
       const id = root.STAI.PROVIDER_TOOL_IDS[provider];
-      if (legacy) return await runLegacyBatch(id, args, signal, expectedSteamId, accountChat?.queryOptions(id), beforeSend);
-      return await services.aiTool(id, args, signal, { expectedSteamId, ...accountChat?.queryOptions(id) });
+      if (legacy) return await runLegacyBatch(id, args, signal, expectedSteamId, accountChat?.queryOptions?.(id), beforeSend);
+      let wishlist;
+      if (provider === "wishlist" || provider === "wishlist_game") {
+        wishlist = accountChat?.wishlist?.();
+        if (!wishlist && jobId) {
+          wishlist = querySnapshots.get(jobId) ?? {};
+          querySnapshots.set(jobId, wishlist);
+        }
+      }
+      const result = await services.aiTool(id, args, signal, { expectedSteamId, ...accountChat?.queryOptions?.(id), wishlist,
+        personalNames: queryPersonalNames, withDetails: !!accountChat?.recordQuery });
+      if (!definition.filter) return result;
+      accountChat?.recordQuery?.(node, result);
+      return result.appIds;
     } catch (error) {
       signal.throwIfAborted();
       if (!error.aiToolFailure && !Number.isInteger(error.status) && error.name !== "TimeoutError" &&
@@ -1466,7 +1515,7 @@
         await requireWorkflowPermission(node);
         return scriptHttp(request, seconds, signal, checkpoint, true, checkChildren);
       } : undefined;
-      const value = await (query ? runQuery(node, state, controller.signal, frames.length ? active.workflow : null, checkpoint, checkChildren, current.owner) :
+      const value = await (query ? runQuery(node, state, controller.signal, frames.length ? active.workflow : null, checkpoint, checkChildren, current.owner, undefined, job.id) :
         runScriptOrReading(node, state, job.id, controller.signal, network));
       controller.signal.throwIfAborted();
       if (writePending)
@@ -1532,7 +1581,7 @@
         code: code.length > 500 ? code.slice(0, 500) + "…" : code };
     }
     const account = !node || instruction.chatAccount === true;
-    const wishlist = node?.action === "steam-account-wishlist";
+    const wishlist = ["steam-account-wishlist", "steam-account-wishlist-game"].includes(node?.action);
     return { key: wishlist ? "steam-wishlist" : account ? "steam-account-read" : "steam-read", kind, account, wishlist };
   }
   function approvalParameters(args) {
@@ -1563,11 +1612,11 @@
       if (!definition || path.includes(definition.id)) return;
       if (!args || typeof args !== "object" || Array.isArray(args)) args = undefined;
       if (args && definition !== workflow && flow.isToolId(definition.id)) {
-        try { model.toolArguments(definition, args); }
+        try { args = model.toolArguments(definition, args); }
         catch (error) { if (error.code !== "CHAT_TOOL_INVALID") throw error; args = undefined; }
       }
       const spec = providerSpec(definition.id);
-      const writer = spec?.writes ? { spec, args } : inherited;
+      const writer = spec?.writes ? { spec, args: args && model.writeArguments(definition, args) } : inherited;
       const signature = JSON.stringify([args, writer?.spec.id, writer?.args]);
       let entry = scanned.get(definition.id);
       if (!entry) {
@@ -1642,7 +1691,10 @@
     account.steamId = owner;
     account.binding = { frame, epoch, owner };
     if (chat.steamSession) {
-      if (!previous || !sameApprovalFrame(previous.frame, frame) || previous.epoch !== epoch) chat.steamSession.names.clear();
+      if (!previous || !sameApprovalFrame(previous.frame, frame) || previous.epoch !== epoch) {
+        chat.steamSession.names.clear();
+        delete chat.steamSession.wishlist;
+      }
       chat.steamSession.binding = account.binding;
     }
     return owner;
@@ -1666,6 +1718,10 @@
     const known = binding && snapshot && sameApprovalFrame(binding.frame, snapshot.frame) && binding.epoch === snapshot.epoch;
     return [...scope.writes.values()].flatMap(byApp => [...byApp.values()].flatMap(targets => targets.map(target => {
       const { translations, ...display } = target;
+      if (target.collectionName) {
+        display.collection = target.collectionName;
+        delete display.collectionName;
+      }
       const field = target.sortName !== undefined ? "sort" : target.customName !== undefined ? "custom_name" : null;
       if (known && field) {
         const previous = chat.steamSession.names.get(field + ":" + target.appId);
@@ -1702,7 +1758,21 @@
           if (item.status === "saved" || item.status === "uncertain") names.delete(field + ":" + item.appId);
         options.chat.receipt(items, { batchId, toolId: spec.id });
       } }) }) : null;
-    const result = await previewDefinition(frame, { ...options, plan: ownPlan ?? options.plan });
+    if (options.legacyCollection) {
+      const { appIds, collectionName } = options.legacyCollection;
+      const groups = await ownPlan.read("collections", {});
+      const selection = collectionName.trim();
+      const exact = groups.find(group => group.id === selection);
+      const matches = exact ? [exact] : groups.filter(group => group.name === selection);
+      if (matches.length !== 1) throw actionError("收藏分组不存在或名称无法唯一匹配", "ACTION_NOT_WRITTEN");
+      flow.write(frame.flow, "var-changes", [...new Set(appIds)].map(appId => ({ appId, collectionIds: [matches[0].id] })));
+    }
+    let legacyApproval = options.legacyApproval;
+    if (spec?.id === ids.wishlist_game && !legacyApproval?.wishlist) {
+      const snapshot = {};
+      legacyApproval = { ...legacyApproval, wishlist: () => snapshot };
+    }
+    const result = await previewDefinition(frame, { ...options, legacyApproval, plan: ownPlan ?? options.plan });
     if (!ownPlan) return result;
     const value = await ownPlan.finish(result);
     if (options.chat?.mode && value?.declined) {
@@ -1718,9 +1788,15 @@
     const locale = await storage.getUiLocale({ strict: true });
     const defaults = await model.loadDefaults(locale);
     const workflow = defaults.tools.find(item => item.id === toolId);
-    const input = model.toolArguments(workflow, args);
+    let input, legacyCollection;
+    if (toolId === root.STAI.PROVIDER_TOOL_IDS.collections && args && Object.hasOwn(args, "collection")) {
+      const { collection, ...rest } = args;
+      input = model.toolArguments(workflow, { ...rest, collectionName: collection });
+      legacyCollection = input;
+    } else input = model.toolArguments(workflow, args);
+    const state = await childState(workflow, input);
     const id = "legacy-account-tool-" + root.crypto.randomUUID(), check = () => signal.throwIfAborted();
-    return runDefinition({ workflow, flow: await childState(workflow, input) }, { id, signal, check, checkLibrary, expectedSteamId,
+    return runDefinition({ workflow, flow: state }, { id, signal, check, checkLibrary, expectedSteamId, legacyCollection,
       chat: approval?.chat, chatScope: approval?.scope,
       evaluate: data => root.STWorkflowScript.run({ id, ...data, seconds: 10, signal }) });
   }
@@ -1906,7 +1982,7 @@
     if (chatScope && (chatScope.operations.size || items.length)) {
       check();
       const operations = [...chatScope.operations.values()].map(({ key, ...details }) => details);
-      const parameters = model.isOriginalProviderTool(workflow) && operations.some(operation => operation.kind === "steam-read")
+      const parameters = model.isPackagedProviderTool(workflow) && operations.some(operation => operation.kind === "steam-read")
         ? approvalParameters(input) : {};
       if (!await chat.requestApproval({ operations, parameters, items })) {
         check();
@@ -1926,9 +2002,21 @@
       writeUsed = true;
       return { chat, scope: chatScope };
     };
-    return runDefinition({ workflow, flow: state }, { id, signal, check, checkLibrary: chatScope ? checkDefinition : permission.checkTool, confirmNetwork: true,
-      chat, chatScope, fullVersions, preview: {}, legacyApproval: { queryOptions, scope: chatScope }, evaluate: (data, activeSignal = signal) =>
+    let queryResult;
+    const packagedFilter = filterTool(workflow.id) && model.isPackagedProviderTool(workflow);
+    const legacyApproval = {
+      queryOptions, scope: chatScope,
+      wishlist: () => chat.steamSession ? (chat.steamSession.wishlist ??= {}) : undefined,
+      recordQuery: packagedFilter ? (node, result) => {
+        if (root.STAI.PROVIDER_TOOL_IDS[flow.providerQueries[node.action].provider] === workflow.id) queryResult = result;
+      } : undefined,
+    };
+    const value = await runDefinition({ workflow, flow: state }, { id, signal, check, checkLibrary: chatScope ? checkDefinition : permission.checkTool, confirmNetwork: true,
+      chat, chatScope, fullVersions, preview: {}, legacyApproval, evaluate: (data, activeSignal = signal) =>
         root.STWorkflowScript.run({ id, ...data, seconds: 10, signal: activeSignal }) });
+    if (Array.isArray(value) && queryResult?.appIds.length === value.length && value.every((appId, index) => queryResult.appIds[index] === appId))
+      permission.queryResult?.(queryResult);
+    return value;
   }
   async function previewLibraryCall(parent, node, options) {
     const path = [...options.path ?? [], parent.workflow.id];
@@ -2266,6 +2354,10 @@
     return childState(workflow, inputs, { triggerName, triggerType }, nodes);
   }
   async function childState(workflow, inputs, parentMeta = {}, nodes = flow.walk(workflow.steps, true)) {
+    if (flow.isToolId(workflow.id) && providerSpec(workflow.id)?.writes) {
+      const prepared = model.writeArguments(workflow, inputs);
+      if (prepared !== inputs) inputs = { ...inputs, ...prepared };
+    }
     const meta = { ...parentMeta, workflowName: workflow.name };
     if (Object.hasOwn(meta, "translationLanguage")) return flow.state(inputs, meta, workflow);
     for (const node of nodes) {
@@ -2635,11 +2727,14 @@
           JSON.stringify({ ...item, note: undefined }) !== JSON.stringify({ ...old, note: undefined }))
         flow.validateEntryPosition(item);
       const definition = section === "tools" || section === "workflows" ? model.workflowDefinitionKey :
-        row => JSON.stringify({ ...row, note: undefined, revision: 0, executionId: undefined });
+        row => JSON.stringify({ ...row, note: undefined, entryRow: undefined, entryGroups: undefined, revision: 0, executionId: undefined });
       const same = old && definition(old) === definition(item);
       if (section === "libraries" && !same) flow.validateLibraryOutputPosition(item);
+      const packagedQuery = section === "tools" && includePresets && model.isOriginalProviderTool(item) &&
+        (releasedQueryTool(item.id) || model.isParameterPreset(item));
       item.revision = old ? same ? old.revision : old.revision + 1 : 1;
       if (section === "tools" || section === "libraries") {
+        if (packagedQuery) continue;
         if (!old && includePresets && model.isOriginalProviderTool(item)) continue;
         if (!same) item.executionId = crypto.randomUUID();
         else if (old.executionId === undefined) delete item.executionId;
@@ -2711,6 +2806,34 @@
 
   // 旧版出厂内容的签名包含步骤与原始语言。启停变化不影响比对
   const previousFactoryDefinitions = {
+    "tool-4": {
+      zh_CN: "27ee52019b81d12cf7373f5274f74430426536b4371b4da65a6cd32045acb27c",
+      zh_TW: "2b1b56b2a6295e54cb87a5332036384222743daf873d49387157f2ca579c06c6",
+      en: "1d77b6561dd75da74a3bb471f7e9feb4b736e2ce4194673970a6bc7c3d7a38df",
+      ja: "430e7a1682e978dd9bdd032fde3794debf943126e6a6f88bd786cbd85372132d",
+      ko: "aa59733d1be593d991b3bd0562ce76dfa29ee8e15279a7e8308f0375823f717b",
+    },
+    "tool-8": {
+      zh_CN: "a3e4834cd11d85f81f7388100f0b0378db89e688ea256567bad7b94a10d0711c",
+      zh_TW: "5c48de7a4de4278f6c16a15c6bf0b310347d61ad15897ec9b16ec4c571b2fcd1",
+      en: "daec99563ed14406cc7e198aa1cd9cb2dddf9da25548d7d179156633541b18f9",
+      ja: "ed9b547d5ebea2d81b19b63443703ac935dbaef18b1b9324ba5f74e5baba4dad",
+      ko: "c68f1a9ae7e5fc64db8b582277425f85fbc98c3da5f822e960a0d8f45191ad14",
+    },
+    "tool-9": {
+      zh_CN: "a731f5fa52cd78a710b2e433c46f48b9127a8ab1ac5c8a4fd285409a5732e7d7",
+      zh_TW: "6a4e031c36f78a6d5a69e114b7ae7b7700255b6442577cbb2320aa50ad000dea",
+      en: "f56295c99cb2241ece6641c775ca43813eba961bc001281703a0414adfc96ead",
+      ja: "714265275a900412bd9eb6d33c50a1ec55a73945d4410a7aebf2f0db3517ddec",
+      ko: "eb8b0a7bd572746a7d07738b1805275440aac7d18f43f558b4a7d98e6dcac127",
+    },
+    "tool-10": {
+      zh_CN: "e9bb025c74574237b89b6ef7213ad666eb4f0d5dd0e2ff2dd381011d7983dafa",
+      zh_TW: "422e31f329ebbb82fea0ce0563dbf931105b350e9829ebf8e525cb2715651058",
+      en: "ac519d967b18e3c45e6944837787f35e0a212d8e46a063776404d612eab57bf2",
+      ja: "944de8c981e052a10a9b96bc5f3fc21e4b2b1d850bd27688f52cde76d43f0f61",
+      ko: "deccd87ec9d2bc3287c3f342a92dc6fb3186cebb2fe2464c5edcc369e498272b",
+    },
     "tool-5": {
       zh_CN: "fe83d3449226b47717e8cc0b63432324973441dba4d32c1e33a44304379d1fe1",
       zh_TW: "0924253beb52fbc1713b9db22910c1176c50627cf80d0803f640aceee3506b01",
@@ -2764,7 +2887,11 @@
       ko: "23b54a8b72cf6d5685a2aa17ebcbf09092516e92f2ce68886601c036acddcca2",
     },
   };
-  async function previousBatchLocale(tool, load) {
+  const previousBatchVariables = {
+    zh_CN: ["工具参数", "查询结果"], zh_TW: ["工具參數", "查詢結果"], en: ["Tool parameters", "Query result"],
+    ja: ["ツールパラメーター", "取得結果"], ko: ["도구 매개변수", "조회 결과"],
+  };
+  async function previousBatchLocale(tool) {
     const labels = previousBatchLabels[tool.id];
     if (!labels || tool.entryRow !== undefined || tool.folds?.length || tool.steps.length !== 3) return null;
     const [parameters, work, output] = tool.steps, spec = flow.providerQueries[work.action];
@@ -2783,12 +2910,10 @@
     const digest = await jsonDigest(canonicalPreset({ id, name, note, description, parameters: tool.parameters, variables }));
     const locale = Object.keys(labels).find(language => labels[language] === digest);
     if (!locale) return null;
-    const reader = (await load(locale)).tools.find(item => item.id === root.STAI.PROVIDER_TOOL_IDS.library_game);
-    const standardName = variableId => reader.variables.find(variable => variable.id === variableId)?.name;
+    const [argsName, resultName] = previousBatchVariables[locale];
     const args = tool.variables.find(variable => variable.id === parameters.output);
     const result = tool.variables.find(variable => variable.id === work.output);
-    return args?.type === "object" && args.name === standardName("var-task-args") &&
-      result?.type === "object" && result.name === standardName("var-result") ? locale : null;
+    return args?.type === "object" && args.name === argsName && result?.type === "object" && result.name === resultName ? locale : null;
   }
 
   function canonicalPreset(value) {
@@ -2796,12 +2921,80 @@
     if (!value || typeof value !== "object") return value;
     return Object.fromEntries(Object.keys(value).sort().map(key => [key, canonicalPreset(value[key])]));
   }
+  /** 2.2.70 出厂定义的内容摘要按 zh_CN、zh_TW、en、ja、ko 排列。 */
+  const previousParameterLocales = ["zh_CN", "zh_TW", "en", "ja", "ko"];
+  const previousParameterDefinitions = {
+    "tool-5": [
+      "f26be83f9bb00d943ec9ab7858863cf444419264e7fd51a9b8572f5a7aa0d81f",
+      "8f0290c45bdce5def125ba959f61c6b87d858a067bf4913db6ddc1669dfc17ef",
+      "5c1e733e3cb76c23337a578fb12b090d68d84e1fda4e5e773f9f8b793591f4a9",
+      "c2371181e1b0e6bdd6f989af3ddd60a957eb08b948989135f07291fa77b1752f",
+      "f5e67c36fe816b6ffd704baf721829c3a9f38e35e80c265a183b6e2db60ec4da",
+    ],
+    "tool-6": [
+      "5b554728e04b7e481572a7ecb68ef7e3b857e4bfb3f308247b5257b205b997b8",
+      "7174e1bd54db4bed3658b33bc72bb5593465395ea349f50d255516e6b35543d9",
+      "f3be4b847d3ed478026611ae301a1689a6704fb156bda3beb5b0e370d58acd54",
+      "b24790e3f594f7ab1afe6f627bf8483abbd33a029595a67a81daf8495dcc3320",
+      "95576a943411fd3e0dae50744bdcaacec43a30140bd1d73085539c29721dfda2",
+    ],
+    "tool-7": [
+      "2b63552cf1a9b73541c1b004221298c128bcb87b368136948c95fbfddda7ec78",
+      "e1defebb4e2ec804d7db2d4262623bed0f3c12f9a124be8b4df1456804c3b33d",
+      "2a67b18fbe1b9524ca20db5ba142125f9ca5814b59672a87f6580d794b977cb2",
+      "84b3e489ad4d70903e834003a035cc99475828b4c44dff785d5120f8c69c7454",
+      "66099096215212fc3f769f8ba44e558c65695b4ff4a8bc533e15da731b238270",
+    ],
+    "tool-8": [
+      "c33acc98e0e54beec9d31693d0fa90adf155fd4dc6730774c2e2ab0fcf0384aa",
+      "508370136fe34d31167b89d65fe37bce3c5e4fdc14eeb89a715ebbcdfac896c7",
+      "068ee574377455b07f94fcb36132ca8f857682c2b1354929bdb020ed309ff6fc",
+      "e9c6729991d8b58fff837c8d887f865bf96dd1cb8d8d5b7353531207e578593d",
+      "813783f2ecbeaa5063d886f0203998c760b1feb653ad53b931740c0fbce87631",
+    ],
+    "tool-10": [
+      "08793b10446a06bcf6da9059aa677e8b5f3ad2144df750b746929e8a0d1585ef",
+      "b3f894f07e1a71669051d194e4fd4cf79eb4fb5ec0c2c06395e16f823ef16914",
+      "644746b55687902ee6c6a1601a06a61bd70fa2329eb7f94e2149be918ab32c37",
+      "d1c38ce6244afa6e5a404631b7c56d500fc8bbaa782580da8a40a7b016ecee7d",
+      "d21e72e081830a2830f25ffc9402851f91d160304593ed9d6edd7d16151ef3fc",
+    ],
+    "tool-11": [
+      "7457f9df61577fe2400c448a332f26edefae83789ad21c2f3fe38e28c0590f09",
+      "a7daba8b0ffa8278b34119721795d20fb11afc68d9dc6d6b98a6f321d85755ac",
+      "a822c9e242a7e9c0d7a96dc5c44ba1429f66b9be4ca000c619b7f6fa6e5ae7cd",
+      "f004e98a7443d0d5274b97a4634a41f9273488ae724fcc249eead20f90354a17",
+      "d60e8b47aba298c63b5a6092598020a882ec562ba5bd6548e092b34bb7369ba1",
+    ],
+    "tool-13": [
+      "eba0bb0454eb908bc3e1e634b06fd60ce7fd3e26cf169d1ca3e66bd9e08d2ac3",
+      "f92e0904deaf5b720b7bc5096e8280e49e1b2ccb507b6d07a07678a66461f8f4",
+      "a9c458ef35497807c0209f64fbba5ea03b951f8d8417e358a53563f6b43352e1",
+      "03ff50c5e35203b65329e482457c76aa5bbf5823a08a697241574b22c17077ae",
+      "dab6cb10f8f116ca0d16601b5cde2f83fd2ed50a93ce59a2bc5473d57a932d62",
+    ],
+    "tool-14": [
+      "5cff7cdf547ba10f8ba838e0fcfc4a5dc6d9fe4b20831b3c615e27ae620cd451",
+      "5e1855f8ef81c6e712b2bdedc83a58a02f21279978b023c8350f78e85353da5f",
+      "7c2f2596a84992a33be5a3c6fd86f025d449e2a25accced4a6455e9b37fd8b3c",
+      "078448eaea0e365998005a8fcc09f34306f859ebe5802bc9fade700decfa47bf",
+      "9c181e68e6496686a8d5a9a3b108225c2c6b8fca0feff17650f4183fc11d2af0",
+    ],
+    "tool-15": [
+      "eea83bc2d8844de3c61577b19bb90d2ff830e48763afe4f6a268e9f513313d6a",
+      "37e721fc90a7378153bad09656f3c3068c71ac6f69213d11d7be5536416558ee",
+      "8c6c4c09665607c6368a9db074e2c754bbba8f798295a920d576f96c81e1c674",
+      "32bbff15d6a2caa2fac51328c71f46f085fe3d504ffcbd371788d841755c4b1f",
+      "277917a01e747ae8eea6490cfbbbeaed768998cd475886b552157187b126b486",
+    ],
+  };
   async function previousFactoryLocale(item) {
-    const known = previousFactoryDefinitions[item.id];
-    if (!known) return null;
+    const known = previousFactoryDefinitions[item.id], parameters = previousParameterDefinitions[item.id];
+    if (!known && !parameters) return null;
     const { enabled, executionId, revision, ...content } = item;
     const digest = await jsonDigest(canonicalPreset(content));
-    return Object.keys(known).find(locale => known[locale] === digest) ?? null;
+    return previousParameterLocales[parameters?.indexOf(digest)] ??
+      Object.keys(known ?? {}).find(locale => known[locale] === digest) ?? null;
   }
 
   function presetInputs(node, packaged, saved) {
@@ -2843,8 +3036,11 @@
     };
     const packaged = language => language === locale ? presets : model.loadDefaults(language);
     next.tools = await Promise.all(next.tools.map(async tool => {
-      if (!providerSpec(tool.id)?.writes || model.hasExplicitWrites(tool)) return tool;
-      const language = await previousFactoryLocale(tool) ?? await previousBatchLocale(tool, packaged);
+      const updatedQuery = releasedQueryTool(tool.id) &&
+        [...flow.walk(tool.steps, true)].some(flow.outdatedQuery);
+      const updatedWrite = providerSpec(tool.id)?.writes && !model.hasExplicitWrites(tool);
+      if (!updatedQuery && !updatedWrite && !Object.hasOwn(previousParameterDefinitions, tool.id)) return tool;
+      const language = await previousFactoryLocale(tool) ?? (updatedWrite ? await previousBatchLocale(tool) : null);
       if (!language) return tool;
       const original = (await packaged(language)).tools.find(item => item.id === tool.id);
       return { ...copy(original), enabled: tool.enabled };
@@ -3214,8 +3410,27 @@
     });
     return reconciling;
   }
+  async function readQueryOptions(field) {
+    if (!root.STWorkflowFields.query.dynamicOptions.includes(field)) throw new TypeError("筛选候选字段无效");
+    return root.STNetworkRequest.run(10_000, async signal => {
+      const frame = await approvalFrame(), epoch = steamAccountEpoch();
+      const checkFrame = current => {
+        signal.throwIfAborted();
+        if (!sameApprovalFrame(frame, current) || epoch !== steamAccountEpoch())
+          throw actionError("Steam 数据连接或账号已切换，请重新选择", "ACCOUNT_CHANGED");
+      };
+      const query = (action, value) => services.nativeFrameCommand("account-query", { action, ...value }, { signal, checkFrame });
+      const steamId = requiredOwner(await query("owner"));
+      const catalogs = await query("filter-options", { steamId, args: { fields: [field] } });
+      if (steamId !== await query("owner")) throw actionError("Steam 账号已切换，请重新选择", "ACCOUNT_CHANGED");
+      checkFrame(await approvalFrame());
+      return root.STWorkflowFields.query.validateCatalog(field, catalogs?.[field]);
+    });
+  }
+
   async function execute(request, sender, onPreviewLog) {
     if (request.action === "settings-ready") return ready({ retry: request.retry === true });
+    if (request.action === "filter-options") { await requireSetup(); return readQueryOptions(request.field); }
     if (request.action === "reset") {
       if (!resetTask) resetTask = resetAutomation(request.operationId).finally(() => { resetTask = null; });
       return resetTask;
@@ -3504,7 +3719,7 @@
           if (!definition) continue;
           flow.validateEntryPosition(definition);
           const context = flow.isToolId(definition.id) ? "tool" : flow.isLibraryId(definition.id) ? "library" : "workflow";
-          const unsupported = [...flow.walk(definition.steps, true)].find(node => !Object.hasOwn(flow.names, flow.type(node)) ||
+          const unsupported = [...flow.walk(definition.steps, true)].find(node => flow.outdatedQuery(node) || !Object.hasOwn(flow.names, flow.type(node)) ||
             !flow.instructionAvailable(flow.type(node), context) || context !== "workflow" && flow.implicitToolInput(node));
           if (unsupported) throw actionError(`「${definition.name}」的指令 ${unsupported.id} 已失效`, "WORKFLOW_SNAPSHOT_UNSUPPORTED");
         }
@@ -3599,7 +3814,7 @@
         const current = await storage.getWorkflow();
         const missingPreset = (section, id) => !current[section].some(item => item.id === id) && !(current.deletedPresets?.[section] ?? []).includes(id);
         const includePresets = current.presetImportVersion !== chrome.runtime.getManifest().version ||
-          ["tool-11", "tool-12", "tool-13", "tool-14"].some(id => missingPreset("tools", id)) || missingPreset("workflows", "wf-5");
+          ["tool-11", "tool-12", "tool-13", "tool-14", "tool-15"].some(id => missingPreset("tools", id)) || missingPreset("workflows", "wf-5");
         const patch = {};
         if (family.hasReleasedSchedule(previousVersion) && current.epoch === "initial" && current.revision === 1 &&
           !current.triggers.some(trigger => trigger.id === "trigger-0")) {

@@ -279,10 +279,11 @@
     return undefined;
   }
 
-  function collectionSnapshot(store, appids = null, field = null) {
+  function collectionSnapshot(store, appids = null, field = null, lookupOnly = false) {
     const collections = [];
     const byApp = new Map();
     const source = Array.isArray(store?.userCollections) ? store.userCollections : [];
+    let complete = Array.isArray(store?.userCollections);
     for (const item of source) {
       const id = text(item?.m_strId);
       // Live Steam 集合对象中，favorite 是用户收藏夹；其余可筛选集合都带有
@@ -294,7 +295,7 @@
         || item?.bIsEditable === true;
       if (!filterable) continue;
       const rawApps = item?.m_setApps;
-      const apps = appids ? lookupSet(rawApps) : toSet(rawApps);
+      const apps = appids || lookupOnly ? lookupSet(rawApps) : toSet(rawApps);
       if (field) {
         if (!apps) return null;
         if (!apps.has(appids[0])) continue;
@@ -302,9 +303,11 @@
       const label = field === "collections" ? "" : text(item?.m_strName);
       if (!id || !apps || !label && field !== "collections") {
         if (field) return null;
+        complete = false;
         continue;
       }
-      collections.push({ id, label });
+      collections.push({ id, label, ...(lookupOnly && { apps }) });
+      if (lookupOnly) continue;
       for (const appid of appids||apps) {
         if(appids&&!apps.has(appid))continue;
         const key = String(Number(appid) || appid);
@@ -312,18 +315,20 @@
         byApp.get(key).add(id);
       }
     }
-    return { collections, byApp };
+    return { collections, byApp, complete };
   }
 
-  function metadataContext({appids=null}={}) {
+  function metadataContext({appids=null, fields=null}={}) {
     const appStore = window.appStore || {};
     const collectionStore = window.collectionStore || {};
-    const hidden = toSet(collectionStore.collectionsFromStorage?.get?.("hidden")?.apps);
-    const privateApps = toSet(appStore.m_setPrivateApps);
-    const collections = collectionSnapshot(collectionStore,appids);
+    const privacy = !fields || fields.includes("privacy");
+    const hidden = privacy ? toSet(collectionStore.collectionsFromStorage?.get?.("hidden")?.apps) : null;
+    const privateApps = privacy ? toSet(appStore.m_setPrivateApps) : null;
+    const needsCollections = !fields || fields.includes("collections") || fields.includes("collection_names");
+    const collections = needsCollections ? collectionSnapshot(collectionStore, appids, null, !!fields) : { collections: [], byApp: new Map() };
     const tagLabels = new Map();
     const localizations = appStore.m_mapStoreTagLocalization;
-    if (localizations && typeof localizations === "object" && !Array.isArray(localizations)) {
+    if ((!fields || fields.includes("tags")) && localizations && typeof localizations === "object" && !Array.isArray(localizations)) {
       // Steam CEF 当前暴露普通对象；测试契约与旧运行态仍使用 Map。
       const entries = typeof localizations.entries === "function" ? localizations.entries() : Object.entries(localizations);
       for (const [id, label] of entries) {
@@ -340,7 +345,7 @@
       ready: {
         hidden: hidden instanceof Set,
         privacy: privateApps instanceof Set,
-        collections: Array.isArray(collectionStore.userCollections),
+        collections: fields && needsCollections ? collections.complete : Array.isArray(collectionStore.userCollections),
         tags: tagLabels.size > 0,
       },
     };
@@ -480,7 +485,7 @@
   const validOption = (value, maximum) => Number.isInteger(value) && value >= 0 && value <= maximum ? value : undefined;
   const timestamp = seconds => seconds === null ? undefined : seconds * 1000;
   /** 单游戏字段按需读取源值，资料缺失返回 undefined，实际空集合和数字 0 保留 */
-  function readField(app, field) {
+  function readField(app, field, context) {
     switch (field) {
       case "original_language": {
         const name = originalName(app);
@@ -491,10 +496,15 @@
         return source.ready ? source.values : undefined;
       }
       case "collections":
-      case "collection_names": return gameCollections(app.appid, field);
+      case "collection_names": {
+        if (!context) return gameCollections(app.appid, field);
+        if (!context.ready.collections) return undefined;
+        const groups = context.collections.collections.filter(group => hasValue(group.apps, app.appid));
+        return groups.map(group => field === "collections" ? group.id : group.label);
+      }
       case "privacy": {
-        const hidden = lookupSet(window.collectionStore?.collectionsFromStorage?.get?.("hidden")?.apps);
-        const privateApps = lookupSet(window.appStore.m_setPrivateApps);
+        const hidden = context ? context.hidden : lookupSet(window.collectionStore?.collectionsFromStorage?.get?.("hidden")?.apps);
+        const privateApps = context ? context.privateApps : lookupSet(window.appStore.m_setPrivateApps);
         if (!hidden || !privateApps) return undefined;
         const values = privacyValues(app.appid, privateApps, hidden);
         return values.length ? values : ["normal"];

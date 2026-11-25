@@ -9,5 +9,12 @@
   ".variables.error": "항목 오류",
   ".description": "채팅 모델이 작성한 도전 과제 번역을 저장합니다. 먼저 원문과 리비전을 조회하세요.",
   ".error.badTranslation": "대상 언어와 각 AppID의 도전 과제 원문, 리비전, 번역을 입력하세요.",
-  ".variables.prepared": "준비된 변경"
+  ".variables.prepared": "준비된 변경",
+  ".parameters.appId": "Steam 게임 AppID(정수).",
+  ".parameters.id": "조회 결과의 도전 과제 id입니다.",
+  ".parameters.title": "도전 과제 원문 제목입니다.",
+  ".parameters.description": "도전 과제 원문 설명입니다. 빈 문자열을 허용합니다.",
+  ".parameters.revision": "조회 결과에서 해당 도전 과제의 revision입니다.",
+  ".parameters.translatedTitle": "도전 과제 번역 제목입니다.",
+  ".parameters.translatedDescription": "도전 과제 번역 설명입니다. 빈 문자열을 허용합니다."
 }

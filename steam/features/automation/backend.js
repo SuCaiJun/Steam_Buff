@@ -306,11 +306,13 @@
         signal?.throwIfAborted();
         if (stopped) throw new Error("自动化数据入口已停止");
         if (action === "account-query") {
-          if (value.action === "owned-apps" && value.args.includeSortName)
+          if (value.action === "owned-apps" && value.args.includeSortName ||
+              value.action === "library" && value.args.fields.includes("sort") || value.action === "library-game")
             await api.reg.loadScript("steam/shared/native-sort-name.js");
           signal?.throwIfAborted();
           if (stopped) throw new Error("自动化数据入口已停止");
-          return api.automationAccountQueries.query(value, originalName, achievements, collections, api.nativeSortName?.read, signal);
+          return api.automationAccountQueries.query(value, { nameOf: originalName, displayName, achievements, collections,
+            readSortName: api.nativeSortName?.read }, signal);
         }
         const guard = () => { signal?.throwIfAborted(); accountWriteGuard(value); };
         const authorize = part => request("account-write-check", { command: action, ticket: value.ticket,

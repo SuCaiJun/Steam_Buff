@@ -34,7 +34,8 @@
     "ai-tools/tool-11/definition.json",
     "ai-tools/tool-12/definition.json",
     "ai-tools/tool-13/definition.json",
-    "ai-tools/tool-14/definition.json"
+    "ai-tools/tool-14/definition.json",
+    "ai-tools/tool-15/definition.json"
   ],
   "triggers": [
     "triggers/trigger-1/definition.json",

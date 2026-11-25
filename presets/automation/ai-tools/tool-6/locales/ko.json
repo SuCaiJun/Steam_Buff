@@ -1,8 +1,7 @@
 {
   ".name": "컬렉션에 일괄 추가",
-  ".note": "게임을 지정한 편집 가능한 컬렉션에 추가합니다. appIds와 정확한 collection 또는 게임별 changes를 입력하세요.",
+  ".note": "게임을 기존의 쓰기 가능한 컬렉션에 추가합니다. appIds와 collectionIds 또는 고유한 collectionName을 사용하거나, 게임별 대상이 다르면 changes를 사용합니다。",
   ".parameters.appIds": "Steam 게임 AppID 목록.",
-  ".parameters.collection": "모든 게임에 공통으로 적용할 편집 가능한 컬렉션의 정확한 이름 또는 ID.",
   ".parameters.changes": "또는 게임별 AppID와 컬렉션 ID 목록을 입력할 수 있습니다.",
   ".variables.items": "항목별 결과",
   ".variables.item": "현재 항목",
@@ -11,8 +10,10 @@
   ".variables.args": "도구 인수",
   ".variables.groups": "편집 가능한 컬렉션",
   ".variables.rows": "변경할 항목",
-  ".description": "게임을 지정한 편집 가능한 컬렉션에 추가합니다. appIds와 정확한 collection 또는 게임별 changes를 입력하세요.",
-  ".error.badCollection": "AppID 목록과 정확한 컬렉션 이름이나 ID를 지정하거나, 게임별 컬렉션 ID를 입력하세요.",
+  ".description": "게임을 기존의 쓰기 가능한 컬렉션에 추가합니다. appIds와 collectionIds 또는 고유한 collectionName을 사용하거나, 게임별 대상이 다르면 changes를 사용합니다。",
+  ".error.badCollection": "게임을 기존의 쓰기 가능한 컬렉션에 추가합니다. appIds와 collectionIds 또는 고유한 collectionName을 사용하거나, 게임별 대상이 다르면 changes를 사용합니다。",
   ".error.noCollection": "편집 가능한 컬렉션을 하나로 확인할 수 없습니다. 컬렉션 ID를 확인하세요.",
-  ".variables.prepared": "준비된 변경"
+  ".variables.prepared": "준비된 변경",
+  ".parameters.collectionName": "정확한 쓰기 가능한 컬렉션 이름입니다. 하나만 일치해야 합니다.",
+  ".parameters.collectionIds": "쓰기 가능한 컬렉션 ID 목록입니다."
 }

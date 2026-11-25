@@ -8,5 +8,7 @@
   ".variables.error": "本项错误",
   ".description": "修改 Steam 游戏排序位置。",
   ".error.badName": "请为每个有效的 AppID 提供一个明确的名称。",
-  ".variables.prepared": "准备的修改"
+  ".variables.prepared": "准备的修改",
+  ".parameters.appId": "Steam 游戏 AppID（整数）。",
+  ".parameters.name": "该 AppID 对应的目标名称。"
 }

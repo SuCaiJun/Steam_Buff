@@ -2,5 +2,8 @@
   ".name": "편집 가능한 컬렉션 조회",
   ".note": "현재 Steam 계정에서 편집할 수 있는 컬렉션의 ID와 이름을 조회합니다.",
   ".variables.groups": "편집 가능한 컬렉션",
-  ".description": "현재 Steam 계정에서 편집할 수 있는 컬렉션의 ID와 이름을 조회합니다."
+  ".description": "현재 Steam 계정에서 편집할 수 있는 컬렉션의 ID와 이름을 조회합니다.",
+  ".parameters.collectionId": "쓰기 가능한 컬렉션의 정확한 ID입니다.",
+  ".parameters.name": "컬렉션 이름의 키워드로 필터링합니다.",
+  ".variables.filterParameters": "필터 조건"
 }

@@ -1,0 +1,10 @@
+{
+  ".name": "Batch query my Steam wishlist",
+  ".note": "Look up each AppID on the current Steam wishlist and return the entry, region, current price, discount and available historical low. found=false means the game is not on the wishlist.",
+  ".description": "Look up each AppID on the current Steam wishlist and return the entry, region, current price, discount and available historical low. found=false means the game is not on the wishlist.",
+  ".variables.result": "Query result",
+  ".variables.detail": "Query result · AppID",
+  ".parameters.appIds": "One or more valid Steam AppIDs (integers).",
+  ".variables.appId": "Current AppID",
+  ".variables.index": "Index"
+}

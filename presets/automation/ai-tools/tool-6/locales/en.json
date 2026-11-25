@@ -1,8 +1,7 @@
 {
   ".name": "Batch add to Steam collections",
-  ".note": "Add games to specified writable collections. Supply appIds and an exact collection, or send per-game changes.",
+  ".note": "Add games to existing writable collections. Supply appIds plus collectionIds or one exact collectionName, or use changes for per-game targets.",
   ".parameters.appIds": "List of Steam game AppIDs.",
-  ".parameters.collection": "Exact name or ID of one writable collection for all these games.",
   ".parameters.changes": "Alternatively, supply the game AppID and a list of collection IDs for each game.",
   ".variables.items": "Item results",
   ".variables.item": "Current item",
@@ -11,8 +10,10 @@
   ".variables.args": "Tool arguments",
   ".variables.groups": "Writable collections",
   ".variables.rows": "Requested changes",
-  ".description": "Add games to specified writable collections. Supply appIds and an exact collection, or send per-game changes.",
-  ".error.badCollection": "Specify writable collections using AppIDs and an exact collection name or ID, or supply collection IDs for each game.",
+  ".description": "Add games to existing writable collections. Supply appIds plus collectionIds or one exact collectionName, or use changes for per-game targets.",
+  ".error.badCollection": "Add games to existing writable collections. Supply appIds plus collectionIds or one exact collectionName, or use changes for per-game targets.",
   ".error.noCollection": "No unique writable collection matched. Check the collection ID.",
-  ".variables.prepared": "Prepared change"
+  ".variables.prepared": "Prepared change",
+  ".parameters.collectionName": "Exact writable collection name. It must match one collection.",
+  ".parameters.collectionIds": "List of writable collection IDs."
 }

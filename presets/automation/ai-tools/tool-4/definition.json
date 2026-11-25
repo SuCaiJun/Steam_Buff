@@ -100,11 +100,6 @@
       "type": "number"
     },
     {
-      "id": "var-search-parameters",
-      "name": "$text:.variables.var-search-parameters.name",
-      "type": "object"
-    },
-    {
       "id": "var-115",
       "name": "$text:.variables.var-115.name",
       "type": "object"
@@ -112,192 +107,103 @@
   ],
   "steps": [
     {
-      "id": "step-search-parameters",
-      "kind": "action",
-      "action": "record",
-      "entries": [
-        {
-          "key": "term",
-          "value": {
-            "source": "variable",
-            "id": "var-term",
-            "path": []
-          },
-          "omitIfUnset": true
-        },
-        {
-          "key": "priceBelow",
-          "value": {
-            "source": "variable",
-            "id": "var-priceBelow",
-            "path": []
-          },
-          "omitIfUnset": true
-        },
-        {
-          "key": "freeOnly",
-          "value": {
-            "source": "variable",
-            "id": "var-freeOnly",
-            "path": []
-          },
-          "omitIfUnset": true
-        },
-        {
-          "key": "discountsOnly",
-          "value": {
-            "source": "variable",
-            "id": "var-discountsOnly",
-            "path": []
-          },
-          "omitIfUnset": true
-        },
-        {
-          "key": "hideFreeToPlay",
-          "value": {
-            "source": "variable",
-            "id": "var-hideFreeToPlay",
-            "path": []
-          },
-          "omitIfUnset": true
-        },
-        {
-          "key": "languages",
-          "value": {
-            "source": "variable",
-            "id": "var-languages",
-            "path": []
-          },
-          "omitIfUnset": true
-        },
-        {
-          "key": "tags",
-          "value": {
-            "source": "variable",
-            "id": "var-tags",
-            "path": []
-          },
-          "omitIfUnset": true
-        },
-        {
-          "key": "excludeTags",
-          "value": {
-            "source": "variable",
-            "id": "var-excludeTags",
-            "path": []
-          },
-          "omitIfUnset": true
-        },
-        {
-          "key": "types",
-          "value": {
-            "source": "variable",
-            "id": "var-types",
-            "path": []
-          },
-          "omitIfUnset": true
-        },
-        {
-          "key": "playerModes",
-          "value": {
-            "source": "variable",
-            "id": "var-playerModes",
-            "path": []
-          },
-          "omitIfUnset": true
-        },
-        {
-          "key": "features",
-          "value": {
-            "source": "variable",
-            "id": "var-features",
-            "path": []
-          },
-          "omitIfUnset": true
-        },
-        {
-          "key": "controllers",
-          "value": {
-            "source": "variable",
-            "id": "var-controllers",
-            "path": []
-          },
-          "omitIfUnset": true
-        },
-        {
-          "key": "accessibility",
-          "value": {
-            "source": "variable",
-            "id": "var-accessibility",
-            "path": []
-          },
-          "omitIfUnset": true
-        },
-        {
-          "key": "deck",
-          "value": {
-            "source": "variable",
-            "id": "var-deck",
-            "path": []
-          },
-          "omitIfUnset": true
-        },
-        {
-          "key": "vr",
-          "value": {
-            "source": "variable",
-            "id": "var-vr",
-            "path": []
-          },
-          "omitIfUnset": true
-        },
-        {
-          "key": "excludeVrOnly",
-          "value": {
-            "source": "variable",
-            "id": "var-excludeVrOnly",
-            "path": []
-          },
-          "omitIfUnset": true
-        },
-        {
-          "key": "os",
-          "value": {
-            "source": "variable",
-            "id": "var-os",
-            "path": []
-          },
-          "omitIfUnset": true
-        },
-        {
-          "key": "sortBy",
-          "value": {
-            "source": "variable",
-            "id": "var-sortBy",
-            "path": []
-          },
-          "omitIfUnset": true
-        },
-        {
-          "key": "start",
-          "value": {
-            "source": "variable",
-            "id": "var-start",
-            "path": []
-          },
-          "omitIfUnset": true
-        }
-      ],
-      "output": "var-search-parameters"
-    },
-    {
       "id": "step-114",
       "kind": "action",
       "action": "steam-store-search",
       "output": "var-115",
-      "filters": {
+      "term": {
         "source": "variable",
-        "id": "var-search-parameters",
+        "id": "var-term",
+        "path": []
+      },
+      "priceBelow": {
+        "source": "variable",
+        "id": "var-priceBelow",
+        "path": []
+      },
+      "freeOnly": {
+        "source": "variable",
+        "id": "var-freeOnly",
+        "path": []
+      },
+      "discountsOnly": {
+        "source": "variable",
+        "id": "var-discountsOnly",
+        "path": []
+      },
+      "hideFreeToPlay": {
+        "source": "variable",
+        "id": "var-hideFreeToPlay",
+        "path": []
+      },
+      "languages": {
+        "source": "variable",
+        "id": "var-languages",
+        "path": []
+      },
+      "tags": {
+        "source": "variable",
+        "id": "var-tags",
+        "path": []
+      },
+      "excludeTags": {
+        "source": "variable",
+        "id": "var-excludeTags",
+        "path": []
+      },
+      "types": {
+        "source": "variable",
+        "id": "var-types",
+        "path": []
+      },
+      "playerModes": {
+        "source": "variable",
+        "id": "var-playerModes",
+        "path": []
+      },
+      "features": {
+        "source": "variable",
+        "id": "var-features",
+        "path": []
+      },
+      "controllers": {
+        "source": "variable",
+        "id": "var-controllers",
+        "path": []
+      },
+      "accessibility": {
+        "source": "variable",
+        "id": "var-accessibility",
+        "path": []
+      },
+      "deck": {
+        "source": "variable",
+        "id": "var-deck",
+        "path": []
+      },
+      "vr": {
+        "source": "variable",
+        "id": "var-vr",
+        "path": []
+      },
+      "excludeVrOnly": {
+        "source": "variable",
+        "id": "var-excludeVrOnly",
+        "path": []
+      },
+      "os": {
+        "source": "variable",
+        "id": "var-os",
+        "path": []
+      },
+      "sortBy": {
+        "source": "variable",
+        "id": "var-sortBy",
+        "path": []
+      },
+      "start": {
+        "source": "variable",
+        "id": "var-start",
         "path": []
       }
     },

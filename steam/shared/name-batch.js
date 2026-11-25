@@ -782,65 +782,9 @@
   }
 
   function matchesText(filter, candidates, expression) {
-    const values = candidates
-      .map((value) => String(value ?? "").trim())
-      .filter(Boolean);
-    if (filter.op === "regex") {
-      if (!expression) throw new Error("正则筛选缺少已验证表达式");
-      return values.some((value) => expression.test(value));
-    }
-    const query = String(filter.value).trim().toLocaleLowerCase();
-    if (filter.op === "startsWith")
-      return values.some((value) =>
-        value.toLocaleLowerCase().startsWith(query),
-      );
-    if (filter.op === "endsWith")
-      return values.some((value) => value.toLocaleLowerCase().endsWith(query));
-    if (filter.op === "lengthGt")
-      return values.some(
-        (value) => Array.from(value).length > Number(filter.value),
-      );
-    if (filter.op === "lengthLt")
-      return values.some(
-        (value) => Array.from(value).length < Number(filter.value),
-      );
-    const found = values.some((value) =>
-      ["contains", "notContains"].includes(filter.op)
-        ? value.toLocaleLowerCase().includes(query)
-        : value.toLocaleLowerCase() === query,
-    );
-    return ["notContains", "notEquals"].includes(filter.op) ? !found : found;
+    return window.STWorkflowFields.query.matchText(filter.op, candidates, filter.value, expression);
   }
   const FILTER_GROUPS = window.STWorkflowFields.groups.map(([title,entries])=>[title,entries[0][0],entries.map(([key])=>key).filter(key=>!["official","current","sort","appid"].includes(key))]);
-  const LANGUAGE_LABELS = Object.freeze({
-    sc_schinese: "简体中文", schinese: "简体中文", tchinese: "繁体中文", english: "英文", koreana: "韩语", japanese: "日语",
-    german: "德语", french: "法语", italian: "意大利语", spanish: "西班牙语", latam: "拉丁美洲西班牙语", russian: "俄语",
-    portuguese: "葡萄牙语", brazilian: "巴西葡萄牙语", polish: "波兰语", dutch: "荷兰语", danish: "丹麦语", finnish: "芬兰语",
-    norwegian: "挪威语", swedish: "瑞典语", hungarian: "匈牙利语", czech: "捷克语", romanian: "罗马尼亚语", turkish: "土耳其语",
-    greek: "希腊语", bulgarian: "保加利亚语", ukrainian: "乌克兰语", thai: "泰语", arabic: "阿拉伯语", vietnamese: "越南语",
-    indonesian: "印尼语", malay: "马来语",
-  });
-  const LANGUAGE_TAGS = Object.freeze({
-    schinese: "zh-Hans", tchinese: "zh-Hant", english: "en", koreana: "ko", japanese: "ja", german: "de",
-    french: "fr", italian: "it", spanish: "es", latam: "es-419", russian: "ru", portuguese: "pt",
-    brazilian: "pt-BR", polish: "pl", dutch: "nl", danish: "da", finnish: "fi", norwegian: "no",
-    swedish: "sv", hungarian: "hu", czech: "cs", romanian: "ro", turkish: "tr", greek: "el",
-    bulgarian: "bg", ukrainian: "uk", thai: "th", arabic: "ar", vietnamese: "vi", indonesian: "id",
-    malay: "ms", zh_hans: "zh-Hans", zh_hant: "zh-Hant", korean: "ko",
-  });
-  const ACCESSIBILITY_LABELS = Object.freeze({
-    adjustable_difficulty: "可调整难度", save_anytime: "随时保存", adjustable_text: "可调整文字大小", subtitles: "字幕选项",
-    color_alternatives: "可选颜色", contrast: "对比度控制", camera_comfort: "镜头舒适度", playable_without_vision: "无需视觉也可游玩",
-    custom_volume: "自定义音量控制", stereo: "立体声", surround: "环绕声", narrated_menus: "朗读游戏菜单", keyboard_only: "可以仅用键盘",
-    mouse_only: "可以仅用鼠标", touch_only: "可以仅用触控", without_quick_time: "无需快速反应事件即可游玩", own_pace: "可按自己的节奏游玩",
-    speech_to_text: "聊天语音转文字", text_to_speech: "聊天文字转语音",
-  });
-  const REVIEW_LABELS = Object.freeze({ 9: "好评如潮", 8: "特别好评", 7: "好评", 6: "多半好评", 5: "褒贬不一", 4: "多半差评", 3: "差评", 2: "特别差评", 1: "差评如潮", 0: "无评测分数" });
-  const DATE_PRESET_DEFS = Object.freeze([
-    ["30m", "近30分钟"], ["1h", "近1小时"], ["6h", "近6小时"], ["24h", "近24小时"],
-    ["today", "今日"], ["yesterday", "昨日"], ["3d", "近3日"], ["7d", "近7日"],
-    ["14d", "近14日"], ["30d", "近30日"], ["custom", "自定义"],
-  ]);
   const FIELD_LABELS = window.STWorkflowFields.labels;
 
 
@@ -859,16 +803,7 @@
       return groups.map(([group, fields, id]) => [i18n(`nameFilter.group.${id}`, group), fields.map(field => [field, labels[field]])]);
     }
 
-    function gameTypes() {
-      return [
-        ["game", i18n("steam.independentName.typeGame", "游戏")],
-        ["software", i18n("steam.independentName.typeSoftware", "软件")],
-        ["tool", i18n("steam.independentName.typeTool", "工具")],
-        ["audio", i18n("steam.independentName.typeAudio", "音频")],
-        ["video", i18n("steam.independentName.typeVideo", "视频")],
-        ["other", i18n("steam.independentName.typeOther", "其他")],
-      ];
-    }
+    function gameTypes() { return window.STWorkflowFields.query.options("app_type", undefined, i18n); }
 
     function isDiscreteField(field) {
       return ["app_type", "sources", "original_language", "collections", "modes", "status", "privacy", "languages", "genres", "features", "tags", "hardware", "accessibility", "review_score"].includes(field);
@@ -931,34 +866,11 @@
     }
 
     function optionList(field) {
-      const fallback = {
-        ...window.STWorkflowFields.filterChoices,
-        languages: Object.entries(LANGUAGE_LABELS),
-        genres: [["action", "动作"], ["adventure", "冒险"], ["casual", "休闲"], ["indie", "独立"], ["massively_multiplayer", "大型多人在线"], ["racing", "竞速"], ["rpg", "角色扮演"], ["simulation", "模拟"], ["sports", "体育"], ["strategy", "策略"]],
-        features: [["trading_cards", "集换式卡牌"], ["workshop", "创意工坊"], ["achievements", "成就"], ["steam_cloud", "Steam 云"], ["remote_play", "远程同乐"], ["family_sharing", "家庭共享"]],
-        tags: [["19", "动作"], ["21", "冒险"], ["122", "角色扮演"], ["492", "独立"], ["597", "休闲"], ["599", "模拟"], ["699", "竞速"], ["701", "体育"]],
-        hardware: [["controller_full", "完全支持控制器"], ["controller_partial", "部分支持控制器"], ["controller_recommended", "建议使用控制器"], ["vr", "VR"], ["non_vr", "非 VR"], ["deck_0", "Steam Deck：未知"], ["deck_1", "Steam Deck：Unsupported"], ["deck_2", "Steam Deck：Playable"], ["deck_3", "Steam Deck：Verified"]],
-        accessibility: Object.entries(ACCESSIBILITY_LABELS),
-        review_score: Object.entries(REVIEW_LABELS),
-      };
       const dynamic = state.meta?.options?.[field === "collections" ? "collections" : field === "tags" ? "tags" : field === "languages" ? "languages" : field === "original_language" ? "originalLanguages" : ""];
-      const source = Array.isArray(dynamic) && dynamic.length ? dynamic.map(item => [String(item.value), text(item.label)]) : fallback[field] || [];
-      const unique = new Map();
-      const languageNames = ["languages", "original_language"].includes(field)
-        ? new Intl.DisplayNames([window.STI18n?.intlLocale() || "zh-CN"], { type: "language" }) : null;
-      for (const [rawValue, rawLabel] of source) {
-        const value = field === "languages" ? (String(rawValue) === "sc_schinese" ? "schinese" : String(rawValue)) : String(rawValue);
-        const label = field === "collections" ? text(rawLabel)
-          : languageNames && Object.hasOwn(LANGUAGE_TAGS, value) ? languageNames.of(LANGUAGE_TAGS[value])
-          : i18n(`nameFilter.option.${field}.${value}`, text(rawLabel));
-        if (value && label && !unique.has(value)) unique.set(value, label);
-      }
-      return Array.from(unique, ([value, label]) => [value, label]);
+      return window.STWorkflowFields.query.options(field, Array.isArray(dynamic) && dynamic.length ? dynamic.map(({value, label}) => [value, label]) : undefined, i18n);
     }
 
-    function datePresets() {
-      return DATE_PRESET_DEFS.map(([value, label]) => [value, i18n(`steam.independentName.datePreset${value}`, label)]);
-    }
+    function datePresets() { return window.STWorkflowFields.query.datePresets(i18n); }
 
     function dateRange(filter, now = Date.now()) {
       if (!isDateField(filter.field)) return null;

@@ -3,7 +3,7 @@
   ".note": "実績の原文と翻訳状況、リビジョンをページごとに取得します。次のページは nextStart を使います。",
   ".parameters.appId": "Steam ゲームの AppID。",
   ".parameters.language": "対象言語コード（例 chinese_simplified）。",
-  ".parameters.start": "開始位置。初回は 0、以降は前のページの nextStart を指定します。",
+  ".parameters.start": "初回は省略可能（既定値 0）。次のページには前ページの nextStart を指定します。",
   ".variables.source": "実績の原文",
   ".variables.records": "保存済みの翻訳",
   ".description": "実績の原文と翻訳状況、リビジョンをページごとに取得します。次のページは nextStart を使います。",

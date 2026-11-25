@@ -8,23 +8,18 @@
   "description": "$text:.description",
   "parameters": [
     {
-      "name": "appIds",
-      "type": "array",
+      "name": "appId",
+      "type": "integer",
       "required": true,
       "description": "$text:.parameters.0.description",
-      "variableId": "var-appIds"
+      "variableId": "var-appId"
     }
   ],
   "variables": [
     {
-      "id": "var-appIds",
-      "name": "appIds",
-      "type": "list"
-    },
-    {
-      "id": "var-task-args",
-      "name": "$text:.variables.args",
-      "type": "object"
+      "id": "var-appId",
+      "name": "appId",
+      "type": "number"
     },
     {
       "id": "var-result",
@@ -34,29 +29,12 @@
   ],
   "steps": [
     {
-      "id": "step-params",
-      "kind": "action",
-      "action": "record",
-      "entries": [
-        {
-          "key": "appIds",
-          "value": {
-            "source": "variable",
-            "id": "var-appIds",
-            "path": []
-          },
-          "omitIfUnset": false
-        }
-      ],
-      "output": "var-task-args"
-    },
-    {
       "id": "step-operation",
       "kind": "action",
       "action": "steam-account-game",
-      "taskArgs": {
+      "appId": {
         "source": "variable",
-        "id": "var-task-args",
+        "id": "var-appId",
         "path": []
       },
       "output": "var-result"

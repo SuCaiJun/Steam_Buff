@@ -9,5 +9,12 @@
   ".variables.error": "本項錯誤",
   ".description": "儲存聊天模型提供的指定語言成就譯文。用「讀取遊戲成就」取得原文及修訂號。",
   ".error.badTranslation": "請傳入目標語言，以及每個 AppID 對應的成就原文、修訂號和譯文。",
-  ".variables.prepared": "準備的修改"
+  ".variables.prepared": "準備的修改",
+  ".parameters.appId": "Steam 遊戲 AppID（整數）。",
+  ".parameters.id": "使用讀取結果的成就 id。",
+  ".parameters.title": "成就原文標題。",
+  ".parameters.description": "成就原文描述，可為空字串。",
+  ".parameters.revision": "使用該成就讀取結果的 revision。",
+  ".parameters.translatedTitle": "成就譯文標題。",
+  ".parameters.translatedDescription": "成就譯文描述，可為空字串。"
 }

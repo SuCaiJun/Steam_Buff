@@ -2,5 +2,8 @@
   ".name": "List writable collections",
   ".note": "List IDs and names of collections the current Steam account can edit.",
   ".variables.groups": "Writable collections",
-  ".description": "List IDs and names of collections the current Steam account can edit."
+  ".description": "List IDs and names of collections the current Steam account can edit.",
+  ".parameters.collectionId": "Exact writable collection ID.",
+  ".parameters.name": "Filter by a keyword in the collection name.",
+  ".variables.filterParameters": "Filter conditions"
 }

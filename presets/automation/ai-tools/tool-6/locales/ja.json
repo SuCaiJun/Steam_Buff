@@ -1,8 +1,7 @@
 {
   ".name": "コレクションに一括追加",
-  ".note": "ゲームを指定したコレクションに追加します。appIds と正確な collection、またはゲームごとの changes を指定してください。",
+  ".note": "既存の書き込み可能なコレクションにゲームを追加します。appIds と collectionIds または一意の collectionName を指定し、ゲームごとに異なる場合は changes を使います。",
   ".parameters.appIds": "Steam ゲームの AppID の一覧。",
-  ".parameters.collection": "すべてのゲームに適用する書き込み可能なコレクションの正確な名前または ID。",
   ".parameters.changes": "代わりにゲームごとの AppID とコレクション ID の一覧を指定できます。",
   ".variables.items": "項目別結果",
   ".variables.item": "現在の項目",
@@ -11,8 +10,10 @@
   ".variables.args": "ツール引数",
   ".variables.groups": "書き込み可能なコレクション",
   ".variables.rows": "変更内容",
-  ".description": "ゲームを指定したコレクションに追加します。appIds と正確な collection、またはゲームごとの changes を指定してください。",
-  ".error.badCollection": "AppID と正確なコレクション名または ID を指定するか、ゲームごとにコレクション ID を指定してください。",
+  ".description": "既存の書き込み可能なコレクションにゲームを追加します。appIds と collectionIds または一意の collectionName を指定し、ゲームごとに異なる場合は changes を使います。",
+  ".error.badCollection": "既存の書き込み可能なコレクションにゲームを追加します。appIds と collectionIds または一意の collectionName を指定し、ゲームごとに異なる場合は changes を使います。",
   ".error.noCollection": "書き込み可能なコレクションを特定できません。コレクション ID を確認してください。",
-  ".variables.prepared": "準備した変更"
+  ".variables.prepared": "準備した変更",
+  ".parameters.collectionName": "書き込み可能なコレクションの完全な名前。一意に一致する必要があります。",
+  ".parameters.collectionIds": "書き込み可能なコレクション ID のリスト。"
 }

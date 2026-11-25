@@ -576,6 +576,10 @@
       field(text("ai_chat_tool_result", "结果"), data.count);
       field(text("ai_chat_tool_changed", "已修改"), data.changed);
       field(text("common_failed", "失败"), data.failed);
+      if (Number.isInteger(data.matched) && data.matched !== data.count)
+        field(text("ai_chat_search_result_count", "结果数"), data.matched);
+      if (data.unavailable > 0) field(text("ai_chat_query_unavailable", "未能核实的条目"), data.unavailable);
+      if (typeof data.found === "boolean") field(text("ai_chat_tool_result", "结果"), data.found ? data.name : text("common_none", "暂无"));
     }
     if (source) {
       field(text("ai_chat_tool_data_at", "数据时间"), localeTime(source.checkedAt));
@@ -1185,6 +1189,7 @@
       STEAM_CLIENT_REQUIRED: ["ai_chat_steam_connection_unavailable", "Steam 数据入口未就绪。请打开 Steam 游戏库后重试。"],
       STEAM_NATIVE_DISCONNECTED: ["ai_chat_steam_connection_unavailable", "Steam 数据入口未就绪。请打开 Steam 游戏库后重试。"],
       STEAM_NATIVE_TIMEOUT: ["ai_chat_steam_connection_timeout", "Steam 数据入口响应超时，请重试。"],
+      WORKFLOW_QUERY_RECONFIGURE: ["workflow_query_reconfigure", "这条查询的输入已更新，请重新配置。"],
       WORKFLOW_TOOL_UNAVAILABLE: ["ai_chat_approval_stale", "操作范围已变化，本次授权已失效。请重新发送。"],
       WORKFLOW_LIBRARY_UNAVAILABLE: ["ai_chat_approval_stale", "操作范围已变化，本次授权已失效。请重新发送。"],
       CHAT_HISTORY_WRITE_FAILED: ["ai_chat_save_failed", "保存对话失败，请检查扩展存储空间。"],

@@ -2,7 +2,6 @@
   ".name": "Steam Store Search",
   ".note": "Search the Steam China store by keyword and filters, with paginated results.",
   ".variables.var-115.name": "Query result",
-  ".variables.var-search-parameters.name": "Store search parameters",
   ".description": "Search Steam’s China store for games and other products. Results include current prices, discounts, review summaries, and links. Every argument is optional. No AppID is needed. For discounted games under ¥50 with Simplified Chinese support, use {\"types\":[\"游戏\"],\"discountsOnly\":true,\"priceBelow\":50,\"languages\":[\"schinese\"]}. Returned prices are in fen. items contains matches on this page. candidateTotal is Steam’s count before the exact price check on this page. Reuse the filters and pass nextStart to get the next page.\n\nTo look up an AppID by game name, pass the name as term. For base games, use types: [\"游戏\"]. In items, use the id of a clearly matching entry with type \"app\" as appId for subsequent tools. IDs for sub and bundle entries are not AppIDs.",
   ".parameters.0.description": "Game name or search keyword, up to 64 characters. You can use the game's original name. Omit to search without a keyword.",
   ".parameters.1.description": "Final displayed price strictly below this amount in CNY, with up to two decimal places. For example, 50 excludes ¥50.00. Incompatible with freeOnly: true.",

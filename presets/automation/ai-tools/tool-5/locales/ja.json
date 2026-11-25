@@ -8,5 +8,7 @@
   ".variables.error": "項目のエラー",
   ".description": "Steam ゲームの並び順を変更します。",
   ".error.badName": "有効な Steam AppID ごとに名前を 1 つ指定してください。",
-  ".variables.prepared": "準備した変更"
+  ".variables.prepared": "準備した変更",
+  ".parameters.appId": "Steam ゲームの AppID（整数）。",
+  ".parameters.name": "この AppID に設定する名前。"
 }

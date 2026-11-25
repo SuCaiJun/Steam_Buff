@@ -1,10 +1,17 @@
 {
-  ".name": "내 Steam 찜 목록 조회",
-  ".note": "내 Steam 찜 목록의 추가 날짜, 지역별 가격, 할인율, 역대 최저가를 페이지별로 확인합니다.",
-  ".description": "내 Steam 찜 목록의 추가 날짜, 지역별 가격, 할인율, 역대 최저가를 페이지별로 확인합니다.",
-  ".variables.args": "도구 매개변수",
-  ".variables.result": "조회 결과",
-  ".parameters.0.description": "0부터 시작하고 다음 페이지에는 nextStart를 사용합니다.",
-  ".parameters.1.description": "Steam AppID 정수 목록입니다.",
-  ".parameters.2.description": "할인 중인 게임만 표시합니다."
+  ".name": "내 Steam 찜 목록 필터링",
+  ".note": "현재 Steam 찜 목록을 필드별로 필터링합니다. 현재 가격 순위는 sortBy=currentPrice와 direction=asc 또는 desc를 사용합니다.",
+  ".description": "현재 Steam 찜 목록을 필드별로 필터링합니다. 현재 가격 순위는 sortBy=currentPrice와 direction=asc 또는 desc를 사용합니다.",
+  ".variables.result": "AppID 목록",
+  ".parameters.1.description": "정렬 필드입니다. 기본값은 이름 또는 찜 목록의 순서입니다.",
+  ".parameters.2.description": "asc는 오름차순(기본값), desc는 내림차순입니다.",
+  ".parameters.3.description": "전체 결과를 정렬한 후 선택할 상위 개수입니다. 생략하면 일치하는 모든 AppID를 반환합니다.",
+  ".variables.filterParameters": "필터 조건",
+  ".parameters.appid": "AppID. 조건마다 op와 value를 전달하거나 생략합니다.",
+  ".parameters.name": "게임 이름. 조건마다 op와 value를 전달하거나 생략합니다.",
+  ".parameters.addedAt": "추가 날짜. 조건마다 op와 value를 전달하거나 생략합니다.",
+  ".parameters.originalPrice": "정상 가격. 조건마다 op와 value를 전달하거나 생략합니다.",
+  ".parameters.currentPrice": "현재 가격. 조건마다 op와 value를 전달하거나 생략합니다.",
+  ".parameters.discounted": "할인 중. 조건마다 op와 value를 전달하거나 생략합니다.",
+  ".parameters.discountPercent": "할인율. 조건마다 op와 value를 전달하거나 생략합니다."
 }

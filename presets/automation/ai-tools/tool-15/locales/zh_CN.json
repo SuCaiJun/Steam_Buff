@@ -1,0 +1,10 @@
+{
+  ".name": "批量查询我的 Steam 愿望单",
+  ".note": "依次查询当前愿望单中的 AppID，返回条目、地区、现价、折扣与可用史低。found 为 false 表示不在愿望单中。",
+  ".description": "依次查询当前愿望单中的 AppID，返回条目、地区、现价、折扣与可用史低。found 为 false 表示不在愿望单中。",
+  ".variables.result": "查询结果",
+  ".variables.detail": "查询结果 · AppID",
+  ".parameters.appIds": "一个或多个有效的 Steam AppID（整数）。",
+  ".variables.appId": "本项 AppID",
+  ".variables.index": "序号"
+}

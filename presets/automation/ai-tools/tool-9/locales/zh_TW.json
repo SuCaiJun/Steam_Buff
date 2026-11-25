@@ -1,8 +1,7 @@
 {
   ".name": "查詢我的遊戲詳情",
-  ".note": "按 AppID 查詢目前帳號的遊玩時間、成就總數和已解鎖數。",
-  ".description": "按 AppID 查詢目前帳號的遊玩時間、成就總數和已解鎖數。",
-  ".variables.args": "工具參數",
+  ".note": "依單一 AppID 讀取庫內名稱、遊玩時間與成就進度。found 為 false 表示該 AppID 未在遊戲庫中。",
+  ".description": "依單一 AppID 讀取庫內名稱、遊玩時間與成就進度。found 為 false 表示該 AppID 未在遊戲庫中。",
   ".variables.result": "查詢結果",
-  ".parameters.0.description": "Steam 遊戲的整數 AppID 清單。"
+  ".parameters.0.description": "一個有效的 Steam AppID。"
 }

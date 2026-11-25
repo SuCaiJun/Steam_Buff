@@ -2,7 +2,6 @@
   ".name": "Steam 商店搜尋",
   ".note": "依關鍵字與篩選條件搜尋 Steam 中國區商店，並可翻頁查看結果。",
   ".variables.var-115.name": "查詢結果",
-  ".variables.var-search-parameters.name": "商店查詢參數",
   ".description": "搜尋 Steam 中國區商店的遊戲及商品，回傳目前價格、折扣、評論摘要及連結。參數皆可省略，無需 AppID。查詢低於人民幣 50 元、支援簡體中文且正在特價的遊戲：{\"types\":[\"游戏\"],\"discountsOnly\":true,\"priceBelow\":50,\"languages\":[\"schinese\"]}。回傳金額以分為單位。items 是本頁符合的商品，candidateTotal 是 Steam 的候選總數，尚未扣除本頁精確價格篩選的結果。nextStart 有值時可沿用原條件翻頁。\n\n依遊戲名稱查詢 AppID 時，將名稱傳給 term。查詢遊戲本體可將 types 設為 [\"游戏\"]。從 items 中選擇名稱明確相符且 type 為 app 的項目，將其 id 傳給後續工具的 appId。sub 和 bundle 的 id 不能用作 AppID。",
   ".parameters.0.description": "遊戲名稱或關鍵字，最多 64 個字元，可使用遊戲原名。省略時不限關鍵字。",
   ".parameters.1.description": "目前顯示的價格須低於此金額，單位為人民幣元，最多兩位小數。例如 50 不包含正好 50 元的商品。無法與 freeOnly: true 同時使用。",

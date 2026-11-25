@@ -10630,7 +10630,7 @@
     "message": "使用設定的語言分批翻譯尚無譯文的成就，儲存前須確認。"
   },
   "ai_chat_tool_library": {
-    "message": "查詢我的 Steam 遊戲庫"
+    "message": "篩選我的 Steam 遊戲庫"
   },
   "workflow_command_steam_account_library_hint": {
     "message": "按名稱或篩選條件搜尋目前 Steam 帳號的遊戲庫，可分頁查看。"
@@ -10642,7 +10642,7 @@
     "message": "按 AppID 查詢目前帳號的遊玩時間、成就總數和已解鎖數。"
   },
   "ai_chat_tool_wishlist": {
-    "message": "查詢我的 Steam 願望清單"
+    "message": "篩選我的 Steam 願望清單"
   },
   "workflow_command_steam_account_wishlist_hint": {
     "message": "查詢目前帳號願望清單的加入日期、區域價格、折扣與歷史最低價，可分頁查看。"
@@ -10904,6 +10904,138 @@
   },
   "workflow_query_filters": {
     "message": "查詢參數"
+  },
+  "ai_chat_tool_wishlist_game": {
+    "message": "批次查詢我的 Steam 願望清單"
+  },
+  "workflow_query_app_ids": {
+    "message": "AppID 清單"
+  },
+  "workflow_query_reconfigure": {
+    "message": "這條查詢的輸入已更新，請重新設定。"
+  },
+  "workflow_query_list_output": {
+    "message": "篩選結果應儲存至清單或動態變數。"
+  },
+  "workflow_query_limit": {
+    "message": "取前幾項"
+  },
+  "ai_chat_query_unavailable": {
+    "message": "無法核實的項目"
+  },
+  "workflow_entry_group_add": {
+    "message": "新增分組"
+  },
+  "workflow_entry_group_edit": {
+    "message": "編輯分組"
+  },
+  "workflow_entry_group_delete": {
+    "message": "刪除分組"
+  },
+  "workflow_entry_group_name": {
+    "message": "分組名稱"
+  },
+  "workflow_entry_group_members": {
+    "message": "組內參數"
+  },
+  "workflow_entry_group_name_required": {
+    "message": "請填寫分組名稱"
+  },
+  "workflow_entry_group_name_duplicate": {
+    "message": "分組名稱已存在"
+  },
+  "workflow_entry_group_invalid": {
+    "message": "參數分組格式無效"
+  },
+  "workflow_query_sort_group": {
+    "message": "排序與數量"
+  },
+  "workflow_query_conditions": {
+    "message": "篩選條件"
+  },
+  "workflow_query_no_options": {
+    "message": "沒有符合的選項"
+  },
+  "workflow_query_pick_required": {
+    "message": "請至少選擇一項"
+  },
+  "workflow_query_operator_obsolete": {
+    "message": "請重新選擇比較方式"
+  },
+  "workflow_query_store_term": {
+    "message": "關鍵字"
+  },
+  "workflow_query_store_pricebelow": {
+    "message": "現價低於"
+  },
+  "workflow_query_store_freeonly": {
+    "message": "僅免費"
+  },
+  "workflow_query_store_discountsonly": {
+    "message": "僅特價"
+  },
+  "workflow_query_store_hidefreetoplay": {
+    "message": "隱藏免費開玩遊戲"
+  },
+  "workflow_query_store_languages": {
+    "message": "遊戲語言"
+  },
+  "workflow_query_store_tags": {
+    "message": "包含標籤"
+  },
+  "workflow_query_store_excludetags": {
+    "message": "排除標籤"
+  },
+  "workflow_query_store_types": {
+    "message": "商品類型"
+  },
+  "workflow_query_store_playermodes": {
+    "message": "遊戲模式"
+  },
+  "workflow_query_store_features": {
+    "message": "遊戲特色"
+  },
+  "workflow_query_store_controllers": {
+    "message": "控制器"
+  },
+  "workflow_query_store_accessibility": {
+    "message": "輔助功能"
+  },
+  "workflow_query_store_deck": {
+    "message": "Steam Deck"
+  },
+  "workflow_query_store_vr": {
+    "message": "VR"
+  },
+  "workflow_query_store_excludevronly": {
+    "message": "排除限定 VR"
+  },
+  "workflow_query_store_os": {
+    "message": "作業系統"
+  },
+  "workflow_query_store_sortby": {
+    "message": "排序方式"
+  },
+  "workflow_query_store_start": {
+    "message": "下一頁起點"
+  },
+  "workflow_query_wishlist_name": {
+    "message": "遊戲名稱"
+  },
+  "workflow_query_wishlist_added": {
+    "message": "新增日期"
+  },
+  "workflow_query_wishlist_original": {
+    "message": "原價"
+  },
+  "workflow_query_wishlist_current": {
+    "message": "現價"
+  },
+  "workflow_query_wishlist_discounted": {
+    "message": "是否打折"
+  },
+  "workflow_query_wishlist_discount": {
+    "message": "折扣幅度"
   },
   "workflow_command_steam_game_details_hint": {
     "message": "依 AppID 查詢 Steam 商店的公開遊戲資料"
@@ -15063,7 +15195,7 @@
     "message": "此對話的網路搜尋已關閉，請確認開關後重新傳送。"
   },
   "ai_chat_tool_custom_name": {
-    "message": "修改遊戲自訂名稱"
+    "message": "批次修改遊戲自訂名稱"
   },
   "ai_chat_tool_game_names": {
     "message": "讀取遊戲名稱"

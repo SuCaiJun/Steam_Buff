@@ -1,0 +1,10 @@
+{
+  ".name": "Steam ウィッシュリストを一括照会",
+  ".note": "AppID ごとにウィッシュリストの項目、地域、現在価格、割引、取得できる最安値を返します。found=false はリストにない項目です。",
+  ".description": "AppID ごとにウィッシュリストの項目、地域、現在価格、割引、取得できる最安値を返します。found=false はリストにない項目です。",
+  ".variables.result": "検索結果",
+  ".variables.detail": "検索結果 · AppID",
+  ".parameters.appIds": "有効な Steam AppID（整数）を一つ以上。",
+  ".variables.appId": "現在の AppID",
+  ".variables.index": "インデックス"
+}

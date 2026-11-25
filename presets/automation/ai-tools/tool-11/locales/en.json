@@ -1,5 +1,5 @@
 {
-  ".name": "Set custom game names",
+  ".name": "Batch set custom game names",
   ".note": "Save an independent Steam Buff game name, using a translated or user-specified title.",
   ".parameters.changes": "Provide a Steam AppID and the exact new name for each game.",
   ".variables.items": "Item results",
@@ -8,5 +8,7 @@
   ".variables.error": "Item error",
   ".description": "Save an independent Steam Buff game name, using a translated or user-specified title.",
   ".error.badName": "Provide one explicit name per valid Steam AppID.",
-  ".variables.prepared": "Prepared change"
+  ".variables.prepared": "Prepared change",
+  ".parameters.appId": "Steam game AppID (integer).",
+  ".parameters.name": "The desired name for this AppID."
 }

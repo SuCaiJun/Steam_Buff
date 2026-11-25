@@ -1,10 +1,17 @@
 {
-  ".name": "Get my Steam wishlist",
-  ".note": "List your Steam wishlist with dates added, regional price, discounts, and Steam historical lows. Use nextStart to advance.",
-  ".description": "List your Steam wishlist with dates added, regional price, discounts, and Steam historical lows. Use nextStart to advance.",
-  ".variables.args": "Tool parameters",
-  ".variables.result": "Query result",
-  ".parameters.0.description": "Start at zero. Use nextStart for the next page.",
-  ".parameters.1.description": "List of Steam AppIDs as integers.",
-  ".parameters.2.description": "Show only currently discounted games."
+  ".name": "Filter my Steam wishlist",
+  ".note": "Filter the current Steam wishlist by individual fields. To rank by current price, use sortBy=currentPrice with direction=asc or desc. Missing prices are unknown.",
+  ".description": "Filter the current Steam wishlist by individual fields. To rank by current price, use sortBy=currentPrice with direction=asc or desc. Missing prices are unknown.",
+  ".variables.result": "AppID list",
+  ".parameters.1.description": "Sort field. Defaults to name for the library and wishlist order for the wishlist.",
+  ".parameters.2.description": "asc for ascending (default), desc for descending.",
+  ".parameters.3.description": "Take this many results after sorting all matches. Omit to return every matching AppID.",
+  ".variables.filterParameters": "Filter conditions",
+  ".parameters.appid": "AppID. Pass op and value per condition, or omit this parameter.",
+  ".parameters.name": "Game title. Pass op and value per condition, or omit this parameter.",
+  ".parameters.addedAt": "Date added. Pass op and value per condition, or omit this parameter.",
+  ".parameters.originalPrice": "Original price. Pass op and value per condition, or omit this parameter.",
+  ".parameters.currentPrice": "Current price. Pass op and value per condition, or omit this parameter.",
+  ".parameters.discounted": "Discounted. Pass op and value per condition, or omit this parameter.",
+  ".parameters.discountPercent": "Discount percentage. Pass op and value per condition, or omit this parameter."
 }

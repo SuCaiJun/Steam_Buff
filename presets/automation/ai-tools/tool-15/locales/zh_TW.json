@@ -1,0 +1,10 @@
+{
+  ".name": "批次查詢我的 Steam 願望清單",
+  ".note": "逐一查詢願望清單中的 AppID，傳回項目、地區、現價、折扣和可用史低。found 為 false 表示不在願望清單。",
+  ".description": "逐一查詢願望清單中的 AppID，傳回項目、地區、現價、折扣和可用史低。found 為 false 表示不在願望清單。",
+  ".variables.result": "查詢結果",
+  ".variables.detail": "查詢結果 · AppID",
+  ".parameters.appIds": "一個或多個有效的 Steam AppID（整數）。",
+  ".variables.appId": "本項 AppID",
+  ".variables.index": "序號"
+}

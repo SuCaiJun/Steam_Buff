@@ -10630,19 +10630,19 @@
     "message": "未翻訳の実績を設定した言語で一括翻訳し、保存前に確認します。"
   },
   "ai_chat_tool_library": {
-    "message": "自分の Steam ライブラリを検索"
+    "message": "Steam ライブラリを絞り込む"
   },
   "workflow_command_steam_account_library_hint": {
     "message": "現在の Steam ライブラリを名前や条件で検索し、ページごとに結果を取得します。"
   },
   "ai_chat_tool_library_game": {
-    "message": "自分のゲーム詳細を取得"
+    "message": "ライブラリのゲーム詳細を取得"
   },
   "workflow_command_steam_account_game_hint": {
     "message": "AppID で現在のアカウントのプレイ時間と実績数、解除済み数を取得します。"
   },
   "ai_chat_tool_wishlist": {
-    "message": "自分の Steam ウィッシュリストを取得"
+    "message": "Steam ウィッシュリストを絞り込む"
   },
   "workflow_command_steam_account_wishlist_hint": {
     "message": "自分のウィッシュリストの追加日、地域別価格、割引、Steam 過去最安値をページごとに取得します。"
@@ -10904,6 +10904,138 @@
   },
   "workflow_query_filters": {
     "message": "検索条件"
+  },
+  "ai_chat_tool_wishlist_game": {
+    "message": "Steam ウィッシュリストを一括照会"
+  },
+  "workflow_query_app_ids": {
+    "message": "AppID リスト"
+  },
+  "workflow_query_reconfigure": {
+    "message": "入力仕様が更新されました。指示を開き、再設定してください。"
+  },
+  "workflow_query_list_output": {
+    "message": "絞り込み結果はリストまたは動的変数に保存してください。"
+  },
+  "workflow_query_limit": {
+    "message": "上位件数"
+  },
+  "ai_chat_query_unavailable": {
+    "message": "データ未取得の項目"
+  },
+  "workflow_entry_group_add": {
+    "message": "グループを追加"
+  },
+  "workflow_entry_group_edit": {
+    "message": "グループを編集"
+  },
+  "workflow_entry_group_delete": {
+    "message": "グループを削除"
+  },
+  "workflow_entry_group_name": {
+    "message": "グループ名"
+  },
+  "workflow_entry_group_members": {
+    "message": "グループ内のパラメーター"
+  },
+  "workflow_entry_group_name_required": {
+    "message": "グループ名を入力してください"
+  },
+  "workflow_entry_group_name_duplicate": {
+    "message": "同じ名前のグループが既にあります"
+  },
+  "workflow_entry_group_invalid": {
+    "message": "パラメーターグループの形式が無効です"
+  },
+  "workflow_query_sort_group": {
+    "message": "並べ替えと件数"
+  },
+  "workflow_query_conditions": {
+    "message": "絞り込み条件"
+  },
+  "workflow_query_no_options": {
+    "message": "一致する選択肢がありません"
+  },
+  "workflow_query_pick_required": {
+    "message": "1 項目以上選択してください"
+  },
+  "workflow_query_operator_obsolete": {
+    "message": "比較方法を選び直してください"
+  },
+  "workflow_query_store_term": {
+    "message": "キーワード"
+  },
+  "workflow_query_store_pricebelow": {
+    "message": "現在価格が次の値未満"
+  },
+  "workflow_query_store_freeonly": {
+    "message": "無料のみ"
+  },
+  "workflow_query_store_discountsonly": {
+    "message": "セール中のみ"
+  },
+  "workflow_query_store_hidefreetoplay": {
+    "message": "基本プレイ無料を除外"
+  },
+  "workflow_query_store_languages": {
+    "message": "対応言語"
+  },
+  "workflow_query_store_tags": {
+    "message": "含めるタグ"
+  },
+  "workflow_query_store_excludetags": {
+    "message": "除外するタグ"
+  },
+  "workflow_query_store_types": {
+    "message": "商品タイプ"
+  },
+  "workflow_query_store_playermodes": {
+    "message": "プレイモード"
+  },
+  "workflow_query_store_features": {
+    "message": "機能"
+  },
+  "workflow_query_store_controllers": {
+    "message": "コントローラー"
+  },
+  "workflow_query_store_accessibility": {
+    "message": "アクセシビリティ"
+  },
+  "workflow_query_store_deck": {
+    "message": "Steam Deck"
+  },
+  "workflow_query_store_vr": {
+    "message": "VR"
+  },
+  "workflow_query_store_excludevronly": {
+    "message": "VR 専用を除外"
+  },
+  "workflow_query_store_os": {
+    "message": "対応 OS"
+  },
+  "workflow_query_store_sortby": {
+    "message": "並べ替え"
+  },
+  "workflow_query_store_start": {
+    "message": "次ページの開始位置"
+  },
+  "workflow_query_wishlist_name": {
+    "message": "ゲーム名"
+  },
+  "workflow_query_wishlist_added": {
+    "message": "追加日"
+  },
+  "workflow_query_wishlist_original": {
+    "message": "通常価格"
+  },
+  "workflow_query_wishlist_current": {
+    "message": "現在の価格"
+  },
+  "workflow_query_wishlist_discounted": {
+    "message": "割引中"
+  },
+  "workflow_query_wishlist_discount": {
+    "message": "割引率"
   },
   "workflow_command_steam_game_details_hint": {
     "message": "AppID で Steam ストアの公開ゲーム情報を取得"
@@ -15063,7 +15195,7 @@
     "message": "この会話のウェブ検索がオフになりました。設定を確認してからもう一度送信してください。"
   },
   "ai_chat_tool_custom_name": {
-    "message": "ゲームのカスタム表示名を設定"
+    "message": "ゲームのカスタム名を一括設定"
   },
   "ai_chat_tool_game_names": {
     "message": "ゲーム名を取得"

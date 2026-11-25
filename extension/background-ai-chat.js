@@ -179,10 +179,10 @@
     return field ? detail[field] : undefined;
   }
 
-  function collector(emit, bounded = true, reasoningField, explicitToolIds = []) {
+  function collector(emit, bounded = true, reasoningField, structuredToolIds = []) {
     const calls = new Map();
     let argumentChars = 0;
-    const argumentLimit = name => explicitToolIds.some(id => id.startsWith(name)) ? CONTEXT_LIMIT : 1024;
+    const argumentLimit = name => structuredToolIds.some(id => id.startsWith(name)) ? CONTEXT_LIMIT : 1024;
     const details = [];
     let reasoningText, encrypted, signature;
     let metadataLength = 0, thinking = false;
@@ -275,7 +275,7 @@
         const result = Array.from(calls.entries()).sort(([a], [b]) => a - b).map(([, call]) => call);
         if (result.some(call => !call.id) || new Set(result.map(call => call.id)).size !== result.length)
           throw fault("CHAT_TOOL_INVALID", "AI 返回的工具调用 ID 无效");
-        if (bounded && result.some(call => call.function.arguments.length > 1024 && !explicitToolIds.includes(call.function.name)))
+        if (bounded && result.some(call => call.function.arguments.length > 1024 && !structuredToolIds.includes(call.function.name)))
           throw fault("CHAT_TOOL_INVALID", "AI 返回的工具参数无效");
         return result;
       },
@@ -319,7 +319,14 @@
     return { amount: price.amount, currency: price.currency };
   }
 
-  function toolFacts(name, value) {
+  function toolFacts(name, value, queryResult) {
+    if (queryResult) return {
+      count: queryResult.appIds.length, matched: queryResult.matched, unavailable: queryResult.unavailable,
+    };
+    if (name === root.STAI.PROVIDER_TOOL_IDS.wishlist_game && Array.isArray(value?.items))
+      return { count: value.items.length, matched: value.items.filter(item => item.found === true).length };
+    if (name === root.STAI.PROVIDER_TOOL_IDS.library_game || name === root.STAI.PROVIDER_TOOL_IDS.wishlist_game)
+      return { name: value?.name, found: value?.found };
     if (accountSpec(name)) return {
       count: value?.items?.length, changed: value?.changed, skipped: value?.skipped, failed: value?.failed, code: value?.code,
     };
@@ -333,6 +340,21 @@
       low: priceFact(value?.historicalLow?.price),
       lowAt: value?.historicalLow?.timestamp,
     };
+  }
+
+  function queryToolMessage(query, callId, messages, toolSize) {
+    const { items, ...data } = query;
+    const response = { ...data, items: [], detailsAvailable: items.length };
+    const result = { role: "tool", tool_call_id: callId, content: JSON.stringify(response) };
+    // AppID 列表始终完整。仅附加可放进已有对话预算的逐项资料。
+    let remaining = Math.floor((CONTEXT_LIMIT - toolSize - textPayloadSize(messages) - textPayloadSize([result])) / 2);
+    for (const item of items) {
+      remaining -= JSON.stringify(JSON.stringify(item)).length - 1;
+      if (remaining < 0) break;
+      response.items.push(item);
+    }
+    result.content = JSON.stringify(response);
+    return result;
   }
 
   const declinedTool = () => ({ status: "skipped", declined: true, code: "CHAT_TOOL_DECLINED", reason: "用户拒绝了本次工具操作" });
@@ -423,6 +445,8 @@
     const selected = new Map(available.map(tool => [tool.id, tool]));
     const definitions = root.STAI.CHAT_TOOLS.filter(tool => selected.has(tool.id)).map(tool => model.toolSchema(selected.get(tool.id)));
     const explicitToolIds = available.filter(model.hasExplicitWrites).map(tool => tool.id);
+    const { library, wishlist, wishlist_game } = root.STAI.PROVIDER_TOOL_IDS;
+    const structuredToolIds = [...explicitToolIds, ...[library, wishlist, wishlist_game].filter(id => selected.has(id))];
     const canWriteExplicitly = explicitToolIds.length > 0;
     if (search) definitions.push(model.toolSchema(root.STBackgroundAiSearch.definition));
     const toolSize = JSON.stringify(definitions).length;
@@ -455,7 +479,7 @@
         }
         reasoningStep.content += update.text;
         emit({ ...update, round });
-      }, true, reasoning.field, summarizeProgress ? [] : explicitToolIds);
+      }, true, reasoning.field, summarizeProgress ? [] : structuredToolIds);
       let content;
       const attempt = { complete: false, usage: null };
       requests.push(attempt);
@@ -536,7 +560,7 @@
         }
         tool.startedAt = Date.now();
         const onStart = () => report({ ...tool, state: "running" });
-        let value, hasReceipt = false;
+        let value, queryResult, hasReceipt = false;
         const requestApproval = async request => {
           const allowed = await approve({ index, ...request }, () => report({ ...tool, state: "waiting" }));
           signal.throwIfAborted();
@@ -547,6 +571,7 @@
           else {
             const permission = {
               mode, serviceId: service.id, onStart, steamSession,
+              queryResult(details) { queryResult = details; },
               requestApproval(scope) {
                 return requestApproval({ ...scope, toolId: id, toolName: definition.name });
               },
@@ -564,6 +589,7 @@
             };
             const bundle = await permission.checkTool();
             value = await root.STBackgroundAutomation.runAccountChatTool(definition, args, signal, permission, bundle);
+            if (queryResult) value = queryResult;
           }
         } catch (error) {
           signal.throwIfAborted();
@@ -581,9 +607,11 @@
           else {
             if (hasReceipt) throw error;
             const approvalFailure = ["CHAT_APPROVAL_STALE", "CHAT_APPROVAL_SCOPE", "CHAT_TOOL_NOT_ALLOWED", "WORKFLOW_TOOL_UNAVAILABLE", "WORKFLOW_LIBRARY_UNAVAILABLE"].includes(error.code);
-            if (!approvalFailure && (!account || !error.aiToolFailure && !Number.isInteger(error.status) && error.name !== "TimeoutError" &&
-              !["ACCOUNT_CHANGED", "AI_TOOL_RESPONSE_INVALID", "STEAM_LOGIN_REQUIRED", "STEAM_DATA_UNAVAILABLE"].includes(error.code))) throw error;
-            value = { status: "failed", code: error.code || "STEAM_DATA_UNAVAILABLE", reason: error.message };
+            const oldQuery = error.messageKey === "workflow_query_reconfigure";
+            if (!oldQuery && !approvalFailure && (!account || !error.aiToolFailure && !Number.isInteger(error.status) && error.name !== "TimeoutError" &&
+              !["ACCOUNT_CHANGED", "AI_TOOL_RESPONSE_INVALID", "STEAM_LOGIN_REQUIRED", "STEAM_DATA_UNAVAILABLE", "CHAT_TOOL_INVALID",
+                "WORKFLOW_CONFIG_INVALID", "WORKFLOW_SCRIPT_TIMEOUT", "AUTOMATION_NAME_ACCESS"].includes(error.code))) throw error;
+            value = { status: "failed", code: oldQuery ? "WORKFLOW_QUERY_RECONFIGURE" : error.code || "STEAM_DATA_UNAVAILABLE", reason: error.message };
           }
         }
         signal.throwIfAborted();
@@ -624,11 +652,12 @@
           ...(transientStoreSearch && { transient: true }) } : null;
         if (source?.url && !sources.has(source.url)) sources.set(source.url, source);
         const step = { ...tool, state: value?.status === "failed" ? "failed" : value?.declined ? "blocked" : "done",
-          ...(source && { source }), ...(value?.code && { errorCode: value.code }), facts: toolFacts(id, value) };
+          ...(source && { source }), ...(value?.code && { errorCode: value.code }), facts: toolFacts(id, value, queryResult) };
         if (transientStoreSearch) steps.push({ ...step, source: undefined, facts: { ...step.facts, term: undefined } });
         else steps.push(step);
         report(step);
-        messages.push({ role: "tool", tool_call_id: call.id, content: JSON.stringify(value) });
+        messages.push(queryResult ? queryToolMessage(queryResult, call.id, messages, toolSize)
+          : { role: "tool", tool_call_id: call.id, content: JSON.stringify(value) });
       }
     }
     throw fault("CHAT_TOOL_LIMIT", "本轮工具调用超出上限");

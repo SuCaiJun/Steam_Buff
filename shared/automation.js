@@ -263,6 +263,7 @@
   function newWorkflow(id = "wf-1", name = "未命名工作流") { return { id, name, revision: 1, variables: [], steps: [] }; }
   const TOOL_CREDENTIALS_KEY = "st.automation.tool-credentials.v1";
   const PRESET_TOOL_EXECUTION_ID = "00000000-0000-4000-8000-000000000002";
+  const PRESET_PARAMETER_EXECUTION_ID = "00000000-0000-4000-8000-000000000003";
   const TOOL_LIBRARY_VERSION = 1;
   const toolTypes = Object.freeze(["string", "integer", "number", "boolean", "array", "object"]);
   function newTool(name) {
@@ -275,7 +276,10 @@
     library.steps.push(engine.createNode("library-return", library));
     return library;
   }
-  const isOriginalProviderTool = tool => engine.isProviderToolId(tool.id) && tool.executionId === PRESET_TOOL_EXECUTION_ID && tool.revision === 1;
+  const isPackagedProviderTool = tool => engine.isProviderToolId(tool.id) &&
+    [PRESET_TOOL_EXECUTION_ID, PRESET_PARAMETER_EXECUTION_ID].includes(tool.executionId);
+  const isParameterPreset = tool => isPackagedProviderTool(tool) && tool.executionId === PRESET_PARAMETER_EXECUTION_ID;
+  const isOriginalProviderTool = tool => isPackagedProviderTool(tool) && tool.revision === 1;
   const toolConfigError = (message, messageKey) => Object.assign(new TypeError(message), { code: "WORKFLOW_CONFIG_INVALID", messageKey });
   function toolParameters(parameters) {
     if (!Array.isArray(parameters)) throw toolConfigError("工具输入列表无效", "workflow_tool_invalid_parameters");
@@ -313,8 +317,12 @@
   /** 验证工具定义和指令能力，保存、导入和试运行共用 */
   function validateTool(tool, { structureOnly = false } = {}) {
     const parameters = toolDefinition(tool);
-    const { id, name, revision, executionId, enabled, description, note, variables, steps, folds, entryRow } = tool;
-    const definition = clone({ id, name, revision, executionId, enabled, description, note, parameters, variables, steps, ...(folds ? { folds } : {}), ...(entryRow !== undefined && { entryRow }) });
+    const { id, name, revision, executionId, enabled, description, note, variables, steps, folds, entryRow, entryGroups, providerInputVersion } = tool;
+    if (providerInputVersion !== undefined && providerInputVersion !== 1)
+      throw toolConfigError("工具输入版本无效", "workflow_tool_invalid_parameters");
+    const definition = clone({ id, name, revision, executionId, enabled, description, note, parameters, variables, steps,
+      ...(providerInputVersion !== undefined && { providerInputVersion }), ...(folds ? { folds } : {}),
+      ...(entryRow !== undefined && { entryRow }), ...(entryGroups !== undefined && { entryGroups }) });
     engine.validate(definition, { structureOnly });
     requireToolResult(definition);
     return definition;
@@ -341,12 +349,12 @@
   function validateLibrary(library, { structureOnly = false } = {}) {
     if (!engine.isLibraryId(library?.id) || typeof library.description !== "string")
       throw libraryDefinitionError();
-    const { id, name, revision, executionId, description, note, variables, steps, folds, entryRow } = library;
+    const { id, name, revision, executionId, description, note, variables, steps, folds, entryRow, entryGroups } = library;
     if (executionId !== undefined && (typeof executionId !== "string" || !/^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/.test(executionId)))
       throw libraryDefinitionError();
     const definition = clone({ id, name, revision, description, note, parameters: toolParameters(library.parameters),
       outputs: libraryOutputs(library), variables, steps, ...(executionId !== undefined && { executionId }),
-      ...(folds ? { folds } : {}), ...(entryRow !== undefined && { entryRow }) });
+      ...(folds ? { folds } : {}), ...(entryRow !== undefined && { entryRow }), ...(entryGroups !== undefined && { entryGroups }) });
     engine.validate(definition, { structureOnly });
     if (![...engine.walk(definition.steps, true)].some(node => node.action === "library-return"))
       throw toolConfigError("请插入「指令输出」", "workflow_library_output_missing");
@@ -442,6 +450,13 @@
   const accountSpec = tool => Object.values(root.STAI.ACCOUNT_TOOLS).find(item => item.id === tool.id);
   const hasExplicitWrites = tool => tool.parameters.some(parameter => parameter.name === "changes" && parameter.type === "array") &&
     accountSpec(tool)?.writes === true;
+  const hasDirectWrites = tool => tool.providerInputVersion === 1 && hasExplicitWrites(tool) && tool.parameters.some(parameter =>
+    parameter.name === (tool.id === root.STAI.PROVIDER_TOOL_IDS.collections ? "collectionIds" : "appId"));
+  function providerFilterKind(tool) {
+    if (tool.providerInputVersion !== 1) return null;
+    const ids = root.STAI.PROVIDER_TOOL_IDS;
+    return tool.id === ids.library ? "library" : tool.id === ids.wishlist ? "wishlist" : null;
+  }
 
   function matchesToolProperty(value, property) {
     if (!parameterAccepts(property.type, value)) return false;
@@ -454,24 +469,62 @@
     return true;
   }
 
+  const invalidToolInput = (message = "输入不符合工具参数定义") =>
+    Object.assign(new TypeError(message), { code: "CHAT_TOOL_INVALID" });
+  function writeArguments(tool, args) {
+    if (!hasDirectWrites(tool)) return args;
+    const spec = accountSpec(tool), invalid = invalidToolInput;
+    const ids = root.STAI.PROVIDER_TOOL_IDS;
+    if (Object.hasOwn(args, "changes")) {
+      if (Object.keys(args).some(key => key !== "changes" && !(key === "language" && spec.id === ids.achievements)))
+        throw invalid("单项参数与批量明细只能选一种方式。");
+      return args;
+    }
+    if (spec.id === ids.collections) {
+      const { appIds, collectionIds, collectionName } = args;
+      if (!appIds || (collectionIds === undefined) === (collectionName === undefined))
+        throw invalid("请传入 AppID 列表，并选择分组 ID 列表或一个完整分组名称。");
+      return collectionIds ? { changes: [...new Set(appIds)].map(appId => ({ appId, collectionIds })) } : args;
+    }
+    const { appId } = args;
+    if (spec.id === ids.achievements) {
+      const { appId, language, ...translation } = args;
+      if (!Object.keys(spec.properties.changes.items.properties.translations.items.properties).every(key => Object.hasOwn(translation, key)) ||
+          appId === undefined)
+        throw invalid("请提供 AppID、成就原文、修订号和译文。");
+      return { language, changes: [{ appId, translations: [translation] }] };
+    }
+    if (appId === undefined || !args.name) throw invalid("请提供 AppID 和目标名称，或填写批量明细。");
+    return { changes: [{ appId, name: args.name }] };
+  }
+
   function toolArguments(tool, args) {
-    const invalid = (message = "输入不符合工具参数定义") => Object.assign(new TypeError(message), { code: "CHAT_TOOL_INVALID" });
+    const invalid = invalidToolInput;
     if (typeof args === "string") {
       try { args = JSON.parse(args); }
       catch (cause) {
         const error = invalid(); error.cause = cause; throw error;
       }
     }
+    const spec = accountSpec(tool), ids = root.STAI.PROVIDER_TOOL_IDS;
     const explicit = hasExplicitWrites(tool);
-    const spec = explicit ? accountSpec(tool) : null;
-    if (explicit && spec.required.includes("changes") && !Object.hasOwn(args ?? {}, "changes"))
+    const direct = hasDirectWrites(tool);
+    const kind = providerFilterKind(tool);
+    const previousKey = kind ? "conditions" :
+      ({ [ids.wishlist_game]: "appId", [ids.collections]: "collection" })[tool.id];
+    if (explicit && !direct && spec.required.includes("changes") && !Object.hasOwn(args ?? {}, "changes"))
       throw invalid(spec.id === root.STAI.PROVIDER_TOOL_IDS.achievements ? "请提供目标语言和各 AppID 对应的成就译文。" : "请提供每个 AppID 对应的目标名称。");
+    if (tool.providerInputVersion === 1 && previousKey && args && Object.hasOwn(args, previousKey) &&
+        !tool.parameters.some(parameter => parameter.name === previousKey))
+      throw invalid("出厂工具参数已更新，请按「AI 传参」中显示的新字段重新绑定。");
     if (!args || typeof args !== "object" || Array.isArray(args) ||
       Object.keys(args).some(name => !tool.parameters.some(parameter => parameter.name === name))) throw invalid();
     for (const { name, type, required } of tool.parameters) {
       if (!Object.hasOwn(args, name)) { if (required) throw invalid(); continue; }
       if (parameterAccepts(type, args[name])) {
-        const property = spec?.properties[name];
+        const property = explicit || tool.providerInputVersion === 1 &&
+          (tool.id === ids.wishlist_game && name === "appIds" || tool.id === ids.writable_collections)
+          ? spec?.properties[name] : undefined;
         if (property?.type === type && !matchesToolProperty(args[name], property)) throw invalid("工具参数无效：" + name);
         continue;
       }
@@ -480,11 +533,31 @@
         messageKey: "workflow_tool_parameter_integer_required", messageParams: { name },
       });
     }
+    if (kind && !tool.parameters.some(parameter => parameter.name === "conditions")) {
+      const rules = root.STWorkflowFields.query;
+      const controls = Object.fromEntries(["sortBy", "direction", "limit"]
+        .filter(key => Object.hasOwn(args, key)).map(key => [key, args[key]]));
+      rules.validate(kind, controls);
+      for (const [field, value] of Object.entries(args)) {
+        if (!Object.hasOwn(rules.fields[kind], field)) continue;
+        if (!Array.isArray(value)) throw invalid("请为筛选字段传入条件列表：" + field);
+        for (const item of value) {
+          if (!item || typeof item !== "object" || Array.isArray(item) || Object.keys(item).some(key => key !== "op" && key !== "value"))
+            throw invalid("筛选条件应包含比较方式及其比较值：" + rules.fields[kind][field].label);
+          rules.validateCondition(kind, { ...item, field });
+        }
+      }
+    }
+    if (direct) writeArguments(tool, args);
+    if (tool.providerInputVersion === 1 && tool.id === ids.achievement_sources &&
+        tool.parameters.some(parameter => parameter.name === "start" && !parameter.required))
+      return { ...args, start: args.start ?? 0 };
     return args;
   }
   function toolSchema(tool) {
-    const preset = tool.id === root.STAI.STORE_SEARCH_TOOL_ID ? root.STAI.STORE_SEARCH_PROPERTIES
-      : accountSpec(tool)?.properties ?? {};
+    const kind = providerFilterKind(tool);
+    const preset = kind && !tool.parameters.some(parameter => parameter.name === "conditions") ? root.STWorkflowFields.query.schema(kind, true)
+      : tool.id === root.STAI.STORE_SEARCH_TOOL_ID ? root.STAI.STORE_SEARCH_PROPERTIES : accountSpec(tool)?.properties ?? {};
     return { type: "function", function: {
       name: tool.id, description: tool.description,
       parameters: { type: "object", additionalProperties: false,
@@ -496,7 +569,7 @@
     } };
   }
   function workflowDefinitionKey(workflow) {
-    const { entryRow, note, ...definition } = workflow;
+    const { entryRow, entryGroups, note, ...definition } = workflow;
     return JSON.stringify({ ...definition, revision: 0, ...(engine.isToolId(workflow.id) ? { name: "", executionId: "" } : {}) });
   }
   function newTrigger(id = "trigger-1", workflowId = "", name = "未命名触发器") {
@@ -793,6 +866,6 @@
   root.STAutomation = Object.freeze({ empty, KEY, ROUTE, CHANNEL, PREVIEW_CHANNEL, VERSION, DEFAULT_LANGUAGE, CHECK_INTERVAL_MS, isTriggerType,
     STEP_STATES, NOTICE_TYPES, RANGES, OPS, group, conditionFields,
     newWorkflow, newTrigger, newTool, newLibrary, validateTool, validateLibrary, libraryOutputs, libraryBindingIssue, parameterAccepts,
-    toolDiagnostics, toolParameters, toolArguments, toolSchema, toolTypes, hasExplicitWrites, workflowDefinitionKey, triggerEventPaths, triggerParameterIssue, inputBindingIssue, workflowArguments, isOriginalProviderTool, TOOL_CREDENTIALS_KEY, presetSections, isPresetId, reserveUserId, assemblePresets, loadDefaults, restoreFamilySchedule, normalize, walkSteps, operators, validateCondition, match, matchAsync, dateWindow, inRange, triggered, nativeConfig, clone });
+    toolDiagnostics, toolParameters, toolArguments, toolSchema, toolTypes, hasExplicitWrites, writeArguments, workflowDefinitionKey, triggerEventPaths, triggerParameterIssue, inputBindingIssue, workflowArguments, isOriginalProviderTool, isPackagedProviderTool, isParameterPreset, TOOL_CREDENTIALS_KEY, presetSections, isPresetId, reserveUserId, assemblePresets, loadDefaults, restoreFamilySchedule, normalize, walkSteps, operators, validateCondition, match, matchAsync, dateWindow, inRange, triggered, nativeConfig, clone });
 
 })(globalThis);

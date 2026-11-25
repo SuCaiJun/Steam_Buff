@@ -3287,7 +3287,7 @@
       sender?.id !== chrome.runtime.id ||
       !(isSettingsSender(sender) || isSteamRuntimeSender(sender) || onboardingAiSave) ||
       (nativeActions.includes(request.action) && !isSteamRuntimeSender(sender)) ||
-      (["test-instruction", "test-tool", "test-library", "test-workflow", "tool-credential", "cancel-instruction-test", "site-permissions", "remove-site-permission", "save-chat-preferences"].includes(request.action) && !isSettingsSender(sender))
+      (["test-instruction", "test-tool", "test-library", "test-workflow", "tool-credential", "cancel-instruction-test", "site-permissions", "remove-site-permission", "save-chat-preferences", "filter-options"].includes(request.action) && !isSettingsSender(sender))
     )
       throw new Error("自动化请求来源无效");
     try {

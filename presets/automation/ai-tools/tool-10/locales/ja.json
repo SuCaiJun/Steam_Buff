@@ -1,10 +1,17 @@
 {
-  ".name": "自分の Steam ウィッシュリストを取得",
-  ".note": "自分のウィッシュリストの追加日、地域別価格、割引、Steam 過去最安値をページごとに取得します。",
-  ".description": "自分のウィッシュリストの追加日、地域別価格、割引、Steam 過去最安値をページごとに取得します。",
-  ".variables.args": "ツールパラメーター",
-  ".variables.result": "取得結果",
-  ".parameters.0.description": "0 から開始し、次のページに nextStart を使います。",
-  ".parameters.1.description": "Steam AppID の整数リスト。",
-  ".parameters.2.description": "割引中のゲームのみ表示します。"
+  ".name": "Steam ウィッシュリストを絞り込む",
+  ".note": "現在の Steam ウィッシュリストを項目別に絞り込みます。現在価格順は sortBy=currentPrice と direction=asc または desc を指定します。",
+  ".description": "現在の Steam ウィッシュリストを項目別に絞り込みます。現在価格順は sortBy=currentPrice と direction=asc または desc を指定します。",
+  ".variables.result": "AppID リスト",
+  ".parameters.1.description": "並べ替え項目。既定はゲーム名またはウィッシュリスト順です。",
+  ".parameters.2.description": "asc が昇順（既定）、desc が降順です。",
+  ".parameters.3.description": "並べ替え後に取得する上位件数。省略時は一致する全 AppID を返します。",
+  ".variables.filterParameters": "絞り込み条件",
+  ".parameters.appid": "AppID。各条件に op と value を指定します。省略できます。",
+  ".parameters.name": "ゲーム名。各条件に op と value を指定します。省略できます。",
+  ".parameters.addedAt": "追加日。各条件に op と value を指定します。省略できます。",
+  ".parameters.originalPrice": "通常価格。各条件に op と value を指定します。省略できます。",
+  ".parameters.currentPrice": "現在の価格。各条件に op と value を指定します。省略できます。",
+  ".parameters.discounted": "割引中。各条件に op と value を指定します。省略できます。",
+  ".parameters.discountPercent": "割引率。各条件に op と value を指定します。省略できます。"
 }

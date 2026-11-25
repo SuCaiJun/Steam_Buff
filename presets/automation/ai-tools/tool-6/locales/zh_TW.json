@@ -1,8 +1,7 @@
 {
   ".name": "批次新增到收藏分組",
-  ".note": "將遊戲加入指定的可寫收藏分組。請傳入 appIds 與精確的 collection，或傳入逐項 changes。",
+  ".note": "將遊戲加入現有的可寫收藏群組。傳 appIds 和 collectionIds 或唯一的 collectionName；不同遊戲有不同群組時傳 changes。",
   ".parameters.appIds": "Steam 遊戲 AppID 清單。",
-  ".parameters.collection": "所有遊戲共用的現有可寫分組精確名稱或 ID。",
   ".parameters.changes": "也可逐項傳入遊戲 AppID 和明確的分組 ID 清單。",
   ".variables.items": "逐項結果",
   ".variables.item": "本項",
@@ -11,8 +10,10 @@
   ".variables.args": "工具參數",
   ".variables.groups": "可寫收藏分組",
   ".variables.rows": "實際修改項",
-  ".description": "將遊戲加入指定的可寫收藏分組。請傳入 appIds 與精確的 collection，或傳入逐項 changes。",
-  ".error.badCollection": "請選擇明確的可寫收藏分組，可用 AppID 清單和精確分組名稱，或逐項傳入 AppID 和分組 ID。",
+  ".description": "將遊戲加入現有的可寫收藏群組。傳 appIds 和 collectionIds 或唯一的 collectionName；不同遊戲有不同群組時傳 changes。",
+  ".error.badCollection": "將遊戲加入現有的可寫收藏群組。傳 appIds 和 collectionIds 或唯一的 collectionName；不同遊戲有不同群組時傳 changes。",
   ".error.noCollection": "未找到唯一可寫的收藏分組，請確認分組 ID。",
-  ".variables.prepared": "準備的修改"
+  ".variables.prepared": "準備的修改",
+  ".parameters.collectionName": "完整可寫收藏群組名稱，須唯一符合。",
+  ".parameters.collectionIds": "可寫收藏群組 ID 清單。"
 }

@@ -102,6 +102,15 @@
     .aw-entry-fields{display:grid;grid-template-columns:var(--aw-entry-columns);align-items:center;gap:8px;min-width:0}
     .aw-entry-fields>*{min-width:0}.aw-entry-fields .aw-trigger-check{display:grid;justify-items:center}
     .aw-entry-head{color:var(--st-color-text-muted);font-size:var(--st-font-size-caption);overflow-wrap:anywhere}
+    .aw-entry-section{display:grid;gap:8px;min-width:0}
+    .aw-entry-group{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-block-start:6px;min-width:0}
+    .aw-entry-group h3{margin:0;color:var(--st-color-text-muted);font-size:var(--st-font-size-caption);font-weight:600;overflow-wrap:anywhere}
+    .aw-entry-group-actions{display:flex;flex:none;align-items:center;gap:4px}
+    .aw-entry-group-actions [data-aw="parameter-add"]{white-space:nowrap}
+    .aw-entry-group-members{margin:0;padding:0;min-inline-size:0;border:0}
+    .aw-entry-group-members legend{padding:0;margin-block-end:8px}
+    .aw-entry-group-members label{display:flex;align-items:center;gap:8px;min-block-size:28px;overflow-wrap:anywhere}
+    .aw-entry-group-members input{flex:none;accent-color:var(--st-color-steam-blue)}
     .aw-entry-description-field textarea{resize:vertical}
     .aw-entry-description{margin:0;color:var(--st-color-text-secondary);white-space:pre-wrap;overflow-wrap:anywhere}
     .aw-trigger-parameter{display:grid;grid-template-columns:minmax(0,1fr) 28px;align-items:center;gap:8px}
@@ -115,6 +124,19 @@
     .aw-record-fields[data-all-required] .aw-record-entry>.aw-icon{grid-column:3}
     .aw-param-dialog .aw-record-entry>.aw-value{display:block;min-width:0}
     .aw-record-entry .aw-value-label{position:absolute;inline-size:1px;block-size:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+    .aw-query-controls{display:grid;gap:12px;min-width:0}.aw-query-group{border-top:1px solid var(--st-dialog-divider);padding-block:8px}
+    .aw-query-group summary{cursor:pointer;padding-block:4px;color:var(--st-color-text-secondary)}
+    .aw-query-row{display:grid;grid-template-columns:minmax(88px,1fr) minmax(104px,1fr) minmax(0,2fr);gap:8px;align-items:center;margin-block:6px}
+    .aw-query-row>.aw-value,.aw-param-dialog .aw-query-row>.aw-value{display:block;min-width:0}
+    .aw-query-row .aw-value-label{position:absolute;inline-size:1px;block-size:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+    .aw-query-row [data-prop]{min-width:0;width:100%}.aw-query-row>label{min-width:0}
+    .aw-query-value,.aw-query-bounds{display:grid;gap:6px;min-width:0}.aw-query-bounds{grid-template-columns:repeat(2,minmax(0,1fr))}
+    .aw-query-bounds label{display:grid;gap:4px;min-width:0;color:var(--st-color-text-secondary)}.aw-query-value input,.aw-query-value select{min-width:0;width:100%}
+    .aw-query-row>.aw-query-pick{text-align:start;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+    .aw-query-picker-list{display:grid;gap:4px;max-block-size:min(40vh,320px);min-block-size:48px;overflow:auto;overscroll-behavior:contain}
+    .aw-query-picker-list label{display:flex;align-items:center;gap:8px;min-block-size:32px;padding-inline:6px;overflow-wrap:anywhere}
+    .aw-query-picker-list input{flex:none;accent-color:var(--st-color-steam-blue)}
+    @media(max-width:480px){.aw-query-row{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}.aw-query-row>:nth-child(3){grid-column:1/-1}}
     @media(max-width:590px){.aw-record-columns{display:none}.aw-record-entry{grid-template-columns:minmax(0,1fr) minmax(0,1fr) 28px}.aw-record-entry>[data-prop$=".omitIfUnset"]{grid-column:2;grid-row:1}.aw-record-entry>.aw-value{grid-column:1/3;grid-row:2}.aw-record-entry>.aw-icon{grid-column:3;grid-row:1/3}}
     .aw-module-tabs[hidden]{display:none}
     .aw-trigger-parameter>small{grid-column:1/-1}
@@ -373,6 +395,73 @@
   function searchToolChoices(container, value) {
     const query = value.trim().toLocaleLowerCase();
     for (const label of container.querySelectorAll("[data-tool-choice]")) label.hidden = !label.textContent.toLocaleLowerCase().includes(query);
+  }
+  async function chooseQueryOptions(state, field, title, current, signal) {
+    const rules = root.STWorkflowFields.query;
+    const searchLabel = tr("steam.independentName.filterOptionSearch", "搜索选项");
+    const selected = new Set();
+    const collator = new Intl.Collator(undefined, { numeric: true, sensitivity: "base" });
+    let entries, node, limit = 80, closed = false;
+    function renderOptions() {
+      const search = node.querySelector("[data-query-search]");
+      const term = search.value.trim().toLocaleLowerCase();
+      const results = entries.filter(({ key }) => key.includes(term));
+      html(node.querySelector("[data-query-options-list]"), results.slice(0, limit).map(({ id, label }) =>
+        `<label><input type="checkbox" data-query-option value="${esc(id)}" ${selected.has(id) ? "checked" : ""}><span>${esc(label)}</span></label>`).join(""));
+      node.querySelector("[data-query-more]").hidden = results.length <= limit;
+      node.querySelector("[data-query-feedback]").textContent = results.length ? "" : tr("workflow_query_no_options", "没有匹配的选项");
+    }
+    const answer = await state.ctx.dialog(state.shadow, { title, className: "aw-collection-dialog", form: true, signal,
+      initial: body => body.querySelector("[data-query-search]"),
+      render: body => {
+        node = body;
+        html(node, `<div class="aw aw-form"><input type="search" data-query-search placeholder="${esc(searchLabel)}" aria-label="${esc(searchLabel)}">
+          <div class="aw-query-picker-list" data-query-options-list></div><p class="aw-hint" data-query-feedback role="status"></p>
+          <button type="button" data-query-more hidden>${esc(tr("workflow_ui_load_more", "加载更多"))}</button><div class="aw-error" role="alert"></div></div>`);
+        const feedback = node.querySelector("[data-query-feedback]"), search = node.querySelector("[data-query-search]");
+        search.addEventListener("input", () => { if (entries) { limit = 80; renderOptions(); } });
+        node.querySelector("[data-query-more]").addEventListener("click", () => {
+          const shown = node.querySelectorAll("[data-query-option]").length;
+          limit += 80; renderOptions(); node.querySelectorAll("[data-query-option]")[shown]?.focus();
+        });
+        node.addEventListener("change", event => {
+          const input = event.target;
+          if (!input.matches("[data-query-option]")) return;
+          if (input.checked) selected.add(input.value);
+          else selected.delete(input.value);
+          node.querySelector(".aw-error").textContent = "";
+        });
+        const dynamic = rules.dynamicOptions.includes(field);
+        if (dynamic) feedback.textContent = tr("common_loading", "加载中…");
+        void (async () => {
+          const source = dynamic ? await view().rpc("filter-options", { field }) : undefined;
+          if (closed) return;
+          const choices = rules.options(field, source), counts = new Map();
+          for (const [, label] of choices) {
+            const key = label.toLocaleLowerCase(); counts.set(key, (counts.get(key) ?? 0) + 1);
+          }
+          for (const item of Array.isArray(current) ? current : [current]) {
+            if (typeof item !== "string") continue;
+            const id = rules.resolveOption(field, item, source);
+            if (id) selected.add(id);
+          }
+          entries = choices.map(([id, label]) => ({ id, label: counts.get(label.toLocaleLowerCase()) > 1 ? `${label} · ${id}` : label,
+            key: `${id} ${label}`.toLocaleLowerCase() })).sort((a, b) =>
+            Number(selected.has(b.id)) - Number(selected.has(a.id)) || collator.compare(a.label, b.label));
+          renderOptions();
+        })().catch(error => { if (!closed) { feedback.textContent = ""; reportFailure(error, node.querySelector(".aw-error")); } });
+      },
+      actions: [{ id: "cancel", label: tr("common_cancel", "取消") }, { id: "save", label: tr("common_confirm", "确定"), primary: true }],
+      onAction: action => {
+        if (action !== "save") return true;
+        if (!entries) return false;
+        if (selected.size) return true;
+        node.querySelector(".aw-error").textContent = tr("workflow_query_pick_required", "请至少选择一项");
+        node.querySelector("[data-query-search]").focus();
+        return false;
+      },
+    }).finally(() => { closed = true; });
+    return answer === "save" ? [...selected].map(id => [id, entries.find(entry => entry.id === id).label]) : undefined;
   }
   function aiServiceAndPrompt(editor, node) {
     const services = view().serviceChoices(editor.registry, node.serviceId);
@@ -1372,6 +1461,7 @@
       const previous = from.pop();
       to.push(flow.clone(editor.draft));
       if (!Object.hasOwn(previous, "note")) delete editor.draft.note;
+      if (!Object.hasOwn(previous, "entryGroups")) delete editor.draft.entryGroups;
       Object.assign(editor.draft, previous); editor.diagnostics = null; editor.cursor = null;
       editor.insertionIssue = null; editor.saveIssue = null;
       editor.root.querySelector("[data-name]").value = editor.draft.name; paintEditor(editor); focusSelection(editor);
@@ -1631,36 +1721,112 @@
     });
     return action === "generate" ? result : null;
   }
+  async function editParameterGroup(state, draft, index) {
+    const group = draft.groups[index], members = new Set(group?.members);
+    const add = !group, nameLabel = tr("workflow_entry_group_name", "分组名称");
+    let edited;
+    const answer = await state.ctx.dialog(state.shadow, {
+      title: add ? tr("workflow_entry_group_add", "添加分组") : tr("workflow_entry_group_edit", "编辑分组"),
+      className: "aw-collection-dialog", form: true,
+      initial: node => node.querySelector("[data-entry-group-name]"),
+      render: node => html(node, `<div class="aw aw-form">
+        <label>${esc(nameLabel)}<input data-entry-group-name value="${esc(group?.name ?? "")}"></label>
+        ${draft.parameters.length ? `<fieldset class="aw-entry-group-members"><legend>${esc(tr("workflow_entry_group_members", "组内参数"))}</legend>
+          ${draft.parameters.map((parameter, position) => `<label><input type="checkbox" data-entry-group-member value="${esc(parameter.rowKey)}"
+            ${members.has(parameter.rowKey) ? "checked" : ""}><span>${esc(parameter.name || tr("workflow_tool_parameter_name", "参数名") + " " + (position + 1))}</span></label>`).join("")}
+          </fieldset>` : ""}<div class="aw-error" role="alert"></div></div>`),
+      actions: [{ id: "cancel", label: tr("common_cancel", "取消") }, { id: "save", label: tr("common_confirm", "确定"), primary: true }],
+      onAction(action, node) {
+        if (action !== "save") return true;
+        const input = node.querySelector("[data-entry-group-name]"), name = input.value.trim();
+        if (!name || draft.groups.some((other, position) => index !== position && other.name.trim() === name)) {
+          node.querySelector(".aw-error").textContent = !name ? tr("workflow_entry_group_name_required", "请填写分组名称")
+            : tr("workflow_entry_group_name_duplicate", "分组名称已存在");
+          input.focus();
+          return false;
+        }
+        edited = { name, members: [...node.querySelectorAll("[data-entry-group-member]:checked")].map(input => input.value) };
+        return true;
+      },
+    });
+    return answer === "save" ? edited : null;
+  }
+
   async function editEntryParameters(state, editor, { inserting = false } = {}) {
     const inTool = editor.inTool, key = tools.entryKey(editor.draft);
     const original = flow.entryParameters(editor.draft);
-    const draft = { description: editor.draft.description ?? "", parameters: flow.clone(original) };
+    const draft = { description: editor.draft.description ?? "",
+      parameters: flow.clone(original).map(parameter => ({ ...parameter, rowKey: parameter.variableId })), groups: [] };
+    let counter = 0, groupsChanged = false;
     const types = inTool ? model.toolTypes.map(type => [type, toolTypeLabel(type)]) :
       ["any", "text", "integer", "number", "boolean", "list", "object"]
         .map(type => [type, type === "integer" ? toolTypeLabel(type) : variableTypes[type]]);
     const nameLabel = tr("workflow_tool_parameter_name", "参数名"), typeLabel = tr("common_type", "类型");
     const detailLabel = tr("workflow_tool_parameter_description", "参数说明"), requiredLabel = tr("workflow_tool_required", "必填");
+    const addParameterLabel = tr("workflow_tool_add_parameter", "添加参数");
+    const ids = root.STAI.PROVIDER_TOOL_IDS, filterGroups = new Map();
+    if (inTool && editor.draft.providerInputVersion === 1 && !original.some(parameter => parameter.name === "conditions")) {
+      if (editor.draft.id === ids.library) {
+        for (const [title, entries] of root.STWorkflowFields.groups)
+          for (const [field] of entries) filterGroups.set(field, instructions.schemaLabel(title));
+      } else if (editor.draft.id === ids.wishlist) {
+        for (const field of Object.keys(root.STWorkflowFields.query.fields.wishlist))
+          filterGroups.set(field, tr("workflow_query_conditions", "筛选条件"));
+      }
+      if (filterGroups.size)
+        for (const field of ["sortBy", "direction", "limit"]) filterGroups.set(field, tr("workflow_query_sort_group", "排序与数量"));
+    }
+    if (editor.draft.entryGroups !== undefined) draft.groups = flow.clone(editor.draft.entryGroups);
+    else {
+      const groups = new Map();
+      for (const { name, rowKey } of draft.parameters) {
+        const title = filterGroups.get(name);
+        if (!title) continue;
+        if (!groups.has(title)) groups.set(title, { name: title, members: [] });
+        groups.get(title).members.push(rowKey);
+      }
+      draft.groups = [...groups.values()];
+    }
     let container, next;
     const collect = () => {
       draft.description = container.querySelector("[data-entry-description]").value;
-      draft.parameters = [...container.querySelectorAll("[data-tool-parameter]")].map(row => ({
-        ...(row.dataset.variableId && { variableId: row.dataset.variableId }),
-        name: row.querySelector("[data-parameter-name]").value.trim(), type: row.querySelector("[data-parameter-type]").value,
-        ...(inTool && { description: row.querySelector("[data-parameter-description]").value, required: row.querySelector("[data-parameter-required]").checked }),
-      }));
+      for (const row of container.querySelectorAll("[data-tool-parameter]")) {
+        const parameter = draft.parameters[Number(row.dataset.toolParameter)];
+        parameter.name = row.querySelector("[data-parameter-name]").value.trim();
+        parameter.type = row.querySelector("[data-parameter-type]").value;
+        if (inTool) {
+          parameter.description = row.querySelector("[data-parameter-description]").value;
+          parameter.required = row.querySelector("[data-parameter-required]").checked;
+        }
+      }
     };
-    const render = () => formHtml(container, `<div class="aw aw-form aw-entry-form">
+    const parameterRow = ({ parameter, index }) => `<div class="aw-entry-fields" data-tool-parameter="${index}">
+      <input data-parameter-name aria-label="${esc(nameLabel)}" value="${esc(parameter.name)}">
+      <select data-parameter-type aria-label="${esc(typeLabel)}">${options(types, parameter.type)}</select>
+      ${inTool ? `<input data-parameter-description aria-label="${esc(detailLabel)}" value="${esc(parameter.description)}">
+      <label class="aw-trigger-check"><input data-parameter-required type="checkbox" aria-label="${esc(requiredLabel)}" ${parameter.required ? "checked" : ""}></label>` : ""}
+      ${iconButton("parameter-delete", [tr("common_delete", "删除"), parameter.name || nameLabel].join(" "), "trash")}</div>`;
+    const render = () => {
+      const rows = draft.parameters.map((parameter, index) => ({ parameter, index }));
+      const position = new Map(draft.groups.flatMap((group, index) => group.members.map(member => [member, index])));
+      const grouped = draft.groups.map(() => []);
+      const free = [];
+      for (const row of rows) (grouped[position.get(row.parameter.rowKey)] ?? free).push(row);
+      formHtml(container, `<div class="aw aw-form aw-entry-form">
       <label class="aw-entry-description-field">${esc(editor.context === "library" ? tr("workflow_library_description", "描述") : inTool ? toolDescriptionLabel() : tr("workflow_parameter_description", "工作流描述"))}<textarea data-entry-description rows="3">${esc(draft.description)}</textarea></label>
       <div class="aw-entry-list"${inTool ? " data-tool-entry" : ""}>
-        <div class="aw-toolbar">${button("parameter-add", tr("workflow_tool_add_parameter", "添加参数"), "", "plus")}</div>
+        <div class="aw-toolbar">${button("parameter-add", addParameterLabel, "", "plus")}
+          ${button("parameter-group-add", tr("workflow_entry_group_add", "添加分组"), "", "folder-plus")}</div>
         ${draft.parameters.length ? `<div class="aw-entry-fields aw-entry-head" aria-hidden="true"><span>${esc(nameLabel)}</span><span>${esc(typeLabel)}</span>${inTool ? `<span>${esc(detailLabel)}</span><span>${esc(requiredLabel)}</span>` : ""}</div>` : ""}
-        ${draft.parameters.map((parameter, index) => `<div class="aw-entry-fields" data-tool-parameter="${index}" data-variable-id="${esc(parameter.variableId || "")}">
-          <input data-parameter-name aria-label="${esc(nameLabel)}" value="${esc(parameter.name)}">
-          <select data-parameter-type aria-label="${esc(typeLabel)}">${options(types, parameter.type)}</select>
-          ${inTool ? `<input data-parameter-description aria-label="${esc(detailLabel)}" value="${esc(parameter.description)}">
-          <label class="aw-trigger-check"><input data-parameter-required type="checkbox" aria-label="${esc(requiredLabel)}" ${parameter.required ? "checked" : ""}></label>` : ""}
-          ${iconButton("parameter-delete", [tr("common_delete", "删除"), parameter.name || nameLabel].join(" "), "trash")}</div>`).join("")}
+        ${free.map(parameterRow).join("")}
+        ${draft.groups.map(({ name }, index) => `<section class="aw-entry-section" data-entry-group="${index}" aria-label="${esc(name)}">
+          <header class="aw-entry-group"><h3>${esc(name)}</h3><div class="aw-entry-group-actions">
+            ${button("parameter-add", addParameterLabel, `data-group="${index}" aria-label="${esc(addParameterLabel + " · " + name)}"`, "plus")}
+            ${iconButton("parameter-group-edit", tr("workflow_entry_group_edit", "编辑分组") + " · " + name, "pencil", `data-group="${index}"`)}
+            ${iconButton("parameter-group-delete", tr("workflow_entry_group_delete", "删除分组") + " · " + name, "trash", `data-group="${index}"`)}
+          </div></header>${grouped[index].map(parameterRow).join("")}</section>`).join("")}
       </div><div class="aw-error" role="alert"></div></div>`);
+    };
     const answer = await state.ctx.dialog(state.shadow, {
       title: instructions.name(key), className: "aw-param-dialog", form: true,
       render(node) {
@@ -1668,12 +1834,40 @@
         node.addEventListener("click", event => {
           const target = event.target.closest("[data-aw]");
           if (!target) return;
-          collect();
-          if (target.dataset.aw === "parameter-add") draft.parameters.push(inTool
-            ? { name: "", description: "", type: "string", required: true } : { name: "", type: "text" });
-          else if (target.dataset.aw === "parameter-delete") draft.parameters.splice(Number(target.closest("[data-tool-parameter]").dataset.toolParameter), 1);
-          render();
-          if (target.dataset.aw === "parameter-add") [...node.querySelectorAll("[data-parameter-name]")].at(-1)?.focus();
+          void (async () => {
+            collect();
+            const action = target.dataset.aw, index = Number(target.dataset.group);
+            let focus = '[data-aw="parameter-add"]:not([data-group])';
+            if (action === "parameter-add") {
+              const rowKey = ":draft-" + ++counter;
+              const parameter = inTool ? { name: "", description: "", type: "string", required: true } : { name: "", type: "text" };
+              const group = draft.groups[index];
+              const last = group ? draft.parameters.findLastIndex(item => group.members.includes(item.rowKey)) : -1;
+              const position = last === -1 ? draft.parameters.length : last + 1;
+              draft.parameters.splice(position, 0, { ...parameter, rowKey });
+              if (group) { group.members.push(rowKey); groupsChanged = true; }
+              focus = `[data-tool-parameter="${position}"] [data-parameter-name]`;
+            } else if (action === "parameter-delete") {
+              const position = Number(target.closest("[data-tool-parameter]").dataset.toolParameter);
+              const [removed] = draft.parameters.splice(position, 1);
+              for (const group of draft.groups) group.members = group.members.filter(member => member !== removed.rowKey);
+            } else if (action === "parameter-group-delete") {
+              draft.groups.splice(index, 1);
+              groupsChanged = true;
+              focus = '[data-aw="parameter-group-add"]';
+            } else if (action === "parameter-group-add" || action === "parameter-group-edit") {
+              const edited = await editParameterGroup(state, draft, index);
+              if (!edited) return;
+              const selected = new Set(edited.members);
+              for (const group of draft.groups) group.members = group.members.filter(member => !selected.has(member));
+              const position = Number.isNaN(index) ? draft.groups.length : index;
+              draft.groups[position] = edited;
+              groupsChanged = true;
+              focus = `[data-aw="parameter-group-edit"][data-group="${position}"]`;
+            } else return;
+            render();
+            node.querySelector(focus)?.focus();
+          })().catch(error => reportFailure(error, node.querySelector(".aw-error")));
         });
       },
       actions: [{ id: "cancel", label: tr("common_cancel", "取消") }, { id: "save", label: tr("common_confirm", "确定"), primary: true }],
@@ -1681,22 +1875,32 @@
         if (action !== "save") return true;
         try {
           collect();
-          const parameters = inTool ? model.toolParameters(draft.parameters) : draft.parameters;
+          const values = draft.parameters.map(({ rowKey, ...parameter }) => parameter);
+          const parameters = inTool ? model.toolParameters(values) : values;
           const previous = new Map(original.map(parameter => [parameter.variableId, parameter]));
           next = flow.clone(editor.draft);
-          next.variables = next.variables.filter(variable => !previous.has(variable.id));
-          for (const parameter of parameters) {
-            const type = flow.parameterVariableType(parameter.type);
-            const existing = editor.draft.variables.find(variable => variable.id === parameter.variableId);
-            const name = inTool && parameter.name === previous.get(parameter.variableId)?.name && existing ? existing.name : parameter.name;
+          const byId = new Map(parameters.filter(parameter => parameter.variableId).map(parameter => [parameter.variableId, parameter]));
+          next.variables = next.variables.flatMap(variable => {
+            if (!previous.has(variable.id)) return [variable];
+            const parameter = byId.get(variable.id);
+            if (!parameter) return [];
+            const name = inTool && parameter.name === previous.get(variable.id).name ? variable.name : parameter.name;
+            return [{ ...variable, name, type: flow.parameterVariableType(parameter.type) }];
+          });
+          for (const parameter of parameters.filter(parameter => !parameter.variableId)) {
+            const type = flow.parameterVariableType(parameter.type), { name } = parameter;
             const variable = next.variables.find(variable => variable.name === name);
-            if (variable && (parameter.variableId || variable.type !== type) || !name)
+            if (variable && variable.type !== type || !name)
               throw Object.assign(new TypeError(tr("workflow_parameter_invalid", "参数名称、类型或变量定义不一致")), { code: "WORKFLOW_CONFIG_INVALID" });
-            if (!parameter.variableId) parameter.variableId = variable?.id || flow.variable(next, name, type);
-            else next.variables.push({ id: parameter.variableId, name, type });
+            parameter.variableId = variable?.id || flow.variable(next, name, type);
           }
-          next.description = draft.description;
-          next[inTool ? "parameters" : "inputParameters"] = parameters;
+          if (draft.description !== (editor.draft.description ?? "")) next.description = draft.description;
+          const parameterKey = inTool ? "parameters" : "inputParameters";
+          if (parameters.length || Object.hasOwn(next, parameterKey)) next[parameterKey] = parameters;
+          if (groupsChanged || next.entryGroups !== undefined) {
+            const variables = new Map(draft.parameters.map((parameter, index) => [parameter.rowKey, parameters[index].variableId]));
+            next.entryGroups = draft.groups.map(({ name, members }) => ({ name, members: members.map(member => variables.get(member)) }));
+          }
           flow.validate({ ...next, steps: [], folds: undefined });
           return true;
         } catch (error) {
@@ -2685,6 +2889,20 @@
     let container, branch = row.branch || 0, parameterTab = issue?.field === "toolIds" ? "advanced" : "general", codeEditor = null, renderEpoch = 0, previewId = null, previewText = "";
     let preparingPreview = false;
     const lifetime = new AbortController(), dataDefinition = flow.definitions[working.action];
+    const query = flow.providerQueries[working.action], queryRules = root.STWorkflowFields.query;
+    const oldQuery = flow.outdatedQuery(working);
+    if (oldQuery) {
+      delete working[query.replaced];
+      Object.assign(working, flow.queryDefaults(query));
+      const output = workspace.variables.find(item => item.id === working.output);
+      if (query.filter && output && !["list", "any"].includes(output.type))
+        working.output = flow.variable(workspace, tr("workflow_query_app_ids", "AppID 列表"), "list");
+    }
+    if (query?.filter) {
+      working.filterRows ??= {};
+      working.conditionMode ??= "";
+    }
+    const queryGroups = new Map();
     const http = working.action === "http-request";
     let recordValue = working.value, recordEntries = working.entries, recordExpanded = false;
     const toolParameters = editor.context === "tool" && working.action === "record" ? workspace.parameters : [];
@@ -2699,6 +2917,119 @@
       recordEntries = working.entries;
       delete working.entries;
       working.value = recordValue ?? flow.literal({});
+    }
+    function queryValue(label, value, path, type, choices = [], typePicker = false) {
+      const explicit = type === "number" || type === "boolean";
+      if (explicit && flow.activeValue(value)?.literal === "") {
+        value = flow.inputValue(value);
+        value.text = flow.literal(type === "number" ? 0 : false);
+        value.unset = true;
+      }
+      return valueField(label, value, path, workspace, choices, type, false, [], typePicker, explicit);
+    }
+    function filterValueType(spec, op) {
+      if (op === "between") return "list";
+      if (["lengthGt", "lengthLt", "countGt", "countLt"].includes(op)) return "number";
+      return ["number", "boolean"].includes(spec.type) ? spec.type : "text";
+    }
+    const filterValueLabel = () => tr("workflow_ui_comparison_value", "比较值");
+    const skipQuery = () => tr("workflow_ui_skipped_label", "跳过");
+    const queryFieldLabel = (field, label) => {
+      const keys = { limit: "limit", name: "wishlist_name", addedAt: "wishlist_added", originalPrice: "wishlist_original",
+        currentPrice: "wishlist_current", discounted: "wishlist_discounted", discountPercent: "wishlist_discount" };
+      return keys[field] ? tr("workflow_query_" + keys[field], label) : instructions.schemaLabel(label);
+    };
+    function queryBounds(field, spec, op, active) {
+      if (!Object.hasOwn(active, "literal")) return "";
+      const value = active.literal, date = spec.type === "date";
+      const isDate = item => typeof item === "string" && /^\d{4}-\d{2}-\d{2}$/.test(item);
+      if (date && op !== "between" && (value === "" || isDate(value)))
+        return `<div class="aw-query-value" data-query-typed="${field}"><input data-query-single type="date" aria-label="${esc(filterValueLabel())}" value="${esc(value)}"></div>`;
+      if (op !== "between") return "";
+      const presets = date ? queryRules.datePresets(tr) : [];
+      const preset = presets.find(([id]) => id !== "custom" && id === value)?.[0];
+      const bounds = value === "" || Array.isArray(value) && !value.length ? [null, null] : value;
+      if (!preset && (!Array.isArray(bounds) || bounds.length !== 2 || bounds.some(item => item !== null && !(date ? isDate(item) : Number.isFinite(item))))) return "";
+      const labels = date ? [tr("steam.independentName.filterDateStart", "开始日期"), tr("steam.independentName.filterDateEnd", "结束日期")]
+        : [tr("steam.independentName.filterMin", "最小"), tr("steam.independentName.filterMax", "最大")];
+      const type = date ? "date" : "number";
+      return `<div class="aw-query-value" data-query-typed="${field}">${date ? `<select data-query-date-preset aria-label="${esc(tr("steam.independentName.filterDatePreset", "日期范围"))}">${options(presets, preset ?? "custom")}</select>` : ""}
+        ${preset ? "" : `<div class="aw-query-bounds">${labels.map((label, index) => `<label>${esc(label)}<input data-query-bound type="${type}" ${date ? "" : 'step="any"'} value="${esc(bounds[index] ?? "")}"></label>`).join("")}</div>`}</div>`;
+    }
+    function selectedQueryLabels(field, value) {
+      const active = flow.activeValue(value);
+      if (!Object.hasOwn(active, "literal")) return values.text(active, workspace);
+      if (queryRules.dynamicOptions.includes(field) && active.display) return active.display;
+      const list = Array.isArray(active.literal) ? active.literal : [active.literal];
+      const labels = new Map(queryRules.dynamicOptions.includes(field) ? [] : queryRules.options(field, undefined, tr));
+      return list.filter(Boolean).map(id => labels.get(id) ?? id).join("、");
+    }
+    function filterComparison(field, spec, item, name) {
+      const op = item?.op;
+      if (!op || queryRules.unaryOps.includes(op) || !spec.ops.includes(op)) return "";
+      const type = filterValueType(spec, op), value = item.value ?? flow.literal("");
+      if (spec.type === "set") {
+        const label = selectedQueryLabels(field, value) || tr("common_select", "请选择");
+        return `<button type="button" class="aw-query-pick" data-aw="query-pick" data-field="${field}" aria-label="${esc(name + " · " + label)}" title="${esc(label)}">${esc(label)}</button>`;
+      }
+      const multi = spec.type === "list" && ["equals", "notEquals", "contains", "notContains"].includes(op);
+      return queryBounds(field, spec, op, flow.activeValue(value)) ||
+        queryValue(filterValueLabel(), value, "filterRows." + field + ".value", multi ? "any" : type, [], multi);
+    }
+    function filterQueryInputs() {
+      const kind = query.filter, fields = queryRules.fields[kind];
+      const custom = tr("steam_independentName_datePresetcustom", "自定义");
+      const label = tr("workflow_query_conditions", "筛选条件");
+      const choices = field => [
+        ["", skipQuery()], ...fields[field].ops.map(id => [id, tr("steam.independentName.filterOp" + id[0].toUpperCase() + id.slice(1), queryRules.opLabels[id])]),
+        ...(["set", "boolean"].includes(fields[field].type) ? [] : [["custom", custom]]),
+      ];
+      const conditionRow = ([field, fallback]) => {
+        const item = working.filterRows[field], op = item?.op ?? "", name = queryFieldLabel(field, fallback), spec = fields[field];
+        if (spec.type === "boolean") {
+          const value = flow.activeValue(item?.value)?.literal;
+          const selection = op === "unknown" ? op : typeof value === "boolean" ? String(op === "notEquals" ? !value : value) : op ? "bound" : "";
+          const entries = [["", skipQuery()], ["true", tr("common_yes", "是")], ["false", tr("common_no", "否")],
+            ["unknown", tr("steam.independentName.filterOpUnknown", "未提供")]];
+          if (selection === "bound") entries.push(["bound", values.text(item.value, workspace), true]);
+          return `<div class="aw-query-row"><label for="aw-query-${field}">${esc(name)}</label><select id="aw-query-${field}" data-query-flag="${field}">${options(entries, selection)}</select></div>`;
+        }
+        const invalid = op && !spec.ops.includes(op);
+        const rows = choices(field);
+        if (invalid) rows.push([op, tr("workflow_query_operator_obsolete", "请重新选择比较方式"), true]);
+        return `<div class="aw-query-row"><label for="aw-query-${field}">${esc(name)}</label>
+          <select id="aw-query-${field}" data-query-field="${field}" ${invalid ? 'aria-invalid="true"' : ""} aria-label="${esc(name + " · " + tr("workflow_ui_operator", "关系"))}">${options(rows, op)}</select>
+          ${filterComparison(field, spec, item, name)}</div>`;
+      };
+      const modeRow = `<div class="aw-query-row"><label for="aw-query-mode">${esc(label)}</label>
+        <select id="aw-query-mode" data-prop="conditionMode">${options([["", skipQuery()], ["custom", custom]], working.conditionMode)}</select>
+        ${working.conditionMode === "custom" ? queryValue(filterValueLabel(), working.conditions, "conditions", "list") : ""}</div>`;
+      const groups = kind === "wishlist" ? Object.entries(fields).map(([key, spec]) => [key, spec.label]).map(conditionRow).join("") :
+        root.STWorkflowFields.groups.map(([title, entries], index) => {
+          const open = queryGroups.get(title) ?? (index === 0 && working.conditionMode !== "custom" || entries.some(([field]) => working.filterRows[field]));
+          return `<details class="aw-query-group" data-query-group="${esc(title)}"${open ? " open" : ""}>
+            <summary>${esc(instructions.schemaLabel(title))}</summary>${entries.map(conditionRow).join("")}</details>`;
+        }).join("");
+      return `<div class="aw-query-controls">${modeRow}<div>${groups}</div></div>`;
+    }
+    function focusQueryIssue(error) {
+      if (!query?.filter) return;
+      if (error.input === "conditions") {
+        const control = container.querySelector('[data-value="conditions"] .cm-content,[data-value="conditions"] .aw-collection-edit,[data-value="conditions"] [data-value-text]');
+        control?.setAttribute("aria-invalid", "true");
+        control?.focus();
+        return;
+      }
+      if (!Object.hasOwn(queryRules.fields[query.filter], error.field)) return;
+      const field = CSS.escape(error.field);
+      const input = container.querySelector(`[data-query-field="${field}"][aria-invalid="true"],[data-query-flag="${field}"]`) ??
+        container.querySelector(`[data-aw="query-pick"][data-field="${field}"],[data-query-typed="${field}"] input,[data-value="filterRows.${field}.value"] input`) ??
+        container.querySelector(`[data-query-field="${field}"]`);
+      if (!input) return;
+      const group = input.closest("[data-query-group]");
+      if (group) group.open = true;
+      input.setAttribute("aria-invalid", "true");
+      input.focus();
     }
     working.onError ||= "throw";
     const initialValue = flow.activeValue(working.value);
@@ -2838,8 +3169,14 @@
             ]);
           }
           const toolLabels = { toolRequest: "workflow_seed_tool_requests", toolArgs: "workflow_ui_tool_arguments", toolData: "workflow_output_tool_call", toolReason: "workflow_ui_tool_reason" };
-          content += flow.actionFields(working).map(field => valueField(toolLabels[field.key] ? tr(toolLabels[field.key], field.label) : instructions.schemaLabel(field.label), working[field.key], field.key, workspace,
-            instructions.schemaChoices(field.choices || []), key === "set" ? working.valueType : field.type, false, [], field.selectLiteralType)).join("");
+          if (query?.filter) content += filterQueryInputs();
+          content += flow.actionFields(working).filter(field => !query?.filter || field.key !== "conditions").map(field => {
+            const label = field.labelKey ? tr(field.labelKey, field.label) : toolLabels[field.key] ? tr(toolLabels[field.key], field.label)
+              : query ? queryFieldLabel(field.key, field.label) : instructions.schemaLabel(field.label);
+            const choices = instructions.schemaChoices(field.choices || []);
+            return query && field.optional ? queryValue(label, working[field.key], field.key, field.type, choices.length ? [["", skipQuery()], ...choices] : [])
+              : valueField(label, working[field.key], field.key, workspace, choices, key === "set" ? working.valueType : field.type, false, [], field.selectLiteralType);
+          }).join("");
         }
         if (key === "log") content += prop(tr("workflow_ui_log_level", "日志级别"), "level", working.level, instructions.schemaChoices(Object.entries(model.NOTICE_TYPES)));
         if (["raise", "log"].includes(key)) content += valueField(key === "log" ? tr("workflow_ui_log_message", "日志内容") : tr("workflow_ui_error_message_or_variable", "异常消息或异常变量"), working.value, "value", workspace, [], "any", true);
@@ -2908,6 +3245,8 @@
       const paramTabs = [["general", tr("workflow_ui_general", "常规")], ...(advanced ? [["advanced", tr("workflow_ui_advanced", "高级")]] : []), ...(flow.failable(working) ? [["error", tr("workflow_ui_error_handling", "错误处理")]] : [])];
       formHtml(container, `<div class="aw aw-form"><div class="aw-tabs aw-param-tabs" role="tablist" aria-label="${esc(tr("workflow_ui_action_parameters", "指令参数"))}">${paramTabs.map(([id, label]) => `<button type="button" role="tab" data-parameter-tab="${id}" aria-selected="${id === parameterTab}" tabindex="${id === parameterTab ? 0 : -1}">${label}</button>`).join("")}</div><div role="tabpanel" aria-label="${paramTabs.find(([id]) => id === parameterTab)?.[1]}">${content ? `<div class="aw-section">${parameterTab === "general" ? `<h4>${esc(tr("workflow_ui_action_inputs", "指令输入"))}</h4>` : ""}${content}</div>` : ""}${output ? `<div class="aw-section"><h4>${esc(tr("workflow_ui_action_outputs", "指令输出"))}</h4>${output}</div>` : ""}</div><div class="aw-test-result" data-test-result role="status" hidden></div><div class="aw-error" role="alert"></div></div>`);
       if (promptError) container.querySelector(".aw-error").textContent = promptError;
+      if (query) for (const input of container.querySelectorAll("[data-explicit-value] input[type=number]")) input.step = "any";
+      if (oldQuery && parameterTab === "general") container.querySelector(".aw-error").textContent = tr("workflow_query_reconfigure", "这条查询的输入已更新，请重新配置。");
       if (previewText) { const result = container.querySelector("[data-test-result]"); result.hidden = false; result.textContent = previewText; }
       if (parameterTab === "general" && working.action === "script") {
         const target = container.querySelector("[data-code]");
@@ -2922,6 +3261,28 @@
     }
     function collectAll() {
       collect(container, working, workspace);
+      if (query) {
+        for (const control of container.querySelectorAll("[data-query-typed]")) {
+          const field = control.dataset.queryTyped, row = working.filterRows[field];
+          if (control.querySelector("input:invalid"))
+            throw Object.assign(new TypeError(queryFieldLabel(field, queryRules.fields[query.filter][field].label) + " · " +
+              tr("workflow_ui_enter_a_valid_number", "请填写有效的数字")), {
+              code: "WORKFLOW_FORM_INVALID_NUMBER", field,
+            });
+          const preset = control.querySelector("[data-query-date-preset]")?.value;
+          const single = control.querySelector("[data-query-single]");
+          const bounds = [...control.querySelectorAll("[data-query-bound]")].map(input => input.value === "" ? null :
+            input.type === "number" ? input.valueAsNumber : input.value);
+          const previous = flow.activeValue(row.value)?.literal;
+          const value = preset && preset !== "custom" ? preset : single ? single.value :
+            bounds.every(bound => bound === null) && (previous === "" || Array.isArray(previous) && !previous.length) ? previous : bounds;
+          if (JSON.stringify(previous) === JSON.stringify(value)) continue;
+          row.value = row.value?.mode === "text" ? { mode: "text", text: flow.literal(value), code: row.value.code } : flow.literal(value);
+        }
+        for (const field of query.fields) if (working[field.key]?.unset && working[field.key].mode === "text")
+          working[field.key] = { ...flow.inputValue(working[field.key]), text: flow.literal("") };
+        for (const row of Object.values(working.filterRows ?? {})) if (row.value?.unset && row.value.mode === "text") row.value.text = flow.literal("");
+      }
       if (working.action === "record" && working.entries) for (const entry of working.entries) {
         entry.key = entry.key.trim();
         if (typeof entry.omitIfUnset === "string") entry.omitIfUnset = entry.omitIfUnset === "true";
@@ -2951,8 +3312,10 @@
       delete config._timeout; delete config._timeoutSeconds;
       if (working.action === "record") { delete config.value; delete config.entries; }
       for (const [key, value] of flow.inputs(working)) {
-        if (!key.startsWith("inputs.") && !key.startsWith("libraryInputs.") && !key.startsWith("entries.")) config[key] = values.comparable(value);
+        if (!key.startsWith("inputs.") && !key.startsWith("libraryInputs.") && !key.startsWith("entries.") && !key.startsWith("filterRows.")) config[key] = values.comparable(value);
       }
+      if (query?.filter) config.filterRows = Object.fromEntries(Object.entries(working.filterRows).map(([field, row]) =>
+        [field, { ...row, value: values.comparable(row.value) }]));
       if (working.action === "record" && working.entries) config.entries = working.entries.map(entry => ({ ...entry, value: values.comparable(entry.value) }));
       if (working.action === "library-call") config.libraryInputs = Object.fromEntries(Object.entries(working.libraryInputs)
         .filter(([, value]) => !value.unset).map(([id, value]) => [id, values.comparable(value)]));
@@ -2981,6 +3344,12 @@
       collectAll();
       const clean = named?.clean || flow.clone(workspace), target = flow.pathGet(clean, row.path);
       root.STWorkflowValues.commitOutputs(container, target, clean, workspace, named?.resolved || {});
+      if (query) {
+        for (const field of query.fields) if (target[field.key]?.unset) delete target[field.key].unset;
+        if (query.filter && !target.conditionMode) { delete target.conditionMode; target.conditions = flow.literal([]); }
+        if (!Object.keys(target.filterRows ?? {}).length) delete target.filterRows;
+        for (const item of Object.values(target.filterRows ?? {})) if (item.value?.unset) delete item.value.unset;
+      }
       if (target.action === "library-call") {
         for (const [id, value] of Object.entries(target.libraryInputs)) if (value.unset) delete target.libraryInputs[id];
         for (const [id, value] of Object.entries(target.libraryOutputs)) if (!value) delete target.libraryOutputs[id];
@@ -3159,7 +3528,38 @@
         node.addEventListener("change", event => {
           try {
             if (previewId) void stopPreview().catch(error => reportFailure(error, node.querySelector(".aw-error")));
+            if (query?.filter) for (const group of node.querySelectorAll("[data-query-group]")) queryGroups.set(group.dataset.queryGroup, group.open);
             collectAll();
+            const flag = event.target.dataset.queryFlag;
+            if (flag) {
+              const selection = event.target.value;
+              if (!selection) delete working.filterRows[flag];
+              else working.filterRows[flag] = { op: selection === "unknown" ? "unknown" : "equals", value: flow.literal(selection === "true") };
+              return;
+            }
+            if (event.target.matches("[data-query-date-preset]")) {
+              const field = event.target.closest("[data-query-typed]").dataset.queryTyped;
+              render(); node.querySelector(`[data-query-typed="${field}"] [data-query-date-preset]`)?.focus(); return;
+            }
+            const filter = event.target.dataset.queryField;
+            if (filter) {
+              const op = event.target.value, previous = working.filterRows[filter];
+              if (op === "custom") working.conditionMode = "custom";
+              else if (!op) delete working.filterRows[filter];
+              else {
+                const spec = queryRules.fields[query.filter][filter], type = filterValueType(spec, op);
+                const value = previous?.value && !queryRules.unaryOps.includes(previous.op) && filterValueType(spec, previous.op) === type
+                  ? previous.value : flow.literal(type === "list" ? [] : "");
+                working.filterRows[filter] = { op, value };
+              }
+              render();
+              const focus = op === "custom" ? '[data-value="conditions"] [data-variable-toggle]' : `[data-query-field="${filter}"]`;
+              node.querySelector(focus)?.focus();
+              return;
+            }
+            if (event.target.matches('[data-prop="conditionMode"]')) {
+              render(); node.querySelector('[data-prop="conditionMode"]')?.focus(); return;
+            }
             if (working.action === "library-call" && event.target.matches('[data-prop="libraryId"]') && selectedLibrary !== working.libraryId) {
               selectedLibrary = working.libraryId;
               working.libraryInputs = {}; working.libraryOutputs = {};
@@ -3238,6 +3638,17 @@
           event.stopPropagation();
           void (async () => {
             collectAll(); const action = control.dataset.aw;
+            if (action === "query-pick") {
+              const field = control.dataset.field, spec = queryRules.fields[query.filter][field];
+              const selected = await chooseQueryOptions(state, field, queryFieldLabel(field, spec.label),
+                flow.activeValue(working.filterRows[field].value)?.literal, lifetime.signal);
+              if (selected && !lifetime.signal.aborted) {
+                working.filterRows[field].value = flow.constant(selected.map(([id]) => id), selected.map(([, label]) => label).join("、"));
+                for (const group of node.querySelectorAll("[data-query-group]")) queryGroups.set(group.dataset.queryGroup, group.open);
+                render(); node.querySelector(`[data-aw="query-pick"][data-field="${field}"]`)?.focus();
+              }
+              return;
+            }
             if (action === "record-edit-bindings") {
               recordExpanded = true;
               render(); node.querySelector('[data-prop="entries.0.key"]').focus();
@@ -3277,7 +3688,10 @@
         });
       }, actions: [...(flow.previewable(working) ? [{ id: "test", label: testLabel }] : []), { id: "cancel", label: tr("common_cancel", "取消") }, { id: "save", label: tr("common_confirm", "确定"), primary: true }],
       onAction: async (action, node) => {
-        if (action === "test") { void runPreview().catch(error => reportFailure(error, node.querySelector(".aw-error"))); return false; }
+        if (action === "test") {
+          void runPreview().catch(error => { focusQueryIssue(error); reportFailure(error, node.querySelector(".aw-error")); });
+          return false;
+        }
         if (action !== "save") return true;
         try {
           collectAll();
@@ -3289,6 +3703,7 @@
           snapshot(editor); Object.assign(editor.draft, clean); return true;
         }
         catch (error) {
+          focusQueryIssue(error);
           const target = node.querySelector(".aw-error");
           if (insertionOwner) {
             if (error.code !== "WORKFLOW_CONFIG_INVALID") view().reportFailure(error, null);
@@ -4293,15 +4708,20 @@
         let result;
         try { result = await view().rpc("reset"); }
         finally {
-          state.resetStatus = !result ? "" : result.steamPending
-            ? tr("workflow_ui_restored_defaults_steam_pending", "本地已恢复出厂设置，等待 Steam 重新连接。")
-            : tr("workflow_ui_restored_defaults", "自动化已恢复出厂设置。");
+          state.resetStatus = result?.steamPending
+            ? tr("workflow_ui_restored_defaults_steam_pending", "本地已恢复出厂设置，等待 Steam 重新连接。") : "";
           status.textContent = state.resetStatus;
         }
         state.bundle = result.workflow;
         state.steamPending = result.steamPending;
+        if (!state.node.isConnected) return;
         state.node.querySelector("[data-page-error]").textContent = "";
         if (state.tab === "history") await history(state); else renderPage(state);
+        if (!result.steamPending && state.node.isConnected) {
+          control.disabled = false;
+          await root.STSettingsDialogs.notice(state.shadow, { title: tr("common_success", "操作成功"),
+            message: tr("workflow_ui_restored_defaults", "自动化已恢复出厂设置。"), focus: control });
+        }
       }
       return;
     }
@@ -4403,7 +4823,8 @@
     if (before.length === after.length && before.every((tool, i) =>
       tool.id === after[i].id && tool.revision === after[i].revision && tool.executionId === after[i].executionId &&
       tool.name === after[i].name && tool.enabled === after[i].enabled && tool.note === after[i].note &&
-      JSON.stringify(tool.entryRow) === JSON.stringify(after[i].entryRow))) return;
+      JSON.stringify(tool.entryRow) === JSON.stringify(after[i].entryRow) &&
+      JSON.stringify(tool.entryGroups) === JSON.stringify(after[i].entryGroups))) return;
     state.bundle = model.normalize(bundle, { structureOnly: true });
     const focused = shadow.activeElement;
     const id = focused?.closest("[data-id]")?.dataset.id;

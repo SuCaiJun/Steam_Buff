@@ -3,18 +3,74 @@
   "name": "$text:.name",
   "note": "$text:.note",
   "revision": 1,
-  "executionId": "00000000-0000-4000-8000-000000000002",
+  "executionId": "00000000-0000-4000-8000-000000000003",
   "enabled": true,
   "description": "$text:.description",
-  "parameters": [],
+  "parameters": [
+    {
+      "name": "collectionId",
+      "type": "string",
+      "required": false,
+      "description": "$text:.parameters.collectionId",
+      "variableId": "var-collectionId"
+    },
+    {
+      "name": "name",
+      "type": "string",
+      "required": false,
+      "description": "$text:.parameters.name",
+      "variableId": "var-name"
+    }
+  ],
   "variables": [
+    {
+      "id": "var-collectionId",
+      "name": "collectionId",
+      "type": "text"
+    },
+    {
+      "id": "var-name",
+      "name": "name",
+      "type": "text"
+    },
     {
       "id": "var-groups",
       "name": "$text:.variables.groups",
       "type": "list"
+    },
+    {
+      "id": "var-args",
+      "name": "$text:.variables.filterParameters",
+      "type": "object"
     }
   ],
   "steps": [
+    {
+      "id": "step-arguments",
+      "kind": "action",
+      "action": "record",
+      "entries": [
+        {
+          "key": "collectionId",
+          "value": {
+            "source": "variable",
+            "id": "var-collectionId",
+            "path": []
+          },
+          "omitIfUnset": true
+        },
+        {
+          "key": "name",
+          "value": {
+            "source": "variable",
+            "id": "var-name",
+            "path": []
+          },
+          "omitIfUnset": true
+        }
+      ],
+      "output": "var-args"
+    },
     {
       "id": "step-groups",
       "kind": "action",
@@ -27,15 +83,22 @@
       "action": "tool-return",
       "value": {
         "expression": [
-          "({items:",
+          "((groups,args) => ({items:groups.filter(group => group.writable && (!args.collectionId || group.id === args.collectionId.trim()) && (!args.name || group.name.toLocaleLowerCase().includes(args.name.trim().toLocaleLowerCase()))).map(({id,name}) => ({id,name}))}))(",
           {
             "source": "variable",
             "id": "var-groups",
             "path": []
           },
-          ".filter(group => group.writable).map(({id,name}) => ({id,name}))})"
+          ",",
+          {
+            "source": "variable",
+            "id": "var-args",
+            "path": []
+          },
+          ")"
         ]
       }
     }
-  ]
+  ],
+  "providerInputVersion": 1
 }

@@ -2,7 +2,6 @@
   ".name": "Steam ストア検索",
   ".note": "キーワードや条件で Steam 中国ストアを検索し、結果をページごとに表示します。",
   ".variables.var-115.name": "取得結果",
-  ".variables.var-search-parameters.name": "ストア検索条件",
   ".description": "Steam の中国ストアでゲームや商品を検索し、現在価格、割引、レビュー概要、リンクを返します。すべての引数は任意で、AppID は不要です。50 元未満で簡体字中国語に対応したセール中のゲームを探す例：{\"types\":[\"游戏\"],\"discountsOnly\":true,\"priceBelow\":50,\"languages\":[\"schinese\"]}。返される金額はフェン単位です。items はこのページで条件に合った商品、candidateTotal はこのページの厳密な価格絞り込み前に Steam が返した候補総数です。nextStart に値があれば同じ条件で次のページを取得できます。\n\nゲーム名から AppID を調べるには、名前を term に指定します。ゲーム本編を探す場合は types に [\"游戏\"] を指定できます。items から名前が明確に一致し、type が app の項目を選び、その id を次のツールの appId に指定します。sub や bundle の id は AppID として使えません。",
   ".parameters.0.description": "ゲーム名や検索キーワード。最大 64 文字で、ゲームの原題も使えます。省略するとキーワードを指定せず検索します。",
   ".parameters.1.description": "表示価格が指定額未満の商品を検索します。単位は中国元で、小数第 2 位まで指定できます。50 を指定した場合、50 元ちょうどの商品は含まれません。freeOnly: true と併用できません。",

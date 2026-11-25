@@ -1,8 +1,7 @@
 {
   ".name": "查询我的游戏详情",
-  ".note": "按 AppID 查询当前账号在 Steam 库中的游戏详情、游玩时间、成就总数与已解锁数。",
-  ".description": "按 AppID 查询当前账号在 Steam 库中的游戏详情、游玩时间、成就总数与已解锁数。",
-  ".variables.args": "工具参数",
+  ".note": "按一个 AppID 查询当前 Steam 游戏库中的详情，包括名称、游玩时间和成就进度。found 为 false 表示该 AppID 不在库中。",
+  ".description": "按一个 AppID 查询当前 Steam 游戏库中的详情，包括名称、游玩时间和成就进度。found 为 false 表示该 AppID 不在库中。",
   ".variables.result": "查询结果",
-  ".parameters.0.description": "Steam 游戏 AppID 列表，传整数。"
+  ".parameters.0.description": "一个有效的 Steam AppID。"
 }

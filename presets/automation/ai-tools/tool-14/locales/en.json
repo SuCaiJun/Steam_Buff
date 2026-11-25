@@ -3,7 +3,7 @@
   ".note": "Read achievement source text, translation status and revisions. Use nextStart to fetch further pages.",
   ".parameters.appId": "Steam game AppID.",
   ".parameters.language": "Target language code, e.g. chinese_simplified.",
-  ".parameters.start": "Start offset. Use 0 first, then nextStart from the prior page.",
+  ".parameters.start": "Start offset. Omit for the first page (default 0); use nextStart from the previous page thereafter.",
   ".variables.source": "Source achievements",
   ".variables.records": "Saved translations",
   ".description": "Read achievement source text, translation status and revisions. Use nextStart to fetch further pages.",

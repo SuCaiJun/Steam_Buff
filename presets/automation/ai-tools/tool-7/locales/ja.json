@@ -9,5 +9,12 @@
   ".variables.error": "項目のエラー",
   ".description": "チャットモデルの実績翻訳を保存します。先に原文とリビジョンを取得してください。",
   ".error.badTranslation": "対象言語と、各 AppID の実績の原文・リビジョン・翻訳を指定してください。",
-  ".variables.prepared": "準備した変更"
+  ".variables.prepared": "準備した変更",
+  ".parameters.appId": "Steam ゲームの AppID（整数）。",
+  ".parameters.id": "取得した実績の id。",
+  ".parameters.title": "実績の原文タイトル。",
+  ".parameters.description": "実績の原文説明。空文字列も指定できます。",
+  ".parameters.revision": "取得した実績の revision。",
+  ".parameters.translatedTitle": "実績の翻訳タイトル。",
+  ".parameters.translatedDescription": "実績の翻訳説明。空文字列も指定できます。"
 }

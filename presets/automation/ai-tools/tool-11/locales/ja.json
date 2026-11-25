@@ -1,5 +1,5 @@
 {
-  ".name": "ゲームのカスタム表示名を設定",
+  ".name": "ゲームのカスタム名を一括設定",
   ".note": "翻訳名や指定の名前を Steam Buff のカスタム表示名として保存します。",
   ".parameters.changes": "各ゲームに Steam AppID と設定する名前を指定します。",
   ".variables.items": "項目別結果",
@@ -8,5 +8,7 @@
   ".variables.error": "項目のエラー",
   ".description": "翻訳名や指定の名前を Steam Buff のカスタム表示名として保存します。",
   ".error.badName": "有効な Steam AppID ごとに名前を 1 つ指定してください。",
-  ".variables.prepared": "準備した変更"
+  ".variables.prepared": "準備した変更",
+  ".parameters.appId": "Steam ゲームの AppID（整数）。",
+  ".parameters.name": "この AppID に設定する名前。"
 }

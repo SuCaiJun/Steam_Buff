@@ -936,7 +936,7 @@
   const isToolAppId = id => Number.isSafeInteger(id) && id > 0 && id <= TOOL_APP_ID_MAX;
   const PROVIDER_TOOL_IDS = Object.freeze({ game: "tool-1", players: "tool-2", prices: "tool-3", search: "tool-4",
     rename: "tool-5", collections: "tool-6", achievements: "tool-7", library: "tool-8", library_game: "tool-9", wishlist: "tool-10",
-    custom_name: "tool-11", game_names: "tool-12", writable_collections: "tool-13", achievement_sources: "tool-14" });
+    custom_name: "tool-11", game_names: "tool-12", writable_collections: "tool-13", achievement_sources: "tool-14", wishlist_game: "tool-15" });
   const STORE_SEARCH_TOOL_ID = PROVIDER_TOOL_IDS.search;
   const WEB_SEARCH_TOOL_ID = "web_search";
   const searchProvider = id => globalThis.STConfig.aiSearchProviders.find(provider => provider.id === id);
@@ -954,83 +954,45 @@
       throw Object.assign(new TypeError("搜索服务的提供商或 API 密钥无效"), { code: "CHAT_SEARCH_CONFIG" });
     return provider ? { provider, apiKey: value.apiKey } : null;
   }
-  const searchOptions = description => ({ type: "array", items: { type: "string" }, description });
-  const STORE_SEARCH_PROPERTIES = Object.freeze({
-    term: { type: "string", maxLength: 64, description: "Game name or search keyword, up to 64 characters. You can use the game's original name. Omit to search without a keyword." },
-    priceBelow: { type: "number", minimum: 0, description: "Final displayed price strictly below this amount in CNY, with up to two decimals. For example, 50 excludes ¥50.00. Incompatible with freeOnly: true." },
-    freeOnly: { type: "boolean", description: "Use true for Steam's Free price filter and keep items with a displayed price of zero. Omit priceBelow and leave hideFreeToPlay off when freeOnly is true." },
-    discountsOnly: { type: "boolean", description: "Use true to select Steam's Discounts & Events filter. With false or when omitted, include items without discounts." },
-    hideFreeToPlay: { type: "boolean", description: "Use true to hide free-to-play items. Incompatible with freeOnly: true." },
-    languages: searchOptions('Supported game language codes or Steam Simplified Chinese labels, e.g. ["schinese", "japanese"]. Omit for any language.'),
-    tags: searchOptions('Steam tags to include, e.g. ["独立", "解谜"]. Natural-language labels must match Steam’s Simplified Chinese catalog. IDs are strings, e.g. "492".'),
-    excludeTags: searchOptions('Steam tags to exclude, e.g. ["独立"] or ["492"]. Uses the same format as tags.'),
-    types: searchOptions('Store product types, e.g. ["游戏"] for games only or ["DLC"] for downloadable content. Accepts Steam Simplified Chinese labels or ID strings such as "998".'),
-    playerModes: searchOptions('Player modes, e.g. ["在线合作"]. Accepts Steam Simplified Chinese labels or ID strings.'),
-    features: searchOptions('Store features, e.g. ["Steam 云", "家庭共享"]. Accepts Steam Simplified Chinese labels or ID strings.'),
-    controllers: searchOptions('Controller support, e.g. ["Xbox 控制器支持"]. Accepts Steam Simplified Chinese labels or ID strings.'),
-    accessibility: searchOptions('Accessibility features, e.g. ["可调整难度"]. Accepts Steam Simplified Chinese labels or ID strings.'),
-    deck: searchOptions('Steam Deck compatibility, e.g. ["通过验证"] or ["3", "2"] for Verified and Playable.'),
-    vr: searchOptions('VR support, e.g. ["支持 VR"]. Accepts Steam Simplified Chinese labels or ID strings.'),
-    excludeVrOnly: { type: "boolean", description: "Use true to exclude VR-only items while allowing games that can also be played without VR." },
-    os: searchOptions('Supported operating systems, e.g. ["win", "mac", "linux"]. Also accepts Steam Simplified Chinese labels.'),
-    sortBy: { type: "string", enum: ["relevance", "releaseDate", "name", "priceAsc", "priceDesc", "reviews"],
-      description: "Sort by relevance (default), releaseDate (newest first), name (A–Z), priceAsc (lowest first), priceDesc (highest first), or reviews (Steam user review order)." },
-    start: { type: "integer", minimum: 0, description: "Page offset, default 0. Keep the same filters and sort order and pass the previous nextStart as start. Stop when nextStart is null. An empty items array can still have a nextStart." },
-  });
-  const idsProperty = { type: "array", items: { type: "integer", minimum: 1, maximum: TOOL_APP_ID_MAX }, description: "Steam 游戏 AppID 列表，传整数。" };
+  const storeSearchProperties = () => globalThis.STWorkflowFields.storeSearchProperties;
+  const idsProperty = { type: "array", minItems: 1, items: { type: "integer", minimum: 1, maximum: TOOL_APP_ID_MAX }, description: "Steam 游戏 AppID 列表，传整数。" };
   const pageProperty = { type: "integer", minimum: 0, description: "从 0 开始；翻页时使用上次返回的 nextStart。" };
-  const keywordProperty = { type: "string", description: "按游戏名称筛选，省略表示不限。" };
-  const accountOptions = (label, values) => ({ type: "array", items: { type: "string", enum: values.split(" ") },
-    description: `${label}。可选 ${values.replaceAll(" ", "、")}。` });
   const appIdProperty = { type: "integer", minimum: 1, maximum: TOOL_APP_ID_MAX };
   const nonemptyText = { type: "string", minLength: 1 };
   const changeList = (properties, required = Object.keys(properties)) => ({ type: "array", minItems: 1,
     items: { type: "object", additionalProperties: false, properties, required } });
-  const nameChanges = changeList({ appId: appIdProperty, name: nonemptyText });
+  const nameFields = { appId: appIdProperty, name: nonemptyText };
+  const nameChanges = changeList(nameFields);
+  const collectionIds = { type: "array", minItems: 1, items: nonemptyText };
   const collectionChanges = changeList({ appId: appIdProperty,
-    collectionIds: { type: "array", minItems: 1, items: nonemptyText } });
-  const achievementChanges = changeList({ appId: appIdProperty, translations: changeList({ id: nonemptyText,
-    title: { type: "string" }, description: { type: "string" }, revision: pageProperty,
-    translatedTitle: nonemptyText, translatedDescription: { type: "string" } }) });
+    collectionIds });
+  const achievementFields = { id: nonemptyText, title: { type: "string" }, description: { type: "string" },
+    revision: { type: "integer", minimum: 0, description: "Use the revision returned for this achievement by the read-achievements tool." },
+    translatedTitle: nonemptyText, translatedDescription: { type: "string" } };
+  const achievementChanges = changeList({ appId: appIdProperty, translations: changeList(achievementFields) });
   const ACCOUNT_TOOLS = Object.freeze(Object.fromEntries([
-    ["rename", "修改游戏自定义排序名称", "修改 Steam 游戏排序位置。", { changes: nameChanges }, ["changes"], true],
+    ["rename", "修改游戏自定义排序名称", "修改 Steam 游戏排序位置。", { ...nameFields, changes: nameChanges }, ["changes"], true],
     ["collections", "批量添加到收藏分组", "把游戏加入指定的可写收藏分组。", {
-      appIds: idsProperty, collection: nonemptyText, changes: collectionChanges,
+      appIds: idsProperty, collection: nonemptyText, collectionName: nonemptyText, collectionIds, changes: collectionChanges,
     }, [], true],
     ["achievements", "批量游戏成就翻译", "保存指定语言的成就译文。", {
-      language: nonemptyText, changes: achievementChanges,
+      language: nonemptyText, appId: appIdProperty, ...achievementFields, changes: achievementChanges,
     }, ["language", "changes"], true],
-    ["library", "查询我的 Steam 游戏库", "按游戏名称及可选筛选条件查询当前 Steam 库，返回 AppID、名称、游玩时间和翻页位置。", {
-      term: keywordProperty, start: pageProperty,
-      modes: accountOptions("游戏模式", "single multiplayer coop local_multiplayer"),
-      status: accountOptions("游戏状态", "ready installed played unplayed private"),
-      languages: searchOptions("支持的语言，如 schinese、english、japanese。"),
-      genres: accountOptions("游戏类型", "action adventure casual indie massively_multiplayer racing rpg simulation sports strategy"),
-      controllers: accountOptions("控制器", "controller_recommended controller_full controller_partial dualshock dualshock_bluetooth dualsense dualsense_bluetooth steam_input"),
-      deck: accountOptions("Steam Deck 兼容性", "deck_verified deck_playable deck_unsupported deck_unknown"),
-      vr: accountOptions("虚拟现实", "vr non_vr"),
-      features: accountOptions("特色", "trading_cards workshop achievements remote_play family_sharing"),
-      tags: searchOptions("Steam 商店标签的名称或数字 ID（以文字传入）。"),
-      friends: searchOptions("拥有该游戏的 Steam 好友精确昵称或好友代码。"),
-      gameplay: accountOptions("玩法辅助", "adjustable_difficulty save_anytime"),
-      visual: accountOptions("视觉辅助", "adjustable_text subtitles color_alternatives contrast camera_comfort playable_without_vision"),
-      audio: accountOptions("音频辅助", "custom_volume stereo surround narrated_menus"),
-      input: accountOptions("输入辅助", "keyboard_only mouse_only touch_only without_quick_time own_pace speech_to_text text_to_speech"),
-    }, []],
-    ["library_game", "查询我的游戏详情", "按 AppID 查询当前账号在 Steam 库中的游戏详情、游玩时间、成就总数与已解锁数。", { appIds: idsProperty }, ["appIds"]],
-    ["wishlist", "查询我的 Steam 愿望单", "查询当前账号的愿望单和添加时间，返回配置地区的 Steam 商店原价、现价、折扣和史低，并支持翻页。", {
-      start: pageProperty, appIds: idsProperty, discountsOnly: { type: "boolean", description: "仅返回目前有折扣的游戏。本页没有命中时，仍应按 nextStart 翻页。" },
-    }, []],
-    ["custom_name", "修改游戏自定义名称", "设置 Steam Buff 的独立自定义名称。", { changes: nameChanges }, ["changes"], true],
+    ["library", "筛选我的 Steam 游戏库", "按条件筛选整个 Steam 游戏库，排序后返回 AppID 列表。查询玩得最久时按累计游戏时间降序排序。", () => globalThis.STWorkflowFields.query.schema("library"), []],
+    ["library_game", "查询我的游戏详情", "按一个 AppID 查询当前账号 Steam 游戏库中的一条详情。", { appId: appIdProperty }, ["appId"]],
+    ["wishlist", "筛选我的 Steam 愿望单", "按条件筛选整个 Steam 愿望单，排序后返回 AppID 列表。", () => globalThis.STWorkflowFields.query.schema("wishlist"), []],
+    ["custom_name", "批量修改游戏自定义名称", "按 AppID 设置一款或多款游戏的 Steam Buff 独立自定义名称。", { ...nameFields, changes: nameChanges }, ["changes"], true],
     ["game_names", "读取游戏名称", "读取游戏官方名称和指定的当前名称字段。", {
       appIds: idsProperty, field: { type: "string", enum: ["sort", "custom"] },
     }, ["appIds", "field"]],
-    ["writable_collections", "查询可写收藏分组", "返回当前账号可写收藏分组的 ID 与名称。", {}, []],
+    ["writable_collections", "查询可写收藏分组", "返回当前账号可写收藏分组的 ID 与名称。", { collectionId: nonemptyText, name: nonemptyText }, []],
     ["achievement_sources", "读取游戏成就", "分页读取成就原文以及目标语言的译文状态。", {
       appId: appIdProperty, language: nonemptyText, start: pageProperty,
     }, ["appId", "language", "start"]],
+    ["wishlist_game", "批量查询我的 Steam 愿望单", "按 AppID 列表逐项查询当前账号愿望单中的详情和报价。", { appId: appIdProperty, appIds: idsProperty }, ["appId"]],
   ].map(([key, name, description, properties, required, writes = false]) => [key, Object.freeze({
-    id: PROVIDER_TOOL_IDS[key], label: "ai_chat_tool_" + key, name, description, properties, required, writes,
+    id: PROVIDER_TOOL_IDS[key], label: "ai_chat_tool_" + key, name, description, required, writes,
+    get properties() { return typeof properties === "function" ? properties() : properties; },
   })])));
   const CHAT_APPROVAL_MODES = Object.freeze(["ask", "read-only", "full"]);
   const CHAT_APPROVAL_VERSION = 2;
@@ -1051,7 +1013,7 @@
       description: tool.description,
       parameters: {
         type: "object",
-        properties: tool.properties ?? (search ? STORE_SEARCH_PROPERTIES : { appId: { type: "integer", minimum: 1, maximum: TOOL_APP_ID_MAX } }),
+        properties: tool.properties ?? (search ? storeSearchProperties() : { appId: { type: "integer", minimum: 1, maximum: TOOL_APP_ID_MAX } }),
         required: tool.required ?? (search ? [] : ["appId"]),
         additionalProperties: false,
       },
@@ -1149,7 +1111,7 @@
     modelListIssue,
     hostPermissionPattern,
     chatRequest,
-    CHAT_TOOLS, CHAT_APPROVAL_MODES, CHAT_APPROVAL_VERSION, ACCOUNT_TOOLS, PROVIDER_TOOL_IDS, TOOL_APP_ID_MAX, isToolAppId, STORE_SEARCH_TOOL_ID, STORE_SEARCH_PROPERTIES, toolSchema,
+    CHAT_TOOLS, CHAT_APPROVAL_MODES, CHAT_APPROVAL_VERSION, ACCOUNT_TOOLS, PROVIDER_TOOL_IDS, TOOL_APP_ID_MAX, isToolAppId, STORE_SEARCH_TOOL_ID, toolSchema,
     WEB_SEARCH_TOOL_ID, searchProvider, isSearchKey, searchSettingsState, normalizeSearchSettings,
     validateChatToolIds, chatToolsFromWorkflow,
     chatBody,
@@ -1164,4 +1126,5 @@
     chatReasoning,
     requestConfig,
   });
+  Object.defineProperty(api, "STORE_SEARCH_PROPERTIES", { get: storeSearchProperties, enumerable: true });
 })();

@@ -19,7 +19,7 @@
   const isEntryRow = node => flow.instruction(node?.action)?.entry === true;
   const entryKey = workflow => flow.entryInstruction(flow.instructionContext(workflow)).id;
   const usesParameters = workflow => flow.isToolId(workflow.id) || flow.isLibraryId(workflow.id);
-  const hasEntryData = workflow => !!workflow.description || flow.entryParameters(workflow).length > 0;
+  const hasEntryData = workflow => !!workflow.description || flow.entryParameters(workflow).length > 0 || workflow.entryGroups?.length > 0;
   function createEntryRow(workflow) {
     return { id: flow.numericId("step-", [...flow.walk(workflow.steps)]), kind: "action", action: entryKey(workflow) };
   }
@@ -61,7 +61,9 @@
   function clearEntryData(workflow) {
     const remaining = [...flow.walk(workflow.steps)].filter(node => node.action === entryKey(workflow));
     if (remaining.length === 1) delete remaining[0].draftDuplicateEntry;
-    if (remaining.length || !hasEntryData(workflow)) return;
+    if (remaining.length) return;
+    delete workflow.entryGroups;
+    if (!hasEntryData(workflow)) return;
     const ids = new Set(flow.entryParameters(workflow).map(parameter => parameter.variableId));
     workflow.variables = workflow.variables.filter(variable => !ids.has(variable.id));
     workflow[usesParameters(workflow) ? "parameters" : "inputParameters"] = [];
@@ -162,7 +164,7 @@
     const libraryOutputs = children.some(child => child.action === "library-return") ? workflow.outputs : undefined;
     for (const child of children) bindings(child, (object, key) => ids.add(object[key]), libraryOutputs);
     const key = entryKey(workflow), parameters = flow.entryParameters(workflow);
-    const entry = children.some(child => child.action === key) ? { key, description: workflow.description || "", parameters,
+    const entry = children.some(child => child.action === key) ? { key, description: workflow.description || "", parameters, groups: workflow.entryGroups,
       positions: Object.fromEntries(workflow.variables.map((item, index) => [item.id, index])) } : null;
     for (const parameter of entry?.parameters ?? []) ids.add(parameter.variableId);
     return flow.clone({ workflowId: workflow.id, node, cut, variables: workflow.variables.filter(item => ids.has(item.id)), entry, libraryOutputs });
@@ -216,6 +218,10 @@
         const name = inTool ? parameter.name : workflow.variables.find(variable => variable.id === variableId).name;
         return { ...parameter, name, variableId };
       });
+      if (entry.groups === undefined) delete workflow.entryGroups;
+      else workflow.entryGroups = entry.groups.map(group => ({
+        name: group.name, members: group.members.map(id => ids.get(id) ?? id),
+      }));
     }
     for (const node of nodes) {
       if (!move) { node.id = flow.numericId(node.kind === "fold" ? "fold-" : "step-", occupied); occupied.push(node); }

@@ -10630,7 +10630,7 @@
     "message": "分批翻译指定游戏尚无译文的成就，使用配置的目标语言。保存前会请求确认。"
   },
   "ai_chat_tool_library": {
-    "message": "查询我的 Steam 游戏库"
+    "message": "筛选我的 Steam 游戏库"
   },
   "workflow_command_steam_account_library_hint": {
     "message": "按游戏名称及可选筛选条件查询当前 Steam 库，返回 AppID、名称、游玩时间和翻页位置。"
@@ -10642,7 +10642,7 @@
     "message": "按 AppID 查询当前账号在 Steam 库中的游戏详情、游玩时间、成就总数与已解锁数。"
   },
   "ai_chat_tool_wishlist": {
-    "message": "查询我的 Steam 愿望单"
+    "message": "筛选我的 Steam 愿望单"
   },
   "workflow_command_steam_account_wishlist_hint": {
     "message": "查询当前账号的愿望单和添加时间，返回配置地区的 Steam 商店原价、现价、折扣和史低，并支持翻页。"
@@ -10904,6 +10904,138 @@
   },
   "workflow_query_filters": {
     "message": "查询参数"
+  },
+  "ai_chat_tool_wishlist_game": {
+    "message": "批量查询我的 Steam 愿望单"
+  },
+  "workflow_query_app_ids": {
+    "message": "AppID 列表"
+  },
+  "workflow_query_reconfigure": {
+    "message": "这条查询的输入已更新，请重新配置。"
+  },
+  "workflow_query_list_output": {
+    "message": "筛选结果需要保存到列表或动态变量。"
+  },
+  "workflow_query_limit": {
+    "message": "取前几项"
+  },
+  "ai_chat_query_unavailable": {
+    "message": "未能核实的条目"
+  },
+  "workflow_entry_group_add": {
+    "message": "添加分组"
+  },
+  "workflow_entry_group_edit": {
+    "message": "编辑分组"
+  },
+  "workflow_entry_group_delete": {
+    "message": "删除分组"
+  },
+  "workflow_entry_group_name": {
+    "message": "分组名称"
+  },
+  "workflow_entry_group_members": {
+    "message": "组内参数"
+  },
+  "workflow_entry_group_name_required": {
+    "message": "请填写分组名称"
+  },
+  "workflow_entry_group_name_duplicate": {
+    "message": "分组名称已存在"
+  },
+  "workflow_entry_group_invalid": {
+    "message": "参数分组格式无效"
+  },
+  "workflow_query_sort_group": {
+    "message": "排序与数量"
+  },
+  "workflow_query_conditions": {
+    "message": "筛选条件"
+  },
+  "workflow_query_no_options": {
+    "message": "没有匹配的选项"
+  },
+  "workflow_query_pick_required": {
+    "message": "请至少选择一项"
+  },
+  "workflow_query_operator_obsolete": {
+    "message": "请重新选择比较方式"
+  },
+  "workflow_query_store_term": {
+    "message": "关键词"
+  },
+  "workflow_query_store_pricebelow": {
+    "message": "现价低于"
+  },
+  "workflow_query_store_freeonly": {
+    "message": "仅免费"
+  },
+  "workflow_query_store_discountsonly": {
+    "message": "仅打折"
+  },
+  "workflow_query_store_hidefreetoplay": {
+    "message": "隐藏免费游戏"
+  },
+  "workflow_query_store_languages": {
+    "message": "游戏语言"
+  },
+  "workflow_query_store_tags": {
+    "message": "包含标签"
+  },
+  "workflow_query_store_excludetags": {
+    "message": "排除标签"
+  },
+  "workflow_query_store_types": {
+    "message": "商品类型"
+  },
+  "workflow_query_store_playermodes": {
+    "message": "游戏模式"
+  },
+  "workflow_query_store_features": {
+    "message": "游戏特色"
+  },
+  "workflow_query_store_controllers": {
+    "message": "控制器"
+  },
+  "workflow_query_store_accessibility": {
+    "message": "辅助功能"
+  },
+  "workflow_query_store_deck": {
+    "message": "Steam Deck"
+  },
+  "workflow_query_store_vr": {
+    "message": "VR"
+  },
+  "workflow_query_store_excludevronly": {
+    "message": "排除仅 VR"
+  },
+  "workflow_query_store_os": {
+    "message": "操作系统"
+  },
+  "workflow_query_store_sortby": {
+    "message": "排序方式"
+  },
+  "workflow_query_store_start": {
+    "message": "下一页起点"
+  },
+  "workflow_query_wishlist_name": {
+    "message": "游戏名称"
+  },
+  "workflow_query_wishlist_added": {
+    "message": "添加日期"
+  },
+  "workflow_query_wishlist_original": {
+    "message": "原价"
+  },
+  "workflow_query_wishlist_current": {
+    "message": "现价"
+  },
+  "workflow_query_wishlist_discounted": {
+    "message": "是否打折"
+  },
+  "workflow_query_wishlist_discount": {
+    "message": "折扣幅度"
   },
   "workflow_command_steam_game_details_hint": {
     "message": "按 AppID 查询 Steam 商店的公开游戏资料"
@@ -15063,7 +15195,7 @@
     "message": "此会话的联网搜索已关闭，请确认开关后重新发送。"
   },
   "ai_chat_tool_custom_name": {
-    "message": "修改游戏自定义名称"
+    "message": "批量修改游戏自定义名称"
   },
   "ai_chat_tool_game_names": {
     "message": "读取游戏名称"

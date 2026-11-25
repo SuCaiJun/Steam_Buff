@@ -10630,19 +10630,19 @@
     "message": "번역이 저장되지 않은 도전 과제를 설정한 언어로 번역하고 저장 전 확인합니다."
   },
   "ai_chat_tool_library": {
-    "message": "내 Steam 라이브러리 검색"
+    "message": "내 Steam 라이브러리 필터링"
   },
   "workflow_command_steam_account_library_hint": {
     "message": "이름이나 필터로 현재 Steam 라이브러리를 검색하고 페이지별 결과를 가져옵니다."
   },
   "ai_chat_tool_library_game": {
-    "message": "내 게임 상세 정보 조회"
+    "message": "라이브러리 게임 상세 조회"
   },
   "workflow_command_steam_account_game_hint": {
     "message": "AppID로 현재 계정의 플레이 시간과 전체 및 달성 도전 과제 수를 확인합니다."
   },
   "ai_chat_tool_wishlist": {
-    "message": "내 Steam 찜 목록 조회"
+    "message": "내 Steam 찜 목록 필터링"
   },
   "workflow_command_steam_account_wishlist_hint": {
     "message": "내 Steam 찜 목록의 추가 날짜, 지역별 가격, 할인율, 역대 최저가를 페이지별로 확인합니다."
@@ -10904,6 +10904,138 @@
   },
   "workflow_query_filters": {
     "message": "검색 매개변수"
+  },
+  "ai_chat_tool_wishlist_game": {
+    "message": "내 Steam 찜 목록 일괄 조회"
+  },
+  "workflow_query_app_ids": {
+    "message": "AppID 목록"
+  },
+  "workflow_query_reconfigure": {
+    "message": "조회 입력 형식이 변경되었습니다. 명령을 열어 다시 설정하세요."
+  },
+  "workflow_query_list_output": {
+    "message": "필터 결과는 목록 또는 동적 변수에 저장하세요."
+  },
+  "workflow_query_limit": {
+    "message": "상위 결과 수"
+  },
+  "ai_chat_query_unavailable": {
+    "message": "데이터를 확인하지 못한 항목"
+  },
+  "workflow_entry_group_add": {
+    "message": "그룹 추가"
+  },
+  "workflow_entry_group_edit": {
+    "message": "그룹 편집"
+  },
+  "workflow_entry_group_delete": {
+    "message": "그룹 삭제"
+  },
+  "workflow_entry_group_name": {
+    "message": "그룹 이름"
+  },
+  "workflow_entry_group_members": {
+    "message": "그룹 내 매개변수"
+  },
+  "workflow_entry_group_name_required": {
+    "message": "그룹 이름을 입력하세요"
+  },
+  "workflow_entry_group_name_duplicate": {
+    "message": "같은 이름의 그룹이 이미 있습니다"
+  },
+  "workflow_entry_group_invalid": {
+    "message": "매개변수 그룹 형식이 잘못되었습니다"
+  },
+  "workflow_query_sort_group": {
+    "message": "정렬 및 개수"
+  },
+  "workflow_query_conditions": {
+    "message": "필터 조건"
+  },
+  "workflow_query_no_options": {
+    "message": "일치하는 옵션이 없습니다"
+  },
+  "workflow_query_pick_required": {
+    "message": "옵션을 하나 이상 선택하세요"
+  },
+  "workflow_query_operator_obsolete": {
+    "message": "비교 방법을 다시 선택하세요"
+  },
+  "workflow_query_store_term": {
+    "message": "검색어"
+  },
+  "workflow_query_store_pricebelow": {
+    "message": "현재 가격 상한 미만"
+  },
+  "workflow_query_store_freeonly": {
+    "message": "무료만"
+  },
+  "workflow_query_store_discountsonly": {
+    "message": "할인 중만"
+  },
+  "workflow_query_store_hidefreetoplay": {
+    "message": "무료 플레이 제외"
+  },
+  "workflow_query_store_languages": {
+    "message": "지원 언어"
+  },
+  "workflow_query_store_tags": {
+    "message": "포함할 태그"
+  },
+  "workflow_query_store_excludetags": {
+    "message": "제외할 태그"
+  },
+  "workflow_query_store_types": {
+    "message": "상품 유형"
+  },
+  "workflow_query_store_playermodes": {
+    "message": "플레이 모드"
+  },
+  "workflow_query_store_features": {
+    "message": "기능"
+  },
+  "workflow_query_store_controllers": {
+    "message": "컨트롤러"
+  },
+  "workflow_query_store_accessibility": {
+    "message": "접근성"
+  },
+  "workflow_query_store_deck": {
+    "message": "Steam Deck"
+  },
+  "workflow_query_store_vr": {
+    "message": "VR"
+  },
+  "workflow_query_store_excludevronly": {
+    "message": "VR 전용 제외"
+  },
+  "workflow_query_store_os": {
+    "message": "운영체제"
+  },
+  "workflow_query_store_sortby": {
+    "message": "정렬 순서"
+  },
+  "workflow_query_store_start": {
+    "message": "다음 페이지 시작 위치"
+  },
+  "workflow_query_wishlist_name": {
+    "message": "게임 이름"
+  },
+  "workflow_query_wishlist_added": {
+    "message": "추가 날짜"
+  },
+  "workflow_query_wishlist_original": {
+    "message": "정상 가격"
+  },
+  "workflow_query_wishlist_current": {
+    "message": "현재 가격"
+  },
+  "workflow_query_wishlist_discounted": {
+    "message": "할인 중"
+  },
+  "workflow_query_wishlist_discount": {
+    "message": "할인율"
   },
   "workflow_command_steam_game_details_hint": {
     "message": "AppID로 Steam 상점의 공개 게임 정보 조회"
@@ -15063,7 +15195,7 @@
     "message": "이 대화의 웹 검색이 꺼졌습니다. 설정을 확인한 뒤 다시 보내세요."
   },
   "ai_chat_tool_custom_name": {
-    "message": "게임 사용자 지정 이름 변경"
+    "message": "게임 사용자 지정 이름 일괄 변경"
   },
   "ai_chat_tool_game_names": {
     "message": "게임 이름 조회"

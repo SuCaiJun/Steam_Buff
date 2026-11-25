@@ -9,5 +9,12 @@
   ".variables.error": "Item error",
   ".description": "Save achievement translations supplied by the chat model. Read achievement sources and revisions first.",
   ".error.badTranslation": "Provide the target language, source achievement text, revisions and translations for each AppID.",
-  ".variables.prepared": "Prepared change"
+  ".variables.prepared": "Prepared change",
+  ".parameters.appId": "Steam game AppID (integer).",
+  ".parameters.id": "Achievement id from the read result.",
+  ".parameters.title": "Original achievement title.",
+  ".parameters.description": "Original achievement description. May be an empty string.",
+  ".parameters.revision": "The revision from the read result for this achievement.",
+  ".parameters.translatedTitle": "Translated achievement title.",
+  ".parameters.translatedDescription": "Translated achievement description. May be an empty string."
 }

@@ -1,8 +1,7 @@
 {
   ".name": "批量添加到收藏分组",
-  ".note": "把游戏加入指定的可写收藏分组。请传入 appIds 与准确的 collection，或传入逐项 changes。",
+  ".note": "将游戏加入已有可写收藏分组。传 appIds 和 collectionIds 或唯一的 collectionName；不同游戏对应不同分组时传 changes。",
   ".parameters.appIds": "Steam 游戏 AppID 列表。",
-  ".parameters.collection": "全部游戏共用的现有可写分组精确名称或 ID。",
   ".parameters.changes": "也可逐项传入游戏 AppID 与明确的分组 ID 列表。",
   ".variables.items": "逐项结果",
   ".variables.item": "本项",
@@ -11,8 +10,10 @@
   ".variables.args": "工具参数",
   ".variables.groups": "可写收藏分组",
   ".variables.rows": "实际修改项",
-  ".description": "把游戏加入指定的可写收藏分组。请传入 appIds 与准确的 collection，或传入逐项 changes。",
-  ".error.badCollection": "请选择明确的可写收藏分组，可用 AppID 列表和精确分组名，或逐项传入 AppID 和分组 ID。",
+  ".description": "将游戏加入已有可写收藏分组。传 appIds 和 collectionIds 或唯一的 collectionName；不同游戏对应不同分组时传 changes。",
+  ".error.badCollection": "将游戏加入已有可写收藏分组。传 appIds 和 collectionIds 或唯一的 collectionName；不同游戏对应不同分组时传 changes。",
   ".error.noCollection": "未找到唯一可写的收藏分组，请确认分组 ID。",
-  ".variables.prepared": "准备的修改"
+  ".variables.prepared": "准备的修改",
+  ".parameters.collectionName": "完整可写收藏分组名称，须唯一匹配。",
+  ".parameters.collectionIds": "可写收藏分组 ID 列表。"
 }

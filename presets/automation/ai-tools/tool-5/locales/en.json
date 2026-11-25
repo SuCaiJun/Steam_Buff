@@ -8,5 +8,7 @@
   ".variables.error": "Item error",
   ".description": "Change the position of Steam games in the sort order.",
   ".error.badName": "Provide one explicit name per valid Steam AppID.",
-  ".variables.prepared": "Prepared change"
+  ".variables.prepared": "Prepared change",
+  ".parameters.appId": "Steam game AppID (integer).",
+  ".parameters.name": "The desired name for this AppID."
 }

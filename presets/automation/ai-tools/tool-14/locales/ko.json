@@ -3,7 +3,7 @@
   ".note": "도전 과제 원문과 번역 상태, 리비전을 페이지별로 조회합니다. 다음 페이지에는 nextStart를 사용하세요.",
   ".parameters.appId": "Steam 게임 AppID.",
   ".parameters.language": "대상 언어 코드(예: chinese_simplified).",
-  ".parameters.start": "시작 위치입니다. 처음에는 0, 이후에는 이전 페이지의 nextStart를 사용하세요.",
+  ".parameters.start": "첫 페이지는 생략할 수 있습니다(기본값 0). 다음 페이지에는 이전 페이지의 nextStart를 사용합니다.",
   ".variables.source": "도전 과제 원문",
   ".variables.records": "저장된 번역",
   ".description": "도전 과제 원문과 번역 상태, 리비전을 페이지별로 조회합니다. 다음 페이지에는 nextStart를 사용하세요.",

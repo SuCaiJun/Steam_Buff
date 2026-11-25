@@ -1,8 +1,7 @@
 {
-  ".name": "내 게임 상세 정보 조회",
-  ".note": "AppID로 현재 계정의 플레이 시간과 전체 및 달성 도전 과제 수를 확인합니다.",
-  ".description": "AppID로 현재 계정의 플레이 시간과 전체 및 달성 도전 과제 수를 확인합니다.",
-  ".variables.args": "도구 매개변수",
+  ".name": "라이브러리 게임 상세 조회",
+  ".note": "AppID 하나로 라이브러리의 게임 이름, 플레이 시간 및 도전 과제 진행도를 조회합니다. found가 false면 라이브러리에 없는 게임입니다.",
+  ".description": "AppID 하나로 라이브러리의 게임 이름, 플레이 시간 및 도전 과제 진행도를 조회합니다. found가 false면 라이브러리에 없는 게임입니다.",
   ".variables.result": "조회 결과",
-  ".parameters.0.description": "Steam AppID 정수 목록입니다."
+  ".parameters.0.description": "유효한 Steam AppID 하나."
 }

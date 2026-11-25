@@ -3,7 +3,7 @@
   "name": "$text:.name",
   "note": "$text:.note",
   "revision": 1,
-  "executionId": "00000000-0000-4000-8000-000000000002",
+  "executionId": "00000000-0000-4000-8000-000000000003",
   "enabled": true,
   "description": "$text:.description",
   "parameters": [
@@ -15,11 +15,18 @@
       "variableId": "var-appIds"
     },
     {
-      "name": "collection",
+      "name": "collectionIds",
+      "type": "array",
+      "required": false,
+      "description": "$text:.parameters.collectionIds",
+      "variableId": "var-collectionIds"
+    },
+    {
+      "name": "collectionName",
       "type": "string",
       "required": false,
-      "description": "$text:.parameters.collection",
-      "variableId": "var-collection"
+      "description": "$text:.parameters.collectionName",
+      "variableId": "var-collectionName"
     },
     {
       "name": "changes",
@@ -36,8 +43,13 @@
       "type": "list"
     },
     {
-      "id": "var-collection",
-      "name": "collection",
+      "id": "var-collectionIds",
+      "name": "collectionIds",
+      "type": "list"
+    },
+    {
+      "id": "var-collectionName",
+      "name": "collectionName",
       "type": "text"
     },
     {
@@ -102,10 +114,10 @@
           "omitIfUnset": true
         },
         {
-          "key": "collection",
+          "key": "collectionName",
           "value": {
             "source": "variable",
-            "id": "var-collection",
+            "id": "var-collectionName",
             "path": []
           },
           "omitIfUnset": true
@@ -131,7 +143,7 @@
             "op": "isFalse",
             "left": {
               "expression": [
-                "((a) => a.changes !== undefined ? !Object.hasOwn(a,'appIds') && !Object.hasOwn(a,'collection') && a.changes.length > 0 && a.changes.every(row => row && (id => Number.isInteger(id) && id >= 1 && id <= 4294967295)(row.appId) && Array.isArray(row.collectionIds) && row.collectionIds.length > 0 && row.collectionIds.every(id => typeof id === 'string' && id.trim())) : a.appIds?.length > 0 && a.appIds.every((id => Number.isInteger(id) && id >= 1 && id <= 4294967295)) && !!a.collection?.trim())(",
+                "((a) => a.changes !== undefined ? a.changes.length > 0 && a.changes.every(row => row && (id => Number.isInteger(id) && id >= 1 && id <= 4294967295)(row.appId) && Array.isArray(row.collectionIds) && row.collectionIds.length > 0 && row.collectionIds.every(id => typeof id === 'string' && id.trim())) : a.appIds?.length > 0 && a.appIds.every((id => Number.isInteger(id) && id >= 1 && id <= 4294967295)) && !!a.collectionName?.trim())(",
                 {
                   "source": "variable",
                   "id": "var-args",
@@ -170,7 +182,7 @@
       "action": "list",
       "value": {
         "expression": [
-          "((a,groups) => { if (a.changes) { const ids = new Map(); for (const row of a.changes) { const list = ids.get(row.appId) ?? new Set(); for (const id of row.collectionIds) list.add(id.trim()); ids.set(row.appId,list); } return Array.from(ids, ([appId, list]) => ({appId, collectionIds:[...list]})); } const name = a.collection.trim(); const writable = groups.filter(group => group.writable); const exact = writable.find(group => group.id === name); const matches = exact ? [exact] : writable.filter(group => group.name === name); return matches.length === 1 ? Array.from(new Set(a.appIds),appId => ({appId,collectionIds:[matches[0].id]})) : []; })(",
+          "((a,groups) => { if (a.changes) { const ids = new Map(); for (const row of a.changes) { const list = ids.get(row.appId) ?? new Set(); for (const id of row.collectionIds) list.add(id.trim()); ids.set(row.appId,list); } return Array.from(ids, ([appId, list]) => ({appId, collectionIds:[...list]})); } const name = a.collectionName.trim(); const writable = groups.filter(group => group.writable); const matches = writable.filter(group => group.name === name); return matches.length === 1 ? Array.from(new Set(a.appIds),appId => ({appId,collectionIds:[matches[0].id]})) : []; })(",
           {
             "source": "variable",
             "id": "var-args",
@@ -387,5 +399,6 @@
         ]
       }
     }
-  ]
+  ],
+  "providerInputVersion": 1
 }

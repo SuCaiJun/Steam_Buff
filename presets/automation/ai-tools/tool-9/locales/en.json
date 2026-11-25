@@ -1,8 +1,7 @@
 {
-  ".name": "Get my game details",
-  ".note": "Look up your playtime, total achievements, and unlocked achievements for the supplied Steam AppIDs.",
-  ".description": "Look up your playtime, total achievements, and unlocked achievements for the supplied Steam AppIDs.",
-  ".variables.args": "Tool parameters",
+  ".name": "Get my Steam game details",
+  ".note": "Read one library game by AppID, including names, playtime and achievement progress. found:false means the game is absent from the library.",
+  ".description": "Read one library game by AppID, including names, playtime and achievement progress. found:false means the game is absent from the library.",
   ".variables.result": "Query result",
-  ".parameters.0.description": "List of Steam AppIDs as integers."
+  ".parameters.0.description": "One valid Steam AppID."
 }

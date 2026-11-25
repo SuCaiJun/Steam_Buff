@@ -404,7 +404,22 @@
       return [tool && node.toolMode === "registered" ? token(tool.name) : hint(id), ...output(node.output)];
     }
     const query = flow.providerQueries[id];
-    if (query) return [query.argument === "appId" ? "AppID" : schemaLabel("查询参数"), " · ", ...value(node[query.argument]), ...output(node.output)];
+    if (query) {
+      if (flow.outdatedQuery(node)) return [tr("workflow_query_reconfigure", "这条查询的输入已更新，请重新配置。")];
+      if (query.argument === "appId" || query.legacy)
+        return [query.legacy ? schemaLabel("查询参数") : "AppID", " · ", ...value(node[query.argument || "taskArgs"]), ...output(node.output)];
+      const active = field => {
+        const item = flow.activeValue(node[field.key]);
+        return item && (!Object.hasOwn(item, "literal") || item.literal !== "" && (!Array.isArray(item.literal) || item.literal.length));
+      };
+      const fields = query.fields.filter(field => (field.key !== "conditions" || node.conditionMode === "custom") && active(field));
+      const controls = fields.flatMap((field, index) => [index ? " · " : "", field.key === "conditions" ? tr("workflow_query_conditions", "筛选条件")
+        : field.key === "limit" ? tr("workflow_query_limit", "取前几项") : field.labelKey ? tr(field.labelKey, field.label) : schemaLabel(field.label),
+        " ", ...value(node[field.key], schemaChoices(field.choices ?? []))]);
+      const fixed = Object.keys(node.filterRows ?? {}).length;
+      if (fixed) controls.unshift(tr("workflow_format_field_count", "$count$ 个字段", { count: fixed }), fields.length ? " · " : "");
+      return [...(controls.length ? controls : [hint(id)]), ...output(node.output)];
+    }
     if (id === "library-call") {
       const library = editor.customLibraries?.find(item => item.id === node.libraryId);
       return [token(library?.name || hint(id)), ...Object.values(node.libraryOutputs ?? {}).flatMap(output)];

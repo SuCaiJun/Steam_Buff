@@ -1,0 +1,10 @@
+{
+  ".name": "내 Steam 찜 목록 일괄 조회",
+  ".note": "각 AppID의 찜 목록 항목, 지역, 현재 가격, 할인 및 확인 가능한 역대 최저가를 반환합니다. found=false는 목록에 없는 항목입니다.",
+  ".description": "각 AppID의 찜 목록 항목, 지역, 현재 가격, 할인 및 확인 가능한 역대 최저가를 반환합니다. found=false는 목록에 없는 항목입니다.",
+  ".variables.result": "조회 결과",
+  ".variables.detail": "조회 결과 · AppID",
+  ".parameters.appIds": "유효한 Steam AppID(정수)를 하나 이상 입력합니다.",
+  ".variables.appId": "현재 AppID",
+  ".variables.index": "인덱스"
+}

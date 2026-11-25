@@ -10630,19 +10630,19 @@
     "message": "Translate achievements with no saved translation into the configured language. Ask for confirmation before saving."
   },
   "ai_chat_tool_library": {
-    "message": "Search my Steam library"
+    "message": "Filter my Steam library"
   },
   "workflow_command_steam_account_library_hint": {
     "message": "Search the active Steam library with optional filters and pagination. Return AppID, game name, playtime, and nextStart."
   },
   "ai_chat_tool_library_game": {
-    "message": "Get my game details"
+    "message": "Get my Steam game details"
   },
   "workflow_command_steam_account_game_hint": {
     "message": "Look up your playtime, total achievements, and unlocked achievements for the supplied Steam AppIDs."
   },
   "ai_chat_tool_wishlist": {
-    "message": "Get my Steam wishlist"
+    "message": "Filter my Steam wishlist"
   },
   "workflow_command_steam_account_wishlist_hint": {
     "message": "List your Steam wishlist with dates added, regional price, discounts, and Steam historical lows. Use nextStart to advance."
@@ -10904,6 +10904,138 @@
   },
   "workflow_query_filters": {
     "message": "Search parameters"
+  },
+  "ai_chat_tool_wishlist_game": {
+    "message": "Batch query my Steam wishlist"
+  },
+  "workflow_query_app_ids": {
+    "message": "AppID list"
+  },
+  "workflow_query_reconfigure": {
+    "message": "This query's inputs have changed. Open the instruction and reconfigure it."
+  },
+  "workflow_query_list_output": {
+    "message": "Save filter results to a list or dynamic variable."
+  },
+  "workflow_query_limit": {
+    "message": "Top results"
+  },
+  "ai_chat_query_unavailable": {
+    "message": "Entries with unavailable data"
+  },
+  "workflow_entry_group_add": {
+    "message": "Add group"
+  },
+  "workflow_entry_group_edit": {
+    "message": "Edit group"
+  },
+  "workflow_entry_group_delete": {
+    "message": "Delete group"
+  },
+  "workflow_entry_group_name": {
+    "message": "Group name"
+  },
+  "workflow_entry_group_members": {
+    "message": "Parameters in group"
+  },
+  "workflow_entry_group_name_required": {
+    "message": "Enter a group name"
+  },
+  "workflow_entry_group_name_duplicate": {
+    "message": "A group with this name already exists"
+  },
+  "workflow_entry_group_invalid": {
+    "message": "Invalid parameter group"
+  },
+  "workflow_query_sort_group": {
+    "message": "Sort and limit"
+  },
+  "workflow_query_conditions": {
+    "message": "Filter conditions"
+  },
+  "workflow_query_no_options": {
+    "message": "No matching options"
+  },
+  "workflow_query_pick_required": {
+    "message": "Select at least one option"
+  },
+  "workflow_query_operator_obsolete": {
+    "message": "Choose a supported comparison"
+  },
+  "workflow_query_store_term": {
+    "message": "Keyword"
+  },
+  "workflow_query_store_pricebelow": {
+    "message": "Price below"
+  },
+  "workflow_query_store_freeonly": {
+    "message": "Free only"
+  },
+  "workflow_query_store_discountsonly": {
+    "message": "On sale only"
+  },
+  "workflow_query_store_hidefreetoplay": {
+    "message": "Hide free-to-play"
+  },
+  "workflow_query_store_languages": {
+    "message": "Game languages"
+  },
+  "workflow_query_store_tags": {
+    "message": "Include tags"
+  },
+  "workflow_query_store_excludetags": {
+    "message": "Exclude tags"
+  },
+  "workflow_query_store_types": {
+    "message": "Product types"
+  },
+  "workflow_query_store_playermodes": {
+    "message": "Player modes"
+  },
+  "workflow_query_store_features": {
+    "message": "Features"
+  },
+  "workflow_query_store_controllers": {
+    "message": "Controllers"
+  },
+  "workflow_query_store_accessibility": {
+    "message": "Accessibility"
+  },
+  "workflow_query_store_deck": {
+    "message": "Steam Deck"
+  },
+  "workflow_query_store_vr": {
+    "message": "VR"
+  },
+  "workflow_query_store_excludevronly": {
+    "message": "Exclude VR-only"
+  },
+  "workflow_query_store_os": {
+    "message": "Operating systems"
+  },
+  "workflow_query_store_sortby": {
+    "message": "Sort by"
+  },
+  "workflow_query_store_start": {
+    "message": "Next page offset"
+  },
+  "workflow_query_wishlist_name": {
+    "message": "Game title"
+  },
+  "workflow_query_wishlist_added": {
+    "message": "Date added"
+  },
+  "workflow_query_wishlist_original": {
+    "message": "Original price"
+  },
+  "workflow_query_wishlist_current": {
+    "message": "Current price"
+  },
+  "workflow_query_wishlist_discounted": {
+    "message": "Discounted"
+  },
+  "workflow_query_wishlist_discount": {
+    "message": "Discount percentage"
   },
   "workflow_command_steam_game_details_hint": {
     "message": "Look up public Steam store game details by AppID"
@@ -15063,7 +15195,7 @@
     "message": "Web search was turned off for this conversation. Check the toggle and send again."
   },
   "ai_chat_tool_custom_name": {
-    "message": "Set custom game names"
+    "message": "Batch set custom game names"
   },
   "ai_chat_tool_game_names": {
     "message": "Read game names"

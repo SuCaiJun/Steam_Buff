@@ -1,8 +1,7 @@
 {
-  ".name": "自分のゲーム詳細を取得",
-  ".note": "AppID で現在のアカウントのプレイ時間と実績数、解除済み数を取得します。",
-  ".description": "AppID で現在のアカウントのプレイ時間と実績数、解除済み数を取得します。",
-  ".variables.args": "ツールパラメーター",
-  ".variables.result": "取得結果",
-  ".parameters.0.description": "Steam AppID の整数リスト。"
+  ".name": "ライブラリのゲーム詳細を取得",
+  ".note": "単一の AppID でライブラリ内の名前、プレイ時間、実績進捗を取得します。found が false の場合はライブラリにありません。",
+  ".description": "単一の AppID でライブラリ内の名前、プレイ時間、実績進捗を取得します。found が false の場合はライブラリにありません。",
+  ".variables.result": "検索結果",
+  ".parameters.0.description": "有効な Steam AppID 1 件。"
 }

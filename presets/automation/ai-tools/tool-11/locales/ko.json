@@ -1,5 +1,5 @@
 {
-  ".name": "게임 사용자 지정 이름 변경",
+  ".name": "게임 사용자 지정 이름 일괄 변경",
   ".note": "번역하거나 지정한 이름을 Steam Buff 독립 사용자 지정 이름으로 저장합니다.",
   ".parameters.changes": "각 게임의 Steam AppID와 확정된 새 이름을 입력하세요.",
   ".variables.items": "항목별 결과",
@@ -8,5 +8,7 @@
   ".variables.error": "항목 오류",
   ".description": "번역하거나 지정한 이름을 Steam Buff 독립 사용자 지정 이름으로 저장합니다.",
   ".error.badName": "각 유효한 Steam AppID에 이름을 하나씩 지정하세요.",
-  ".variables.prepared": "준비된 변경"
+  ".variables.prepared": "준비된 변경",
+  ".parameters.appId": "Steam 게임 AppID(정수).",
+  ".parameters.name": "이 AppID에 설정할 이름입니다."
 }

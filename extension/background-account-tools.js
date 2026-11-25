@@ -19,14 +19,18 @@
   const writes = Object.freeze({ rename: "steam-set-sort-name", custom_name: "steam-set-custom-name",
     collections: "steam-add-collections", achievements: "steam-save-translations" });
   const accountAction = tool => Object.keys(root.STAI.ACCOUNT_TOOLS).find(key => root.STAI.ACCOUNT_TOOLS[key].id === tool.id);
+  const wishlistPriceBatch = 25;
+  const queryRules = () => root.STWorkflowFields.query;
 
   function writeApprovalTargets(tool, args) {
     if (!args) return [];
     const action = accountAction(tool), targets = new Map();
     if (action === "collections" && !Object.hasOwn(args, "changes")) {
-      if (typeof args.collection !== "string" || !args.collection.trim() || !Array.isArray(args.appIds) ||
+      const selection = args.collectionName ?? args.collection;
+      if (typeof selection !== "string" || !selection.trim() || !Array.isArray(args.appIds) ||
           !args.appIds.length || !args.appIds.every(root.STAI.isToolAppId)) return [];
-      return [...new Set(args.appIds)].map(appId => ({ appId, collection: args.collection.trim() }));
+      const key = Object.hasOwn(args, "collectionName") ? "collectionName" : "collection";
+      return [...new Set(args.appIds)].map(appId => ({ appId, [key]: selection.trim() }));
     }
     if (!Array.isArray(args.changes) || (action === "collections" && ("appIds" in args || "collection" in args))) return [];
     for (const row of args.changes) {
@@ -65,9 +69,11 @@
     if (target.sortName !== undefined || target.customName !== undefined)
       return operation.name === (target.sortName ?? target.customName);
     if (target.collectionIds) return operation.ids.every(id => target.collectionIds.includes(id));
-    if (target.collection) {
-      const exact = groups.find(group => group.id === target.collection);
-      const named = exact ? [exact] : groups.filter(group => group.name === target.collection);
+    if (target.collection || target.collectionName) {
+      const selection = target.collectionName ?? target.collection;
+      const named = groups.filter(group => group.name === selection);
+      const exact = target.collection && groups.find(group => group.id === target.collection);
+      if (exact) return operation.ids.length === 1 && operation.ids[0] === exact.id;
       return named.length === 1 && operation.ids.length === 1 && operation.ids[0] === named[0].id;
     }
     return operation.language === target.language && operation.batches.every(batch => batch.every(entry => {
@@ -80,6 +86,11 @@
 
   /** 校验登记的账号工具输入，去重时保持原请求顺序。 */
   function argumentsFor(tool, input) {
+    const action = accountAction(tool);
+    if (action === "library" || action === "wishlist") {
+      queryRules().validate(action, input);
+      return input;
+    }
     if (!input || typeof input !== "object" || Array.isArray(input) ||
       tool.required.some(key => !Object.hasOwn(input, key))) throw toolError("Steam 工具缺少必要参数", "CHAT_TOOL_INVALID");
     const args = {};
@@ -89,7 +100,7 @@
       if (property?.type === "array") {
         valid = Array.isArray(value) && (key === "appIds" ? value.length > 0 && value.every(root.STAI.isToolAppId)
           : value.every(item => typeof item === "string" && item.trim() && (!property.items.enum || property.items.enum.includes(item))));
-      } else if (property?.type === "integer") valid = safeCount(value);
+      } else if (property?.type === "integer") valid = key === "appId" ? root.STAI.isToolAppId(value) : safeCount(value);
       else if (property?.type === "boolean") valid = typeof value === "boolean";
       else if (property?.type === "string") valid = typeof value === "string";
       if (!valid) throw toolError("Steam 工具参数无效：" + key, "CHAT_TOOL_INVALID");
@@ -103,6 +114,75 @@
     return { items, changed: items.filter(item => item.status === "saved" || item.savedCount > 0).length,
       skipped: items.filter(item => item.status === "skipped").length,
       failed: items.filter(item => ["failed", "partial", "uncertain"].includes(item.status)).length };
+  }
+
+  function actualValue(kind, row, condition) {
+    const value = row.values[condition.field];
+    if (condition.field === "status" && !row.playStatusKnown) {
+      if (condition.value.some(id => id === "played" || id === "unplayed") &&
+          !queryRules().matches(kind, { ...condition, op: "contains" }, value)) return null;
+    }
+    return value;
+  }
+
+  async function selectRows(kind, rows, conditions, unavailable, signal) {
+    const rules = queryRules();
+    for (const condition of conditions) {
+      signal.throwIfAborted();
+      const candidates = rows.filter(row => {
+        const actual = actualValue(kind, row, condition);
+        if (actual == null && condition.op !== "unknown") unavailable.add(row.appId);
+        return condition.op === "regex" ? actual != null : rules.matches(kind, condition, actual);
+      });
+      if (condition.op !== "regex" || !candidates.length) { rows = candidates; continue; }
+      const values = candidates.map(row => rules.regexValues(actualValue(kind, row, condition)));
+      // 用户正则只在已有可中断的隔离 Worker 中执行。
+      const mask = await root.STWorkflowScript.run({ id: "account-filter-" + root.crypto.randomUUID(), signal,
+        code: 'const pattern = new RegExp(inputs.pattern, "i"); return inputs.values.map(row => row.some(text => pattern.test(text)));',
+        inputs: { pattern: condition.value, values } });
+      if (!Array.isArray(mask) || mask.length !== candidates.length || mask.some(item => typeof item !== "boolean"))
+        throw new TypeError("筛选正则返回格式异常");
+      rows = candidates.filter((_row, index) => mask[index]);
+    }
+    return rows;
+  }
+
+  function rankedRows(kind, rows, request, original, unavailable) {
+    const field = queryRules().sortByField(kind, request.sortBy);
+    const collator = new Intl.Collator(undefined, { numeric: true, sensitivity: "base" });
+    const direction = request.direction === "desc" ? -1 : 1;
+    for (const row of rows) if (row.values[field] == null) unavailable.add(row.appId);
+    rows.sort((left, right) => {
+      const a = left.values[field], b = right.values[field];
+      const compared = a == null || b == null ? Number(a == null) - Number(b == null)
+        : direction * (typeof a === "string" ? collator.compare(a, b) : a - b);
+      return compared || left.appId - right.appId;
+    });
+    const matched = rows.length, selected = rows.slice(0, request.limit);
+    const libraryRank = { playtime_minutes: "playtimeMinutes", recentPlaytimeMinutes: "recentPlaytimeMinutes", date_last_played: "lastPlayedAt", date_added: "addedAt" };
+    const items = selected.map(row => {
+      const item = { appId: row.appId, name: row.name };
+      if (kind === "wishlist") {
+        if (field === "priority") item.priority = row.priority;
+        else if (field === "addedAt") item.addedAt = row.addedAt;
+        else if (field === "discountPercent") item.discountPercent = row.values.discountPercent;
+        else if (field === "currentPrice") item.currentPrice = row.current ? {
+          amount: row.current.currentMinor / 100, currency: row.current.currency,
+        } : null;
+        return item;
+      }
+      const rank = libraryRank[field];
+      const value = row.values[field];
+      if (rank) item[rank] = root.STWorkflowFields.dates.has(field) && value != null ? new Date(value).toISOString() : value;
+      return item;
+    });
+    return { appIds: selected.map(row => row.appId), items, matched, unavailable: unavailable.size,
+      conditions: original.conditions ?? [], sortBy: request.sortBy, direction: request.direction };
+  }
+
+  function addPersonalNames(row, fields, reader) {
+    const record = reader?.(row.appId);
+    for (const field of fields) row.values[field] = reader ? record?.[field] ?? (field === "aliases" ? [] : "") : null;
   }
 
   /** 账号工具共享同一真实 Steam 会话和调用预算。读取和写入拒绝切换账号后的结果。 */
@@ -298,28 +378,105 @@
       };
     }
 
-    async function wishlist(args, query, signal) {
-      const data = await query("wishlist", args);
+    async function library(args, query, signal, personalNames) {
+      const rules = queryRules();
+      let request = rules.validate("library", args);
+      const needed = rules.dynamicOptions.filter(field => request.conditions.some(condition => condition.field === field && condition.value !== undefined));
+      if (needed.length) {
+        const catalogs = await query("filter-options", { fields: needed });
+        for (const field of needed) rules.validateCatalog(field, catalogs?.[field]);
+        request = rules.validate("library", args, catalogs);
+      }
+      const fields = [...new Set([...request.conditions.map(({ field }) => field), rules.sortByField("library", request.sortBy)])];
+      const personal = fields.filter(field => root.STWorkflowFields.personalNames.includes(field));
+      const { items } = await query("library", { fields });
+      const names = personal.length || fields.includes("current") ? await personalNames?.(personal.length > 0) : undefined;
+      for (const row of items) {
+        addPersonalNames(row, personal, names?.record);
+        if (fields.includes("current") && names) row.values.current = names.current(row);
+      }
+      const unavailable = new Set();
+      const selected = await selectRows("library", items, request.conditions, unavailable, signal);
+      return rankedRows("library", selected, request, args, unavailable);
+    }
+
+    async function wishlist(args, items, query, signal, checkOwner, withDetails) {
+      const rules = queryRules(), request = rules.validate("wishlist", args), unavailable = new Set();
+      const onPrice = ({ field }) => rules.priceFields.includes(field);
+      const prices = request.conditions.filter(onPrice);
+      let rows = Array.from(items.values(), item => ({ ...item, values: { appid: item.appId, priority: item.priority,
+        addedAt: item.addedAt === null ? null : Date.parse(item.addedAt) } }));
+      const nameConditions = request.conditions.filter(condition => condition.field === "name");
+      rows = await selectRows("wishlist", rows, request.conditions.filter(condition => condition.field !== "name" && !onPrice(condition)), unavailable, signal);
+      const readNames = async (candidates, complete = false) => {
+        const names = await query("wishlist-names", { appIds: candidates.map(row => row.appId) });
+        const byId = new Map(names.map(row => [row.appId, row.name]));
+        if (complete) {
+          const missing = candidates.filter(row => !byId.get(row.appId));
+          for (let index = 0; index < missing.length; index += 4) {
+            await checkOwner();
+            await Promise.all(missing.slice(index, index + 4).map(async ({ appId }) => {
+              const game = await deps.steamGame(appId, signal);
+              if (game.found) byId.set(appId, game.name);
+            }));
+          }
+        }
+        return byId;
+      };
+      const namesNeeded = nameConditions.length > 0 || request.sortBy === "name";
+      if (namesNeeded && rows.length) {
+        const names = await readNames(rows, true);
+        for (const row of rows) row.name = row.values.name = names.get(row.appId) ?? null;
+        rows = await selectRows("wishlist", rows, nameConditions, unavailable, signal);
+      }
+      const finish = async extra => {
+        const result = rankedRows("wishlist", rows, request, args, unavailable);
+        if (withDetails && !namesNeeded && result.items.length) {
+          const names = await readNames(result.items);
+          for (const row of result.items) row.name = names.get(row.appId) ?? null;
+        }
+        return { ...result, ...extra };
+      };
+      if ((!prices.length && !rules.priceFields.includes(request.sortBy)) || !rows.length) return finish();
       const config = await storage.getThirdPartyServices({ strict: true });
       const country = config.isthereanydeal.country;
-      if (!data.items.length) return { ...data, country, priceStatus: "empty" };
-      const ids = data.items.map(item => item.appId);
-      const [current, low] = await Promise.all([deps.wishlistPrices(ids, country, signal), deps.wishlistLows(ids, config, country, signal)]);
-      signal.throwIfAborted();
-      const rows = [];
-      for (const item of data.items) {
-        signal.throwIfAborted();
-        let name = item.name;
-        if (!name) {
-          const game = await deps.steamGame(item.appId, signal);
-          if (game.found) name = game.name;
+      let currency;
+      for (let index = 0; index < rows.length; index += wishlistPriceBatch) {
+        const batch = rows.slice(index, index + wishlistPriceBatch);
+        await checkOwner();
+        const current = await deps.wishlistPrices(batch.map(item => item.appId), country, signal);
+        if (current.status !== "ok") throw toolError("Steam 愿望单查价失败", current.status);
+        for (const item of batch) {
+          const quote = current.prices[item.appId] ?? null;
+          if (quote) {
+            currency ??= quote.currency;
+            if (currency !== quote.currency) throw toolError("Steam 价格返回了不同币种", "AI_TOOL_RESPONSE_INVALID");
+          }
+          item.current = quote;
+          Object.assign(item.values, { originalPrice: quote?.originalMinor ?? null, currentPrice: quote?.currentMinor ?? null,
+            discounted: quote ? quote.discountPercent > 0 : null, discountPercent: quote?.discountPercent ?? null });
         }
-        const quote = current.prices[item.appId] ?? null;
-        if (args.discountsOnly && !(quote?.discountPercent > 0)) continue;
-        rows.push({ ...item, name, current: quote, historicalLow: low.prices[item.appId] ?? null,
-          url: root.STConfig.vendors.steamStore.app(item.appId) });
       }
-      return { ...data, items: rows, scanned: data.items.length, country, priceStatus: current.status, historicalLowStatus: low.status };
+      rows = await selectRows("wishlist", rows, prices, unavailable, signal);
+      return finish({ country, currency });
+    }
+
+    async function wishlistGame(appId, items, query, signal) {
+      const item = items.get(appId);
+      if (!item) return { appId, found: false };
+      const config = await storage.getThirdPartyServices({ strict: true });
+      const country = config.isthereanydeal.country;
+      const nativeName = async () => {
+        const [row] = await query("wishlist-names", { appIds: [appId] });
+        if (row?.name) return row.name;
+        const game = await deps.steamGame(appId, signal);
+        return game.found ? game.name : null;
+      };
+      const [current, low, name] = await Promise.all([deps.wishlistPrices([appId], country, signal),
+        deps.wishlistLows([appId], config, country, signal), nativeName()]);
+      return { ...item, found: true, name, country,
+        current: current.prices[appId] ?? null, priceStatus: current.status,
+        historicalLow: low.prices[appId] ?? null, historicalLowStatus: low.status, url: root.STConfig.vendors.steamStore.app(appId) };
     }
 
     async function execute(tool, args, signal, options = {}) {
@@ -340,9 +497,28 @@
         const query = (action, args) => native("account-query", { steamId, action, args });
         const action = accountAction(tool);
         let data;
-        if (action === "library") data = await query("library", args);
-        else if (action === "library_game") data = await query("library-game", args);
-        else if (action === "wishlist") data = await wishlist(args, query, operationSignal);
+        if (action === "library") data = await library(args, query, operationSignal, options.personalNames);
+        else if (action === "library_game") {
+          data = await query("library-game", args);
+          if (data.found) {
+            const names = await options.personalNames?.(false);
+            addPersonalNames(data, root.STWorkflowFields.personalNames, names?.record);
+            if (names) data.values.current = names.current(data);
+            data.url = root.STConfig.vendors.steamStore.app(args.appId);
+          }
+        } else if (action === "wishlist" || action === "wishlist_game") {
+          const snapshot = options.wishlist;
+          if (snapshot?.steamId && snapshot.steamId !== steamId) throw toolError("Steam 账号已切换，操作已停止", "ACCOUNT_CHANGED");
+          let items = snapshot?.items;
+          if (!items) {
+            const data = await query("wishlist", {});
+            items = new Map(data.items.map(item => [item.appId, item]));
+            if (items.size !== data.items.length) throw toolError("Steam 愿望单包含重复 AppID", "AI_TOOL_RESPONSE_INVALID");
+          }
+          if (snapshot) Object.assign(snapshot, { steamId, items });
+          data = action === "wishlist" ? await wishlist(args, items, query, operationSignal, checkOwner, options.withDetails)
+            : await wishlistGame(args.appId, items, query, operationSignal);
+        }
         else throw new TypeError("未登记的 Steam 账号工具");
         await checkOwner();
         return { ...data, source: "Steam", checkedAt: new Date().toISOString() };

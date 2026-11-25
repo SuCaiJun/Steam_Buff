@@ -1,10 +1,17 @@
 {
-  ".name": "查詢我的 Steam 願望清單",
-  ".note": "查詢目前帳號願望清單的加入日期、區域價格、折扣與歷史最低價，可分頁查看。",
-  ".description": "查詢目前帳號願望清單的加入日期、區域價格、折扣與歷史最低價，可分頁查看。",
-  ".variables.args": "工具參數",
-  ".variables.result": "查詢結果",
-  ".parameters.0.description": "從 0 開始，下一頁使用 nextStart。",
-  ".parameters.1.description": "Steam 遊戲的整數 AppID 清單。",
-  ".parameters.2.description": "只顯示目前特價的遊戲。"
+  ".name": "篩選我的 Steam 願望清單",
+  ".note": "目前 Steam 帳號的願望清單。按欄位傳入條件。現價排行用 sortBy=currentPrice、direction=desc 或 asc。",
+  ".description": "目前 Steam 帳號的願望清單。按欄位傳入條件。現價排行用 sortBy=currentPrice、direction=desc 或 asc。",
+  ".variables.result": "AppID 清單",
+  ".parameters.1.description": "排序欄位。預設依名稱或願望清單順序。",
+  ".parameters.2.description": "asc 升冪（預設），desc 降冪。",
+  ".parameters.3.description": "排序後取前幾項。留空會回傳全部 AppID。",
+  ".variables.filterParameters": "篩選條件",
+  ".parameters.appid": "AppID。每項傳 op 和 value，可省略整列。",
+  ".parameters.name": "遊戲名稱。每項傳 op 和 value，可省略整列。",
+  ".parameters.addedAt": "新增日期。每項傳 op 和 value，可省略整列。",
+  ".parameters.originalPrice": "原價。每項傳 op 和 value，可省略整列。",
+  ".parameters.currentPrice": "現價。每項傳 op 和 value，可省略整列。",
+  ".parameters.discounted": "是否打折。每項傳 op 和 value，可省略整列。",
+  ".parameters.discountPercent": "折扣幅度。每項傳 op 和 value，可省略整列。"
 }

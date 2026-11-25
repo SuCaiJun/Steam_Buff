@@ -2,5 +2,8 @@
   ".name": "查詢可寫收藏分組",
   ".note": "讀取目前 Steam 帳號可寫收藏分組的 ID 和名稱。",
   ".variables.groups": "可寫收藏分組",
-  ".description": "讀取目前 Steam 帳號可寫收藏分組的 ID 和名稱。"
+  ".description": "讀取目前 Steam 帳號可寫收藏分組的 ID 和名稱。",
+  ".parameters.collectionId": "可寫收藏群組的精確 ID。",
+  ".parameters.name": "依群組名稱關鍵字篩選。",
+  ".variables.filterParameters": "篩選條件"
 }

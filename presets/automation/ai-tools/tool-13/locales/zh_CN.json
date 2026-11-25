@@ -2,5 +2,8 @@
   ".name": "查询可写收藏分组",
   ".note": "读取当前 Steam 账号可写收藏分组的 ID 和名称。",
   ".variables.groups": "可写收藏分组",
-  ".description": "读取当前 Steam 账号可写收藏分组的 ID 和名称。"
+  ".description": "读取当前 Steam 账号可写收藏分组的 ID 和名称。",
+  ".parameters.collectionId": "可写收藏分组的精确 ID。",
+  ".parameters.name": "按分组名称关键词筛选。",
+  ".variables.filterParameters": "筛选条件"
 }

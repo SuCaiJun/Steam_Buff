@@ -3,105 +3,247 @@
   "name": "$text:.name",
   "note": "$text:.note",
   "revision": 1,
-  "executionId": "00000000-0000-4000-8000-000000000002",
+  "executionId": "00000000-0000-4000-8000-000000000003",
   "enabled": true,
   "description": "$text:.description",
   "parameters": [
     {
-      "name": "start",
-      "type": "integer",
-      "required": false,
-      "description": "$text:.parameters.0.description",
-      "variableId": "var-start"
-    },
-    {
-      "name": "appIds",
+      "name": "appid",
       "type": "array",
       "required": false,
-      "description": "$text:.parameters.1.description",
-      "variableId": "var-appIds"
+      "description": "$text:.parameters.appid",
+      "variableId": "var-appid"
     },
     {
-      "name": "discountsOnly",
-      "type": "boolean",
+      "name": "name",
+      "type": "array",
+      "required": false,
+      "description": "$text:.parameters.name",
+      "variableId": "var-name"
+    },
+    {
+      "name": "addedAt",
+      "type": "array",
+      "required": false,
+      "description": "$text:.parameters.addedAt",
+      "variableId": "var-addedAt"
+    },
+    {
+      "name": "originalPrice",
+      "type": "array",
+      "required": false,
+      "description": "$text:.parameters.originalPrice",
+      "variableId": "var-originalPrice"
+    },
+    {
+      "name": "currentPrice",
+      "type": "array",
+      "required": false,
+      "description": "$text:.parameters.currentPrice",
+      "variableId": "var-currentPrice"
+    },
+    {
+      "name": "discounted",
+      "type": "array",
+      "required": false,
+      "description": "$text:.parameters.discounted",
+      "variableId": "var-discounted"
+    },
+    {
+      "name": "discountPercent",
+      "type": "array",
+      "required": false,
+      "description": "$text:.parameters.discountPercent",
+      "variableId": "var-discountPercent"
+    },
+    {
+      "name": "sortBy",
+      "type": "string",
+      "required": false,
+      "description": "$text:.parameters.1.description",
+      "variableId": "var-sortBy"
+    },
+    {
+      "name": "direction",
+      "type": "string",
       "required": false,
       "description": "$text:.parameters.2.description",
-      "variableId": "var-discountsOnly"
+      "variableId": "var-direction"
+    },
+    {
+      "name": "limit",
+      "type": "integer",
+      "required": false,
+      "description": "$text:.parameters.3.description",
+      "variableId": "var-limit"
     }
   ],
   "variables": [
     {
-      "id": "var-start",
-      "name": "start",
-      "type": "number"
-    },
-    {
-      "id": "var-appIds",
-      "name": "appIds",
+      "id": "var-appid",
+      "name": "appid",
       "type": "list"
     },
     {
-      "id": "var-discountsOnly",
-      "name": "discountsOnly",
-      "type": "boolean"
+      "id": "var-name",
+      "name": "name",
+      "type": "list"
     },
     {
-      "id": "var-task-args",
-      "name": "$text:.variables.args",
+      "id": "var-addedAt",
+      "name": "addedAt",
+      "type": "list"
+    },
+    {
+      "id": "var-originalPrice",
+      "name": "originalPrice",
+      "type": "list"
+    },
+    {
+      "id": "var-currentPrice",
+      "name": "currentPrice",
+      "type": "list"
+    },
+    {
+      "id": "var-discounted",
+      "name": "discounted",
+      "type": "list"
+    },
+    {
+      "id": "var-discountPercent",
+      "name": "discountPercent",
+      "type": "list"
+    },
+    {
+      "id": "var-filter-parameters",
+      "name": "$text:.variables.filterParameters",
       "type": "object"
     },
     {
-      "id": "var-result",
+      "id": "var-sortBy",
+      "name": "sortBy",
+      "type": "text"
+    },
+    {
+      "id": "var-direction",
+      "name": "direction",
+      "type": "text"
+    },
+    {
+      "id": "var-limit",
+      "name": "limit",
+      "type": "number"
+    },
+    {
+      "id": "var-app-ids",
       "name": "$text:.variables.result",
-      "type": "object"
+      "type": "list"
     }
   ],
   "steps": [
     {
-      "id": "step-params",
+      "id": "step-filter-parameters",
       "kind": "action",
       "action": "record",
       "entries": [
         {
-          "key": "start",
+          "key": "appid",
           "value": {
             "source": "variable",
-            "id": "var-start",
+            "id": "var-appid",
             "path": []
           },
           "omitIfUnset": true
         },
         {
-          "key": "appIds",
+          "key": "name",
           "value": {
             "source": "variable",
-            "id": "var-appIds",
+            "id": "var-name",
             "path": []
           },
           "omitIfUnset": true
         },
         {
-          "key": "discountsOnly",
+          "key": "addedAt",
           "value": {
             "source": "variable",
-            "id": "var-discountsOnly",
+            "id": "var-addedAt",
+            "path": []
+          },
+          "omitIfUnset": true
+        },
+        {
+          "key": "originalPrice",
+          "value": {
+            "source": "variable",
+            "id": "var-originalPrice",
+            "path": []
+          },
+          "omitIfUnset": true
+        },
+        {
+          "key": "currentPrice",
+          "value": {
+            "source": "variable",
+            "id": "var-currentPrice",
+            "path": []
+          },
+          "omitIfUnset": true
+        },
+        {
+          "key": "discounted",
+          "value": {
+            "source": "variable",
+            "id": "var-discounted",
+            "path": []
+          },
+          "omitIfUnset": true
+        },
+        {
+          "key": "discountPercent",
+          "value": {
+            "source": "variable",
+            "id": "var-discountPercent",
             "path": []
           },
           "omitIfUnset": true
         }
       ],
-      "output": "var-task-args"
+      "output": "var-filter-parameters"
     },
     {
       "id": "step-operation",
       "kind": "action",
       "action": "steam-account-wishlist",
-      "taskArgs": {
+      "conditionMode": "custom",
+      "conditions": {
+        "expression": [
+          "Object.entries(",
+          {
+            "source": "variable",
+            "id": "var-filter-parameters",
+            "path": []
+          },
+          ").flatMap(([field, rows]) => rows.map(row => ({...row, field})))"
+        ]
+      },
+      "sortBy": {
         "source": "variable",
-        "id": "var-task-args",
+        "id": "var-sortBy",
         "path": []
       },
-      "output": "var-result"
+      "direction": {
+        "source": "variable",
+        "id": "var-direction",
+        "path": []
+      },
+      "limit": {
+        "source": "variable",
+        "id": "var-limit",
+        "path": []
+      },
+      "output": "var-app-ids"
     },
     {
       "id": "step-result",
@@ -109,9 +251,10 @@
       "action": "tool-return",
       "value": {
         "source": "variable",
-        "id": "var-result",
+        "id": "var-app-ids",
         "path": []
       }
     }
-  ]
+  ],
+  "providerInputVersion": 1
 }

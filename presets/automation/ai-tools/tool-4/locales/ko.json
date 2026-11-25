@@ -2,7 +2,6 @@
   ".name": "Steam 상점 검색",
   ".note": "키워드와 필터로 Steam 중국 지역 상점을 검색하고 결과를 페이지별로 확인합니다.",
   ".variables.var-115.name": "조회 결과",
-  ".variables.var-search-parameters.name": "상점 검색 매개변수",
   ".description": "Steam 중국 스토어의 게임과 상품을 검색해 현재 가격, 할인, 평가 요약 및 링크를 반환합니다. 모든 인수는 선택 사항이며 AppID는 필요 없습니다. 50위안 미만의 할인 중인 중국어 간체 지원 게임을 검색하는 예: {\"types\":[\"游戏\"],\"discountsOnly\":true,\"priceBelow\":50,\"languages\":[\"schinese\"]}. 반환되는 가격은 펀 단위입니다. items는 이 페이지의 일치 항목이고 candidateTotal은 이 페이지의 정확한 가격 필터를 적용하기 전의 Steam 후보 수입니다. nextStart에 값이 있으면 같은 조건으로 다음 페이지를 불러올 수 있습니다.\n\n게임 이름으로 AppID를 찾으려면 이름을 term에 전달하세요. 본편만 찾으려면 types를 [\"游戏\"]로 지정할 수 있습니다. items에서 이름이 명확히 일치하고 type이 app인 항목의 id를 다음 도구의 appId로 사용하세요. sub와 bundle의 id는 AppID로 사용할 수 없습니다.",
   ".parameters.0.description": "게임 이름이나 검색어입니다. 원제도 사용할 수 있으며 최대 64자입니다. 생략하면 검색어를 제한하지 않습니다.",
   ".parameters.1.description": "현재 표시 가격이 이 금액보다 낮아야 합니다. 단위는 위안이며 소수점 둘째 자리까지 지정할 수 있습니다. 50을 지정하면 정확히 50위안인 상품은 제외합니다. freeOnly가 true이면 쓸 수 없습니다.",

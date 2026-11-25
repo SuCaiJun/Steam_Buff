@@ -2,5 +2,8 @@
   ".name": "書き込み可能なコレクションを取得",
   ".note": "現在の Steam アカウントで編集できるコレクションの ID と名前を取得します。",
   ".variables.groups": "書き込み可能なコレクション",
-  ".description": "現在の Steam アカウントで編集できるコレクションの ID と名前を取得します。"
+  ".description": "現在の Steam アカウントで編集できるコレクションの ID と名前を取得します。",
+  ".parameters.collectionId": "書き込み可能なコレクションの正確な ID。",
+  ".parameters.name": "コレクション名のキーワードで絞り込みます。",
+  ".variables.filterParameters": "絞り込み条件"
 }

@@ -3,133 +3,293 @@
   "name": "$text:.name",
   "note": "$text:.note",
   "revision": 1,
-  "executionId": "00000000-0000-4000-8000-000000000002",
+  "executionId": "00000000-0000-4000-8000-000000000003",
   "enabled": true,
   "description": "$text:.description",
   "parameters": [
     {
-      "name": "term",
-      "type": "string",
+      "name": "official",
+      "type": "array",
       "required": false,
-      "description": "$text:.parameters.0.description",
-      "variableId": "var-term"
+      "description": "$text:.parameters.official",
+      "variableId": "var-official"
     },
     {
-      "name": "start",
-      "type": "integer",
+      "name": "current",
+      "type": "array",
       "required": false,
-      "description": "$text:.parameters.1.description",
-      "variableId": "var-start"
+      "description": "$text:.parameters.current",
+      "variableId": "var-current"
+    },
+    {
+      "name": "custom_name",
+      "type": "array",
+      "required": false,
+      "description": "$text:.parameters.custom_name",
+      "variableId": "var-custom_name"
+    },
+    {
+      "name": "sort",
+      "type": "array",
+      "required": false,
+      "description": "$text:.parameters.sort",
+      "variableId": "var-sort"
+    },
+    {
+      "name": "aliases",
+      "type": "array",
+      "required": false,
+      "description": "$text:.parameters.aliases",
+      "variableId": "var-aliases"
+    },
+    {
+      "name": "mnemonic",
+      "type": "array",
+      "required": false,
+      "description": "$text:.parameters.mnemonic",
+      "variableId": "var-mnemonic"
+    },
+    {
+      "name": "pinyin",
+      "type": "array",
+      "required": false,
+      "description": "$text:.parameters.pinyin",
+      "variableId": "var-pinyin"
+    },
+    {
+      "name": "original_language",
+      "type": "array",
+      "required": false,
+      "description": "$text:.parameters.original_language",
+      "variableId": "var-original_language"
+    },
+    {
+      "name": "appid",
+      "type": "array",
+      "required": false,
+      "description": "$text:.parameters.appid",
+      "variableId": "var-appid"
+    },
+    {
+      "name": "app_type",
+      "type": "array",
+      "required": false,
+      "description": "$text:.parameters.app_type",
+      "variableId": "var-app_type"
+    },
+    {
+      "name": "sources",
+      "type": "array",
+      "required": false,
+      "description": "$text:.parameters.sources",
+      "variableId": "var-sources"
+    },
+    {
+      "name": "collections",
+      "type": "array",
+      "required": false,
+      "description": "$text:.parameters.collections",
+      "variableId": "var-collections"
+    },
+    {
+      "name": "collection_names",
+      "type": "array",
+      "required": false,
+      "description": "$text:.parameters.collection_names",
+      "variableId": "var-collection_names"
     },
     {
       "name": "modes",
       "type": "array",
       "required": false,
-      "description": "$text:.parameters.2.description",
+      "description": "$text:.parameters.modes",
       "variableId": "var-modes"
     },
     {
       "name": "status",
       "type": "array",
       "required": false,
-      "description": "$text:.parameters.3.description",
+      "description": "$text:.parameters.status",
       "variableId": "var-status"
+    },
+    {
+      "name": "privacy",
+      "type": "array",
+      "required": false,
+      "description": "$text:.parameters.privacy",
+      "variableId": "var-privacy"
     },
     {
       "name": "languages",
       "type": "array",
       "required": false,
-      "description": "$text:.parameters.4.description",
+      "description": "$text:.parameters.languages",
       "variableId": "var-languages"
     },
     {
       "name": "genres",
       "type": "array",
       "required": false,
-      "description": "$text:.parameters.5.description",
+      "description": "$text:.parameters.genres",
       "variableId": "var-genres"
-    },
-    {
-      "name": "controllers",
-      "type": "array",
-      "required": false,
-      "description": "$text:.parameters.6.description",
-      "variableId": "var-controllers"
-    },
-    {
-      "name": "deck",
-      "type": "array",
-      "required": false,
-      "description": "$text:.parameters.7.description",
-      "variableId": "var-deck"
-    },
-    {
-      "name": "vr",
-      "type": "array",
-      "required": false,
-      "description": "$text:.parameters.8.description",
-      "variableId": "var-vr"
     },
     {
       "name": "features",
       "type": "array",
       "required": false,
-      "description": "$text:.parameters.9.description",
+      "description": "$text:.parameters.features",
       "variableId": "var-features"
     },
     {
       "name": "tags",
       "type": "array",
       "required": false,
-      "description": "$text:.parameters.10.description",
+      "description": "$text:.parameters.tags",
       "variableId": "var-tags"
     },
     {
-      "name": "friends",
+      "name": "hardware",
       "type": "array",
       "required": false,
-      "description": "$text:.parameters.11.description",
-      "variableId": "var-friends"
+      "description": "$text:.parameters.hardware",
+      "variableId": "var-hardware"
     },
     {
-      "name": "gameplay",
+      "name": "accessibility",
       "type": "array",
       "required": false,
-      "description": "$text:.parameters.12.description",
-      "variableId": "var-gameplay"
+      "description": "$text:.parameters.accessibility",
+      "variableId": "var-accessibility"
     },
     {
-      "name": "visual",
+      "name": "review_score",
       "type": "array",
       "required": false,
-      "description": "$text:.parameters.13.description",
-      "variableId": "var-visual"
+      "description": "$text:.parameters.review_score",
+      "variableId": "var-review_score"
     },
     {
-      "name": "audio",
+      "name": "metacritic_score",
       "type": "array",
       "required": false,
-      "description": "$text:.parameters.14.description",
-      "variableId": "var-audio"
+      "description": "$text:.parameters.metacritic_score",
+      "variableId": "var-metacritic_score"
     },
     {
-      "name": "input",
+      "name": "date_added",
       "type": "array",
       "required": false,
-      "description": "$text:.parameters.15.description",
-      "variableId": "var-input"
+      "description": "$text:.parameters.date_added",
+      "variableId": "var-date_added"
+    },
+    {
+      "name": "date_release",
+      "type": "array",
+      "required": false,
+      "description": "$text:.parameters.date_release",
+      "variableId": "var-date_release"
+    },
+    {
+      "name": "date_last_played",
+      "type": "array",
+      "required": false,
+      "description": "$text:.parameters.date_last_played",
+      "variableId": "var-date_last_played"
+    },
+    {
+      "name": "playtime_minutes",
+      "type": "array",
+      "required": false,
+      "description": "$text:.parameters.playtime_minutes",
+      "variableId": "var-playtime_minutes"
+    },
+    {
+      "name": "sortBy",
+      "type": "string",
+      "required": false,
+      "description": "$text:.parameters.1.description",
+      "variableId": "var-sortBy"
+    },
+    {
+      "name": "direction",
+      "type": "string",
+      "required": false,
+      "description": "$text:.parameters.2.description",
+      "variableId": "var-direction"
+    },
+    {
+      "name": "limit",
+      "type": "integer",
+      "required": false,
+      "description": "$text:.parameters.3.description",
+      "variableId": "var-limit"
     }
   ],
   "variables": [
     {
-      "id": "var-term",
-      "name": "term",
-      "type": "text"
+      "id": "var-official",
+      "name": "official",
+      "type": "list"
     },
     {
-      "id": "var-start",
-      "name": "start",
-      "type": "number"
+      "id": "var-current",
+      "name": "current",
+      "type": "list"
+    },
+    {
+      "id": "var-custom_name",
+      "name": "custom_name",
+      "type": "list"
+    },
+    {
+      "id": "var-sort",
+      "name": "sort",
+      "type": "list"
+    },
+    {
+      "id": "var-aliases",
+      "name": "aliases",
+      "type": "list"
+    },
+    {
+      "id": "var-mnemonic",
+      "name": "mnemonic",
+      "type": "list"
+    },
+    {
+      "id": "var-pinyin",
+      "name": "pinyin",
+      "type": "list"
+    },
+    {
+      "id": "var-original_language",
+      "name": "original_language",
+      "type": "list"
+    },
+    {
+      "id": "var-appid",
+      "name": "appid",
+      "type": "list"
+    },
+    {
+      "id": "var-app_type",
+      "name": "app_type",
+      "type": "list"
+    },
+    {
+      "id": "var-sources",
+      "name": "sources",
+      "type": "list"
+    },
+    {
+      "id": "var-collections",
+      "name": "collections",
+      "type": "list"
+    },
+    {
+      "id": "var-collection_names",
+      "name": "collection_names",
+      "type": "list"
     },
     {
       "id": "var-modes",
@@ -139,6 +299,11 @@
     {
       "id": "var-status",
       "name": "status",
+      "type": "list"
+    },
+    {
+      "id": "var-privacy",
+      "name": "privacy",
       "type": "list"
     },
     {
@@ -152,21 +317,6 @@
       "type": "list"
     },
     {
-      "id": "var-controllers",
-      "name": "controllers",
-      "type": "list"
-    },
-    {
-      "id": "var-deck",
-      "name": "deck",
-      "type": "list"
-    },
-    {
-      "id": "var-vr",
-      "name": "vr",
-      "type": "list"
-    },
-    {
       "id": "var-features",
       "name": "features",
       "type": "list"
@@ -177,61 +327,190 @@
       "type": "list"
     },
     {
-      "id": "var-friends",
-      "name": "friends",
+      "id": "var-hardware",
+      "name": "hardware",
       "type": "list"
     },
     {
-      "id": "var-gameplay",
-      "name": "gameplay",
+      "id": "var-accessibility",
+      "name": "accessibility",
       "type": "list"
     },
     {
-      "id": "var-visual",
-      "name": "visual",
+      "id": "var-review_score",
+      "name": "review_score",
       "type": "list"
     },
     {
-      "id": "var-audio",
-      "name": "audio",
+      "id": "var-metacritic_score",
+      "name": "metacritic_score",
       "type": "list"
     },
     {
-      "id": "var-input",
-      "name": "input",
+      "id": "var-date_added",
+      "name": "date_added",
       "type": "list"
     },
     {
-      "id": "var-task-args",
-      "name": "$text:.variables.args",
+      "id": "var-date_release",
+      "name": "date_release",
+      "type": "list"
+    },
+    {
+      "id": "var-date_last_played",
+      "name": "date_last_played",
+      "type": "list"
+    },
+    {
+      "id": "var-playtime_minutes",
+      "name": "playtime_minutes",
+      "type": "list"
+    },
+    {
+      "id": "var-filter-parameters",
+      "name": "$text:.variables.filterParameters",
       "type": "object"
     },
     {
-      "id": "var-result",
+      "id": "var-sortBy",
+      "name": "sortBy",
+      "type": "text"
+    },
+    {
+      "id": "var-direction",
+      "name": "direction",
+      "type": "text"
+    },
+    {
+      "id": "var-limit",
+      "name": "limit",
+      "type": "number"
+    },
+    {
+      "id": "var-app-ids",
       "name": "$text:.variables.result",
-      "type": "object"
+      "type": "list"
     }
   ],
   "steps": [
     {
-      "id": "step-params",
+      "id": "step-filter-parameters",
       "kind": "action",
       "action": "record",
       "entries": [
         {
-          "key": "term",
+          "key": "official",
           "value": {
             "source": "variable",
-            "id": "var-term",
+            "id": "var-official",
             "path": []
           },
           "omitIfUnset": true
         },
         {
-          "key": "start",
+          "key": "current",
           "value": {
             "source": "variable",
-            "id": "var-start",
+            "id": "var-current",
+            "path": []
+          },
+          "omitIfUnset": true
+        },
+        {
+          "key": "custom_name",
+          "value": {
+            "source": "variable",
+            "id": "var-custom_name",
+            "path": []
+          },
+          "omitIfUnset": true
+        },
+        {
+          "key": "sort",
+          "value": {
+            "source": "variable",
+            "id": "var-sort",
+            "path": []
+          },
+          "omitIfUnset": true
+        },
+        {
+          "key": "aliases",
+          "value": {
+            "source": "variable",
+            "id": "var-aliases",
+            "path": []
+          },
+          "omitIfUnset": true
+        },
+        {
+          "key": "mnemonic",
+          "value": {
+            "source": "variable",
+            "id": "var-mnemonic",
+            "path": []
+          },
+          "omitIfUnset": true
+        },
+        {
+          "key": "pinyin",
+          "value": {
+            "source": "variable",
+            "id": "var-pinyin",
+            "path": []
+          },
+          "omitIfUnset": true
+        },
+        {
+          "key": "original_language",
+          "value": {
+            "source": "variable",
+            "id": "var-original_language",
+            "path": []
+          },
+          "omitIfUnset": true
+        },
+        {
+          "key": "appid",
+          "value": {
+            "source": "variable",
+            "id": "var-appid",
+            "path": []
+          },
+          "omitIfUnset": true
+        },
+        {
+          "key": "app_type",
+          "value": {
+            "source": "variable",
+            "id": "var-app_type",
+            "path": []
+          },
+          "omitIfUnset": true
+        },
+        {
+          "key": "sources",
+          "value": {
+            "source": "variable",
+            "id": "var-sources",
+            "path": []
+          },
+          "omitIfUnset": true
+        },
+        {
+          "key": "collections",
+          "value": {
+            "source": "variable",
+            "id": "var-collections",
+            "path": []
+          },
+          "omitIfUnset": true
+        },
+        {
+          "key": "collection_names",
+          "value": {
+            "source": "variable",
+            "id": "var-collection_names",
             "path": []
           },
           "omitIfUnset": true
@@ -255,6 +534,15 @@
           "omitIfUnset": true
         },
         {
+          "key": "privacy",
+          "value": {
+            "source": "variable",
+            "id": "var-privacy",
+            "path": []
+          },
+          "omitIfUnset": true
+        },
+        {
           "key": "languages",
           "value": {
             "source": "variable",
@@ -268,33 +556,6 @@
           "value": {
             "source": "variable",
             "id": "var-genres",
-            "path": []
-          },
-          "omitIfUnset": true
-        },
-        {
-          "key": "controllers",
-          "value": {
-            "source": "variable",
-            "id": "var-controllers",
-            "path": []
-          },
-          "omitIfUnset": true
-        },
-        {
-          "key": "deck",
-          "value": {
-            "source": "variable",
-            "id": "var-deck",
-            "path": []
-          },
-          "omitIfUnset": true
-        },
-        {
-          "key": "vr",
-          "value": {
-            "source": "variable",
-            "id": "var-vr",
             "path": []
           },
           "omitIfUnset": true
@@ -318,63 +579,112 @@
           "omitIfUnset": true
         },
         {
-          "key": "friends",
+          "key": "hardware",
           "value": {
             "source": "variable",
-            "id": "var-friends",
+            "id": "var-hardware",
             "path": []
           },
           "omitIfUnset": true
         },
         {
-          "key": "gameplay",
+          "key": "accessibility",
           "value": {
             "source": "variable",
-            "id": "var-gameplay",
+            "id": "var-accessibility",
             "path": []
           },
           "omitIfUnset": true
         },
         {
-          "key": "visual",
+          "key": "review_score",
           "value": {
             "source": "variable",
-            "id": "var-visual",
+            "id": "var-review_score",
             "path": []
           },
           "omitIfUnset": true
         },
         {
-          "key": "audio",
+          "key": "metacritic_score",
           "value": {
             "source": "variable",
-            "id": "var-audio",
+            "id": "var-metacritic_score",
             "path": []
           },
           "omitIfUnset": true
         },
         {
-          "key": "input",
+          "key": "date_added",
           "value": {
             "source": "variable",
-            "id": "var-input",
+            "id": "var-date_added",
+            "path": []
+          },
+          "omitIfUnset": true
+        },
+        {
+          "key": "date_release",
+          "value": {
+            "source": "variable",
+            "id": "var-date_release",
+            "path": []
+          },
+          "omitIfUnset": true
+        },
+        {
+          "key": "date_last_played",
+          "value": {
+            "source": "variable",
+            "id": "var-date_last_played",
+            "path": []
+          },
+          "omitIfUnset": true
+        },
+        {
+          "key": "playtime_minutes",
+          "value": {
+            "source": "variable",
+            "id": "var-playtime_minutes",
             "path": []
           },
           "omitIfUnset": true
         }
       ],
-      "output": "var-task-args"
+      "output": "var-filter-parameters"
     },
     {
       "id": "step-operation",
       "kind": "action",
       "action": "steam-account-library",
-      "taskArgs": {
+      "conditionMode": "custom",
+      "conditions": {
+        "expression": [
+          "Object.entries(",
+          {
+            "source": "variable",
+            "id": "var-filter-parameters",
+            "path": []
+          },
+          ").flatMap(([field, rows]) => rows.map(row => ({...row, field})))"
+        ]
+      },
+      "sortBy": {
         "source": "variable",
-        "id": "var-task-args",
+        "id": "var-sortBy",
         "path": []
       },
-      "output": "var-result"
+      "direction": {
+        "source": "variable",
+        "id": "var-direction",
+        "path": []
+      },
+      "limit": {
+        "source": "variable",
+        "id": "var-limit",
+        "path": []
+      },
+      "output": "var-app-ids"
     },
     {
       "id": "step-result",
@@ -382,9 +692,10 @@
       "action": "tool-return",
       "value": {
         "source": "variable",
-        "id": "var-result",
+        "id": "var-app-ids",
         "path": []
       }
     }
-  ]
+  ],
+  "providerInputVersion": 1
 }
