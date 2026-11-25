@@ -241,13 +241,17 @@ button:focus-visible {
   background: rgba(0, 120, 212, 0.12);
 }
 
-.step-sponsor {
+.step-sponsor,
+a.step-tutorial {
   display: inline-flex;
   align-items: center;
-  align-self: center;
   gap: 8px;
-  margin: 0;
   text-decoration: none;
+}
+
+.step-sponsor {
+  align-self: center;
+  margin: 0;
   white-space: nowrap;
 }
 
@@ -255,7 +259,8 @@ button:focus-visible {
   border-color: var(--ob-primary);
 }
 
-.step-sponsor:focus-visible {
+.step-sponsor:focus-visible,
+a.step-tutorial:focus-visible {
   outline: 2px solid var(--ob-primary);
   outline-offset: 4px;
 }

@@ -36,6 +36,7 @@
   if (!globalThis.STConfig?.urls || !globalThis.STConfig.libraryNameMode) {
     throw new Error("安装引导缺少配置依赖，请先加载 shared/config.js");
   }
+  document.getElementById("itad-apps-link").href = globalThis.STConfig.vendors.isthereanydeal.apps;
   const LOCAL_STEPS = CONTRACT.localizedSteps(t);
   const NAME_MODE_STEP = LOCAL_STEPS.findIndex(step => step.id === "name-mode");
   const OPEN_SETTINGS_MESSAGE = CONTRACT.MESSAGES.openSettings;
@@ -3022,9 +3023,6 @@
     if (action === "login-copy-url") copyText(loginFullUrl(), t("onboarding_authorizationLinkCopied", "授权链接已复制。"));
     if (action === "open-tutorial") await openTutorial();
     if (action === "open-step-tutorial") await openTutorial(control.dataset.tutorialKey || "");
-    if (action === "open-itad-apps") {
-      window.STConfig.externalNavigation.open(window.STConfig.vendors.isthereanydeal.apps);
-    }
     if (action === "finish-open") {
       if (inSteamClient() && state.setupFinished) {
         openRestartModal();
