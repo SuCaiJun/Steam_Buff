@@ -1033,6 +1033,7 @@
     id: PROVIDER_TOOL_IDS[key], label: "ai_chat_tool_" + key, name, description, properties, required, writes,
   })])));
   const CHAT_APPROVAL_MODES = Object.freeze(["ask", "read-only", "full"]);
+  const CHAT_APPROVAL_VERSION = 2;
   const CHAT_TOOLS = Object.freeze([
     Object.freeze({ id: PROVIDER_TOOL_IDS.game, label: "ai_chat_tool_game", name: "Steam 游戏资料", description: "按 AppID 查询 Steam 商店公开游戏资料。" }),
     Object.freeze({ id: PROVIDER_TOOL_IDS.players, label: "ai_chat_tool_players", name: "Steam 在线人数", description: "按 AppID 查询当前在线人数。" }),
@@ -1148,7 +1149,7 @@
     modelListIssue,
     hostPermissionPattern,
     chatRequest,
-    CHAT_TOOLS, CHAT_APPROVAL_MODES, ACCOUNT_TOOLS, PROVIDER_TOOL_IDS, TOOL_APP_ID_MAX, isToolAppId, STORE_SEARCH_TOOL_ID, STORE_SEARCH_PROPERTIES, toolSchema,
+    CHAT_TOOLS, CHAT_APPROVAL_MODES, CHAT_APPROVAL_VERSION, ACCOUNT_TOOLS, PROVIDER_TOOL_IDS, TOOL_APP_ID_MAX, isToolAppId, STORE_SEARCH_TOOL_ID, STORE_SEARCH_PROPERTIES, toolSchema,
     WEB_SEARCH_TOOL_ID, searchProvider, isSearchKey, searchSettingsState, normalizeSearchSettings,
     validateChatToolIds, chatToolsFromWorkflow,
     chatBody,

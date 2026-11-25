@@ -178,9 +178,7 @@ button[type=submit] { background: var(--st-color-primary-surface); color: var(--
 .chat-tool-approval[data-kind="network"] { --chat-approval-icon: url("../images/tabler/link.svg"); }
 .chat-tool-approval[data-kind="script"] { --chat-approval-icon: url("../images/tabler/code.svg"); }
 .chat-tool-approval h2 { margin: 0; font-size: var(--st-font-size-body); line-height: 1.4; }
-.chat-tool-approval ul {
-  list-style: none;
-  margin: 0;
+.chat-approval-body {
   padding: 0 2px;
   max-block-size: min(190px, 37dvh);
   overflow: auto;
@@ -189,6 +187,9 @@ button[type=submit] { background: var(--st-color-primary-surface); color: var(--
   border-radius: var(--st-radius-sm);
   font-size: 12px;
 }
+.chat-tool-approval ul { list-style: none; margin: 0; padding: 0; }
+.chat-approval-body > ul + ul, .chat-approval-body > ul + details { border-block-start: 1px solid var(--st-dialog-divider); }
+.chat-approval-body summary { padding-block: 5px; cursor: pointer; }
 .chat-tool-approval li { display: flex; flex-wrap: wrap; gap: 2px 8px; padding: 5px 0; }
 .chat-tool-approval li + li { border-block-start: 1px solid var(--st-dialog-divider); }
 .chat-tool-approval li strong { font-weight: 600; }

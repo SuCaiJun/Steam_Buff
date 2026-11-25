@@ -3250,10 +3250,10 @@
     }
   }
 
-  const nativeToolWrites = new Map();
+  const nativeToolWrites = new Map(), nativeAutomationFrameKey = "st.automation.native-frame.v1";
   async function nativeAutomationCommand(action, value, permission) {
-    const key = "st.automation.native-frame.v1";
-    const frame = (await chrome.storage.session.get(key))[key];
+    const frame = (await chrome.storage.session.get(nativeAutomationFrameKey))[nativeAutomationFrameKey];
+    permission?.checkFrame?.(frame);
     if (!frame) throw Object.assign(new Error("请打开 Steam 客户端，等待游戏库加载"), { code: "STEAM_CLIENT_REQUIRED", aiToolFailure: true });
     if (action !== "account-save-sort" && action !== "account-add-collections") return automationNative(frame, action, value, permission?.signal);
     if (!permission) throw new Error("Steam 写入缺少已确认的操作授权");
@@ -3273,6 +3273,8 @@
       grant.action === "account-save-sort" && grant.value.expected !== request.expected || Date.now() >= grant.value.deadline) throw deny();
     if (grant.permission.signal.aborted) throw deny();
     await grant.permission.check();
+    if (grant.permission.checkFrame)
+      grant.permission.checkFrame((await chrome.storage.session.get(nativeAutomationFrameKey))[nativeAutomationFrameKey]);
     if (grant.permission.signal.aborted || Date.now() >= grant.value.deadline || nativeToolWrites.get(request.ticket) !== grant ||
         !grant.remaining.delete(request.part)) throw deny();
     return true;

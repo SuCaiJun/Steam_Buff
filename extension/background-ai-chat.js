@@ -398,14 +398,15 @@
       throw fault("CHAT_SEARCH_PREFERENCE_CHANGED", "此会话的联网搜索已关闭");
   }
 
-  async function runWebSearch(deps, search, args, mode, signal, requestApproval) {
+  async function runWebSearch(deps, search, args, mode, signal, requestApproval, onStart) {
     const { provider, apiKey } = search;
     if (mode === "ask" && !await requestApproval({
-      kind: "commands", toolId: root.STAI.WEB_SEARCH_TOOL_ID,
+      toolId: root.STAI.WEB_SEARCH_TOOL_ID, items: [],
       operations: [{ kind: "network", method: "POST", origin: new URL(provider.endpoint).origin }],
       parameters: { term: args.query, searchProvider: provider.id },
     })) return declinedTool();
     signal.throwIfAborted();
+    onStart();
     if (!await deps.hasAiGatewayPermission(provider.endpoint))
       throw fault("CHAT_SEARCH_PERMISSION", "请在 AI 服务中为搜索提供商完成域名授权");
     const [current] = await Promise.all([root.STSettings.storage.getAiSearch(), checkSearchPreference(search.sessionId)]);
@@ -431,6 +432,7 @@
     const steps = [];
     const reasoningSteps = [];
     const declined = new Map();
+    const steamSession = { names: new Map() };
     const turnStart = messages.length;
     let hasReasoning = false, transientSearchUsed = false, toolBudgetExhausted = false;
     for (let round = 0; round <= TOOL_ROUNDS; round++) {
@@ -533,24 +535,21 @@
           continue;
         }
         tool.startedAt = Date.now();
-        report({ ...tool, state: "running" });
+        const onStart = () => report({ ...tool, state: "running" });
         let value, hasReceipt = false;
         const requestApproval = async request => {
           const allowed = await approve({ index, ...request }, () => report({ ...tool, state: "waiting" }));
           signal.throwIfAborted();
-          if (allowed) report({ ...tool, state: "running" });
           return allowed;
         };
         try {
-          if (webSearch) value = await runWebSearch(deps, search, args, mode, signal, requestApproval);
+          if (webSearch) value = await runWebSearch(deps, search, args, mode, signal, requestApproval, onStart);
           else {
             const permission = {
-              mode, serviceId: service.id,
-              requestApproval(subject, operations, parameters) {
-                return requestApproval({ kind: "commands", toolId: id, toolName: subject.name, operations, parameters });
+              mode, serviceId: service.id, onStart, steamSession,
+              requestApproval(scope) {
+                return requestApproval({ ...scope, toolId: id, toolName: definition.name });
               },
-              approve: mode === "full" ? () => true : (target, items) =>
-                requestApproval({ kind: "write", toolId: target.id, toolName: selected.get(target.id)?.name, items }),
               receipt(items, { batchId = index, toolId = id } = {}) {
                 hasReceipt = true;
                 receipts.set(batchId, { index, toolId, items });
@@ -581,7 +580,7 @@
           }
           else {
             if (hasReceipt) throw error;
-            const approvalFailure = ["CHAT_APPROVAL_STALE", "CHAT_TOOL_NOT_ALLOWED", "WORKFLOW_TOOL_UNAVAILABLE", "WORKFLOW_LIBRARY_UNAVAILABLE"].includes(error.code);
+            const approvalFailure = ["CHAT_APPROVAL_STALE", "CHAT_APPROVAL_SCOPE", "CHAT_TOOL_NOT_ALLOWED", "WORKFLOW_TOOL_UNAVAILABLE", "WORKFLOW_LIBRARY_UNAVAILABLE"].includes(error.code);
             if (!approvalFailure && (!account || !error.aiToolFailure && !Number.isInteger(error.status) && error.name !== "TimeoutError" &&
               !["ACCOUNT_CHANGED", "AI_TOOL_RESPONSE_INVALID", "STEAM_LOGIN_REQUIRED", "STEAM_DATA_UNAVAILABLE"].includes(error.code))) throw error;
             value = { status: "failed", code: error.code || "STEAM_DATA_UNAVAILABLE", reason: error.message };
@@ -969,7 +968,7 @@
           ? fault("CHAT_APPROVAL_TIMEOUT", "等待授权超时") : fault("CHAT_TIMEOUT", "AI 对话超时")), TURN_MS);
         const approve = (proposal, waiting) => new Promise((resolve, reject) => {
           controller.signal.throwIfAborted();
-          if (!Object.hasOwn(request, "approvalMode"))
+          if (request.approvalVersion !== root.STAI.CHAT_APPROVAL_VERSION)
             throw fault("CHAT_APPROVAL_REOPEN", "请重新打开聊天以处理工具审批");
           const id = crypto.randomUUID();
           const clear = () => {

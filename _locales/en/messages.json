@@ -11227,6 +11227,18 @@
   "ai_chat_approval_public": {
     "message": "This call can read public Steam-related data"
   },
+  "ai_chat_approval_wishlist": {
+    "message": "Read the current Steam account’s wishlist and check prices"
+  },
+  "ai_chat_approval_collections": {
+    "message": "Add to collections"
+  },
+  "ai_chat_approval_write_details": {
+    "message": "View write details"
+  },
+  "ai_chat_approval_scope": {
+    "message": "The operation was outside the scope approved for this tool call. Confirm the targets and start a new call."
+  },
   "ai_chat_approval_executing": {
     "message": "Running…"
   },

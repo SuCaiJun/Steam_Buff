@@ -11227,6 +11227,18 @@
   "ai_chat_approval_public": {
     "message": "本次调用可读取 Steam 相关公开数据"
   },
+  "ai_chat_approval_wishlist": {
+    "message": "读取当前 Steam 账号的愿望单并查询价格"
+  },
+  "ai_chat_approval_collections": {
+    "message": "加入收藏分组"
+  },
+  "ai_chat_approval_write_details": {
+    "message": "查看写入明细"
+  },
+  "ai_chat_approval_scope": {
+    "message": "操作超出本次工具的授权范围。请先确认目标，再发起新的工具调用。"
+  },
   "ai_chat_approval_executing": {
     "message": "正在执行…"
   },

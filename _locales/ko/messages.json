@@ -11227,6 +11227,18 @@
   "ai_chat_approval_public": {
     "message": "이 호출에서 Steam 관련 공개 데이터를 읽을 수 있습니다"
   },
+  "ai_chat_approval_wishlist": {
+    "message": "현재 Steam 계정의 찜 목록을 읽고 가격을 확인합니다"
+  },
+  "ai_chat_approval_collections": {
+    "message": "컬렉션에 추가"
+  },
+  "ai_chat_approval_write_details": {
+    "message": "쓰기 상세 보기"
+  },
+  "ai_chat_approval_scope": {
+    "message": "이번 도구 호출에서 승인된 범위를 벗어난 작업입니다. 대상을 확인한 뒤 새로 호출하세요."
+  },
   "ai_chat_approval_executing": {
     "message": "실행 중…"
   },

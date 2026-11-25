@@ -203,19 +203,32 @@
   const condition = () => ({ op: "all", children: [] });
   const comparison = () => ({ op: "equals", left: literal(""), right: literal("") });
   const multiple = value => !!value?.children;
-  function* walk(steps, skipDisabled = false) {
+  function* walk(steps, skipDisabled = false, skipImpossible = false) {
     for (const node of steps) {
       if (skipDisabled && node.disabled) continue;
       yield node;
       if (node.kind === "if") {
-        for (const branch of node.branches) yield* walk(branch.steps, skipDisabled);
-        if (node.otherwise !== null) yield* walk(node.otherwise, skipDisabled);
-      } else if (loops.has(node.kind)) yield* walk(node.body, skipDisabled);
-      else if (node.kind === "try") {
-        yield* walk(node.body, skipDisabled);
-        if (node.catch !== null) yield* walk(node.catch, skipDisabled);
-        if (node.finally !== null) yield* walk(node.finally, skipDisabled);
+        let fallthrough = true, continues = false;
+        for (const branch of node.branches) {
+          const fixed = skipImpossible ? fixedBranch(branch.condition) : undefined;
+          if (fixed !== false) {
+            const branchContinues = yield* walk(branch.steps, skipDisabled, skipImpossible);
+            if (branchContinues !== false) continues = true;
+          }
+          if (fixed === true) { fallthrough = false; break; }
+        }
+        if (fallthrough && node.otherwise !== null) fallthrough = (yield* walk(node.otherwise, skipDisabled, skipImpossible)) !== false;
+        if (skipImpossible && !continues && !fallthrough) return false;
+      } else if (loops.has(node.kind)) {
+        if (!skipImpossible || (node.kind === "while" ? fixedBranch(node.condition) !== false : fixedLoopCount(node) !== 0))
+          yield* walk(node.body, skipDisabled, skipImpossible);
       }
+      else if (node.kind === "try") {
+        yield* walk(node.body, skipDisabled, skipImpossible);
+        if (node.catch !== null) yield* walk(node.catch, skipDisabled, skipImpossible);
+        if (node.finally !== null) yield* walk(node.finally, skipDisabled, skipImpossible);
+      }
+      if (skipImpossible && ["tool-return", "library-return", "stop", "raise", "break", "continue"].includes(node.action)) return false;
     }
   }
   function visitSequences(list, path, visit, skipDisabled = false) {

@@ -18,6 +18,65 @@
   const safeCount = number => Number.isSafeInteger(number) && number >= 0;
   const writes = Object.freeze({ rename: "steam-set-sort-name", custom_name: "steam-set-custom-name",
     collections: "steam-add-collections", achievements: "steam-save-translations" });
+  const accountAction = tool => Object.keys(root.STAI.ACCOUNT_TOOLS).find(key => root.STAI.ACCOUNT_TOOLS[key].id === tool.id);
+
+  function writeApprovalTargets(tool, args) {
+    if (!args) return [];
+    const action = accountAction(tool), targets = new Map();
+    if (action === "collections" && !Object.hasOwn(args, "changes")) {
+      if (typeof args.collection !== "string" || !args.collection.trim() || !Array.isArray(args.appIds) ||
+          !args.appIds.length || !args.appIds.every(root.STAI.isToolAppId)) return [];
+      return [...new Set(args.appIds)].map(appId => ({ appId, collection: args.collection.trim() }));
+    }
+    if (!Array.isArray(args.changes) || (action === "collections" && ("appIds" in args || "collection" in args))) return [];
+    for (const row of args.changes) {
+      const appId = row?.appId;
+      if (!root.STAI.isToolAppId(appId)) return [];
+      const prior = targets.get(appId);
+      if (action === "rename" || action === "custom_name") {
+        const field = action === "rename" ? "sortName" : "customName";
+        const name = typeof row.name === "string" && row.name.trim();
+        if (!name || prior && prior[field] !== name) return [];
+        targets.set(appId, { appId, [field]: name });
+      } else if (action === "collections") {
+        if (!Array.isArray(row.collectionIds) || !row.collectionIds.length ||
+            !row.collectionIds.every(id => typeof id === "string" && id.trim())) return [];
+        targets.set(appId, { appId, collectionIds: [...new Set([...(prior?.collectionIds ?? []), ...row.collectionIds.map(id => id.trim())])] });
+      } else if (action === "achievements") {
+        if (typeof args.language !== "string" || !/^[a-z][a-z0-9_-]{0,40}$/i.test(args.language) ||
+            !Array.isArray(row.translations) || !row.translations.length) return [];
+        const translations = prior?.translations ?? new Map();
+        for (const entry of row.translations) {
+          if (!entry || typeof entry !== "object") return [];
+          const { id, title, description, revision, translatedTitle, translatedDescription } = entry;
+          if (typeof id !== "string" || !id.trim() || typeof title !== "string" || typeof description !== "string" ||
+              !safeCount(revision) || typeof translatedTitle !== "string" || !translatedTitle.trim() || typeof translatedDescription !== "string") return [];
+          const next = { id, title, description, revision, translatedTitle, translatedDescription };
+          if (translations.has(id) && JSON.stringify(translations.get(id)) !== JSON.stringify(next)) return [];
+          translations.set(id, next);
+        }
+        targets.set(appId, { appId, language: args.language, count: translations.size, translations });
+      }
+    }
+    return [...targets.values()];
+  }
+
+  function matchesWriteTarget(target, operation, groups) {
+    if (target.sortName !== undefined || target.customName !== undefined)
+      return operation.name === (target.sortName ?? target.customName);
+    if (target.collectionIds) return operation.ids.every(id => target.collectionIds.includes(id));
+    if (target.collection) {
+      const exact = groups.find(group => group.id === target.collection);
+      const named = exact ? [exact] : groups.filter(group => group.name === target.collection);
+      return named.length === 1 && operation.ids.length === 1 && operation.ids[0] === named[0].id;
+    }
+    return operation.language === target.language && operation.batches.every(batch => batch.every(entry => {
+      const allowed = target.translations.get(entry.id);
+      return allowed && allowed.revision === entry.expectedRevision && allowed.title === entry.title &&
+        allowed.description === entry.description && allowed.translatedTitle === entry.translatedTitle &&
+        allowed.translatedDescription === entry.translatedDescription && entry.origin === "ai";
+    }));
+  }
 
   /** 校验登记的账号工具输入，去重时保持原请求顺序。 */
   function argumentsFor(tool, input) {
@@ -52,12 +111,13 @@
 
     /** 批量工具只收集常规 Steam 单项指令已经验证的参数，确认后逐项提交 */
     function batchPlan(tool, signal, options = {}) {
-      const action = Object.entries(root.STAI.ACCOUNT_TOOLS).find(([, spec]) => spec.id === tool.id)?.[0];
+      const action = accountAction(tool);
       const operations = new Map(), games = new Map();
+      const request = { signal, checkFrame: options.checkFrame };
       let owner = options.expectedSteamId;
       const checkOwner = async () => {
         signal.throwIfAborted();
-        const current = await deps.native("account-query", { action: "owner" }, { signal });
+        const current = await deps.native("account-query", { action: "owner" }, request);
         signal.throwIfAborted();
         const approvedOwner = options.approvalOwner?.();
         if (owner && owner !== current || approvedOwner && approvedOwner !== current)
@@ -66,7 +126,7 @@
       };
       const query = async (action, args) => {
         await checkOwner();
-        const value = await deps.native("account-query", { steamId: owner, action, args }, { signal });
+        const value = await deps.native("account-query", { steamId: owner, action, args }, request);
         signal.throwIfAborted();
         return value;
       };
@@ -81,6 +141,7 @@
       let groups;
       return {
         explicit: options.explicit === true,
+        scopedApproval: !!options.checkApproval,
         async read(command, value) {
           await options.beforeDetails?.();
           if (command === "game-field" && ["official", "sort"].includes(value.field)) {
@@ -96,7 +157,7 @@
             return groups;
           }
           await checkOwner();
-          const result = await deps.native(command, value, { signal });
+          const result = await deps.native(command, value, request);
           await checkOwner();
           return result;
         },
@@ -120,6 +181,7 @@
           for (const item of changes) {
             const planned = operations.get(item.appId), operation = planned.value;
             delete item.savedCount;
+            delete item.achievementResults;
             try {
               const row = await game(item.appId), display = { appId: item.appId, name: row.name };
               if (action === "rename") {
@@ -147,6 +209,7 @@
                   item.achievementResults = { saved: [], conflicts: [], pending: [...planned.remaining], unconfirmed: [] };
                 }
               }
+              options.checkApproval?.(display, operation, groups);
               Object.assign(item, display);
               if (display.count === 0 || display.previousName !== undefined && display.previousName === operation.name) {
                 item.status = "skipped";
@@ -154,7 +217,7 @@
               } else proposal.push(display);
             } catch (error) {
               signal.throwIfAborted();
-              if (!options.explicit || !["ACTION_NOT_WRITTEN", "AUTOMATION_NAME_ACCESS"].includes(error.code)) throw error;
+              if (!options.explicit || !["ACTION_NOT_WRITTEN", "AUTOMATION_NAME_ACCESS", "ACTION_WRITE_CONFLICT"].includes(error.code)) throw error;
               Object.assign(item, failure(error), { status: "failed" });
             }
           }
@@ -172,7 +235,7 @@
             return { ...summary(), status: "skipped", declined: true, code: "CHAT_TOOL_DECLINED" };
           }
           await checkDefinitions();
-          const receipt = () => options.receipt?.(changes.map(({ appId, status, savedCount, achievementResults }) =>
+          const receipt = () => options.receipt?.(items.filter(item => operations.has(item.appId)).map(({ appId, status, savedCount, achievementResults }) =>
             ({ appId, status, savedCount, ...(achievementResults && { achievementResults }) })));
           for (const item of changes) {
             let submitted = false, saved = 0;
@@ -216,12 +279,12 @@
               } else {
                 submitting();
                 const command = action === "rename" ? "account-save-sort" : "account-add-collections";
-                const result = await deps.native(command, { ...value, steamId: owner, deadline: Date.now() + 15_000 }, { signal, check });
+                const result = await deps.native(command, { ...value, steamId: owner, deadline: Date.now() + 15_000 }, { ...request, check });
                 item.status = result.changed === 0 ? "skipped" : "saved";
                 if (result.changed > 0) item.savedCount = result.changed;
               }
             } catch (error) {
-              const invalidated = ["ACCOUNT_CHANGED", "CHAT_TOOL_NOT_ALLOWED", "WORKFLOW_LIBRARY_UNAVAILABLE", "WORKFLOW_TOOL_UNAVAILABLE"].includes(error.code);
+              const invalidated = ["ACCOUNT_CHANGED", "CHAT_APPROVAL_STALE", "CHAT_TOOL_NOT_ALLOWED", "WORKFLOW_LIBRARY_UNAVAILABLE", "WORKFLOW_TOOL_UNAVAILABLE"].includes(error.code);
               const interrupted = signal.aborted || invalidated;
               if (!submitted && !saved && interrupted) throw error;
               const confirmed = saved || error.savedCount || undefined;
@@ -263,7 +326,7 @@
       return root.STNetworkRequest.run(45_000, async operationSignal => {
         const native = async (action, value) => {
           operationSignal.throwIfAborted();
-          const result = await deps.native(action, value, { signal: operationSignal });
+          const result = await deps.native(action, value, { signal: operationSignal, checkFrame: options.checkFrame });
           operationSignal.throwIfAborted();
           return result;
         };
@@ -275,7 +338,7 @@
           if (await readOwner() !== steamId) throw toolError("Steam 账号已切换，操作已停止", "ACCOUNT_CHANGED");
         };
         const query = (action, args) => native("account-query", { steamId, action, args });
-        const action = Object.keys(root.STAI.ACCOUNT_TOOLS).find(key => root.STAI.ACCOUNT_TOOLS[key].id === tool.id);
+        const action = accountAction(tool);
         let data;
         if (action === "library") data = await query("library", args);
         else if (action === "library_game") data = await query("library-game", args);
@@ -287,5 +350,5 @@
     }
     return Object.freeze({ execute, batchPlan });
   }
-  root.STBackgroundAccountTools = Object.freeze({ argumentsFor, create });
+  root.STBackgroundAccountTools = Object.freeze({ argumentsFor, create, writeApprovalTargets, matchesWriteTarget });
 })(globalThis);

@@ -121,44 +121,66 @@
     if (follow) transcript.scrollTop = transcript.scrollHeight;
   }
   function approvalRows(message, category) {
-    if (message.kind === "write") return message.items.map(item => {
-      let detail = item.sortName ?? item.collections?.map(group => group.name).join("、");
-      if (item.previousName !== undefined) {
-        const values = { before: item.previousName || text("ai_chat_tool_approval_name_unset", "未设置"), after: item.customName ?? item.sortName };
-        detail = item.customName !== undefined
-          ? text("ai_chat_tool_approval_custom_change", "自定义名称  $before$ → $after$", values)
-          : text("ai_chat_tool_approval_sort_change", "排序名称  $before$ → $after$", values);
-      }
-      if (item.added !== undefined)
-        detail = text("ai_chat_tool_approval_translation_changes", "新增 $added$ 条，更新 $updated$ 条成就译文", item);
-      return [`${item.name || "Steam"} · AppID ${item.appId}`, detail ??
-        text("ai_chat_tool_approval_achievements", "保存 $count$ 条成就译文", { count: item.count })];
-    });
-    const rows = [], operations = new Map();
+    const rows = [];
     const { appIds, term, searchProvider } = message.parameters;
     if (searchProvider) rows.push([text("settings.ai.provider", "供应商"), searchProviderName(searchProvider)]);
-    if (appIds?.length) rows.push([text("ai_chat_approval_app_id", "当前查询 AppID"), appIds.join(", ")]);
+    if (appIds?.length && !message.items.length) rows.push([text("ai_chat_approval_app_id", "当前查询 AppID"), appIds.join(", ")]);
     if (term) rows.push([text("ai_chat_approval_keyword", "搜索词"), term]);
     for (const operation of message.operations) {
       const title = operation.kind === category ? "" : text(...approvalLabels[operation.kind]);
       const detail = operation.kind === "network" ? operation.method + " " + operation.origin
         : operation.kind === "script" ? operation.owner
-          : operation.account ? text("ai_chat_approval_account", "本次调用可读取当前 Steam 账号的数据")
+          : operation.wishlist ? text("ai_chat_approval_wishlist", "读取当前 Steam 账号的愿望单并查询价格")
+            : operation.account ? text("ai_chat_approval_account", "本次调用可读取当前 Steam 账号的数据")
             : text("ai_chat_approval_public", "本次调用可读取 Steam 相关公开数据");
-      const key = JSON.stringify([title, detail, operation.code]);
-      if (!operations.has(key)) operations.set(key, [title, detail, operation.code]);
+      rows.push([title, detail, operation.code]);
     }
-    rows.push(...operations.values());
     return rows;
+  }
+  function approvalWriteRow(item) {
+    let detail;
+    const after = item.customName ?? item.sortName;
+    if (after !== undefined) {
+      if (item.previousName !== undefined) {
+        const values = { before: item.previousName || text("ai_chat_tool_approval_name_unset", "未设置"), after };
+        detail = item.customName !== undefined
+          ? text("ai_chat_tool_approval_custom_change", "自定义名称  $before$ → $after$", values)
+          : text("ai_chat_tool_approval_sort_change", "排序名称  $before$ → $after$", values);
+      } else {
+        const label = item.customName !== undefined ? text("workflow.output.steam-custom-name", "自定义名称")
+          : text("workflow.output.steam-sort-name", "排序名称");
+        detail = label + " → " + after;
+      }
+    } else if (item.collection || item.collectionIds) {
+      detail = text("ai_chat_approval_collections", "加入收藏分组") + " · " + (item.collection ?? item.collectionIds.join(", "));
+    } else {
+      detail = text("ai_chat_tool_approval_achievements", "保存 $count$ 条成就译文", { count: item.count }) + " · " + item.language;
+    }
+    return ["AppID " + item.appId, detail];
+  }
+  function approvalList(rows) {
+    const list = document.createElement("ul");
+    for (const [label, detail, code] of rows) {
+      const row = document.createElement("li");
+      for (const [tag, content] of [["strong", label], ["span", detail], ["code", code]]) {
+        if (!content) continue;
+        const element = document.createElement(tag);
+        element.textContent = content;
+        row.append(element);
+      }
+      list.append(row);
+    }
+    return list;
   }
   function showApproval(notice, message, sendDecision) {
     clearApproval();
     const card = document.createElement("article"), title = document.createElement("h2");
     const name = message.toolName ?? toolName(message.toolId);
-    const kinds = new Set(message.kind === "write" ? ["write"] : message.operations.map(operation => operation.kind));
+    const kinds = new Set(message.operations.map(operation => operation.kind));
+    if (message.items.length) kinds.add("write");
     const kind = kinds.size === 1 ? kinds.values().next().value : "mixed";
     const header = document.createElement("header"), category = document.createElement("span");
-    const list = document.createElement("ul"), actions = document.createElement("footer");
+    const body = document.createElement("div"), actions = document.createElement("footer");
     card.className = "chat-tool-approval";
     card.dataset.kind = kind;
     card.tabIndex = -1;
@@ -167,26 +189,23 @@
     title.id = "chat-tool-approval-title";
     title.textContent = text("ai_chat_approval_question", "允许「$tool$」执行以下操作？", { tool: name });
     card.setAttribute("aria-labelledby", title.id);
-    list.tabIndex = 0;
-    list.setAttribute("aria-labelledby", title.id);
-    for (const [label, detail, code] of approvalRows(message, kind)) {
-      const row = document.createElement("li");
-      if (label) {
-        const caption = document.createElement("strong");
-        caption.textContent = label;
-        row.append(caption);
-      }
-      if (detail) {
-        const value = document.createElement("span");
-        value.textContent = detail;
-        row.append(value);
-      }
-      if (code) {
-        const value = document.createElement("code");
-        value.textContent = code;
-        row.append(value);
-      }
-      list.append(row);
+    body.className = "chat-approval-body";
+    body.setAttribute("role", "group");
+    body.setAttribute("aria-labelledby", title.id);
+    const rows = approvalRows(message, kind), writes = message.items.map(approvalWriteRow);
+    if (rows.length) body.append(approvalList(rows));
+    if (writes.length > 4) {
+      const details = document.createElement("details"), summary = document.createElement("summary");
+      summary.textContent = text("ai_chat_approval_write_details", "查看写入明细") + " (" + writes.length + ")";
+      details.append(summary, approvalList(writes));
+      body.append(details);
+      details.addEventListener("toggle", updateBodyFocus);
+    } else if (writes.length) {
+      body.append(approvalList(writes));
+    }
+    function updateBodyFocus() {
+      if (body.scrollHeight > body.clientHeight) body.tabIndex = 0;
+      else body.removeAttribute("tabindex");
     }
     function decide(approved) {
       if (toolApproval?.card !== card) return;
@@ -212,13 +231,13 @@
     }
     const follow = atTranscriptEnd();
     header.append(category, stop);
-    card.append(header, title, list, actions);
+    card.append(header, title, body, actions);
     toolApproval = { card, decide };
     notice.dataset.phase = "tool";
     notice.textContent = text("ai_chat_approval_waiting", "等待授权");
     composer.hidden = true;
     composer.after(card);
-    if (list.scrollHeight <= list.clientHeight) list.removeAttribute("tabindex");
+    updateBodyFocus();
     card.focus({ preventScroll: true });
     if (follow) transcript.scrollTop = transcript.scrollHeight;
   }
@@ -1159,6 +1178,7 @@
       CHAT_TOOL_INVALID: ["ai_chat_tool_invalid", "工具请求参数无效。"],
       CHAT_TOOL_DECLINED: ["ai_chat_approval_declined", "已拒绝本次操作"],
       CHAT_APPROVAL_STALE: ["ai_chat_approval_stale", "操作范围已变化，本次授权已失效。请重新发送。"],
+      CHAT_APPROVAL_SCOPE: ["ai_chat_approval_scope", "操作超出本次工具的授权范围。请先确认目标，再发起新的工具调用。"],
       CHAT_APPROVAL_TIMEOUT: ["ai_chat_approval_timeout", "等待授权超时。请重新发送。"],
       CHAT_APPROVAL_REOPEN: ["ai_chat_approval_reopen", "请重新打开聊天，以处理工具审批。"],
       AUTOMATION_RESET: ["ai_chat_automation_reset", "自动化正在恢复出厂设置，请稍后重试。"],
@@ -1372,6 +1392,7 @@
     let failure;
     liveUsage = undefined;
     const request = { id: thread.id, revision: thread.revision, serviceId, serviceRevision, text: message, appId, approvalMode,
+      approvalVersion: STAI.CHAT_APPROVAL_VERSION,
       reasoningProgress: true, searchEnabled, ...(provider && { searchProvider: provider }),
       ...(reasoning !== undefined && { reasoning }), ...(!thread.revision && preference && { composer: preference }),
       ...(images.length && { images }) };

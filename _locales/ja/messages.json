@@ -11227,6 +11227,18 @@
   "ai_chat_approval_public": {
     "message": "この呼び出しでは Steam 関連の公開データを読み取れます"
   },
+  "ai_chat_approval_wishlist": {
+    "message": "現在の Steam アカウントのウィッシュリストを読み取り、価格を確認します"
+  },
+  "ai_chat_approval_collections": {
+    "message": "コレクションに追加"
+  },
+  "ai_chat_approval_write_details": {
+    "message": "書き込み内容を表示"
+  },
+  "ai_chat_approval_scope": {
+    "message": "この操作は今回のツール呼び出しの承認範囲外です。対象を確認してから、もう一度実行してください。"
+  },
   "ai_chat_approval_executing": {
     "message": "実行中…"
   },

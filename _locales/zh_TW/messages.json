@@ -11227,6 +11227,18 @@
   "ai_chat_approval_public": {
     "message": "這次呼叫可讀取 Steam 相關公開資料"
   },
+  "ai_chat_approval_wishlist": {
+    "message": "讀取目前 Steam 帳號的願望清單並查詢價格"
+  },
+  "ai_chat_approval_collections": {
+    "message": "加入收藏群組"
+  },
+  "ai_chat_approval_write_details": {
+    "message": "查看寫入明細"
+  },
+  "ai_chat_approval_scope": {
+    "message": "操作超出本次工具的授權範圍。請先確認目標，再發起新的工具呼叫。"
+  },
   "ai_chat_approval_executing": {
     "message": "正在執行…"
   },

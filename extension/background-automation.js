@@ -587,13 +587,17 @@
     } };
   }
   /** 每条指令只完成对应的 Steam 读写；数据不依赖 AI 草稿或提示词修订 */
-  async function steamOperation(job, node, { beforeWrite, plan, checkDefinition, signal } = {}) {
+  async function steamOperation(job, node, { beforeWrite, plan, checkDefinition, checkFrame, signal } = {}) {
     signal?.throwIfAborted();
     const frame = execution(job), definition = flow.effects[node.action];
     const args = Object.fromEntries(definition.fields.map(field => [field.key, flow.read(node[field.key], frame.flow)]));
     root.STWorkflowData.validateArguments(definition, args);
     const appid = Object.hasOwn(args, "game") ? gameId(args.game) : 0;
-    const native = plan?.read ?? ((action, value) => nativeFrame().then(frame => services.native(frame, action, value, signal)));
+    const native = plan?.read ?? (async (action, value) => {
+      const frame = checkFrame ? await approvalFrame() : await nativeFrame();
+      checkFrame?.(frame);
+      return services.native(frame, action, value, signal);
+    });
     if (definition.gameField) {
       const field = definition.gameField;
       if (frame.workflow?.id === root.STAI.PROVIDER_TOOL_IDS.game_names) {
@@ -665,13 +669,14 @@
         if (entry.title !== undefined && entry.title !== source.title || entry.description !== undefined && entry.description !== source.description)
           throw actionError("成就原文已变化，未写入译文", "ACTION_SOURCE_CHANGED");
         const record = previous.get(entry.id), revision = record?.revision ?? 0;
-        if (plan?.explicit && (!Number.isSafeInteger(entry.revision) || entry.revision !== revision))
+        if (plan?.explicit && (!Number.isSafeInteger(entry.revision) || entry.revision < 0 ||
+            !plan.scopedApproval && entry.revision !== revision))
           throw actionError("成就译文已变化，请重新读取后再保存", "ACTION_WRITE_CONFLICT");
-        if (plan?.explicit && root.STAchievementTranslations.current(record, source) &&
+        if (plan?.explicit && entry.revision === revision && root.STAchievementTranslations.current(record, source) &&
             record.language === args.language && record.translatedTitle === entry.translatedTitle &&
             record.translatedDescription === entry.translatedDescription) return null;
         return { ...source, translatedTitle: entry.translatedTitle, translatedDescription: entry.translatedDescription,
-          expectedRevision: plan ? plan.explicit ? revision : 0 : entry.expectedRevision ?? revision, origin: args.origin };
+          expectedRevision: plan ? plan.explicit ? entry.revision : 0 : entry.expectedRevision ?? revision, origin: args.origin };
       }).filter(entry => entry !== null);
       const batches = root.STAchievementTranslations.batches(entries);
       for (const batch of batches) root.STAchievementTranslations.saveEntries(batch);
@@ -1357,7 +1362,7 @@
   }
 
   /** 正式运行和试运行使用相同的站点校验，且超时覆盖响应体读取 */
-  async function runHttp(node, state, signal, tool = null, checkpoint, beforeSend) {
+  async function runHttp(node, state, signal, tool = null, checkpoint, beforeSend, approvedScope) {
     const active = flow.activeValue(node.url);
     const address = tool && active.template ? active.template.map(part => {
       if (typeof part === "string") return part;
@@ -1366,7 +1371,10 @@
     }).join("") : flow.read(node.url, state);
     const url = flow.httpUrl(address);
     if (!url) throw httpError("请输入有效的 HTTP 或 HTTPS URL");
-    if (tool && url.origin !== node.origin) throw httpError("实际 URL 与工具请求站点不一致");
+    if (tool && url.origin !== node.origin) {
+      if (approvedScope) throw outsideApproval("请求站点 " + url.origin);
+      throw httpError("实际 URL 与工具请求站点不一致");
+    }
     const headers = httpHeaders(flow.read(node.headers, state));
     const body = flow.hasHttpBody(node.method) ? requestBody(flow.read(node.body, state), headers) : undefined;
     await requireHttpSite(url, signal);
@@ -1396,7 +1404,7 @@
   const isToolQuery = node => Object.hasOwn(flow.providerQueries, node.action);
   const providerSpec = id => Object.values(root.STAI.ACCOUNT_TOOLS).find(item => item.id === id);
   async function runQuery(node, state, signal, tool, checkpoint, beforeSend, expectedSteamId, accountChat) {
-    if (!isToolQuery(node)) return runHttp(node, state, signal, tool, checkpoint, beforeSend);
+    if (!isToolQuery(node)) return runHttp(node, state, signal, tool, checkpoint, beforeSend, accountChat?.scope);
     try {
       if (beforeSend) await beforeSend();
       signal.throwIfAborted();
@@ -1500,105 +1508,200 @@
       ...(error.messageKey && { messageKey: error.messageKey, messageParams: error.messageParams }),
       ...(error.code === "WORKFLOW_HTTP_PERMISSION_REQUIRED" && { origin: error.origin ?? error.cause?.origin }) };
   }
-  const asksBeforeStep = (mode, kind) => kind === "script" && mode === "read-only" ||
+  const asksForToolAccess = (mode, kind) => kind === "script" && mode === "read-only" ||
     mode === "ask" && ["steam-read", "network", "script"].includes(kind);
   const approvalStale = () => actionError("待审批的操作已变化，请重新发起对话", "CHAT_APPROVAL_STALE");
+  const outsideApproval = detail => actionError("本次工具授权未覆盖" + detail, "CHAT_APPROVAL_SCOPE");
   const sameApprovalDefinition = (current, definition) =>
     libraryVersionMatches(current, definition) && (flow.isLibraryId(definition.id) || current.enabled === true);
-  function chatApprovalScope(workflow, bundle, mode) {
-    if (!root.STAI.CHAT_APPROVAL_MODES.includes(mode)) return null;
-    const definitions = new Map([...bundle.tools.filter(tool => tool.enabled), ...bundle.libraries ?? []].map(item => [item.id, item]));
-    return { workflow, definitions, authorized: new Set() };
-  }
-  function approvalScript(node) {
-    const code = root.STLoggerSchema.redactText(node.code.map(part => typeof part === "string" ? part : "〔…〕").join("")).trim();
-    return code.length > 500 ? code.slice(0, 500) + "…" : code;
-  }
-  function childChatScope(scope, definition, bundle, mode, dynamic = false) {
-    if (!scope) return null;
-    const planned = scope.definitions.get(definition.id);
+  function guardChatChild(scope, definition, fullVersions) {
+    const planned = (scope?.definitions ?? fullVersions)?.get(definition.id);
+    if (scope && !planned) throw outsideApproval("子调用「" + definition.name + "」");
     if (planned && !sameApprovalDefinition(definition, planned)) throw approvalStale();
-    if (planned && !dynamic) return scope;
-    return chatApprovalScope(definition, bundle, mode);
   }
-  function approvalOperation(workflow, node, mode, owner) {
+  function approvalOperation(workflow, node, mode, describe = true) {
     const instruction = node && flow.instruction(node.action);
     const kind = node ? instruction?.chatAccess : "steam-read";
-    if (!asksBeforeStep(mode, kind)) return null;
+    if (!asksForToolAccess(mode, kind)) return null;
     if (kind === "network") return { key: kind + ":" + node.method + ":" + node.origin, kind, method: node.method, origin: node.origin };
-    if (kind === "script") return { key: kind + ":" + workflow.id + ":" + node.id, kind, owner: workflow.name, script: node };
+    if (kind === "script") {
+      const key = kind + ":" + workflow.id + ":" + node.id;
+      if (!describe) return { key };
+      const code = root.STLoggerSchema.redactText(node.code.map(part => typeof part === "string" ? part : "〔…〕").join("")).trim();
+      return { key, kind, owner: workflow.name,
+        code: code.length > 500 ? code.slice(0, 500) + "…" : code };
+    }
     const account = !node || instruction.chatAccount === true;
-    if (account && !owner) return null;
-    return { key: account ? "steam-account-read" : "steam-read", kind, account };
+    const wishlist = node?.action === "steam-account-wishlist";
+    return { key: wishlist ? "steam-wishlist" : account ? "steam-account-read" : "steam-read", kind, account, wishlist };
   }
-  function approvalParameters(node, state) {
-    if (!node || flow.instruction(node.action)?.chatAccess !== "steam-read") return {};
-    const argument = flow.providerQueries[node.action]?.argument;
-    const args = argument && argument !== "appId" ? flow.read(node[argument], state) : null;
-    const appId = argument === "appId" ? flow.read(node.appId, state) : node.game ? flow.gameAppId(flow.read(node.game, state)) : null;
+  function approvalParameters(args) {
     return {
-      ...(root.STAI.isToolAppId(appId) && { appIds: [appId] }),
-      ...(Array.isArray(args?.appIds) && args.appIds.every(root.STAI.isToolAppId) && { appIds: [...new Set(args.appIds)] }),
-      ...(typeof args?.term === "string" && args.term && { term: args.term }),
+      ...(root.STAI.isToolAppId(args.appId) && { appIds: [args.appId] }),
+      ...(Array.isArray(args.appIds) && args.appIds.length && args.appIds.every(root.STAI.isToolAppId) && { appIds: [...new Set(args.appIds)] }),
+      ...(typeof args.term === "string" && args.term && { term: args.term }),
     };
   }
 
-  async function authorizeChatStep(frame, node, options) {
-    const { chatScope: scope, chat } = options, { workflow, flow: state } = frame;
-    const instruction = node && flow.instruction(node.action);
-    const ask = asksBeforeStep(chat.mode, node ? instruction?.chatAccess : "steam-read");
-    const account = !node || instruction?.chatAccount === true;
-    if (!ask && !account) return;
-    // 只有真正需要读取账号数据的指令才绑定本机身份，审批前只核对身份
-    const readOwner = async () => requiredOwner(await services.nativeFrameCommand("account-query", { action: "owner" }, { signal: options.signal }));
-    const owner = chat.account.steamId ?? (account ? await readOwner() : null);
-    options.check();
-    if (!ask) { chat.account.steamId = owner; return; }
-    const operation = approvalOperation(workflow, node, chat.mode, owner);
-    if (scope.authorized.has(operation.key)) return;
+  function savedApprovalValue(value, state) {
+    const active = flow.activeValue(value);
+    if (active && (Object.hasOwn(active, "literal") || active.source === "variable" && Object.hasOwn(state.vars, active.id)))
+      return flow.read(active, state, true);
+  }
 
-    // 只合并当前顺序段后续的已知指令。分支与子调用开始执行时再核对。
-    const pending = new Map([[operation.key, operation]]);
-    if (node) {
-      const sequence = state.stack.at(-1), steps = flow.pathGet(workflow, sequence.path);
-      for (let index = sequence.index + 1; index < steps.length; index++) {
-        const next = steps[index];
-        if (next.disabled) continue;
-        if (next.kind !== "action" || ["library-call", "tool-call", "ai-call", "tool-return", "library-return", "stop", "continue", "break", "raise"].includes(next.action)) break;
-        const entry = approvalOperation(workflow, next, chat.mode, owner);
-        if (entry && !scope.authorized.has(entry.key)) pending.set(entry.key, entry);
+  /** 只枚举已保存的步骤和调用参数。运行期产生的写入目标需要独立的工具调用。 */
+  function prepareChatApproval(workflow, input, bundle, mode) {
+    const available = new Map([...bundle.tools.filter(tool => tool.enabled), ...bundle.libraries ?? []].map(item => [item.id, item]));
+    const definitions = new Map(), operations = new Map(), writes = new Map(), scanned = new Map(), planned = new Map();
+    let usesSteam = false;
+    const remember = (definition, node) => {
+      const operation = approvalOperation(definition, node, mode);
+      if (operation && !operations.has(operation.key)) operations.set(operation.key, operation);
+      if (!node || flow.instruction(node.action)?.chatAccount) usesSteam = true;
+    };
+    function inspect(definition, args, inherited, path) {
+      if (!definition || path.includes(definition.id)) return;
+      if (!args || typeof args !== "object" || Array.isArray(args)) args = undefined;
+      if (args && definition !== workflow && flow.isToolId(definition.id)) {
+        try { model.toolArguments(definition, args); }
+        catch (error) { if (error.code !== "CHAT_TOOL_INVALID") throw error; args = undefined; }
+      }
+      const spec = providerSpec(definition.id);
+      const writer = spec?.writes ? { spec, args } : inherited;
+      const signature = JSON.stringify([args, writer?.spec.id, writer?.args]);
+      let entry = scanned.get(definition.id);
+      if (!entry) {
+        const nodes = [...flow.walk(definition.steps, true, true)];
+        const requests = nodes.some(node => node.action === "tool-call" && node.toolMode === "request");
+        entry = { nodes, requests, seen: new Set() };
+        scanned.set(definition.id, entry);
+        definitions.set(definition.id, definition);
+      }
+      if (entry.seen.has(signature)) return;
+      entry.seen.add(signature);
+      const state = flow.state(args, {}, definition), nextPath = [...path, definition.id];
+      for (const node of entry.nodes) {
+        if (entry.seen.size === 1) remember(definition, node);
+        if (writer && flow.instruction(node.action)?.chatAccess === "steam-write") {
+          const key = JSON.stringify([writer.spec.id, writer.args]);
+          if (!planned.has(key)) {
+            remember(definition, null);
+            planned.set(key, writer);
+          }
+        }
+        if (node.action === "library-call") {
+          const library = available.get(node.libraryId);
+          if (!library) continue;
+          const values = {};
+          for (const field of library.parameters) {
+            if (!Object.hasOwn(node.libraryInputs, field.variableId)) continue;
+            const value = savedApprovalValue(node.libraryInputs[field.variableId], state);
+            if (model.parameterAccepts(field.type, value)) values[field.name] = value;
+          }
+          inspect(library, values, writer, nextPath);
+        } else if (node.action === "tool-call" && node.toolMode === "registered") {
+          inspect(available.get(node.toolId), savedApprovalValue(node.toolArgs, state), writer, nextPath);
+        } else if (entry.requests && node.action === "ai-call") {
+          for (const id of flow.toolIds(node)) inspect(available.get(id), undefined, writer, nextPath);
+        }
       }
     }
-    const operations = [...pending.values()].map(({ key, script, ...operation }) =>
-      script ? { ...operation, code: approvalScript(script) } : operation);
-    if (!await chat.requestApproval(scope.workflow, operations, approvalParameters(node, state))) {
-      options.check();
-      throw actionError("用户拒绝了本次工具操作", "CHAT_TOOL_DECLINED");
+    inspect(workflow, input, null, []);
+    for (const { spec, args } of planned.values()) {
+      const byApp = writes.get(spec.id) ?? new Map();
+      for (const target of root.STBackgroundAccountTools.writeApprovalTargets(spec, args)) {
+        const list = byApp.get(target.appId) ?? [];
+        list.push(target);
+        byApp.set(target.appId, list);
+      }
+      writes.set(spec.id, byApp);
     }
-    options.check();
-    if (owner && await readOwner() !== owner)
-      throw actionError("Steam 账号已切换，本次批准已失效", "CHAT_APPROVAL_STALE");
-    try { await options.checkLibrary?.(); }
-    catch (error) {
-      if (["CHAT_TOOL_NOT_ALLOWED", "WORKFLOW_TOOL_UNAVAILABLE", "WORKFLOW_LIBRARY_UNAVAILABLE"].includes(error.code))
-        throw approvalStale();
-      throw error;
+    return { epoch: bundle.epoch, definitions, operations, writes, usesSteam };
+  }
+
+  const approvalFrame = async () => (await chrome.storage.session.get(FRAME_KEY))[FRAME_KEY];
+  const sameApprovalFrame = (left, right) => left === right || !!left && !!right &&
+    ["tabId", "frameId", "documentId", "connectionId"].every(key => left[key] === right[key]);
+  const steamAccountEpoch = () => root.STBackgroundSteamAccount.snapshot().accountEpoch;
+
+  async function bindChatSteamOwner(chat, signal) {
+    const account = chat.account;
+    const frame = await approvalFrame(), epoch = steamAccountEpoch();
+    account.checkFrame(frame);
+    if (account.steamId) return account.steamId;
+    const check = current => {
+      signal.throwIfAborted();
+      if (epoch !== steamAccountEpoch() || !sameApprovalFrame(frame, current)) throw approvalStale();
+      account.checkFrame(current);
+    };
+    const owner = requiredOwner(await services.nativeFrameCommand("account-query", { action: "owner" }, { signal, checkFrame: check }));
+    check(await approvalFrame());
+    const previous = chat.steamSession?.binding;
+    if (previous && sameApprovalFrame(previous.frame, frame) && previous.epoch === epoch && previous.owner !== owner)
+      throw approvalStale();
+    account.steamId = owner;
+    account.binding = { frame, epoch, owner };
+    if (chat.steamSession) {
+      if (!previous || !sameApprovalFrame(previous.frame, frame) || previous.epoch !== epoch) chat.steamSession.names.clear();
+      chat.steamSession.binding = account.binding;
     }
-    options.check();
-    chat.account.steamId = owner;
-    for (const key of pending.keys()) scope.authorized.add(key);
+    return owner;
+  }
+
+  async function checkChatStep(workflow, node, options) {
+    const { chatScope: scope, chat, signal } = options;
+    if (!chat?.account) return;
+    const instruction = flow.instruction(node.action);
+    if (scope) {
+      const operation = approvalOperation(workflow, node, chat.mode, false);
+      if (operation && !scope.operations.has(operation.key)) throw outsideApproval("指令「" + instruction.name + "」");
+      if (instruction.chatAccess === "steam-write" && !options.plan && !isToolQuery(node))
+        throw outsideApproval("Steam 写入指令「" + instruction.name + "」");
+    }
+    if (instruction.chatAccount) await bindChatSteamOwner(chat, signal);
+  }
+
+  function approvalWriteItems(scope, chat) {
+    const binding = chat.steamSession?.binding, snapshot = chat.account.approval;
+    const known = binding && snapshot && sameApprovalFrame(binding.frame, snapshot.frame) && binding.epoch === snapshot.epoch;
+    return [...scope.writes.values()].flatMap(byApp => [...byApp.values()].flatMap(targets => targets.map(target => {
+      const { translations, ...display } = target;
+      const field = target.sortName !== undefined ? "sort" : target.customName !== undefined ? "custom_name" : null;
+      if (known && field) {
+        const previous = chat.steamSession.names.get(field + ":" + target.appId);
+        if (previous !== undefined) target.previousName = display.previousName = previous;
+      }
+      return display;
+    })));
+  }
+
+  function checkChatWrite(spec, scope, display, operation, groups) {
+    const targets = scope.writes.get(spec.id)?.get(display.appId) ?? [];
+    const match = targets.find(target => root.STBackgroundAccountTools.matchesWriteTarget(target, operation, groups));
+    if (!match) throw outsideApproval(" AppID " + display.appId + " 的写入内容");
+    if (match.previousName !== undefined && display.previousName !== match.previousName)
+      throw actionError("名称已在本次确认前后发生变化，请重新查询后再修改", "ACTION_WRITE_CONFLICT");
   }
   async function runDefinition(frame, options) {
     const spec = providerSpec(frame.workflow.id);
     const batchId = spec?.writes && options.chat?.receipt ? root.crypto.randomUUID() : null;
+    const names = options.chat?.steamSession?.names, ids = root.STAI.PROVIDER_TOOL_IDS;
     const ownPlan = spec?.writes ? services.batchPlan(spec, options.signal, { expectedSteamId: options.expectedSteamId,
       explicit: model.hasExplicitWrites(frame.workflow), planPersonalName,
       ...options.chat, checkTool: options.checkLibrary ?? options.chat?.checkTool,
-      ...(options.chatScope && {
+      ...(options.chat?.account && {
+        approve: () => true,
         approvalOwner: () => options.chat.account.steamId,
-        beforeDetails: () => authorizeChatStep(frame, null, options),
+        beforeDetails: () => bindChatSteamOwner(options.chat, options.signal),
+        checkFrame: options.chat.account.checkFrame,
       }),
-      ...(batchId && { receipt: items => options.chat.receipt(items, { batchId, toolId: spec.id }) }) }) : null;
+      ...(options.chatScope && { checkApproval: (display, operation, groups) => checkChatWrite(spec, options.chatScope, display, operation, groups) }),
+      ...(batchId && { receipt: items => {
+        const field = spec.id === ids.rename ? "sort" : spec.id === ids.custom_name ? "custom_name" : null;
+        if (names && field) for (const item of items)
+          if (item.status === "saved" || item.status === "uncertain") names.delete(field + ":" + item.appId);
+        options.chat.receipt(items, { batchId, toolId: spec.id });
+      } }) }) : null;
     const result = await previewDefinition(frame, { ...options, plan: ownPlan ?? options.plan });
     if (!ownPlan) return result;
     const value = await ownPlan.finish(result);
@@ -1610,15 +1713,15 @@
     return value;
   }
   /** 已保存的 2.2.65 节点沿用当前出厂写入契约 */
-  async function runLegacyBatch(toolId, args, signal, expectedSteamId, chat, checkLibrary) {
+  async function runLegacyBatch(toolId, args, signal, expectedSteamId, approval, checkLibrary) {
     const storage = root.STSettings.storage;
-    const [bundle, locale] = await Promise.all([storage.getWorkflow(), storage.getUiLocale({ strict: true })]);
+    const locale = await storage.getUiLocale({ strict: true });
     const defaults = await model.loadDefaults(locale);
     const workflow = defaults.tools.find(item => item.id === toolId);
     const input = model.toolArguments(workflow, args);
     const id = "legacy-account-tool-" + root.crypto.randomUUID(), check = () => signal.throwIfAborted();
-    return runDefinition({ workflow, flow: await childState(workflow, input) }, { id, signal, check, checkLibrary, chat, expectedSteamId,
-      chatScope: chatApprovalScope(workflow, bundle, chat?.mode),
+    return runDefinition({ workflow, flow: await childState(workflow, input) }, { id, signal, check, checkLibrary, expectedSteamId,
+      chat: approval?.chat, chatScope: approval?.scope,
       evaluate: data => root.STWorkflowScript.run({ id, ...data, seconds: 10, signal }) });
   }
   async function definitionAi(node, state, options) {
@@ -1679,14 +1782,18 @@
           ai = await definitionAi(node, state, options); value = ai.text;
         } else if (previewSteamRead(node) || options.plan && Object.hasOwn(flow.effects, node.action) && node.action !== "family-refresh") {
           await requireWorkflowPermission(node);
-          if (options.chatScope && previewSteamRead(node)) await authorizeChatStep(frame, node, options);
           if (checkLibrary) await checkLibrary();
+          await checkChatStep(workflow, node, options);
           check();
           value = options.plan ? await steamOperation(frame, node, { plan: options.plan, checkDefinition: checkLibrary, signal })
-            : await readPreviewSteam(node, state, undefined, { signal, approvedOwner: options.chat?.account?.steamId, workflow });
+            : await readPreviewSteam(node, state, undefined, { signal, approvedOwner: options.chat?.account?.steamId,
+              checkFrame: options.chat?.account?.checkFrame, workflow });
+          const names = options.chat?.steamSession?.names, field = flow.effects[node.action]?.gameField;
+          if (names && workflow.id === root.STAI.PROVIDER_TOOL_IDS.game_names && ["sort", "custom_name"].includes(field) && typeof value === "string")
+            names.set(field + ":" + gameId(flow.read(node.game, state)), value);
         } else if (node.action === "script" || root.STWorkflowData.readingActions.includes(node.action)) {
           if (node.action === "script") await requireWorkflowPermission(node);
-          if (options.chatScope && node.action === "script") await authorizeChatStep(frame, node, options);
+          if (node.action === "script") await checkChatStep(workflow, node, options);
           if (checkLibrary) await checkLibrary();
           check();
           value = await runScriptOrReading(node, state, id, signal, options.network);
@@ -1696,18 +1803,24 @@
             if (!confirmNetwork) throw httpError("请确认试运行将发送真实 HTTP 请求");
             await requireWorkflowPermission(node);
           }
+          await checkChatStep(workflow, node, options);
           await flow.evaluateValues(flow.inputs(node), state, evaluate);
-          if (options.chatScope) await authorizeChatStep(frame, node, options);
           check();
           value = await runQuery(node, state, signal, workflow, undefined, checkLibrary, options.chat?.account?.steamId ?? undefined, options.legacyApproval);
-        } else throw actionError("该指令需要在获授权的工作流中正式执行", "WORKFLOW_PREVIEW_UNSUPPORTED");
+        } else {
+          if (options.chatScope && flow.instruction(node.action)?.chatAccess === "steam-write")
+            throw outsideApproval("Steam 写入指令「" + flow.names[node.action] + "」");
+          throw actionError("该指令需要在获授权的工作流中正式执行", "WORKFLOW_PREVIEW_UNSUPPORTED");
+        }
         check();
         flow.complete(workflow, state, node, value);
         if (ai) applyAiOutputs(state, node, ai.prepared, ai.text, ai.updated);
         if (frame.trace) traceTool(frame, node, "success", true);
       } catch (error) {
         check();
-        if (options.chat && ["CHAT_TOOL_DECLINED", "CHAT_APPROVAL_STALE"].includes(error.code)) throw error;
+        if (options.chatScope && ["WORKFLOW_LIBRARY_UNAVAILABLE", "WORKFLOW_TOOL_UNAVAILABLE", "CHAT_TOOL_NOT_ALLOWED"].includes(error.code))
+          throw approvalStale();
+        if (options.chat && ["CHAT_TOOL_DECLINED", "CHAT_APPROVAL_STALE", "CHAT_APPROVAL_SCOPE"].includes(error.code)) throw error;
         error.nodeId ??= node?.id || state.nodeId;
         const current = nodeOf(frame);
         if (frame.trace && current?.id === error.nodeId) traceTool(frame, current, "failed", true);
@@ -1734,7 +1847,7 @@
     checkCall(path, child.workflow.id);
     const checkLibrary = async () => {
       if (options.checkLibrary) await options.checkLibrary();
-      guardTool(await root.STSettings.storage.getWorkflow(), child);
+      if (!options.chatScope) guardTool(await root.STSettings.storage.getWorkflow(), child);
       options.check();
     };
     try {
@@ -1743,31 +1856,78 @@
         if (!version || toolRevision(child.workflow) !== toolRevision(version)) throw toolUnavailable();
       }
       await checkLibrary();
-      const chatScope = childChatScope(options.chatScope, child.workflow, bundle, options.chat?.mode, node.toolMode !== "registered");
-      const data = await runDefinition(child, { ...options, path, checkLibrary, chatScope, network: undefined });
+      guardChatChild(options.chatScope, child.workflow, options.fullVersions);
+      if (options.chatScope && node.toolMode === "request" && providerSpec(child.workflow.id)?.writes)
+        throw outsideApproval("动态写入工具「" + child.workflow.name + "」");
+      const data = await runDefinition(child, { ...options, path, checkLibrary, network: undefined });
       await checkLibrary();
       return { ...child.binding, status: "success", data };
     } catch (error) { throw toolFailure(child, node, error); }
   }
 
-  /** 执行聊天选中的已保存工具，批量 Steam 修改继续使用对话确认和回执 */
+  /** 拿到本次调用的确认后才开始执行，逐项写入继续记录实际回执 */
   async function runAccountChatTool(definition, args, signal, permission, bundle) {
     const workflow = model.validateTool(definition);
-    const chat = { ...permission, account: { steamId: null } };
-    const chatScope = chatApprovalScope(workflow, bundle, permission.mode);
-    const state = await childState(workflow, model.toolArguments(workflow, args));
+    const input = model.toolArguments(workflow, args);
+    const mode = permission.mode, chat = { ...permission };
+    if (root.STAI.CHAT_APPROVAL_MODES.includes(mode)) chat.account = {
+      steamId: null,
+      checkFrame(frame) {
+        signal.throwIfAborted();
+        const bound = chat.account.binding ?? chat.account.approval;
+        if (bound && (!sameApprovalFrame(bound.frame, frame) || bound.epoch !== steamAccountEpoch())) throw approvalStale();
+      },
+    };
+    const chatScope = mode === "ask" || mode === "read-only" ? prepareChatApproval(workflow, input, bundle, mode) : null;
+    const fullVersions = mode === "full"
+      ? new Map([...bundle.tools.filter(tool => tool.enabled), ...bundle.libraries ?? []].map(item => [item.id, item])) : null;
+    const check = () => { signal.throwIfAborted(); checkReset(); };
+    let verifiedRevision;
+    const checkDefinition = async () => {
+      let latest;
+      try { latest = await permission.checkTool(); }
+      catch (error) { if (chatScope && error.code === "CHAT_TOOL_NOT_ALLOWED") throw approvalStale(); throw error; }
+      check();
+      if (!chatScope) return latest;
+      if (chat.account.binding || chat.account.approval) chat.account.checkFrame(await approvalFrame());
+      check();
+      if (latest.epoch !== chatScope.epoch) throw approvalStale();
+      if (verifiedRevision !== undefined && verifiedRevision === latest.revision) return latest;
+      const definitions = new Map([...latest.tools, ...latest.libraries ?? []].map(item => [item.id, item]));
+      if ([...chatScope.definitions].some(([id, planned]) => !sameApprovalDefinition(definitions.get(id), planned))) throw approvalStale();
+      verifiedRevision = latest.revision;
+      return latest;
+    };
+    check();
+    if (chatScope?.usesSteam) chat.account.approval = { frame: await approvalFrame(), epoch: steamAccountEpoch() };
+    const items = chatScope ? approvalWriteItems(chatScope, chat) : [];
+    if (chatScope?.writes.has(workflow.id) && !chatScope.writes.get(workflow.id).size)
+      throw outsideApproval("未指定 AppID 或目标内容的 Steam 写入");
+    if (chatScope && (chatScope.operations.size || items.length)) {
+      check();
+      const operations = [...chatScope.operations.values()].map(({ key, ...details }) => details);
+      const parameters = model.isOriginalProviderTool(workflow) && operations.some(operation => operation.kind === "steam-read")
+        ? approvalParameters(input) : {};
+      if (!await chat.requestApproval({ operations, parameters, items })) {
+        check();
+        throw actionError("用户拒绝了本次工具操作", "CHAT_TOOL_DECLINED");
+      }
+      await checkDefinition();
+    }
+    check();
+    permission.onStart?.();
+    const state = await childState(workflow, input);
     const id = "chat-account-tool-" + root.crypto.randomUUID();
     let writeUsed = false;
     const queryOptions = toolId => {
       const tool = Object.values(root.STAI.ACCOUNT_TOOLS).find(item => item.id === toolId);
-      if (!tool?.writes) return {};
+      if (!tool?.writes) return { checkFrame: chat.account?.checkFrame };
       if (toolId !== workflow.id || writeUsed) throw actionError("单次聊天工具调用只允许执行一次对应的批量修改指令", "CHAT_TOOL_NOT_ALLOWED");
       writeUsed = true;
-      return chat;
+      return { chat, scope: chatScope };
     };
-    const check = () => signal.throwIfAborted();
-    return runDefinition({ workflow, flow: state }, { id, signal, check, checkLibrary: permission.checkTool, confirmNetwork: true,
-      chat, chatScope, preview: {}, legacyApproval: { queryOptions }, evaluate: (data, activeSignal = signal) =>
+    return runDefinition({ workflow, flow: state }, { id, signal, check, checkLibrary: chatScope ? checkDefinition : permission.checkTool, confirmNetwork: true,
+      chat, chatScope, fullVersions, preview: {}, legacyApproval: { queryOptions, scope: chatScope }, evaluate: (data, activeSignal = signal) =>
         root.STWorkflowScript.run({ id, ...data, seconds: 10, signal: activeSignal }) });
   }
   async function previewLibraryCall(parent, node, options) {
@@ -1788,18 +1948,18 @@
     options.signal.addEventListener("abort", abort, { once: true });
     const checkLibrary = async () => {
       if (options.checkLibrary) await options.checkLibrary();
-      resolveLibrary(await root.STSettings.storage.getWorkflow(), active.id, version);
+      if (!options.chatScope) resolveLibrary(await root.STSettings.storage.getWorkflow(), active.id, version);
       check();
     };
     const network = options.network && ((request, seconds, signal, beforeSend = checkLibrary) => options.network(request, seconds, signal, beforeSend));
     try {
       check();
       const definition = resolveLibrary(await root.STSettings.storage.getWorkflow(), active.id, version);
+      guardChatChild(options.chatScope, definition, options.fullVersions);
       check();
       const evaluate = data => options.evaluate(data, signal);
       frame = await libraryFrame(definition, parent, node, evaluate);
-      const chatScope = childChatScope(options.chatScope, definition, bundle, options.chat?.mode);
-      const result = await runDefinition(frame, { ...options, path, signal, check, evaluate, checkLibrary, chatScope, network,
+      const result = await runDefinition(frame, { ...options, path, signal, check, evaluate, checkLibrary, network,
         log: (step, value) => options.log?.(node, value, step),
         failure: item => options.failure?.({ ...item, nodeId: node.id, libraryNodeId: item.nodeId }) });
       await checkLibrary();
@@ -2122,12 +2282,12 @@
     ["steam-collections", "steam-translations", "steam-achievements"].includes(node.action);
   const previewAction = node => previewSteamRead(node) || isToolQuery(node) || Object.hasOwn(root.STWorkflowData.byId, node.action) ||
     ["script", "http-request", "library-call", "tool-call", "log", "wait", "stop", "break", "continue", "raise", "comment"].includes(node.action);
-  async function readPreviewSteam(node, state, binding, { signal, approvedOwner, workflow } = {}) {
+  async function readPreviewSteam(node, state, binding, { signal, approvedOwner, checkFrame, workflow } = {}) {
     const { game_names, writable_collections, achievement_sources } = root.STAI.PROVIDER_TOOL_IDS;
     if (approvedOwner && [game_names, writable_collections, achievement_sources].includes(workflow?.id)) {
       // 出厂账号工具和游戏库查询使用同一原生身份。返回前也核对本机是否切换了账号
-      const value = await steamOperation({ flow: state, workflow, owner: approvedOwner }, node, { signal });
-      const current = requiredOwner(await services.nativeFrameCommand("account-query", { action: "owner" }, { signal }));
+      const value = await steamOperation({ flow: state, workflow, owner: approvedOwner }, node, { signal, checkFrame });
+      const current = requiredOwner(await services.nativeFrameCommand("account-query", { action: "owner" }, { signal, checkFrame }));
       signal?.throwIfAborted();
       if (current !== approvedOwner) throw approvalStale();
       return value;
@@ -2137,7 +2297,7 @@
     signal?.throwIfAborted();
     requiredOwner(binding.steamAccountId);
     if (approvedOwner && binding.steamAccountId !== approvedOwner) throw approvalStale();
-    const value = await steamOperation({ flow: state, workflow, owner: binding.steamAccountId }, node, { signal });
+    const value = await steamOperation({ flow: state, workflow, owner: binding.steamAccountId }, node, { signal, checkFrame });
     signal?.throwIfAborted();
     if (!accounts.current(binding)) throw Object.assign(new Error("Steam 账号已切换，请重试"), { code: "ACCOUNT_CHANGED" });
     return value;
