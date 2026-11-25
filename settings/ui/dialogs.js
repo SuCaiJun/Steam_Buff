@@ -97,7 +97,8 @@
   /** form 使用原生模态及表单布局，native 使用原生模态及标准宽度。isDirty 只在请求取消时检查。 */
   function dialog(shadow, options = {}) {
     const startedAt = Date.now();
-    const panel = shadow?.querySelector?.(".panel");
+    if (options.signal?.aborted) return Promise.resolve("cancel");
+    const panel = options.host ?? shadow?.querySelector?.(".panel");
     if (!panel) {
       log.warn("settings-dialog-mount-skipped", "设置弹窗挂载跳过", {
         reason: "panel-missing",
@@ -197,11 +198,13 @@
       let done = false;
       let life = null;
       const entry = { native, layer, cancel: () => close("cancel") };
+      const abort = () => close("cancel");
       const close = (value) => {
         if (done) {
           return;
         }
         done = true;
+        options.signal?.removeEventListener("abort", abort);
         opened.splice(opened.indexOf(entry), 1);
         for (const clear of countdownClears) {
           clear();
@@ -224,6 +227,7 @@
         resolve(value);
       };
       opened.push(entry);
+      options.signal?.addEventListener("abort", abort, { once: true });
 
       if (!native) life = globalThis.STDialogLifecycle?.open?.({
         root: layer,
@@ -280,12 +284,14 @@
         if (initial) initial.autofocus = true;
         try { layer.showModal(); }
         catch (error) {
+          options.signal?.removeEventListener("abort", abort);
           opened.splice(opened.indexOf(entry), 1);
           layer.remove();
           throw error;
         }
       }
       window.requestAnimationFrame(() => {
+        if (done) return;
         layer.classList.add("show");
         life?.focusInitial?.();
       });

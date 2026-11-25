@@ -11276,6 +11276,161 @@
   "ai_chat_usage_unavailable": {
     "message": "暫無 Token 用量"
   },
+  "onboarding_aiSharedConnection": {
+    "message": "此連線供多個模型使用，請在「AI 服務」中修改連線設定。"
+  },
+  "settings_ai_connectionName": {
+    "message": "連線名稱"
+  },
+  "settings_ai_apiKey": {
+    "message": "API 金鑰"
+  },
+  "settings_ai_modelList": {
+    "message": "模型清單"
+  },
+  "settings_ai_fetchModelsFirst": {
+    "message": "請先取得可用模型"
+  },
+  "settings_ai_fetchModels": {
+    "message": "取得可用模型"
+  },
+  "settings_ai_addModel": {
+    "message": "新增模型"
+  },
+  "settings_ai_connectionOptions": {
+    "message": "自訂設定"
+  },
+  "settings_ai_customHeaders": {
+    "message": "自訂要求標頭"
+  },
+  "settings_ai_modelId": {
+    "message": "模型 ID"
+  },
+  "settings_ai_modelDisplayName": {
+    "message": "顯示名稱"
+  },
+  "settings_ai_modelOptions": {
+    "message": "展開模型設定"
+  },
+  "settings_ai_removeModel": {
+    "message": "移除模型"
+  },
+  "settings_ai_reorderModel": {
+    "message": "拖曳排序"
+  },
+  "settings_ai_contextWindow": {
+    "message": "上下文視窗"
+  },
+  "settings_ai_maxOutputTokens": {
+    "message": "最大輸出 Token"
+  },
+  "settings_ai_inputTypes": {
+    "message": "輸入類型"
+  },
+  "settings_ai_textInput": {
+    "message": "文字"
+  },
+  "settings_ai_imageInput": {
+    "message": "圖片"
+  },
+  "settings_ai_reasoningLevels": {
+    "message": "推理等級與 API 參數值"
+  },
+  "settings_ai_customizeEffort": {
+    "message": "自訂推理等級"
+  },
+  "settings_ai_addEffort": {
+    "message": "新增等級"
+  },
+  "settings_ai_removeEffort": {
+    "message": "移除等級"
+  },
+  "settings_ai_effortLevel": {
+    "message": "等級"
+  },
+  "settings_ai_effortValue": {
+    "message": "API 參數值"
+  },
+  "settings_ai_replayReasoning": {
+    "message": "續答時回傳推理內容"
+  },
+  "settings_ai_makeDefault": {
+    "message": "設為預設模型"
+  },
+  "settings_ai_currentDefault": {
+    "message": "目前預設模型"
+  },
+  "settings_ai_modelCount": {
+    "message": "$count$ 個模型",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "settings_ai_tokenLimitInvalid": {
+    "message": "請填寫正整數，或使用 K、M 單位。"
+  },
+  "settings_ai_headerInvalid": {
+    "message": "每行填寫一個要求標頭，名稱和值以冒號分隔。"
+  },
+  "settings_ai_modelIdRequired": {
+    "message": "請填寫模型 ID"
+  },
+  "settings_ai_effortDuplicate": {
+    "message": "推理等級不可重複"
+  },
+  "settings_ai_effortInvalid": {
+    "message": "推理參數需使用有效的 JSON。"
+  },
+  "settings_ai_chooseModels": {
+    "message": "選擇模型"
+  },
+  "settings_ai_searchModels": {
+    "message": "搜尋模型"
+  },
+  "settings_ai_selectModels": {
+    "message": "全選"
+  },
+  "settings_ai_unselectModels": {
+    "message": "取消全選"
+  },
+  "settings_ai_modelsLoading": {
+    "message": "正在取得可用模型…"
+  },
+  "settings_ai_addSelectedModels": {
+    "message": "新增選取的模型"
+  },
+  "settings_ai_modelPosition": {
+    "message": "$name$ 已移至第 $position$ 項",
+    "placeholders": {
+      "name": {
+        "content": "$1"
+      },
+      "position": {
+        "content": "$2"
+      }
+    }
+  },
+  "settings_ai_detectedEffort": {
+    "message": "已辨識的等級 $levels$",
+    "placeholders": {
+      "levels": {
+        "content": "$1"
+      }
+    }
+  },
+  "settings_ai_selectOtherDefault": {
+    "message": "請先選擇其他預設模型，再移除此項。"
+  },
+  "settings_ai_removeModelWarning": {
+    "message": "儲存後將移除「$name$」。使用該模型的功能需重新選擇。",
+    "placeholders": {
+      "name": {
+        "content": "$1"
+      }
+    }
+  },
   "ai_chat_model": {
     "message": "模型"
   },
@@ -14619,5 +14774,46 @@
   },
   "workflow_library_import_dependency": {
     "message": "請先匯入所需的自訂庫，核對欄位後再匯入 AI 工具。"
+  },
+  "settings_ai_search_section": {
+    "message": "搜尋服務"
+  },
+  "settings_ai_search_bocha": {
+    "message": "博查 Web Search"
+  },
+  "settings_ai_search_unconfigured": {
+    "message": "尚未設定"
+  },
+  "settings_ai_search_key_saved": {
+    "message": "已儲存 API 金鑰"
+  },
+  "settings_ai_search_invalid_key": {
+    "message": "請輸入有效的 API 金鑰。"
+  },
+  "settings_ai_search_invalid_config": {
+    "message": "搜尋服務設定無效，請重新設定或儲存為尚未設定。"
+  },
+  "settings_ai_search_changed": {
+    "message": "搜尋服務設定已更新，請檢查目前的設定。"
+  },
+  "settings_ai_directoryTokenLimit": {
+    "message": "$count$ · API",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "settings_ai_refreshModelInfo": {
+    "message": "更新模型資訊"
+  },
+  "settings_ai_deepseekDefaultTemperature": {
+    "message": "預設 1.0"
+  },
+  "settings_ai_defaultTemperature": {
+    "message": "供應商預設"
+  },
+  "settings_ai_deepseekTemperatureHint": {
+    "message": "留空時使用預設溫度 1.0。思考模式下溫度不生效。"
   }
 }

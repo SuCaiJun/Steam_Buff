@@ -11276,6 +11276,161 @@
   "ai_chat_usage_unavailable": {
     "message": "トークン使用量を取得できません"
   },
+  "onboarding_aiSharedConnection": {
+    "message": "複数のモデルがこの接続を使っています。AI サービスで接続設定を変更してください。"
+  },
+  "settings_ai_connectionName": {
+    "message": "接続名"
+  },
+  "settings_ai_apiKey": {
+    "message": "API キー"
+  },
+  "settings_ai_modelList": {
+    "message": "モデル一覧"
+  },
+  "settings_ai_fetchModelsFirst": {
+    "message": "先に利用可能なモデルを取得してください"
+  },
+  "settings_ai_fetchModels": {
+    "message": "利用可能なモデルを取得"
+  },
+  "settings_ai_addModel": {
+    "message": "モデルを追加"
+  },
+  "settings_ai_connectionOptions": {
+    "message": "詳細設定"
+  },
+  "settings_ai_customHeaders": {
+    "message": "カスタムリクエストヘッダー"
+  },
+  "settings_ai_modelId": {
+    "message": "モデル ID"
+  },
+  "settings_ai_modelDisplayName": {
+    "message": "表示名"
+  },
+  "settings_ai_modelOptions": {
+    "message": "モデル設定を展開"
+  },
+  "settings_ai_removeModel": {
+    "message": "モデルを削除"
+  },
+  "settings_ai_reorderModel": {
+    "message": "ドラッグで並べ替え"
+  },
+  "settings_ai_contextWindow": {
+    "message": "コンテキストウィンドウ"
+  },
+  "settings_ai_maxOutputTokens": {
+    "message": "最大出力トークン数"
+  },
+  "settings_ai_inputTypes": {
+    "message": "入力タイプ"
+  },
+  "settings_ai_textInput": {
+    "message": "テキスト"
+  },
+  "settings_ai_imageInput": {
+    "message": "画像"
+  },
+  "settings_ai_reasoningLevels": {
+    "message": "推論レベルと API 値"
+  },
+  "settings_ai_customizeEffort": {
+    "message": "推論レベルを指定"
+  },
+  "settings_ai_addEffort": {
+    "message": "レベルを追加"
+  },
+  "settings_ai_removeEffort": {
+    "message": "レベルを削除"
+  },
+  "settings_ai_effortLevel": {
+    "message": "レベル"
+  },
+  "settings_ai_effortValue": {
+    "message": "API パラメーター値"
+  },
+  "settings_ai_replayReasoning": {
+    "message": "続きのリクエストに推論内容を含める"
+  },
+  "settings_ai_makeDefault": {
+    "message": "既定のモデルに設定"
+  },
+  "settings_ai_currentDefault": {
+    "message": "現在の既定のモデル"
+  },
+  "settings_ai_modelCount": {
+    "message": "$count$ 件のモデル",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "settings_ai_tokenLimitInvalid": {
+    "message": "正の整数を入力するか、K または M を付けてください。"
+  },
+  "settings_ai_headerInvalid": {
+    "message": "1 行に 1 つのヘッダーを入力し、名前と値をコロンで区切ってください。"
+  },
+  "settings_ai_modelIdRequired": {
+    "message": "モデル ID を入力してください"
+  },
+  "settings_ai_effortDuplicate": {
+    "message": "推論レベルは重複できません"
+  },
+  "settings_ai_effortInvalid": {
+    "message": "推論パラメーターには有効な JSON を入力してください。"
+  },
+  "settings_ai_chooseModels": {
+    "message": "モデルを選択"
+  },
+  "settings_ai_searchModels": {
+    "message": "モデルを検索"
+  },
+  "settings_ai_selectModels": {
+    "message": "すべて選択"
+  },
+  "settings_ai_unselectModels": {
+    "message": "選択をすべて解除"
+  },
+  "settings_ai_modelsLoading": {
+    "message": "利用可能なモデルを取得中…"
+  },
+  "settings_ai_addSelectedModels": {
+    "message": "選択したモデルを追加"
+  },
+  "settings_ai_modelPosition": {
+    "message": "$name$ を $position$ 番目に移動しました",
+    "placeholders": {
+      "name": {
+        "content": "$1"
+      },
+      "position": {
+        "content": "$2"
+      }
+    }
+  },
+  "settings_ai_detectedEffort": {
+    "message": "検出されたレベル $levels$",
+    "placeholders": {
+      "levels": {
+        "content": "$1"
+      }
+    }
+  },
+  "settings_ai_selectOtherDefault": {
+    "message": "既定のモデルを変更してから削除してください。"
+  },
+  "settings_ai_removeModelWarning": {
+    "message": "保存すると「$name$」が削除されます。このモデルを使う機能で別のモデルを選択してください。",
+    "placeholders": {
+      "name": {
+        "content": "$1"
+      }
+    }
+  },
   "ai_chat_model": {
     "message": "モデル"
   },
@@ -14619,5 +14774,46 @@
   },
   "workflow_library_import_dependency": {
     "message": "必要なカスタムライブラリを先にインポートし、項目を確認してから AI ツールをインポートしてください。"
+  },
+  "settings_ai_search_section": {
+    "message": "検索サービス"
+  },
+  "settings_ai_search_bocha": {
+    "message": "Bocha Web Search"
+  },
+  "settings_ai_search_unconfigured": {
+    "message": "未設定"
+  },
+  "settings_ai_search_key_saved": {
+    "message": "API キーを保存済み"
+  },
+  "settings_ai_search_invalid_key": {
+    "message": "有効な API キーを入力してください。"
+  },
+  "settings_ai_search_invalid_config": {
+    "message": "検索サービスの設定が無効です。再設定するか、未設定の状態で保存してください。"
+  },
+  "settings_ai_search_changed": {
+    "message": "検索サービスの設定が更新されました。現在の設定を確認してください。"
+  },
+  "settings_ai_directoryTokenLimit": {
+    "message": "$count$ · API",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "settings_ai_refreshModelInfo": {
+    "message": "モデル情報を更新"
+  },
+  "settings_ai_deepseekDefaultTemperature": {
+    "message": "既定値 1.0"
+  },
+  "settings_ai_defaultTemperature": {
+    "message": "プロバイダーの既定値"
+  },
+  "settings_ai_deepseekTemperatureHint": {
+    "message": "空欄の場合は既定値の 1.0 が使われます。思考モードでは温度は無効です。"
   }
 }

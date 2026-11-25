@@ -240,7 +240,7 @@
         return panels.review().html(cat);
       }
       if (cat.kind === "ai-services") {
-        return panels.ai().html() + panels.ai().chatHtml();
+        return panels.ai().html() + panels.ai().searchHtml() + panels.ai().chatHtml();
       }
       if (cat.kind === "third-party-services") {
         const classifier = items.find((item) => item.id === "purchase-history-classifier");
@@ -346,6 +346,7 @@
       void root.STWorkflowView.mount(shadow,pageCtx(shadow));
       void root.STWorkflowView.mountTaskBindings(shadow, pageCtx(shadow));
       if (shadow.querySelector(".translate-form")) void panels.translate().loadBindings(shadow);
+      if (shadow.querySelector("[data-ai-search-form]")) void panels.ai().loadSearchForm(shadow);
       if (shadow.querySelector("[data-ai-chat-form]")) void panels.ai().loadChatForm(shadow);
       void refreshUpdateCheck(shadow);
       panels.review?.().renderDynamicLists?.(shadow);

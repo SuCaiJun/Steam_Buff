@@ -11276,6 +11276,161 @@
   "ai_chat_usage_unavailable": {
     "message": "暂无 Token 用量"
   },
+  "onboarding_aiSharedConnection": {
+    "message": "此连接供多个模型使用，请在「AI 服务」中修改连接设置。"
+  },
+  "settings_ai_connectionName": {
+    "message": "连接名称"
+  },
+  "settings_ai_apiKey": {
+    "message": "API 密钥"
+  },
+  "settings_ai_modelList": {
+    "message": "模型列表"
+  },
+  "settings_ai_fetchModelsFirst": {
+    "message": "请先获取可用模型"
+  },
+  "settings_ai_fetchModels": {
+    "message": "获取可用模型"
+  },
+  "settings_ai_addModel": {
+    "message": "添加模型"
+  },
+  "settings_ai_connectionOptions": {
+    "message": "自定义设置"
+  },
+  "settings_ai_customHeaders": {
+    "message": "自定义请求头"
+  },
+  "settings_ai_modelId": {
+    "message": "模型 ID"
+  },
+  "settings_ai_modelDisplayName": {
+    "message": "显示名称"
+  },
+  "settings_ai_modelOptions": {
+    "message": "展开模型设置"
+  },
+  "settings_ai_removeModel": {
+    "message": "删除模型"
+  },
+  "settings_ai_reorderModel": {
+    "message": "拖动排序"
+  },
+  "settings_ai_contextWindow": {
+    "message": "上下文窗口"
+  },
+  "settings_ai_maxOutputTokens": {
+    "message": "最大输出 Token"
+  },
+  "settings_ai_inputTypes": {
+    "message": "输入类型"
+  },
+  "settings_ai_textInput": {
+    "message": "文本"
+  },
+  "settings_ai_imageInput": {
+    "message": "图片"
+  },
+  "settings_ai_reasoningLevels": {
+    "message": "推理等级与 API 参数值"
+  },
+  "settings_ai_customizeEffort": {
+    "message": "自定义推理档位"
+  },
+  "settings_ai_addEffort": {
+    "message": "添加档位"
+  },
+  "settings_ai_removeEffort": {
+    "message": "删除档位"
+  },
+  "settings_ai_effortLevel": {
+    "message": "档位"
+  },
+  "settings_ai_effortValue": {
+    "message": "API 参数值"
+  },
+  "settings_ai_replayReasoning": {
+    "message": "随续答回传推理内容"
+  },
+  "settings_ai_makeDefault": {
+    "message": "设为默认模型"
+  },
+  "settings_ai_currentDefault": {
+    "message": "当前默认模型"
+  },
+  "settings_ai_modelCount": {
+    "message": "$count$ 个模型",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "settings_ai_tokenLimitInvalid": {
+    "message": "请填写正整数，或使用 K、M 单位。"
+  },
+  "settings_ai_headerInvalid": {
+    "message": "每行填写一个请求头，名称和值用冒号分隔。"
+  },
+  "settings_ai_modelIdRequired": {
+    "message": "请填写模型 ID"
+  },
+  "settings_ai_effortDuplicate": {
+    "message": "推理档位不能重复"
+  },
+  "settings_ai_effortInvalid": {
+    "message": "推理参数需要有效的 JSON。"
+  },
+  "settings_ai_chooseModels": {
+    "message": "选择模型"
+  },
+  "settings_ai_searchModels": {
+    "message": "搜索模型"
+  },
+  "settings_ai_selectModels": {
+    "message": "全选"
+  },
+  "settings_ai_unselectModels": {
+    "message": "取消全选"
+  },
+  "settings_ai_modelsLoading": {
+    "message": "正在获取可用模型…"
+  },
+  "settings_ai_addSelectedModels": {
+    "message": "添加所选模型"
+  },
+  "settings_ai_modelPosition": {
+    "message": "$name$ 已移到第 $position$ 项",
+    "placeholders": {
+      "name": {
+        "content": "$1"
+      },
+      "position": {
+        "content": "$2"
+      }
+    }
+  },
+  "settings_ai_detectedEffort": {
+    "message": "识别到的档位 $levels$",
+    "placeholders": {
+      "levels": {
+        "content": "$1"
+      }
+    }
+  },
+  "settings_ai_selectOtherDefault": {
+    "message": "请先选择其他默认模型，再删除这一项。"
+  },
+  "settings_ai_removeModelWarning": {
+    "message": "保存后将移除「$name$」。正在使用该模型的功能需重新选择。",
+    "placeholders": {
+      "name": {
+        "content": "$1"
+      }
+    }
+  },
   "ai_chat_model": {
     "message": "模型"
   },
@@ -14619,5 +14774,46 @@
   },
   "workflow_library_import_dependency": {
     "message": "请先导入所需的自定义库，核对字段后再导入 AI 工具。"
+  },
+  "settings_ai_search_section": {
+    "message": "搜索服务"
+  },
+  "settings_ai_search_bocha": {
+    "message": "博查 Web Search"
+  },
+  "settings_ai_search_unconfigured": {
+    "message": "未配置"
+  },
+  "settings_ai_search_key_saved": {
+    "message": "已保存 API 密钥"
+  },
+  "settings_ai_search_invalid_key": {
+    "message": "请输入有效的 API 密钥。"
+  },
+  "settings_ai_search_invalid_config": {
+    "message": "搜索服务配置无效，请重新配置或保存为未配置。"
+  },
+  "settings_ai_search_changed": {
+    "message": "搜索服务设置已更新，请检查当前配置。"
+  },
+  "settings_ai_directoryTokenLimit": {
+    "message": "$count$ · API",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "settings_ai_refreshModelInfo": {
+    "message": "更新模型信息"
+  },
+  "settings_ai_deepseekDefaultTemperature": {
+    "message": "默认 1.0"
+  },
+  "settings_ai_defaultTemperature": {
+    "message": "供应商默认"
+  },
+  "settings_ai_deepseekTemperatureHint": {
+    "message": "留空使用默认温度 1.0。温度在思考模式下不生效。"
   }
 }

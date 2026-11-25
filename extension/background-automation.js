@@ -2267,24 +2267,23 @@
   }
 
 
-  function reviseServices(value, current, replace, onboardingOnly) {
-    const next = root.STAI.normalizeServices(value);
-    // 向导只编辑连接；旧标签页提交时，也不能带回已经失效的服务名称。
-    if (onboardingOnly)
-      root.STAI.findService(next, root.STAI.DEFAULT_SERVICE_ID).name = root.STAI.findService(current, root.STAI.DEFAULT_SERVICE_ID).name;
+  function reviseServices(value, current, replace) {
+    const config = root.STAI;
+    const next = config.serviceSettings(value);
     if (!replace && next.revision !== current.revision)
       throw new Error("AI 服务已在另一窗口修改，请重新打开设置后保存");
-    for (const service of next.services) {
-      const old = root.STAI.findService(current, service.id);
-      const same = old && JSON.stringify({ ...old, revision: "" }) === JSON.stringify({ ...service, revision: "" });
-      if (same) service.revision = old.revision;
-      else {
-        if (service.host) root.STAI.endpoint(service);
-        service.revision = crypto.randomUUID();
+    const previous = new Map(config.connectedModels(config.serviceSettings(current)).map(item => [item.id, item]));
+    const candidates = new Map(config.connectedModels(next).map(item => [item.id, item]));
+    for (const connection of next.connections) {
+      if (connection.host) config.endpoint(connection);
+      for (const model of connection.models) {
+        const old = previous.get(model.id);
+        const same = old && JSON.stringify({ ...old, revision: "" }) === JSON.stringify({ ...candidates.get(model.id), revision: "" });
+        model.revision = same ? old.revision : crypto.randomUUID();
       }
     }
     next.revision = current.revision + 1;
-    return next;
+    return config.normalizeServices(next);
   }
   function reviseWorkflow(value, current, { replace, reset, creation, includePresets, translate }) {
     const next = model.normalize(value, { structureOnly: !replace });
@@ -2538,10 +2537,17 @@
       workflow = model.restoreFamilySchedule(base, patch.familySettings,
         patch.familyFeature !== false && root.STClientEnvironment.isSteamClientRuntime(), initial, family);
     }
-    const ai = patch.ai ? reviseServices(patch.ai, oldAi, diagnostics.replace, diagnostics.onboardingOnly) : oldAi;
+    const ai = patch.ai ? reviseServices(patch.ai, oldAi, diagnostics.replace) : oldAi;
     if (diagnostics.onboardingOnly) {
-      const custom = (registry) => registry.services.filter((service) => service.id !== root.STAI.DEFAULT_SERVICE_ID);
-      if (JSON.stringify(custom(ai)) !== JSON.stringify(custom(oldAi)))
+      const config = root.STAI;
+      const previous = config.serviceSettings(oldAi);
+      const currentAi = config.serviceSettings(ai);
+      const editable = previous.connections.find(item => item.models.some(row => row.id === previous.defaultModelId));
+      const nextConnection = currentAi.connections.find(item => item.id === editable.id);
+      const others = registry => registry.connections.filter(item => item.id !== editable.id);
+      if (!nextConnection?.models.some(row => row.id === currentAi.defaultModelId) ||
+          JSON.stringify(currentAi.connections.map(item => item.id)) !== JSON.stringify(previous.connections.map(item => item.id)) ||
+          JSON.stringify(others(currentAi)) !== JSON.stringify(others(previous)))
         throw new Error("安装引导只能配置默认 AI 服务");
     }
     const translate = patch.translate ? { ...oldTranslate, ...patch.translate } : oldTranslate;
@@ -2672,6 +2678,10 @@
     const options = { ...diagnostics, operationId: request.operationId };
     switch (request.action) {
       case "save-ai-services":
+        if (options.onboardingOnly && Object.hasOwn(request, "seedAiConnectionName")) {
+          if (typeof request.seedAiConnectionName !== "boolean") throw new TypeError("安装引导的 AI 连接名称状态无效");
+          options.seedAiConnectionName = request.seedAiConnectionName;
+        }
         return configExclusive(async () => (await persistSettings({ ai: request.value }, options)).ai);
       case "save-translate":
         await configExclusive(() => persistSettings({ translate: request.value }, options));

@@ -574,8 +574,17 @@
     { id: "custom", label: "自定义", base: "", models: [] },
   ].map(row => Object.freeze({ ...row, models: Object.freeze(row.models) })));
 
+  const aiSearchProviders = Object.freeze([
+    { id: "deepseek", name: "DeepSeek Search", endpoint: "https://api.deepseek.com/v1/tools/search" },
+    { id: "bocha", name: "Bocha Web Search", endpoint: "https://api.bochaai.com/v1/web-search" },
+    { id: "tavily", name: "Tavily Search", endpoint: "https://api.tavily.com/search" },
+    { id: "brave", name: "Brave LLM Context", endpoint: "https://api.search.brave.com/res/v1/llm/context", transientSources: true },
+  ].map(Object.freeze));
+
   root.STConfig = Object.freeze({
     aiProviders,
+    aiSearchProviders,
+    aiSearchKey: "st.settings.ai-search.v1",
     aiOpenRouterBase: "https://openrouter.ai/api/v1",
     aiChatName: "蒸汽机",
     // Steam Popup 的拖动区域与隔离页的会话控件必须共享同一组尺寸。

@@ -41,6 +41,7 @@
   importScripts(chrome.runtime.getURL("ai/config.js"));
   importScripts(chrome.runtime.getURL("vendor/htmlparser2/parser.js"));
   importScripts(chrome.runtime.getURL("extension/steam-store-search.js"));
+  importScripts(chrome.runtime.getURL("extension/background-ai-search.js"));
   importScripts(chrome.runtime.getURL("extension/background-ai-chat.js"));
   importScripts(chrome.runtime.getURL("shared/price-comparison-catalog.js"));
   importScripts(chrome.runtime.getURL("shared/game-links.js"));
@@ -2548,7 +2549,7 @@
   async function fetchAiChat(url, next, timeoutMs, signal, chat) {
     return await fetchDiagnosticText(url, {
       method: "POST", headers: next.headers, body: JSON.stringify(next.body), cache: "no-cache", credentials: "omit",
-      ...(chat ? { redirect: "error" } : {}),
+      ...(chat || next.rejectRedirect ? { redirect: "error" } : {}),
     }, timeoutMs, signal, ({ response, data: text, diagnostics }, check) => {
       let phase = "http";
       try {
@@ -2890,7 +2891,7 @@
         body: JSON.stringify(next.body),
         cache: "no-cache",
         credentials: "omit",
-        ...(chat ? { redirect: "error" } : {}),
+        ...(chat || next.rejectRedirect ? { redirect: "error" } : {}),
         signal: controller.signal,
       }); } catch (error) {
         if (error.name === "TypeError") error.code = "NETWORK_REQUEST_FAILED";

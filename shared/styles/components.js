@@ -159,11 +159,91 @@
   }
   `;
 
-  const COMPONENT_VERSION = 'steam-buff-components-v4';
+  const COMPONENT_VERSION = 'steam-buff-components-v5';
 
   if (root.STComponents?.version === COMPONENT_VERSION) {
     return;
   }
+
+  const AI_SERVICE_EDITOR_CSS = `
+    .ai-connection-models { display: grid; gap: 10px; padding-block: 14px; }
+    .ai-model-heading, .ai-model-row-actions, .ai-model-picker-search {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .ai-model-heading strong { margin-inline-end: auto; }
+    [data-ai-model-list] { display: grid; gap: 8px; }
+    .ai-model-row {
+      padding: 7px;
+      border: 1px solid var(--st-dialog-divider);
+      border-radius: 9px;
+      background: var(--st-color-surface-subtle);
+    }
+    .ai-model-row[data-ai-model-default] { border-inline-start-color: var(--st-color-border-primary-strong); }
+    .ai-model-row.dragging { opacity: .6; }
+    .ai-model-main {
+      display: grid;
+      grid-template-columns: auto minmax(0, 1.15fr) minmax(0, 1fr) auto auto;
+      align-items: center;
+      gap: 6px;
+    }
+    .ai-model-main [draggable] { cursor: grab; }
+    .ai-model-main [aria-expanded="true"] .ai-service-icon { transform: rotate(90deg); }
+    .ai-model-main [data-ai-editor-action="remove"]:hover { color: var(--st-color-danger); }
+    .ai-model-details, .ai-model-fields, .ai-model-effort, .ai-model-effort label {
+      display: grid;
+      gap: 8px;
+    }
+    .ai-model-details[hidden] { display: none; }
+    .ai-model-details { padding: 12px 4px 4px; }
+    .ai-model-fields { grid-template-columns: repeat(auto-fit, minmax(min(132px, 100%), 1fr)); }
+    .ai-model-fields label { display: grid; gap: 5px; }
+    .ai-model-fields .settings-control::placeholder { color: var(--st-color-text-secondary); opacity: 1; }
+    .ai-model-fields label, .ai-model-input-types, .ai-model-effort label { color: var(--st-color-text-secondary); }
+    .ai-model-input-types { padding: 0; border: 0; margin: 0; min-width: 0; }
+    .ai-model-input-types label, [data-ai-reasoning-actions] label { margin-inline-end: 10px; }
+    .ai-model-effort { grid-template-columns: minmax(0, .65fr) minmax(0, 1.35fr) auto; align-items: end; margin-block: 7px; }
+    .ai-model-reasoning { margin-block: 2px; }
+    .ai-model-reasoning p:empty { display: none; }
+    .ai-model-reasoning p { margin-block: 5px; color: var(--st-color-text-secondary); }
+    .ai-connection-settings, .ai-model-row-actions { border-top: 1px solid var(--st-dialog-divider); padding-top: 8px; }
+    .ai-connection-settings summary, .ai-model-reasoning summary { cursor: pointer; width: fit-content; padding-block: 4px; }
+    .ai-connection-headers { resize: vertical; font-family: monospace; }
+    .ai-model-announcement { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+    .settings-native-layer .ai-model-picker { width: min(430px, 100%); }
+    .ai-model-picker-search input { flex: 1; min-width: 0; }
+    .ai-model-picker-list { display: grid; max-height: min(320px, 44vh); overflow-y: auto; margin-block: 8px; }
+    .ai-model-picker-list label { display: flex; align-items: center; gap: 8px; min-height: 30px; overflow-wrap: anywhere; }
+    .ai-model-picker [role="status"]:empty { display: none; }
+    @media (prefers-reduced-motion: no-preference) {
+      .ai-model-main [data-ai-editor-action="expand"] .ai-service-icon { transition: transform 140ms ease; }
+    }
+    .ai-service-icon-button {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      flex: none;
+      width: 32px;
+      height: 32px;
+      min-width: 32px;
+      padding: 8px;
+      color: var(--st-color-text-secondary);
+    }
+    .ai-service-icon {
+      display: block;
+      flex: none;
+      width: 16px;
+      height: 16px;
+      background: currentColor;
+      mask-position: center;
+      mask-repeat: no-repeat;
+      mask-size: contain;
+      pointer-events: none;
+      forced-color-adjust: none;
+    }
+  `;
 
   const THEME = root.STTheme || {};
   const colors = THEME.colors || {};
@@ -1046,6 +1126,7 @@
 
   root.STComponents = deepFreeze({
     version: COMPONENT_VERSION,
+    aiServiceEditorCss: AI_SERVICE_EDITOR_CSS,
     applyStyles,
     appendContent,
     bindLabel,

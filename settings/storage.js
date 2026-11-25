@@ -879,23 +879,45 @@
     return configureAi("save-ai-services", values, diagnostics);
   }
 
+  // 搜索凭据独立存于本机，AI 服务备份与云同步均不读取此键。
+  async function readAiSearch() {
+    const key = globalThis.STConfig.aiSearchKey;
+    return (await get([key], { strict: true }))[key];
+  }
+
+  async function getAiSearch() {
+    return globalThis.STAI.normalizeSearchSettings(await readAiSearch());
+  }
+
+  async function getAiSearchState() {
+    return globalThis.STAI.searchSettingsState(await readAiSearch());
+  }
+
+  async function setAiSearch(settings, diagnostics) {
+    const value = globalThis.STAI.normalizeSearchSettings(settings);
+    if (!await put({ [globalThis.STConfig.aiSearchKey]: value }, diagnostics))
+      throw new Error("保存搜索服务失败");
+  }
+
   /** 三处关联配置在后台串行校验后一次写入，避免迁移或导入留下悬空引用 */
   async function writeAiSettings({ ai, translate, workflow, familyFeature, familySettings, setupLocale, gameLinks, finishPendingConnection, toolCredentials }, diagnostics = {}) {
     const data = translate ? translatePatch(translate) : {};
     if (ai) {
-      const { enabled, aiConcurrency, ...registry } = ai;
+      const model = globalThis.STAI;
+      const { enabled, aiConcurrency, ...registry } = model.serviceSettings(ai);
       if (typeof enabled === "boolean") data[aiKey("enabled")] = enabled;
       if (typeof aiConcurrency === "number") data[aiKey("aiConcurrency")] = aiConcurrency;
-      const model = globalThis.STAI;
-      const existing = diagnostics.onboardingOnly ? await get([SETUP_KEY, model.SERVICES_KEY], { strict: true }) : null;
+      const existing = diagnostics.onboardingOnly
+        ? await get([SETUP_KEY, model.SERVICES_KEY, model.ONBOARDING_CONNECTION_KEY], { strict: true }) : null;
       if (existing && !existing[SETUP_KEY] && !Object.hasOwn(existing, model.SERVICES_KEY)) {
-        // 首次向导可分次保存连接；服务名称等到首次完成时随其他出厂内容生成。
-        const service = model.findService(ai, model.DEFAULT_SERVICE_ID);
-        const connection = { protocol: service.protocol, ...Object.fromEntries(model.SERVICE_FIELDS.map(({ key }) => [key, service[key]])) };
-        data[model.ONBOARDING_CONNECTION_KEY] = {
-          revision: registry.revision,
-          connection: { ...connection, revision: service.revision, ...(service.provider ? { provider: service.provider } : {}) },
-        };
+        // 首装草稿沿用正式连接结构，出厂名称延至完成时写入
+        const prior = existing[model.ONBOARDING_CONNECTION_KEY];
+        const seedName = diagnostics.seedAiConnectionName ?? (prior?.schemaVersion !== 2 || prior.seedName === true);
+        if (seedName) {
+          const connection = registry.connections.find(item => item.models.some(row => row.id === registry.defaultModelId));
+          delete connection.name;
+        }
+        data[model.ONBOARDING_CONNECTION_KEY] = { ...registry, ...(seedName && { seedName }) };
       } else {
         data[model.SERVICES_KEY] = registry;
       }
@@ -1176,7 +1198,8 @@
     if (stored[SETUP_KEY]) return true;
     const hasRegistry = Object.hasOwn(stored, aiConfig.SERVICES_KEY);
     const flags = aiConfig.flagsFromStorage(stored);
-    const pendingConnection = stored[aiConfig.ONBOARDING_CONNECTION_KEY] != null;
+    const pending = stored[aiConfig.ONBOARDING_CONNECTION_KEY];
+    const pendingConnection = pending != null;
     const legacy = hasRegistry || pendingConnection ? undefined : aiConfig.migrateV222Service({
       ...flags,
       ...Object.fromEntries(aiConfig.V222_CONNECTION_FIELDS.filter(field => Object.hasOwn(stored, aiKey(field)))
@@ -1202,8 +1225,11 @@
       if (familySettings) workflow = model.restoreFamilySchedule(workflow, familySettings,
         stored[familyFeatureKey] !== false && globalThis.STClientEnvironment.isSteamClientRuntime(), true);
     }
-    const ai = hasRegistry ? undefined : legacy ?? aiConfig.servicesFromStorage(stored);
-    if (ai) aiConfig.findService(ai, aiConfig.DEFAULT_SERVICE_ID).name = text("seed.ai.default", "默认 AI 服务");
+    const ai = hasRegistry ? undefined : aiConfig.serviceSettings(legacy ?? aiConfig.servicesFromStorage(stored));
+    if (ai && (pending?.schemaVersion !== 2 || pending.seedName === true)) {
+      const connection = ai.connections.find(item => item.models.some(row => row.id === ai.defaultModelId));
+      connection.name = text("seed.ai.default", "默认 AI 服务");
+    }
     const translate = workflow || ai
       ? Object.fromEntries(Object.entries(defaults).filter(([id]) => !Object.hasOwn(stored, transKey(id))))
       : undefined;
@@ -1270,12 +1296,15 @@
     getSearchSuggestions,
     setSearchSuggestions,
     getAi,
+    getAiSearch,
+    getAiSearchState,
     getAiFlags,
     waitForAiSettings,
     getChatTools,
     getChatConfiguration,
     setChatPreferences,
     setAi,
+    setAiSearch,
     writeAiSettings,
     getThirdPartyServices,
     setThirdPartyServices,

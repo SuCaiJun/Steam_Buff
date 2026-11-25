@@ -1113,7 +1113,9 @@ a.step-tutorial:focus-visible {
   font-weight: 650;
 }
 
-.setup-control {
+.setup-control,
+#ai-editor .settings-control,
+#ai-dialogs .settings-control {
   width: 100%;
   min-height: 42px;
   padding: 0 14px;
@@ -1126,13 +1128,17 @@ a.step-tutorial:focus-visible {
   line-height: 1.4;
 }
 
-.setup-control:focus {
+.setup-control:focus,
+#ai-editor .settings-control:focus,
+#ai-dialogs .settings-control:focus {
   outline: none;
   border-color: var(--ob-primary);
   box-shadow: var(--ob-focus);
 }
 
-.setup-control:disabled {
+.setup-control:disabled,
+#ai-editor .settings-control:disabled,
+#ai-dialogs .settings-control:disabled {
   opacity: 0.55;
   cursor: not-allowed;
 }
@@ -1141,60 +1147,129 @@ a.step-tutorial:focus-visible {
   cursor: wait;
 }
 
-.ai-model-row {
+#ai-fields {
+  margin: 0;
+  min-inline-size: 0;
+  border: 0;
+}
+
+#ai-editor,
+#ai-dialogs {
+  --st-dialog-divider: var(--ob-line);
+  --st-color-surface-subtle: var(--ob-bg);
+  --st-color-text-secondary: var(--ob-text-soft);
+  --st-color-border-primary-strong: var(--ob-primary);
+}
+
+#ai-editor .settings-grid,
+#ai-editor .settings-row,
+#ai-editor .settings-value,
+#ai-editor .settings-label {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: center;
+  min-inline-size: 0;
+}
+
+#ai-editor .settings-grid,
+#ai-editor details[open].ai-connection-settings {
+  gap: 14px;
+}
+
+#ai-editor details[open].ai-connection-settings {
+  display: grid;
+}
+
+#ai-editor .settings-row {
   gap: var(--st-spacing-sm);
 }
 
-#ai-model-control {
-  --st-color-border-hover: var(--ob-line);
-  --st-color-bg-input: var(--ob-bg);
-  --st-color-text-secondary: var(--ob-text);
-  --st-color-text-muted: var(--ob-text-soft);
-  --st-color-text-primary: var(--ob-primary);
-  --st-color-primary-surface-hover: var(--ob-primary-soft);
-  --st-shadow-panel-menu: var(--st-shadow-tooltip);
+#ai-editor .settings-row[hidden] {
+  display: none;
 }
 
-#ai-model {
-  padding-inline-end: 44px;
+#ai-editor .settings-label {
+  color: var(--ob-text-soft);
+  font-size: 13px;
+  font-weight: 650;
 }
 
-#ai-model-control .st-search-combo__toggle {
-  inset-block: 4px;
-  inset-inline-end: 4px;
-  width: 34px;
-  border-radius: var(--st-radius-md);
+#ai-editor .ai-connection-models {
+  padding-block: var(--st-spacing-xs);
 }
 
-#ai-model-control .st-search-combo__toggle:hover:enabled {
-  background: var(--ob-primary-soft);
+#ai-editor .ai-model-main .settings-control,
+#ai-editor .ai-model-fields .settings-control,
+#ai-editor .ai-model-effort .settings-control {
+  min-block-size: 36px;
+  padding-inline: var(--st-spacing-sm);
 }
 
-#ai-model-options {
-  padding: var(--st-spacing-xs);
+#ai-editor .ai-connection-headers {
+  padding-block: var(--st-spacing-sm);
+}
+
+#ai-editor .ai-service-empty {
+  margin: 0;
+  color: var(--ob-text-muted);
+  font-size: 13px;
+}
+
+#ai-dialogs dialog {
+  overflow: visible;
+  box-sizing: border-box;
+  inline-size: min(430px, calc(100% - 32px));
+  max-inline-size: none;
+  max-block-size: calc(100% - 32px);
+  margin: auto;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
+#ai-dialogs dialog:not([open]) {
+  display: none;
+}
+
+#ai-dialogs dialog::backdrop {
+  background: var(--st-dialog-overlay-bg);
+}
+
+#ai-dialogs .settings-dialog {
+  display: flex;
+  flex-direction: column;
+  inline-size: 100%;
+  max-block-size: calc(100dvh - 32px);
+  padding: 0;
+  overflow: hidden;
+}
+
+#ai-dialogs .settings-dialog-message {
+  min-block-size: 0;
+  padding: 16px;
+  overflow: auto;
   overscroll-behavior: contain;
-  border-radius: var(--st-radius-md);
 }
 
-#ai-model-options .st-search-combo__option,
-#ai-model-options .st-search-combo__empty {
-  padding: var(--st-spacing-sm);
-  overflow-wrap: anywhere;
-  font: inherit;
-  font-size: 14px;
+#ai-dialogs .settings-dialog-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--st-spacing-sm);
+  padding: 12px 16px;
+  border-top: 1px solid var(--st-dialog-divider);
 }
 
-@media (max-width: 520px) {
-  .ai-model-row {
-    grid-template-columns: minmax(0, 1fr);
-    justify-items: start;
+#ai-dialogs .ai-model-picker-search input {
+  inline-size: 0;
+}
+
+@media (max-width: 540px) {
+  #ai-editor .ai-model-main .settings-control {
+    padding-inline: 5px;
   }
 
-  #ai-model-control {
-    width: 100%;
+  #ai-editor .ai-service-icon-button {
+    inline-size: 28px;
+    min-inline-size: 28px;
   }
 }
 

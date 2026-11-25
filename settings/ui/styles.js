@@ -456,15 +456,7 @@
         .ai-service-editor .settings-row { padding-inline: 0; }
         .ai-service-editor .settings-value { flex: 0 1 280px; }
         .ai-service-editor .settings-control { width: 100%; min-width: 0; box-sizing: border-box; }
-        .ai-service-editor .ai-model-controls {
-          display: flex;
-          align-items: center;
-          gap: 8px;
-          width: 100%;
-        }
-        .ai-service-editor [data-ai-model-control] { flex: 1 1 0; min-width: 0; }
-        .ai-service-editor [data-ai="model"] { padding-inline-end: 36px; }
-        .ai-service-editor .ai-reasoning-map { resize: vertical; font-family: monospace; }
+        ${globalThis.STComponents.aiServiceEditorCss}
         .ai-service-editor .ai-permission-wait { inset: 0; }
         .ai-service-editor .ai-service-feedback { padding: 12px 0 0; }
 
@@ -1510,8 +1502,13 @@
         .ai-settings-card .form-switch:focus-within { outline: 2px solid var(--st-color-steam-blue); outline-offset: 2px; }
         .content-swap[data-active="ai-services"] > .page-subtitle { display: none; }
         .ai-entry-card .ai-chat-entry-fields { border: 0; margin: 0; padding: 0; min-inline-size: 0; }
+        .ai-entry-card[data-ai-search-form] { position: relative; }
+        .ai-entry-card[data-ai-search-form] .ai-permission-wait { inset: 0; }
         .ai-chat-entry-description { display: block; color: var(--st-dialog-muted-color); margin-block-start: 2px; }
-        .ai-entry-card [data-ai-chat-status] { margin-inline-end: auto; color: var(--st-dialog-muted-color); }
+        .ai-entry-card [data-ai-chat-status], .ai-entry-card [data-ai-search-status] {
+          margin-inline-end: auto;
+          color: var(--st-dialog-muted-color);
+        }
         .classifier-settings-card > .feature {
           margin: 12px 16px;
         }
@@ -1565,33 +1562,10 @@
           flex-wrap: wrap;
         }
 
-        .ai-service-icon-button {
-          display: inline-flex;
-          align-items: center;
-          justify-content: center;
-          flex: none;
-          width: 32px;
-          height: 32px;
-          min-width: 32px;
-          padding: 8px;
-          color: var(--st-color-text-secondary);
-        }
         .ai-service-icon-button[aria-pressed="true"] { color: var(--st-color-success); }
         .ai-service-icon-button[data-ai-action="delete"]:hover {
           color: var(--st-color-danger-text);
           background: var(--st-color-danger-surface);
-        }
-        .ai-service-icon {
-          display: block;
-          flex: none;
-          width: 16px;
-          height: 16px;
-          background: currentColor;
-          mask-position: center;
-          mask-repeat: no-repeat;
-          mask-size: contain;
-          pointer-events: none;
-          forced-color-adjust: none;
         }
 
         .ai-service-feedback,

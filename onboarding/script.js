@@ -53,7 +53,6 @@
   const SETTINGS_CATALOG_PATH = "settings/catalog.js";
   const FLOW_TIMEOUT_MS = 10_000;
   const ITAD_TEST_TIMEOUT_MS = 12_000;
-  const AI_TEST_TIMEOUT_MS = 20_000;
   const AI_PERMISSION_WAIT_MS = 5 * 60 * 1000;
   const INVALID_TITLE = t("onboarding_invalidPageAddress", "当前地址无效");
   const INVALID_COPY = t("onboarding_invalidPageHelp", "当前页面可能已失效或不存在，请点击刷新页面或返回首页。");
@@ -107,15 +106,7 @@
     },
     ai: {
       enabled: true,
-      provider: "custom",
-      host: "",
-      model: "",
-      keyMode: "bearer",
-      key: "",
-      keyName: "",
-      temperature: "0.2",
-      aiConcurrency: 10,
-      detectedModels: null,
+      seedName: false,
       verified: false,
       message: "",
       messageError: false,
@@ -140,10 +131,8 @@
   let loginAttempt = 0;
   let celebration = null;
   let celebrationTimer = 0;
-  let aiModelDetection = null;
+  let aiEditor, aiVerifiedKey, aiTest;
   let restartNotice = null;
-  let renderedAiModelOptions = null;
-  let aiTemperatureBeforePreset = null;
 
   const icons = Object.freeze({
     login: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"></path><path d="M10 17l5-5-5-5"></path><path d="M15 12H3"></path></svg>',
@@ -212,13 +201,6 @@
     return globalThis.STAI.storageKey(id);
   }
 
-  function aiDefaults() {
-    return globalThis.STAI.defaults();
-  }
-
-  function normalizeAiDraft(values = {}) {
-    return { ...globalThis.STAI.normalize({ ...aiDefaults(), ...values }), provider: values.provider || "custom" };
-  }
 
   function loggedIn() {
     return state.loginMode === "success" || !!state.loginAuth;
@@ -236,9 +218,6 @@
     return state.thirdParty.enabled !== true || state.thirdParty.verified === true;
   }
 
-  function aiKeyRequired(mode = state.ai.keyMode) {
-    return mode !== "none";
-  }
 
   function aiCanNext() {
     return state.ai.enabled !== true || state.ai.verified === true;
@@ -550,20 +529,6 @@
     };
   }
 
-  function readAiForm() {
-    return normalizeAiDraft({
-      enabled: state.ai.enabled === true,
-      protocol: state.ai.protocol,
-      provider: $("#ai-provider").value,
-      host: $("#ai-host")?.value,
-      model: $("#ai-model")?.value,
-      keyMode: $("#ai-key-mode")?.value,
-      key: $("#ai-key")?.value,
-      keyName: $("#ai-key-name")?.value,
-      temperature: $("#ai-temperature")?.value,
-      aiConcurrency: $("#ai-concurrency")?.value,
-    });
-  }
 
   function firstLocalPage() {
     return state.cloudCount + 1;
@@ -647,38 +612,6 @@
     clampCommittedPage();
   }
 
-  function syncAiStateFromForm() {
-    const next = readAiForm();
-    const prev = state.ai;
-    if (next.host !== prev.host) {
-      const previousOrigin = aiGatewayOrigin(prev.host);
-      if (previousOrigin && previousOrigin !== aiGatewayOrigin(next.host)) {
-        next.key = "";
-        $("#ai-key").value = "";
-      }
-    }
-    const connectionChanged = next.provider !== prev.provider
-      || next.host !== prev.host
-      || next.keyMode !== prev.keyMode
-      || next.key !== prev.key
-      || next.keyName !== prev.keyName;
-    if (connectionChanged) state.ai.detectedModels = null;
-    const changed = connectionChanged || next.model !== prev.model
-      || next.temperature !== prev.temperature
-      || Number(next.aiConcurrency) !== Number(prev.aiConcurrency);
-    if (changed) {
-      state.ai.verified = false;
-      state.ai.saved = false;
-      invalidateProgress();
-    }
-    Object.assign(state.ai, next, {
-      verified: state.ai.verified,
-      message: state.ai.message,
-      messageError: state.ai.messageError,
-      saved: state.ai.saved,
-    });
-    clampCommittedPage();
-  }
 
   function ensureAiModule() {
     // AI 配置与引导脚本在 index.html 中按固定顺序加载。
@@ -690,9 +623,6 @@
     return globalThis.STConfig.aiProviders.find(preset => preset.id === id);
   }
 
-  function aiGatewayOrigin(host) {
-    return URL.canParse(host) ? new URL(host).origin : "";
-  }
 
   function storedAiProvider(connection) {
     if (connection.provider) return aiProvider(connection.provider)?.id || "custom";
@@ -723,24 +653,11 @@
     state.thirdParty.verified = false;
     state.thirdParty.saved = false;
 
-    state.aiRegistry = aiConfig.servicesFromStorage(stored);
-    const service = aiConfig.findService(state.aiRegistry, aiConfig.DEFAULT_SERVICE_ID);
-    const hasConnection = service.provider || service.host || service.model || service.key ||
-      service.keyName || service.temperature || service.keyMode !== aiDefaults().keyMode;
-    const connection = hasConnection
-      ? { ...service, provider: storedAiProvider(service) }
-      : { ...aiConfig.presetConnection(aiProvider("deepseek")), provider: "deepseek" };
-    const ai = normalizeAiDraft({
-      temperature: "0.2", ...connection,
-      aiConcurrency: state.aiRegistry.aiConcurrency,
-      enabled: Object.hasOwn(stored, aiStorageKey("enabled")) ? state.aiRegistry.enabled : true,
-    });
-    Object.assign(state.ai, ai, {
-      verified: false,
-      message: "",
-      messageError: false,
-      saved: false,
-    });
+    state.aiRegistry = aiConfig.serviceSettings(aiConfig.servicesFromStorage(stored));
+    const pending = stored[aiConfig.ONBOARDING_CONNECTION_KEY];
+    state.ai.seedName = !Object.hasOwn(stored, aiConfig.SERVICES_KEY) &&
+      (pending?.schemaVersion !== 2 || pending.seedName === true);
+    state.ai.enabled = Object.hasOwn(stored, aiStorageKey("enabled")) ? state.aiRegistry.enabled : true;
     state.savedSummary["third-party"] = stored[thirdPartyKey("enabled")] === true ? t("common_enabled", "已启用") : t("onboarding_disabled", "未启用");
     state.savedSummary.ai = stored[aiStorageKey("enabled")] === true ? t("common_enabled", "已启用") : t("onboarding_disabled", "未启用");
     state.servicesHydrated = true;
@@ -782,47 +699,24 @@
   }
 
   async function saveAiSettings(operationId = "") {
-    await ensureAiModule();
-    const form = readAiForm();
-    Object.assign(state.ai, form, {
-      verified: state.ai.verified,
-      message: state.ai.message,
-      messageError: state.ai.messageError,
-      saved: state.ai.saved,
-    });
-    if (form.enabled && !state.ai.verified) {
-      return { ok: false, reason: "unverified" };
-    }
-    const previous = state.aiRegistry;
-    const next = { ...previous, enabled: form.enabled, aiConcurrency: form.aiConcurrency };
-    if (form.enabled) {
-      const ai = globalThis.STAI;
-      next.services = previous.services.map((service) => {
-        if (service.id !== ai.DEFAULT_SERVICE_ID) return service;
-        const item = { ...service, ...form, enabled: true };
-        const sameModel = service.model === item.model && ai.endpoint(service) === ai.endpoint(item);
-        if (!sameModel || service.key !== item.key || service.keyMode !== item.keyMode || service.keyName !== item.keyName)
-          delete item.directoryModel;
-        if (!sameModel || item.provider !== "custom") delete item.customReasoning;
-        return item;
-      });
-    }
-    log.info("onboarding-ai-save-start", "安装引导开始保存 AI 配置", {
-      operationId,
-      enabled: form.enabled === true,
-    });
+    const enabled = state.ai.enabled;
+    if (enabled && !state.ai.verified) return { ok: false, reason: "unverified" };
+    const editor = currentAiEditor();
+    const { value } = editor.candidate(enabled);
+    const seedAiConnectionName = enabled ? editor.usesDefaultName() : state.ai.seedName;
+    log.info("onboarding-ai-save-start", "安装引导开始保存 AI 配置", { operationId, enabled });
     const saved = await runtimeSend({
-      type: "AUTOMATION", action: "save-ai-services", value: next, operationId,
+      type: "AUTOMATION", action: "save-ai-services", value, operationId, seedAiConnectionName,
     }, 120000);
     if (saved?.success !== true)
       throw Object.assign(new Error(saved?.error || t("onboarding_aiSaveFailed", "AI 配置保存失败，请稍后重试。")), { code: saved?.errorCode });
-    state.aiRegistry = saved.value;
+    state.aiRegistry = globalThis.STAI.serviceSettings(saved.value);
+    state.ai.seedName = seedAiConnectionName;
     state.ai.saved = true;
-    state.savedSummary.ai = form.enabled ? t("onboarding_configuredAndTested", "已配置并测试") : t("onboarding_off", "已关闭");
-    log.info("onboarding-ai-save-success", "安装引导 AI 配置保存成功", {
-      operationId,
-      enabled: form.enabled === true,
-    });
+    state.savedSummary.ai = enabled ? t("onboarding_configuredAndTested", "已配置并测试") : t("onboarding_off", "已关闭");
+    editor.dispose();
+    aiEditor = aiVerifiedKey = undefined;
+    log.info("onboarding-ai-save-success", "安装引导 AI 配置保存成功", { operationId, enabled });
     return { ok: true };
   }
 
@@ -1071,127 +965,49 @@
   }
 
   async function testAiConnection() {
-    if (state.serviceBusy || state.busy) return;
-    await ensureAiModule();
-    syncAiStateFromForm();
-    const testConf = normalizeAiDraft({ ...state.ai, enabled: true });
+    if (controlsBusy() || !state.ai.enabled) return;
+    const editor = currentAiEditor();
     const operationId = createOperationId();
-    if (!testConf.host || !testConf.model) {
-      state.ai.verified = false;
-      resultNotice(t("settings_ai_test_missingConfig", "请填写 AI 网关地址和模型。"), "ai");
-      state.ai.messageError = true;
-      render();
-      return;
-    }
-    if (aiKeyRequired(testConf.keyMode) && !testConf.key) {
-      state.ai.verified = false;
-      resultNotice(t("onboarding_enterAnAccessKey", "请填写访问密钥。"), "ai");
-      state.ai.messageError = true;
-      render();
-      return;
-    }
+    const controller = new AbortController();
+    aiTest = controller;
     state.serviceBusy = true;
+    state.ai.verified = false;
     state.ai.message = t("onboarding_testing", "测试中...");
     state.ai.messageError = false;
     render();
     const startedAt = Date.now();
-    log.info("onboarding-ai-test-start", "安装引导开始测试 AI 连接", {
-      operationId,
-      enabled: true,
-    });
+    log.info("onboarding-ai-test-start", "安装引导开始测试 AI 连接", { operationId, enabled: true });
     try {
-      await ensureAiGatewayPermission(testConf, operationId);
-      const response = await runtimeSend({
-        type: "AI_CHAT_COMPLETIONS",
-        action: "test-connection",
-        operationId,
-        ai: testConf,
-        messages: [
-          { role: "system", content: "你是接口连通性测试助手，只回复纯文本。" },
-          { role: "user", content: "请只回复：Steam Buff AI 测试成功" },
-        ],
-      }, AI_TEST_TIMEOUT_MS);
-      if (response?.success !== true) {
-        throw Object.assign(new Error(response?.error || t("onboarding_aiTestFailed", "AI 测试失败，请检查配置后重试。")), {
-          code: response?.code || "AI_TEST_FAILED",
-        });
-      }
+      const result = await editor.test(operationId, controller.signal);
+      controller.signal.throwIfAborted();
+      if (!result) return;
+      if (result.chat.status === "rejected") throw result.chat.reason;
+      aiVerifiedKey = result.key;
       state.ai.verified = true;
       state.ai.saved = false;
-      resultNotice(t("onboarding_connectionVerified", "测试通过，可进入下一步。"), "ai");
-      state.ai.messageError = false;
-      log.info("onboarding-ai-test-success", "安装引导 AI 连接测试成功", {
-        operationId,
-        durationMs: Date.now() - startedAt,
-      });
-    } catch (error) {
-      if (error?.code === "AI_HOST_PERMISSION_CANCELLED") {
-        state.ai.verified = false;
-        state.ai.message = t("onboarding_authorizationCanceled", "已取消授权。");
-        state.ai.messageError = true;
-        log.info("onboarding-ai-test-permission-cancelled", "安装引导 AI 连接测试授权已取消", {
-          operationId,
-          durationMs: Date.now() - startedAt,
-        });
-      } else {
-        state.ai.verified = false;
-        resultNotice(error?.message || String(error), "ai");
-        state.ai.messageError = true;
-        log.error("onboarding-ai-test-failed", "安装引导 AI 连接测试失败", {
-          operationId,
-          durationMs: Date.now() - startedAt,
-          errorCode: error?.code || "TEST_THROWN",
-          error,
-        });
-      }
-    } finally {
-      state.serviceBusy = false;
-      render();
-    }
-  }
-
-  async function detectAiModels() {
-    if (controlsBusy() || !state.ai.enabled) return;
-    syncAiStateFromForm();
-    const controller = new AbortController();
-    const operationId = createOperationId();
-    const ai = ensureAiModule();
-    aiModelDetection = controller;
-    state.serviceBusy = true;
-    state.ai.message = "";
-    state.ai.messageError = false;
-    render();
-    let focus = "";
-    try {
-      const models = await ai.detectModels(state.ai, connection => ensureAiGatewayPermission(connection, operationId, controller.signal), {
-        operationId, signal: controller.signal,
-      });
-      controller.signal.throwIfAborted();
-      state.ai.detectedModels = models.length ? models : null;
-      state.ai.message = models.length
-        ? t("settings.ai.modelsDetected", "找到 $count$ 个模型", { count: models.length })
-        : t("settings.ai.modelsEmpty", "接口未返回模型，可手动输入。");
-      log.info("onboarding-ai-models-detected", "安装引导完成 AI 模型检测", { operationId, count: models.length });
-      focus = "#ai-model";
+      const detail = result.models.status === "fulfilled"
+        ? t("settings.ai.modelsDetected", "找到 $count$ 个模型", { count: result.models.value.length })
+        : aiPanel.catalogNotice(result.models.reason, t("settings.ai.modelsFailed", "模型检测失败"));
+      resultNotice(t("onboarding_connectionVerified", "测试通过，可进入下一步。") + "\n" + detail, "ai");
+      log.info("onboarding-ai-test-success", "安装引导 AI 连接测试成功", { operationId, durationMs: Date.now() - startedAt });
     } catch (error) {
       if (controller.signal.aborted) return;
       if (error.code === "AI_HOST_PERMISSION_CANCELLED") {
-        state.ai.message = error.message;
-      } else {
-        const issue = ai.modelListIssue(error.code);
-        const failure = t("settings.ai.modelsFailed", "模型检测失败");
-        state.ai.message = issue ? t(issue[1], issue[2]) : error.message || failure;
+        state.ai.message = t("onboarding_authorizationCanceled", "已取消授权。");
         state.ai.messageError = true;
-        if (!issue) log.error("onboarding-ai-models-failed", failure, { operationId, error });
-        focus = issue ? (issue[0] === "keyMode" ? "#ai-key-mode" : "#ai-" + issue[0]) : "#ai-models";
+        log.info("onboarding-ai-test-permission-cancelled", "安装引导 AI 连接测试授权已取消", { operationId });
+      } else {
+        editor.revealGateway();
+        resultNotice(error.message, "ai");
+        state.ai.messageError = true;
+        log.error("onboarding-ai-test-failed", "安装引导 AI 连接测试失败", { operationId, error });
       }
     } finally {
-      aiModelDetection = null;
+      aiTest = null;
       state.serviceBusy = false;
+      state.ai.message = controller.signal.aborted ? "" : state.ai.message;
       render();
     }
-    if (focus === "#ai-key-mode") $("#ai-advanced").open = true;
-    if (focus) $(focus).focus({ preventScroll: true });
   }
 
   function accountProfile() {
@@ -1877,6 +1693,7 @@
     }
     const nameDialog = $("#name-mode-dialog");
     if (nameDialog.open) nameDialog.close();
+    if (LOCAL_STEPS[index].id !== "ai") aiEditor?.cancelCatalog();
     if (LOCAL_STEPS[index].id !== "account") state.returnToNameModeAfterLogin = false;
     if (historyMode === "push") window.history.pushState(null, "", localUrl(page));
     else if (historyMode === "replace") window.history.replaceState(null, "", localUrl(page));
@@ -2612,112 +2429,57 @@
     status.classList.toggle("is-success", state.thirdParty.verified === true && !state.thirdParty.messageError);
   }
 
-  function selectAiProvider(id) {
-    const preset = aiProvider(id);
-    if (!preset) throw new TypeError("AI 供应商无效");
-    const connection = id === "custom" ? {} : ensureAiModule().presetConnection(preset);
-    let temperature = state.ai.temperature;
-    if (preset.temperature !== undefined) {
-      aiTemperatureBeforePreset ??= temperature;
-      temperature = preset.temperature;
-    } else if (aiTemperatureBeforePreset !== null) {
-      temperature = aiTemperatureBeforePreset;
-      aiTemperatureBeforePreset = null;
-    }
-    Object.assign(state.ai, normalizeAiDraft({
-      ...state.ai, ...connection, provider: id, key: "", temperature,
-    }), { verified: false, saved: false, detectedModels: null, message: "", messageError: false });
-    invalidateProgress();
-    render();
+  const aiPanel = globalThis.STSettingsAIPanel.create();
+
+  function currentAiEditor() {
+    if (aiEditor) return aiEditor;
+    const registry = state.aiRegistry;
+    const connection = registry.connections.find(item => item.models.some(row => row.id === registry.defaultModelId));
+    const hasConnection = connection.provider || connection.host || connection.key || connection.keyName ||
+      connection.keyMode !== globalThis.STAI.DEFAULTS.keyMode || connection.models.some(row => row.model || row.temperature);
+    const draft = hasConnection ? { ...connection, provider: storedAiProvider(connection) } : connection;
+    const editor = aiPanel.createEditor(registry, draft, {
+      wizard: true,
+      defaultName: state.ai.seedName ? t("seed.ai.default", "默认 AI 服务") : undefined,
+      ask: options => globalThis.STSettingsDialogs.dialog(document, { ...options, native: true, host: $("#ai-dialogs") }),
+      notice: options => globalThis.STFeedback.show(document.body, options),
+      authorize: ensureAiGatewayPermission,
+      onChange: aiDraftChanged,
+    });
+    editor.mount($("#ai-editor"));
+    aiEditor = editor;
+    if (state.ai.verified) aiVerifiedKey = editor.testKey();
+    return editor;
   }
 
-  function updateAiDraft() {
-    syncAiStateFromForm();
-    state.ai.message = "";
-    state.ai.messageError = false;
-    renderGlobal();
+  function aiDraftChanged() {
+    if (!aiEditor || controlsBusy()) return;
+    if (aiEditor.isDirty()) {
+      invalidateProgress();
+      state.ai.saved = false;
+    }
+    if (state.ai.verified && aiVerifiedKey !== aiEditor.testKey()) {
+      state.ai.verified = false;
+      state.ai.message = "";
+      state.ai.messageError = false;
+      clampCommittedPage();
+    }
     renderAi();
-  }
-
-  function renderAiModelControl() {
-    const slot = $("#ai-model-control");
-    const fields = globalThis.STSearchCombo;
-    const options = state.ai.detectedModels ?? aiProvider(state.ai.provider).models;
-    if (options !== renderedAiModelOptions) {
-      fields.closeSearchCombo(slot);
-      const label = t("settings_field_ai_model_label", "模型");
-      const html = fields.searchComboHtml(options.map(id => ({ value: id, label: id })), {
-        id: "ai-model", label, text: state.ai.model, value: state.ai.model,
-        placeholder: t("settings.ai.modelPlaceholder", "选择或输入模型"),
-        expandLabel: t("settings.controls.expand", "展开$label$", { label }),
-        emptyLabel: t("settings.controls.empty", "暂无可选项"),
-        modal: true,
-      });
-      globalThis.STDomUtils.setTrustedHTML(slot, globalThis.STDomUtils.trustedHTML(html, "onboarding-ai-model-control"));
-      const input = $("#ai-model");
-      input.classList.add("setup-control", "settings-control");
-      input.spellcheck = false;
-      renderedAiModelOptions = options;
-    }
-    return $("#ai-model");
+    renderGlobal();
   }
 
   function renderAi() {
-    const enabledToggle = $("#ai-enabled");
-    const fields = $("#ai-fields");
-    const provider = $("#ai-provider");
-    const host = $("#ai-host");
-    const model = renderAiModelControl();
-    const modelToggle = $("#ai-model-control [data-st-combo-toggle]");
-    const modelsButton = $("#ai-models");
-    const keyMode = $("#ai-key-mode");
-    const key = $("#ai-key");
-    const keyField = $("#ai-key-field");
-    const keyName = $("#ai-key-name");
-    const keyNameField = $("#ai-key-name-field");
-    const temperature = $("#ai-temperature");
-    const concurrency = $("#ai-concurrency");
-    const testButton = $("#ai-test");
-    const status = $("#ai-status");
-    if (!enabledToggle || !fields || !host || !model || !keyMode || !key || !testButton || !status) return;
-    enabledToggle.setAttribute("aria-checked", state.ai.enabled ? "true" : "false");
-    setControlDisabled(enabledToggle, controlsBusy(), controlsBusy());
-    fields.hidden = state.ai.enabled !== true;
-    const fill = (node, value) => {
-      if (!node || document.activeElement === node) return;
-      node.value = value == null ? "" : String(value);
-    };
-    if (!provider.options.length) {
-      provider.replaceChildren(...globalThis.STConfig.aiProviders.map(preset => {
-        const option = el("option", "", t("settings.ai.provider." + preset.id, preset.label));
-        option.value = preset.id;
-        return option;
-      }));
-    }
-    fill(provider, state.ai.provider);
-    fill(host, state.ai.host);
-    fill(model, state.ai.model);
-    fill(keyMode, state.ai.keyMode || "bearer");
-    fill(key, state.ai.key || "");
-    fill(keyName, state.ai.keyName || "");
-    fill(temperature, state.ai.temperature);
-    fill(concurrency, state.ai.aiConcurrency || 10);
-    const mode = String(keyMode.value || state.ai.keyMode || "bearer");
-    if (keyField) keyField.hidden = mode === "none";
-    if (keyNameField) keyNameField.hidden = mode !== "header" && mode !== "param";
-    $("#ai-advanced-mode").textContent = keyMode.options[keyMode.selectedIndex]?.textContent || "";
-    const aiBusy = controlsBusy();
-    const aiLocked = aiBusy || state.ai.enabled !== true;
-    [provider, host, model, modelToggle, keyMode, key, keyName, temperature, concurrency, modelsButton, testButton].forEach((node) => {
-      setControlDisabled(node, aiLocked, aiBusy);
-    });
-    if (aiLocked || activeStep().id !== "ai") globalThis.STSearchCombo.closeSearchCombo(fields);
-    if (aiModelDetection) modelsButton.setAttribute("aria-busy", "true");
-    else modelsButton.removeAttribute("aria-busy");
-    modelsButton.textContent = aiModelDetection ? t("settings.ai.detectingModels", "正在检测模型…") : t("settings.ai.detectModels", "检测模型");
-    testButton.textContent = !aiModelDetection && state.serviceBusy && activeStep().id === "ai"
-      ? t("settings_thirdParty_testing", "测试中") : t("settings_thirdParty_testConnection", "测试连接");
-    status.textContent = state.ai.message || "";
+    if (activeStep().id !== "ai" || !state.servicesHydrated) return;
+    const editor = currentAiEditor();
+    const enabled = state.ai.enabled, aiBusy = controlsBusy();
+    const toggle = $("#ai-enabled"), fields = $("#ai-fields"), testButton = $("#ai-test"), status = $("#ai-status");
+    toggle.setAttribute("aria-checked", String(enabled));
+    setControlDisabled(toggle, aiBusy, aiBusy);
+    fields.hidden = !enabled;
+    fields.disabled = aiBusy || !enabled;
+    setControlDisabled(testButton, aiBusy || !enabled || !editor.testKey(), aiBusy);
+    testButton.textContent = aiTest ? t("onboarding_testing", "测试中...") : t("common_testConnection", "测试连接");
+    status.textContent = state.ai.message;
     status.classList.toggle("is-error", state.ai.messageError === true);
     status.classList.toggle("is-success", state.ai.verified === true && !state.ai.messageError);
   }
@@ -3000,7 +2762,6 @@
       clampCommittedPage();
       setNote(state.ai.message, false);
     }
-    if (action === "ai-list-models") await detectAiModels();
     if (action === "ai-test") await testAiConnection();
     if (action === "client-toggle") {
       invalidateProgress();
@@ -3044,19 +2805,12 @@
       renderThirdParty();
       return;
     }
-    if (["ai-host", "ai-model", "ai-key", "ai-key-name", "ai-temperature", "ai-concurrency"].includes(target.id)) {
-      if (controlsBusy()) return;
-      if (target.id === "ai-temperature") aiTemperatureBeforePreset = null;
-      updateAiDraft();
-    }
   });
 
   document.addEventListener("change", async (event) => {
     if (state.phase !== "ready") return;
     const target = event.target;
     if (!(target instanceof HTMLElement)) return;
-    if (target.id === "ai-provider" && !controlsBusy()) selectAiProvider(target.value);
-    if (target.id === "ai-key-mode" && !controlsBusy()) updateAiDraft();
     if (target.dataset.actionChange === "client-name-mode") {
       if (!canSelectNameMode()) return;
       if (target.value === NAME_MODE_STEAM) selectNameMode(NAME_MODE_STEAM);
@@ -3065,7 +2819,8 @@
   });
 
   window.addEventListener("pagehide", event => {
-    aiModelDetection?.abort();
+    aiEditor?.cancelCatalog();
+    aiTest?.abort();
     if (state.loginMode === "loading" || state.loginMode === "device") cancelLogin(event.persisted);
     else {
       stopLoginPoll();
@@ -3089,7 +2844,22 @@
     await navigateCommittedPage(result.page, "history");
   });
 
-  globalThis.STComponents.ensureStyle("st-onboarding-search-combo", globalThis.STComponents.searchComboCss);
-  globalThis.STSearchCombo.bindSearchCombos($("#onboarding-main"), undefined, updateAiDraft, document);
+  const { css, aiServiceEditorCss, ensureStyle } = globalThis.STComponents;
+  ensureStyle("st-onboarding-ai-editor", css.compose(
+    aiServiceEditorCss,
+    css.variables("#ai-dialogs", globalThis.STTheme.flatDialogVariables),
+    css.dialog({
+      variant: "standard",
+      surfaceSelectors: "#ai-dialogs .settings-dialog",
+      headerSelectors: "#ai-dialogs .settings-dialog-header",
+      titleSelectors: "#ai-dialogs .settings-dialog-title",
+      closeSelectors: "#ai-dialogs .settings-dialog-close",
+      width: "100%",
+    }),
+    css.button("#ai-dialogs .dialog-btn", { variant: "secondary" }),
+    css.button("#ai-dialogs .dialog-btn.primary", { variant: "primary" }),
+    css.button("#ai-dialogs .dialog-btn.danger", { variant: "danger" }),
+    css.button("#ai-editor .ai-service-icon-button", { variant: "ghost", density: "compact" }),
+  ));
   loadFlow();
 })();

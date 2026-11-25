@@ -132,7 +132,13 @@
   }
   function serviceChoices(registry, selected, includeDisabled = false) {
     const choices = registry.services.filter((item) => includeDisabled || item.enabled || item.id === selected)
-      .map((item) => [item.id, item.name + (!item.enabled ? tr("workflow_ui_disabled", "（已停用）") : !item.host || !item.model ? tr("workflow_ui_setup_required", "（待配置）") : "")]);
+      .map(item => {
+        const name = item.id === root.STAI.DEFAULT_SERVICE_ID ? tr("seed.ai.default", "默认 AI 服务") : item.name;
+        const model = item.displayName || item.directoryModel?.name || item.model;
+        const state = !item.enabled ? tr("workflow_ui_disabled", "（已停用）")
+          : !item.host || !item.model ? tr("workflow_ui_setup_required", "（待配置）") : "";
+        return [item.id, name + (model ? " · " + model : "") + state];
+      });
     if (selected && !choices.some(([id]) => id === selected)) {
       choices.unshift([selected, selected, true, tr("workflow_ui_select_an_ai_service_again", "请重新选择 AI 服务")]);
     }

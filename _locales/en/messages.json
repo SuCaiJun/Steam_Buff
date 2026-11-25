@@ -11276,6 +11276,161 @@
   "ai_chat_usage_unavailable": {
     "message": "Token usage is unavailable"
   },
+  "onboarding_aiSharedConnection": {
+    "message": "Several models use this connection. Edit it in AI Services."
+  },
+  "settings_ai_connectionName": {
+    "message": "Connection name"
+  },
+  "settings_ai_apiKey": {
+    "message": "API key"
+  },
+  "settings_ai_modelList": {
+    "message": "Models"
+  },
+  "settings_ai_fetchModelsFirst": {
+    "message": "Get available models first"
+  },
+  "settings_ai_fetchModels": {
+    "message": "Get available models"
+  },
+  "settings_ai_addModel": {
+    "message": "Add model"
+  },
+  "settings_ai_connectionOptions": {
+    "message": "Custom settings"
+  },
+  "settings_ai_customHeaders": {
+    "message": "Custom headers"
+  },
+  "settings_ai_modelId": {
+    "message": "Model ID"
+  },
+  "settings_ai_modelDisplayName": {
+    "message": "Display name"
+  },
+  "settings_ai_modelOptions": {
+    "message": "Expand model settings"
+  },
+  "settings_ai_removeModel": {
+    "message": "Remove model"
+  },
+  "settings_ai_reorderModel": {
+    "message": "Drag to reorder"
+  },
+  "settings_ai_contextWindow": {
+    "message": "Context window"
+  },
+  "settings_ai_maxOutputTokens": {
+    "message": "Maximum output tokens"
+  },
+  "settings_ai_inputTypes": {
+    "message": "Input types"
+  },
+  "settings_ai_textInput": {
+    "message": "Text"
+  },
+  "settings_ai_imageInput": {
+    "message": "Images"
+  },
+  "settings_ai_reasoningLevels": {
+    "message": "Reasoning levels and API values"
+  },
+  "settings_ai_customizeEffort": {
+    "message": "Custom reasoning levels"
+  },
+  "settings_ai_addEffort": {
+    "message": "Add level"
+  },
+  "settings_ai_removeEffort": {
+    "message": "Remove level"
+  },
+  "settings_ai_effortLevel": {
+    "message": "Level"
+  },
+  "settings_ai_effortValue": {
+    "message": "API value"
+  },
+  "settings_ai_replayReasoning": {
+    "message": "Include reasoning in follow-up requests"
+  },
+  "settings_ai_makeDefault": {
+    "message": "Set as default"
+  },
+  "settings_ai_currentDefault": {
+    "message": "Default model"
+  },
+  "settings_ai_modelCount": {
+    "message": "$count$ models",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "settings_ai_tokenLimitInvalid": {
+    "message": "Enter a positive whole number, or use K or M."
+  },
+  "settings_ai_headerInvalid": {
+    "message": "Enter one header per line with a colon between its name and value."
+  },
+  "settings_ai_modelIdRequired": {
+    "message": "Enter a model ID"
+  },
+  "settings_ai_effortDuplicate": {
+    "message": "Reasoning levels must be unique"
+  },
+  "settings_ai_effortInvalid": {
+    "message": "Enter valid JSON for the reasoning parameters."
+  },
+  "settings_ai_chooseModels": {
+    "message": "Choose models"
+  },
+  "settings_ai_searchModels": {
+    "message": "Search models"
+  },
+  "settings_ai_selectModels": {
+    "message": "Select all"
+  },
+  "settings_ai_unselectModels": {
+    "message": "Deselect all"
+  },
+  "settings_ai_modelsLoading": {
+    "message": "Loading available models…"
+  },
+  "settings_ai_addSelectedModels": {
+    "message": "Add selected models"
+  },
+  "settings_ai_modelPosition": {
+    "message": "$name$ moved to position $position$",
+    "placeholders": {
+      "name": {
+        "content": "$1"
+      },
+      "position": {
+        "content": "$2"
+      }
+    }
+  },
+  "settings_ai_detectedEffort": {
+    "message": "Detected levels $levels$",
+    "placeholders": {
+      "levels": {
+        "content": "$1"
+      }
+    }
+  },
+  "settings_ai_selectOtherDefault": {
+    "message": "Choose another default model before removing this one."
+  },
+  "settings_ai_removeModelWarning": {
+    "message": "Saving will remove $name$. Features using it will need another model.",
+    "placeholders": {
+      "name": {
+        "content": "$1"
+      }
+    }
+  },
   "ai_chat_model": {
     "message": "Model"
   },
@@ -14619,5 +14774,46 @@
   },
   "workflow_library_import_dependency": {
     "message": "Import the required custom library and check its fields before importing the AI tool."
+  },
+  "settings_ai_search_section": {
+    "message": "Search service"
+  },
+  "settings_ai_search_bocha": {
+    "message": "Bocha Web Search"
+  },
+  "settings_ai_search_unconfigured": {
+    "message": "Not configured"
+  },
+  "settings_ai_search_key_saved": {
+    "message": "API key saved"
+  },
+  "settings_ai_search_invalid_key": {
+    "message": "Enter a valid API key."
+  },
+  "settings_ai_search_invalid_config": {
+    "message": "The search service settings are invalid. Update the settings or save as not configured."
+  },
+  "settings_ai_search_changed": {
+    "message": "The search service settings changed. Check the current configuration."
+  },
+  "settings_ai_directoryTokenLimit": {
+    "message": "$count$ · API",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "settings_ai_refreshModelInfo": {
+    "message": "Update model info"
+  },
+  "settings_ai_deepseekDefaultTemperature": {
+    "message": "Default 1.0"
+  },
+  "settings_ai_defaultTemperature": {
+    "message": "Provider default"
+  },
+  "settings_ai_deepseekTemperatureHint": {
+    "message": "Leave blank for the default of 1.0. Temperature has no effect in thinking mode."
   }
 }

@@ -183,7 +183,7 @@
         continue;
       }
       if (name === "ai") {
-        out.ai = root.STAI.migrateV222Service(src.ai, { snapshot: true }) ?? root.STAI.normalizeServices(src.ai);
+        out.ai = root.STAI.serviceSettings(root.STAI.migrateV222Service(src.ai, { snapshot: true }) ?? src.ai);
         if (Object.hasOwn(src, name)) box.imported += 1;
         continue;
       }
@@ -206,6 +206,12 @@
     const out = {};
     for (const name of sections()) {
       if (name === "workflow") out[name] = await root.STAutomation.loadDefaults(locale);
+      else if (name === "ai") {
+        const ai = root.STAI.serviceSettings();
+        await root.STI18n.load(locale);
+        ai.connections[0].name = root.STI18n.forLocale(locale)("seed.ai.default", "默认 AI 服务");
+        out.ai = ai;
+      }
       else out[name] = name === "uiLocale" ? locale : clone(sectionDefaults(name));
     }
     return out;

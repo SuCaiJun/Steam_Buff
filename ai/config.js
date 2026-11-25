@@ -159,22 +159,45 @@
   }
 
   function temp(value) {
+    if (value == null || (typeof value === "string" && !value.trim())) return null;
     const num = Number(value);
     return Number.isFinite(num) ? num : null;
+  }
+
+  function normalizeCustomHeaders(value, { keyMode, keyName }) {
+    if (value === undefined) return undefined;
+    if (!Array.isArray(value) || value.length > 32) throw new TypeError("AI 自定义请求头格式无效");
+    const auth = keyMode === "bearer" ? "authorization" : keyMode === "header" ? (keyName || "x-api-key").toLowerCase() : "";
+    const names = new Set(["accept", "content-type", "content-length", "cookie", "host", "origin", "referer", auth]);
+    const headers = value.map(header => {
+      const name = typeof header?.name === "string" ? header.name.trim() : "";
+      const lower = name.toLowerCase();
+      const content = header?.value;
+      if (!/^[!#$%&'*+.^_`|~0-9a-z-]{1,128}$/i.test(name) || names.has(lower) ||
+          /^(?:proxy-|sec-)/i.test(name) || typeof content !== "string" || content.length > 4096 || /[^\x20-\x7e\x80-\xff]/.test(content))
+        throw new TypeError("AI 自定义请求头无效、重复或与密钥方式冲突");
+      names.add(lower);
+      return { name, value: content.trim() };
+    });
+    return headers.length ? headers : undefined;
   }
 
   function normalize(values) {
     const src = values && typeof values === "object" ? values : {};
     const protocol = str(src.protocol) || DEFAULTS.protocol;
     if (protocol !== DEFAULTS.protocol) throw new TypeError("AI API 格式无效");
+    const keyMode = str(src.keyMode) || DEFAULTS.keyMode;
+    const keyName = str(src.keyName);
+    const headers = normalizeCustomHeaders(src.headers, { keyMode, keyName });
     return {
       enabled: bool(src.enabled),
       protocol,
       host: normalizeHost(src.host),
       model: str(src.model),
       key: str(src.key),
-      keyMode: str(src.keyMode) || DEFAULTS.keyMode,
-      keyName: str(src.keyName),
+      keyMode,
+      keyName,
+      ...(headers && { headers }),
       temperature: str(src.temperature),
       aiConcurrency: concurrency(src),
     };
@@ -218,7 +241,8 @@
   }
 
   function connectionFields(conf) {
-    return { protocol: conf.protocol, ...Object.fromEntries(SERVICE_FIELDS.map(({ key }) => [key, conf[key]])) };
+    return { protocol: conf.protocol, ...Object.fromEntries(SERVICE_FIELDS.map(({ key }) => [key, conf[key]])),
+      ...(conf.headers && { headers: conf.headers }) };
   }
 
   function defaultService() {
@@ -231,8 +255,81 @@
     };
   }
 
-  /** 固定服务是实际记录。保存和导入都要求它存在且启用 */
+  function modelOptions(item) {
+    const { displayName, contextWindow, maxOutputTokens, inputTypes } = item;
+    if ((displayName !== undefined && (typeof displayName !== "string" || displayName.length > 200)) ||
+        (contextWindow !== undefined && !positiveBudget(contextWindow)) ||
+        (maxOutputTokens !== undefined && !positiveBudget(maxOutputTokens)) ||
+        (contextWindow !== undefined && maxOutputTokens > contextWindow) ||
+        (inputTypes !== undefined && (!Array.isArray(inputTypes) || !inputTypes.length ||
+          inputTypes.length !== new Set(inputTypes).size || inputTypes.some(type => !["text", "image"].includes(type)))))
+      throw new TypeError("AI 模型名称、Token 上限或输入类型无效");
+    return {
+      ...(displayName?.trim() && { displayName: displayName.trim() }),
+      ...(contextWindow !== undefined && { contextWindow }),
+      ...(maxOutputTokens !== undefined && { maxOutputTokens }),
+      ...(inputTypes !== undefined && { inputTypes: [...inputTypes] }),
+    };
+  }
+
+  function connectedModels(registry) {
+    if (!registry.connections) return registry.services;
+    return registry.connections.flatMap(({ models, ...connection }) => models.map(model => ({
+      ...connection, ...model, enabled: connection.enabled && model.enabled,
+    })));
+  }
+
+  function normalizeGroupedServices(source) {
+    if (source.schemaVersion !== 2 || !Array.isArray(source.connections) ||
+        !Number.isSafeInteger(source.revision) || source.revision < 0 || !isServiceId(source.defaultModelId))
+      throw new TypeError("AI 连接列表无效");
+    const connectionIds = new Set(), modelIds = new Set();
+    let availableDefault = false;
+    const connections = source.connections.map(item => {
+      if (!item || !isServiceId(item.id) || connectionIds.has(item.id) ||
+          typeof item.name !== "string" || !item.name.trim() || item.name.length > 200 ||
+          typeof item.enabled !== "boolean" || !Array.isArray(item.models) ||
+          ["protocol", "provider", "host", "key", "keyMode", "keyName"].some(key => item[key] !== undefined && typeof item[key] !== "string"))
+        throw new TypeError("AI 连接记录无效或编号重复");
+      connectionIds.add(item.id);
+      const { model: ignoredModel, temperature: ignoredTemperature, ...connection } = connectionFields(normalize(item));
+      const provider = typeof item.provider === "string" && item.provider ? { provider: item.provider } : {};
+      const apiIds = new Set();
+      const models = item.models.map(row => {
+        if (!row || !isServiceId(row.id) || modelIds.has(row.id) ||
+            row.id === DEFAULT_SERVICE_ID && source.defaultModelId !== DEFAULT_SERVICE_ID ||
+            typeof row.enabled !== "boolean" || typeof row.revision !== "string" || !row.revision ||
+            typeof row.model !== "string" || row.temperature !== undefined && typeof row.temperature !== "string")
+          throw new TypeError("AI 模型记录无效或编号重复");
+        const model = str(row.model);
+        if ((!model && row.id !== DEFAULT_SERVICE_ID) || apiIds.has(model))
+          throw new TypeError("同一连接的模型 ID 必须填写且不能重复");
+        modelIds.add(row.id);
+        apiIds.add(model);
+        if (row.id === source.defaultModelId) availableDefault = item.enabled && row.enabled;
+        const directoryModel = normalizeDirectoryModel(row, { ...connection, model });
+        const customReasoning = row.customReasoning === undefined ? undefined : normalizeCustomReasoning(row.customReasoning);
+        return { id: row.id, model, enabled: row.enabled, revision: row.revision, temperature: str(row.temperature),
+          ...modelOptions(row), ...(directoryModel && { directoryModel }), ...(customReasoning && { customReasoning }) };
+      });
+      return { id: item.id, name: item.name.trim(), enabled: item.enabled, ...connection, ...provider, models };
+    });
+    if (!availableDefault) throw new TypeError("默认 AI 服务必须存在且启用");
+    return {
+      schemaVersion: 2, enabled: bool(source.enabled), aiConcurrency: concurrency(source),
+      revision: source.revision, defaultModelId: source.defaultModelId, connections,
+    };
+  }
+
+  /** 保留各功能原有的服务编号。AI-0 始终解析到明确选定的默认模型。 */
   function normalizeServices(source = { revision: 0, services: [defaultService()] }) {
+    if (source && (Object.hasOwn(source, "schemaVersion") || Object.hasOwn(source, "connections"))) {
+      const registry = normalizeGroupedServices(source);
+      const models = connectedModels(registry);
+      const selected = models.find(item => item.id === registry.defaultModelId);
+      return { ...registry, services: [{ ...selected, id: DEFAULT_SERVICE_ID },
+        ...models.filter(item => item.id !== DEFAULT_SERVICE_ID)] };
+    }
     if (
       !source || !Array.isArray(source.services) || !Number.isSafeInteger(source.revision) ||
       source.revision < 0 || Object.hasOwn(source, "defaultId")
@@ -252,6 +349,7 @@
       return {
         id: item.id, name: item.name.trim(), enabled: item.enabled, revision: item.revision,
         ...connection,
+        ...modelOptions(item),
         ...(typeof item.provider === "string" && item.provider ? { provider: item.provider } : {}),
         ...(directoryModel && { directoryModel }),
         ...(customReasoning && { customReasoning }),
@@ -265,6 +363,21 @@
       revision: source.revision,
       services: [fixed, ...services.filter((item) => item !== fixed)],
     };
+  }
+
+  /** 存储及备份只保存连接和模型，运行时的平铺视图按需生成。 */
+  function serviceSettings(source) {
+    if (source?.schemaVersion !== undefined || source?.connections !== undefined)
+      return normalizeGroupedServices(source);
+    const { services, ...flags } = normalizeServices(source);
+    const connections = services.map(({ id, name, enabled, revision, model, temperature, directoryModel,
+      customReasoning, displayName, contextWindow, maxOutputTokens, inputTypes, provider, ...connection }) => ({
+      ...connection, id, name, enabled, ...(provider && { provider }),
+      models: [{ id, model, enabled: true, revision, temperature,
+        ...modelOptions({ displayName, contextWindow, maxOutputTokens, inputTypes }),
+        ...(directoryModel && { directoryModel }), ...(customReasoning && { customReasoning }) }],
+    }));
+    return { ...flags, schemaVersion: 2, defaultModelId: DEFAULT_SERVICE_ID, connections };
   }
 
   const CONCURRENCY_KEY = storageKey("aiConcurrency");
@@ -313,9 +426,20 @@
 
   function servicesFromStorage(data) {
     const shared = flagsFromStorage(data);
-    if (Object.hasOwn(data, SERVICES_KEY)) return normalizeServices({ ...data[SERVICES_KEY], ...shared });
+    if (Object.hasOwn(data, SERVICES_KEY)) {
+      const stored = { ...data[SERVICES_KEY], ...shared };
+      return normalizeServices(stored.schemaVersion === undefined ? serviceSettings(stored) : stored);
+    }
     const pending = data[ONBOARDING_CONNECTION_KEY];
     if (pending == null) return { ...normalizeServices(), ...shared };
+    if (pending.schemaVersion !== undefined) {
+      if (pending.schemaVersion === 2 && pending.seedName === true) {
+        const connections = pending.connections.map(connection => connection.models.some(model => model.id === pending.defaultModelId)
+          ? { ...connection, name: defaultService().name } : connection);
+        return normalizeServices({ ...pending, ...shared, connections });
+      }
+      return normalizeServices({ ...pending, ...shared });
+    }
     return normalizeServices({ ...shared, revision: pending.revision,
       services: [{ ...defaultService(), ...pending.connection }] });
   }
@@ -390,10 +514,8 @@
   }
 
   function appendHeaders(conf) {
-    const out = {};
-    if (!conf.key) {
-      return out;
-    }
+    const out = Object.fromEntries((conf.headers || []).map(({ name, value }) => [name, value]));
+    if (!conf.key) return out;
     if (conf.keyMode === "bearer") {
       out.Authorization = `Bearer ${conf.key}`;
     } else if (conf.keyMode === "header") {
@@ -447,6 +569,25 @@
       (QWEN_WORKSPACE.test(url.hostname) || url.hostname === "dashscope-us.aliyuncs.com") ? "qwen" : "";
   }
 
+  const CHAT_IMAGE_TYPES = Object.freeze(["image/png", "image/jpeg", "image/webp", "image/gif"]);
+  const CHAT_IMAGE_COUNT = 4;
+  const CHAT_IMAGE_BYTES = 8 * 1024 * 1024;
+
+  function chatInputs(service) {
+    const types = service.inputTypes || ["text"];
+    const gateway = reasoningGateway(service);
+    return {
+      text: types.includes("text"),
+      image: types.includes("image") && (["openai", "openrouter"].includes(gateway) ||
+        gateway === "deepseek" && service.model === "deepseek-flash" || !gateway && service.provider === "custom"),
+    };
+  }
+
+  /** 聊天窗口容量优先使用手填值，其次使用已保存的官方目录容量 */
+  function chatContextWindow(service) {
+    return service.contextWindow ?? service.directoryModel?.contextWindow;
+  }
+
   function normalizeEffort(levels, defaultLevel, off) {
     if (!Array.isArray(levels) || levels.length > 16 || levels.some(level => typeof level !== "string" || !/^[a-z][a-z0-9_-]{0,31}$/.test(level)) ||
         (defaultLevel !== undefined && !levels.includes(defaultLevel) && !(off && defaultLevel === "none")))
@@ -483,13 +624,20 @@
     return undefined;
   }
 
-  /** 只保留模型目录里已知的 ID、显示名和推理能力字段 */
+  /** 只保留当前网关契约中已识别的模型目录字段 */
   function modelDetails(rows, gateway, field) {
     return modelIds(rows, field).map((id, index) => {
       const row = rows[index];
       const name = typeof row.name === "string" && row.name.length <= 200 ? row.name.trim() : "";
       const reasoning = modelReasoning(row, gateway);
-      return { id, ...(name && name !== id && { name }), ...(reasoning !== undefined && { reasoning }) };
+      const supportsTools = gateway === "openrouter" && Array.isArray(row.supported_parameters) &&
+        row.supported_parameters.every(parameter => typeof parameter === "string")
+        ? row.supported_parameters.includes("tools") : undefined;
+      const budget = gateway === "deepseek" ? modelOptions({
+        contextWindow: row.context_window, maxOutputTokens: row.max_output_tokens,
+      }) : {};
+      return { id, ...(name && name !== id && { name }), ...(reasoning !== undefined && { reasoning }),
+        ...(supportsTools !== undefined && { supportsTools }), ...budget };
     });
   }
 
@@ -500,6 +648,12 @@
       throw invalidReasoning();
     const { id, name, reasoning } = entry;
     const result = { id, endpoint: entry.endpoint };
+    const gateway = reasoningGateway(connection);
+    if (gateway === "deepseek") Object.assign(result, modelOptions({
+      contextWindow: entry.contextWindow, maxOutputTokens: entry.maxOutputTokens,
+    }));
+    if (gateway === "openrouter" && typeof entry.supportsTools === "boolean")
+      result.supportsTools = entry.supportsTools;
     if (name !== undefined) {
       if (typeof name !== "string" || !name.trim() || name.length > 200) throw invalidReasoning();
       result.name = name;
@@ -511,6 +665,12 @@
       const level = reasoning.defaultLevel === "off" ? "none" : reasoning.defaultLevel;
       const levels = level === "none" ? [...reasoning.levels, "none"] : reasoning.levels;
       result.reasoning = normalizeEffort(levels, level, reasoning.off === true);
+      const recommended = reasoning.recommendedLevel;
+      if (recommended !== undefined) {
+        if (!result.reasoning.levels.includes(recommended) && !(recommended === "off" && result.reasoning.off))
+          throw invalidReasoning();
+        result.reasoning.recommendedLevel = recommended;
+      }
     }
     return result;
   }
@@ -570,8 +730,12 @@
 
   /** 只向聊天窗公开可显示的能力，不公开连接、认证或自定义请求片段 */
   function describeReasoning(service) {
-    const { choices = [], defaultLevel, supported, unsupported, gateway } = reasoningProfile(service);
+    const { choices = [], defaultLevel, supported, unsupported, gateway, custom } = reasoningProfile(service);
+    // 恢复按钮使用目录报告的档位。省略请求参数时的界面默认仍可来自已知模型能力
+    const { recommendedLevel, defaultLevel: apiDefaultLevel } = service.directoryModel?.reasoning ?? {};
     return { choices, defaultLevel, supported: supported === true, unsupported: unsupported === true,
+      ...(!custom && choices.includes(recommendedLevel) && { recommendedLevel }),
+      ...(!custom && choices.includes(apiDefaultLevel) && { apiDefaultLevel }),
       offWithToolsByDefault: gateway === "deepseek" && DEEPSEEK_PRESETS.has(service.model) };
   }
 
@@ -669,9 +833,9 @@
   }
 
   /** 编辑器与向导共用目录请求，授权外观和生命周期由调用方提供 */
-  async function detectModels({ host, key, keyMode, keyName, provider }, authorize, { operationId, signal, details = false } = {}) {
+  async function detectModels({ host, key, keyMode, keyName, provider, headers }, authorize, { operationId, signal, details = false } = {}) {
     signal?.throwIfAborted();
-    const connection = { host, key, keyMode, keyName, provider };
+    const connection = { host, key, keyMode, keyName, provider, headers };
     modelListRequest(connection);
     await authorize({ host, enabled: true });
     signal?.throwIfAborted();
@@ -740,11 +904,31 @@
     if (!conf.enabled || !url || !body) {
       return null;
     }
+    const limit = values.maxOutputTokens;
+    if (limit !== undefined) {
+      const gateway = reasoningGateway(conf);
+      const limits = ["max_tokens", "max_completion_tokens"];
+      if (!positiveBudget(limit) || conf.keyMode === "param" && conf.key && limits.includes(conf.keyName))
+        throw Object.assign(new TypeError("最大输出 Token 设置无效或与密钥字段冲突"), { code: "CHAT_OUTPUT_LIMIT_INVALID" });
+      const key = ["openai", "openrouter"].includes(gateway) || !gateway && Object.hasOwn(body, "max_completion_tokens")
+        ? "max_completion_tokens" : "max_tokens";
+      let max = limit;
+      for (const field of limits) {
+        if (body[field] != null) {
+          if (!positiveBudget(body[field]))
+            throw Object.assign(new TypeError("高级请求的最大输出 Token 必须是正整数"), { code: "CHAT_OUTPUT_LIMIT_INVALID" });
+          max = Math.min(max, body[field]);
+        }
+        delete body[field];
+      }
+      body[key] = max;
+    }
     return {
       url,
       headers: chatHeaders(conf),
       body,
       protocol: conf.protocol,
+      ...(conf.headers && { rejectRedirect: true }),
     };
   }
 
@@ -753,6 +937,22 @@
   const PROVIDER_TOOL_IDS = Object.freeze({ game: "tool-1", players: "tool-2", prices: "tool-3", search: "tool-4",
     rename: "tool-5", collections: "tool-6", achievements: "tool-7", library: "tool-8", library_game: "tool-9", wishlist: "tool-10" });
   const STORE_SEARCH_TOOL_ID = PROVIDER_TOOL_IDS.search;
+  const WEB_SEARCH_TOOL_ID = "web_search";
+  const searchProvider = id => globalThis.STConfig.aiSearchProviders.find(provider => provider.id === id);
+  const isSearchKey = value => typeof value === "string" && /^[!-~]{1,2048}$/.test(value);
+
+  function searchSettingsState(value) {
+    const provider = searchProvider(value?.provider)?.id;
+    if (provider && isSearchKey(value.apiKey)) return { provider, invalid: false };
+    return { provider: "", invalid: value != null };
+  }
+
+  function normalizeSearchSettings(value) {
+    const { provider, invalid } = searchSettingsState(value);
+    if (invalid)
+      throw Object.assign(new TypeError("搜索服务的提供商或 API 密钥无效"), { code: "CHAT_SEARCH_CONFIG" });
+    return provider ? { provider, apiKey: value.apiKey } : null;
+  }
   const searchOptions = description => ({ type: "array", items: { type: "string" }, description });
   const STORE_SEARCH_PROPERTIES = Object.freeze({
     term: { type: "string", maxLength: 64, description: "Game name or search keyword, up to 64 characters. You can use the game's original name. Omit to search without a keyword." },
@@ -893,6 +1093,8 @@
     TRANSLATION,
     TRANSLATION_SERVICE,
     normalizeServices,
+    serviceSettings,
+    connectedModels,
     FLAG_KEYS,
     SETTINGS_KEYS,
     V222_CONNECTION_FIELDS,
@@ -916,12 +1118,15 @@
     normalize,
     concurrency,
     endpoint,
+    reasoningGateway,
+    chatInputs, chatContextWindow, CHAT_IMAGE_TYPES, CHAT_IMAGE_COUNT, CHAT_IMAGE_BYTES,
     presetConnection,
     detectModels,
     modelListIssue,
     hostPermissionPattern,
     chatRequest,
     CHAT_TOOLS, CHAT_APPROVAL_MODES, ACCOUNT_TOOLS, PROVIDER_TOOL_IDS, TOOL_APP_ID_MAX, isToolAppId, STORE_SEARCH_TOOL_ID, STORE_SEARCH_PROPERTIES, toolSchema,
+    WEB_SEARCH_TOOL_ID, searchProvider, isSearchKey, searchSettingsState, normalizeSearchSettings,
     validateChatToolIds, chatToolsFromWorkflow,
     chatBody,
     chatText,
