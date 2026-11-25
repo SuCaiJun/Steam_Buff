@@ -332,6 +332,7 @@
     if (state.bundle.epoch === saved.epoch && state.bundle.revision > saved.revision) return;
     state.bundle = saved;
     state.steamPending = steamPending;
+    state.resetStatus = "";
     renderPage(state);
   }
   function downloadJson(value, name, suffix) {
@@ -4183,7 +4184,7 @@
       <div class="aw-tabs aw-module-tabs" role="tablist" aria-label="${esc(tr("workflow_ui_automation_pages", "自动化页面"))}">${tabs().map(([id, name]) => button("tab", name, `id="aw-tab-${id}" data-tab="${id}" role="tab" aria-selected="${tab === id}" tabindex="${tab === id ? 0 : -1}"`)).join("")}</div>
       <div data-aw-panel role="tabpanel"></div><input type="file" accept=".json,application/json" data-import hidden><input type="file" accept=".json,application/json" data-import-tool hidden><input type="file" accept=".json,application/json" data-import-library hidden><div class="aw-error" data-page-error role="alert"></div><div class="aw-note" data-steam-pending role="status"></div></div>`);
     const status = node.querySelector("[data-steam-pending]");
-    const notice = state.steamPending ? tr("workflow_ui_saved_changes_take_effect_when_steam_reconnects", "配置已保存，Steam 重新连接后生效。") : "";
+    const notice = state.resetStatus || (state.steamPending ? tr("workflow_ui_saved_changes_take_effect_when_steam_reconnects", "配置已保存，Steam 重新连接后生效。") : "");
     if (status.textContent !== notice) status.textContent = notice;
     node.querySelector(".aw-module-tabs").hidden = !bundle;
     const panel = node.querySelector("[data-aw-panel]"); panel.hidden = !bundle;
@@ -4283,10 +4284,20 @@
     if (action.startsWith("library-")) return libraryPageAction(state, action, id);
     if (action === "reset") {
       const answer = await state.ctx.dialog(state.shadow, { title: tr("workflow_ui_restore_automation_defaults_title", "恢复自动化出厂设置"), className: "aw-automation-dialog", native: true,
-        message: tr("workflow_ui_restore_automation_defaults_warning", "工作流、提示词、AI 工具、触发器将恢复出厂设置，是否继续？"),
+        message: tr("workflow_ui_restore_automation_defaults_warning", "将停止未完成的任务、试运行和相关工具审批，清除工作流、触发器、提示词、AI 工具、自定义库及工具专属 HTTP 密钥，再按当前语言导入出厂设置。失效的提示词绑定会恢复默认。运行记录和 AI 服务会保留。此操作无法撤销。"),
         actions: [{ id: "cancel", label: tr("common_cancel", "取消") }, { id: "reset", label: tr("workflow_ui_restore_defaults", "恢复初始化"), primary: true, danger: true }] });
       if (answer === "reset") {
-        const result = await view().rpc("reset");
+        const status = state.node.querySelector("[data-steam-pending]");
+        state.resetStatus = tr("workflow_ui_restoring_defaults", "正在停止旧任务并恢复出厂设置…");
+        status.textContent = state.resetStatus;
+        let result;
+        try { result = await view().rpc("reset"); }
+        finally {
+          state.resetStatus = !result ? "" : result.steamPending
+            ? tr("workflow_ui_restored_defaults_steam_pending", "本地已恢复出厂设置，等待 Steam 重新连接。")
+            : tr("workflow_ui_restored_defaults", "自动化已恢复出厂设置。");
+          status.textContent = state.resetStatus;
+        }
         state.bundle = result.workflow;
         state.steamPending = result.steamPending;
         state.node.querySelector("[data-page-error]").textContent = "";

@@ -32,11 +32,13 @@
       installStart = false,
       baselineReady = false;
     const pending = new Map(),
+      nativeRequests = new Map(),
       changed = new Map(),
       known = new Map(),
       sent = new Set(),
       gameEvents = new Map(),
       collectionWrites = new Map();
+    const connectionId = window.crypto.randomUUID();
     const post = (value) =>
       window.postMessage({ source: CH, side: "page", ...value }, window.location.origin);
     function request(action, value = {}) {
@@ -267,7 +269,8 @@
       const app = libraryApp(value.appid);
       if (!app.BIsOwned() && !app.BIsBorrowed()) throw Object.assign(new Error("游戏已不在 Steam 库中"), { code: "ACTION_NOT_WRITTEN" });
     }
-    async function execute(action, value) {
+    async function execute(action, value, signal) {
+      signal?.throwIfAborted();
       if (action === "show-notification")
         return new Promise((resolve, reject) => {
             const channel = new BroadcastChannel(window.STMessageCenter.OPEN_CHANNEL);
@@ -295,18 +298,21 @@
         return achievements(app.appid);
       }
       if (action === "game-field") return readGameField(value.appid, value.field);
-      if (action === "save-sort") return saveSort(value);
-      if (action === "add-collections") return addCollections(value);
+      const guard = () => { signal?.throwIfAborted(); writeGuard(value); };
+      if (action === "save-sort") return saveSort(value, guard);
+      if (action === "add-collections") return addCollections(value, guard);
       if (action === "account-query" || action === "account-save-sort" || action === "account-add-collections") {
         await api.reg.loadScript("steam/shared/automation-account-queries.js");
+        signal?.throwIfAborted();
         if (stopped) throw new Error("自动化数据入口已停止");
         if (action === "account-query") {
           if (value.action === "owned-apps" && value.args.includeSortName)
             await api.reg.loadScript("steam/shared/native-sort-name.js");
+          signal?.throwIfAborted();
           if (stopped) throw new Error("自动化数据入口已停止");
-          return api.automationAccountQueries.query(value, originalName, achievements, collections, api.nativeSortName?.read);
+          return api.automationAccountQueries.query(value, originalName, achievements, collections, api.nativeSortName?.read, signal);
         }
-        const guard = () => accountWriteGuard(value);
+        const guard = () => { signal?.throwIfAborted(); accountWriteGuard(value); };
         const authorize = part => request("account-write-check", { command: action, ticket: value.ticket,
           appid: value.appid, steamId: value.steamId, expected: value.expected, part });
         guard();
@@ -333,11 +339,21 @@
         else task.reject(Object.assign(new Error(data.error || "自动化后台请求失败"), data.errorCode ? { code: data.errorCode } : {}));
         return;
       }
-      if (data.kind !== "native-command" || typeof data.rid !== "string") return;
+      if (typeof data.rid !== "string") return;
+      if (data.kind === "native-cancel") {
+        const controller = nativeRequests.get(data.rid);
+        nativeRequests.delete(data.rid);
+        controller?.abort(new DOMException("Steam 操作已停止", "AbortError"));
+        return;
+      }
+      if (data.kind !== "native-command") return;
+      const controller = data.cancellable === true ? new AbortController() : null;
+      if (controller) nativeRequests.set(data.rid, controller);
       try {
-        const value = await execute(data.action, data.value || {});
-        if (!stopped) post({ kind: "native-result", rid: data.rid, success: true, value });
+        const value = await execute(data.action, data.value || {}, controller?.signal);
+        if (!stopped && !controller?.signal.aborted) post({ kind: "native-result", rid: data.rid, success: true, value });
       } catch (error) {
+        if (controller?.signal.aborted) return;
         log.error("automation-native-failed", "自动化原生操作失败", {
           error,
           requestId: data.rid,
@@ -346,7 +362,7 @@
         if (!stopped)
           post({ kind: "native-result", rid: data.rid, success: false, error: String(error.message),
             ...(error.code ? { code: error.code } : {}), ...(error.savedCount > 0 ? { savedCount: error.savedCount } : {}) });
-      }
+      } finally { if (controller) nativeRequests.delete(data.rid); }
     }
     const listener = scope.listener("automation-native-message", window, "message", onMessage);
     function onOverview(apps, removed) {
@@ -526,6 +542,9 @@
       stop() {
         if (stopped) return;
         stopped = true;
+        post({ action: "native-disconnected", rid: `automation-native-close-${connectionId}`, connectionId });
+        for (const controller of nativeRequests.values()) controller.abort(new DOMException("Steam 数据入口已关闭", "AbortError"));
+        nativeRequests.clear();
         listener.dispose();
         downloadSubscription?.Unregister();
         window.STScheduler.unregister(TASK);
@@ -542,25 +561,33 @@
         gameEvents.clear();
       },
     };
+    async function connect() {
+      let value = await request("native-ready");
+      // 设置恰好在握手之间保存时，应用后台确认的新修订号后只补一次登记
+      for (let attempt = 0; attempt < 2 && !stopped; attempt++) {
+        configure(value);
+        const result = await request("native-connected", { connectionId, epoch: value.epoch, revision: value.revision });
+        if (result.connected || stopped) return;
+        value = result.configuration;
+      }
+      if (!stopped) throw new Error("Steam 数据入口初始化时自动化配置已变化，请重新连接");
+    }
     // 握手不阻塞其他功能挂载；失败终止本入口并标记真实运行态
-    void request("native-ready")
-      .then((value) => {
-        if (!stopped) configure(value);
-      })
-      .catch((error) => {
-        lifecycle.stop();
-        lifecycle.started = false;
-        window.STRuntime.get({ id: "steam-buff-page-runtime" }).markFeature({
-          domain: "steam",
-          id: "automation",
-          mode: "backend",
-          entry: "backend.js",
-          status: "failed",
-          reason: "native-handshake-failed",
-          error,
-        });
-        log.error("automation-native-start-failed", "自动化原生入口启动失败，已释放资源", { error });
+    void connect().catch((error) => {
+      if (stopped) return;
+      lifecycle.stop();
+      lifecycle.started = false;
+      window.STRuntime.get({ id: "steam-buff-page-runtime" }).markFeature({
+        domain: "steam",
+        id: "automation",
+        mode: "backend",
+        entry: "backend.js",
+        status: "failed",
+        reason: "native-handshake-failed",
+        error,
       });
+      log.error("automation-native-start-failed", "自动化原生入口启动失败，已释放资源", { error });
+    });
     return lifecycle;
   });
 })();

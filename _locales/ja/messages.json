@@ -11251,6 +11251,15 @@
   "ai_chat_approval_reopen": {
     "message": "ツールの操作を承認するにはチャットを開き直してください。"
   },
+  "ai_chat_automation_reset": {
+    "message": "自動化の初期設定を復元しています。完了後に再試行してください。"
+  },
+  "ai_chat_steam_connection_unavailable": {
+    "message": "Steam データに接続できません。Steam のライブラリを開いてから再試行してください。"
+  },
+  "ai_chat_steam_connection_timeout": {
+    "message": "Steam データへの接続がタイムアウトしました。もう一度お試しください。"
+  },
   "ai_chat_context_window": {
     "message": "コンテキスト使用量"
   },
@@ -11430,6 +11439,165 @@
         "content": "$1"
       }
     }
+  },
+  "ai_chat_usage_requests": {
+    "message": "リクエスト別"
+  },
+  "ai_chat_usage_input": {
+    "message": "入力"
+  },
+  "ai_chat_usage_output": {
+    "message": "出力"
+  },
+  "ai_chat_usage_total": {
+    "message": "このターンの合計"
+  },
+  "ai_chat_usage_request_total": {
+    "message": "合計"
+  },
+  "ai_chat_usage_cached": {
+    "message": "キャッシュヒット"
+  },
+  "ai_chat_usage_reasoning": {
+    "message": "推論"
+  },
+  "ai_chat_usage_missing": {
+    "message": "使用量が返されませんでした"
+  },
+  "ai_chat_usage_total_missing": {
+    "message": "合計トークン数が返されませんでした"
+  },
+  "ai_chat_usage_count": {
+    "message": "実測 $used$ トークン",
+    "placeholders": {
+      "used": {
+        "content": "$1"
+      }
+    }
+  },
+  "ai_chat_usage_count_partial": {
+    "message": "$used$（報告分）",
+    "placeholders": {
+      "used": {
+        "content": "$1"
+      }
+    }
+  },
+  "ai_chat_usage_partial": {
+    "message": "一部のリクエストから使用量が返されませんでした"
+  },
+  "ai_chat_usage_high": {
+    "message": "コンテキスト使用量が多くなっています"
+  },
+  "ai_chat_usage_notice": {
+    "message": "コンテキスト使用量が 70% に達しました"
+  },
+  "ai_chat_compact_context": {
+    "message": "コンテキストを圧縮"
+  },
+  "ai_chat_compaction_running": {
+    "message": "コンテキストを圧縮中…"
+  },
+  "ai_chat_compaction_done": {
+    "message": "圧縮済み。新しい使用量を待っています。"
+  },
+  "ai_chat_compaction_failed": {
+    "message": "圧縮が完了しなかったため、元のコンテキストを保持しました。"
+  },
+  "ai_chat_compaction_stopped": {
+    "message": "圧縮を停止し、元のコンテキストを保持しました。"
+  },
+  "ai_chat_compaction_usage": {
+    "message": "要約リクエストの実測 $used$ トークン",
+    "placeholders": {
+      "used": {
+        "content": "$1"
+      }
+    }
+  },
+  "ai_chat_compaction_cost": {
+    "message": "現在のモデルで要約を作成する際にトークンを消費します。"
+  },
+  "ai_chat_compaction_unavailable": {
+    "message": "圧縮できる過去の完全なターンがありません。"
+  },
+  "ai_chat_compaction_too_large": {
+    "message": "過去の会話が 1 回の要約リクエストの上限を超えています。元の会話を保持しました。"
+  },
+  "ai_chat_context_too_large": {
+    "message": "リクエストが長すぎます。コンテキストを圧縮するか、新しいチャットを開いてください。"
+  },
+  "ai_chat_service_changed": {
+    "message": "モデルの設定が更新されました。モデルを選び直してから再試行してください。"
+  },
+  "ai_chat_image_invalid": {
+    "message": "画像を送信できません。ファイルの形式とサイズを確認してください。"
+  },
+  "ai_chat_image_limit": {
+    "message": "1 メッセージにつき画像は最大 4 枚、合計 8 MiB までです。"
+  },
+  "ai_chat_image_model_unavailable": {
+    "message": "現在のモデルは画像に対応していません。モデルを切り替えるか、画像を削除してください。"
+  },
+  "ai_chat_image_send_type": {
+    "message": "送信に対応する形式は PNG、JPEG、WebP、GIF です。"
+  },
+  "ai_chat_inputs_unavailable": {
+    "message": "現在のモデルではこの入力タイプを使用できません。"
+  },
+  "ai_chat_sent_images": {
+    "message": "画像 $count$ 枚",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "ai_chat_model_select": {
+    "message": "モデルを選択"
+  },
+  "ai_chat_model_search": {
+    "message": "モデルを検索"
+  },
+  "ai_chat_model_no_matches": {
+    "message": "該当するモデルがありません"
+  },
+  "ai_chat_thinking_label": {
+    "message": "深い思考"
+  },
+  "ai_chat_thinking_enabled": {
+    "message": "深い思考はオンです"
+  },
+  "ai_chat_thinking_disabled": {
+    "message": "深い思考はオフです"
+  },
+  "ai_chat_thinking_no_off": {
+    "message": "深い思考はオンです · このモデルではオフにできません"
+  },
+  "ai_chat_effort_follow": {
+    "message": "モデルの設定に従う"
+  },
+  "ai_chat_effort_restore": {
+    "message": "推奨の推論強度に戻す · $level$",
+    "placeholders": {
+      "level": {
+        "content": "$1"
+      }
+    }
+  },
+  "ai_chat_effort_restore_default": {
+    "message": "API 既定の推論強度に戻す · $level$",
+    "placeholders": {
+      "level": {
+        "content": "$1"
+      }
+    }
+  },
+  "ai_chat_effort_no_recommendation": {
+    "message": "API の既定または推奨の推論強度が取得されていません"
+  },
+  "ai_chat_model_preference_failed": {
+    "message": "会話のモデルと推論強度を保存できませんでした"
   },
   "ai_chat_model": {
     "message": "モデル"
@@ -12371,7 +12539,16 @@
     "message": "自動化を初期設定に戻す"
   },
   "workflow_ui_restore_automation_defaults_warning": {
-    "message": "ワークフロー、プロンプト、ツール、トリガーを初期設定に戻します。続行しますか？"
+    "message": "未完了の実行、テスト実行、関連するツール承認を停止します。ワークフロー、トリガー、プロンプト、AI ツール、カスタムライブラリ、ツール専用の HTTP キーを消去し、現在の言語の初期設定を読み込みます。削除されたプロンプトの割り当ては既定に戻ります。実行履歴と AI サービス設定は保持されます。この操作は取り消せません。"
+  },
+  "workflow_ui_restoring_defaults": {
+    "message": "以前の実行を停止し、初期設定を復元しています…"
+  },
+  "workflow_ui_restored_defaults": {
+    "message": "自動化の初期設定を復元しました。"
+  },
+  "workflow_ui_restored_defaults_steam_pending": {
+    "message": "この端末の初期設定を復元しました。Steam の再接続を待っています。"
   },
   "workflow_ui_the_referenced_workflow_was_deleted_select_another_workflow": {
     "message": "参照先のワークフローが削除されました。別のワークフローを選択してください。"
@@ -14790,6 +14967,60 @@
   "settings_ai_search_invalid_key": {
     "message": "有効な API キーを入力してください。"
   },
+  "ai_chat_web_search": {
+    "message": "ウェブ検索"
+  },
+  "ai_chat_search_on": {
+    "message": "ウェブ検索はオンです"
+  },
+  "ai_chat_search_off": {
+    "message": "ウェブ検索はオフです"
+  },
+  "ai_chat_search_config": {
+    "message": "「AI サービス → 検索サービス」でプロバイダーと API キーを設定してください。"
+  },
+  "ai_chat_search_model": {
+    "message": "このモデルはツール呼び出しに対応していません"
+  },
+  "ai_chat_search_preference_failed": {
+    "message": "この会話のウェブ検索設定を保存できませんでした"
+  },
+  "ai_chat_search_no_results": {
+    "message": "関連するページが見つかりませんでした"
+  },
+  "ai_chat_search_result_count": {
+    "message": "検索結果数"
+  },
+  "ai_chat_search_changed": {
+    "message": "検索サービスの設定が変更されました。もう一度送信してください。"
+  },
+  "ai_chat_search_permission": {
+    "message": "「AI サービス → 検索サービス」で設定を保存し直し、ドメインへのアクセスを許可してください。"
+  },
+  "ai_chat_search_access": {
+    "message": "検索サービスへのアクセスが拒否されました。API キー、権限、残高を確認してください。"
+  },
+  "ai_chat_search_quota": {
+    "message": "検索サービスの残高または利用枠が不足しています。"
+  },
+  "ai_chat_search_rate": {
+    "message": "検索サービスのリクエスト頻度または利用枠の上限に達しました。"
+  },
+  "ai_chat_search_timeout": {
+    "message": "検索サービスがタイムアウトしました。しばらくしてから再試行してください。"
+  },
+  "ai_chat_search_network": {
+    "message": "検索サービスに接続できません。ネットワークを確認してください。"
+  },
+  "ai_chat_search_http": {
+    "message": "検索リクエストに失敗しました。しばらくしてから再試行してください。"
+  },
+  "ai_chat_search_response": {
+    "message": "検索サービスから無効な応答または大きすぎる応答が返されました。"
+  },
+  "ai_chat_search_transient_sources": {
+    "message": "Brave の参照元は今回の返信時のみ表示されます。"
+  },
   "settings_ai_search_invalid_config": {
     "message": "検索サービスの設定が無効です。再設定するか、未設定の状態で保存してください。"
   },
@@ -14815,5 +15046,56 @@
   },
   "settings_ai_deepseekTemperatureHint": {
     "message": "空欄の場合は既定値の 1.0 が使われます。思考モードでは温度は無効です。"
+  },
+  "ai_chat_search_preference_changed": {
+    "message": "この会話のウェブ検索がオフになりました。設定を確認してからもう一度送信してください。"
+  },
+  "ai_chat_tool_custom_name": {
+    "message": "ゲームのカスタム表示名を設定"
+  },
+  "ai_chat_tool_game_names": {
+    "message": "ゲーム名を取得"
+  },
+  "ai_chat_tool_writable_collections": {
+    "message": "書き込み可能なコレクションを取得"
+  },
+  "ai_chat_tool_achievement_sources": {
+    "message": "ゲームの実績を取得"
+  },
+  "ai_chat_tool_approval_sort_change": {
+    "message": "並び替え名  $before$ → $after$",
+    "placeholders": {
+      "before": {
+        "content": "$1"
+      },
+      "after": {
+        "content": "$2"
+      }
+    }
+  },
+  "ai_chat_tool_approval_custom_change": {
+    "message": "カスタム名  $before$ → $after$",
+    "placeholders": {
+      "before": {
+        "content": "$1"
+      },
+      "after": {
+        "content": "$2"
+      }
+    }
+  },
+  "ai_chat_tool_approval_name_unset": {
+    "message": "未設定"
+  },
+  "ai_chat_tool_approval_translation_changes": {
+    "message": "実績翻訳を $added$ 件追加、$updated$ 件更新",
+    "placeholders": {
+      "added": {
+        "content": "$1"
+      },
+      "updated": {
+        "content": "$2"
+      }
+    }
   }
 }

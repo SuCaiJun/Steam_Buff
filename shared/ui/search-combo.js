@@ -18,7 +18,7 @@
   const comboListSelector = "[data-st-combo-list]";
   const comboOptionSelector = "[data-st-combo-option]";
 
-  /** 渲染可搜索的单选候选框。label 为可访问名称，text 为当前显示值，value 为已选候选的稳定值 */
+  /** 渲染单选候选框。候选可用 group 的 id 和 label 指定分组，搜索字段仍由调用方提供 */
   function searchComboHtml(items, { id, label, text = "", value = "", placeholder = "", expandLabel, emptyLabel,
     modal = false, fixed = null, restoreOnClose = false, action = false, listLabel = label, listClass = "",
     optionClass = "", renderOption }) {
@@ -31,6 +31,18 @@
       if (!globalThis.STDomUtils.isTrustedHTML(fragment)) throw new TypeError("共享下拉的候选内容必须是可信模板");
       return fragment.html;
     }
+    const groups = new Map();
+    items.forEach((item, index) => {
+      const groupId = item.group?.id;
+      if (!groups.has(groupId)) groups.set(groupId, { label: item.group?.label, rows: [] });
+      groups.get(groupId).rows.push(`<button type="button" role="option" tabindex="-1" class="st-search-combo__option ${escAttr(optionClass)}"
+        id="${escAttr(listId + "-" + index)}" data-st-combo-option="${escAttr(item.value)}"
+        data-st-combo-search="${escAttr(item.search ?? `${item.value} ${item.label}`)}"
+        aria-selected="${String(item.value) === String(value)}"${item.disabled ? " disabled" : ""}>${content(item)}</button>`);
+    });
+    const options = Array.from(groups, ([groupId, { label, rows }]) => groupId === undefined ? rows.join("") :
+      `<div role="group" aria-label="${escAttr(label)}" data-st-combo-group>
+        <div class="st-search-combo__group-label" aria-hidden="true">${esc(label)}</div>${rows.join("")}</div>`).join("");
     return `
       <div class="st-search-combo" data-st-combo${action ? " data-st-combo-action" : ""}>
         <div class="st-search-combo__control">
@@ -44,10 +56,7 @@
         </div>
         <div class="st-search-combo__options ${escAttr(listClass)}" role="listbox" id="${escAttr(listId)}" aria-label="${escAttr(listLabel)}"
           data-st-combo-list${modal ? ' popover="manual"' : ""} hidden>
-          ${items.map((item, index) => `<button type="button" role="option" tabindex="-1" class="st-search-combo__option ${escAttr(optionClass)}"
-            id="${escAttr(listId + "-" + index)}" data-st-combo-option="${escAttr(item.value)}"
-            data-st-combo-search="${escAttr(item.search ?? `${item.value} ${item.label}`)}"
-            aria-selected="${String(item.value) === String(value)}"${item.disabled ? " disabled" : ""}>${content(item)}</button>`).join("")}
+          ${options}
           <div class="st-search-combo__empty" data-st-combo-empty${action ? ' role="status"' : ""} hidden>${esc(emptyLabel)}</div>
         </div>
       </div>`;
@@ -104,21 +113,25 @@
   function filterCombo(combo, input, query = "") {
     const search = query.trim().toLowerCase();
     let hasMatches = false;
-    let first;
+    let first, selected;
     for (const option of combo.querySelectorAll(comboOptionSelector)) {
       option.hidden = !option.dataset.stComboSearch.toLowerCase().includes(search);
       option.setAttribute("aria-selected", String(option.dataset.stComboOption === input.dataset.stComboValue));
       if (!option.hidden) {
         hasMatches = true;
         if (!first && !option.disabled) first = option;
+        if (!option.disabled && option.dataset.stComboOption === input.dataset.stComboValue) selected = option;
       }
     }
+    for (const group of combo.querySelectorAll("[data-st-combo-group]"))
+      group.hidden = !group.querySelector(`${comboOptionSelector}:not([hidden])`);
     combo.querySelector("[data-st-combo-empty]").hidden = hasMatches;
     input.removeAttribute("aria-activedescendant");
     combo.querySelector(comboListSelector).scrollTop = 0;
-    if (first && combo.hasAttribute("data-st-combo-action")) {
-      first.setAttribute("aria-selected", "true");
-      input.setAttribute("aria-activedescendant", first.id);
+    const active = selected ?? first;
+    if (active && combo.hasAttribute("data-st-combo-action")) {
+      active.setAttribute("aria-selected", "true");
+      input.setAttribute("aria-activedescendant", active.id);
     }
   }
 
@@ -262,8 +275,8 @@
     else positionCombo(input, list, rect);
   }
 
-  function bindSearchCombos(scope, signal, onSelect, scrollRoot = scope, { closeOnMove = false } = {}) {
-    const handle = event => handleSearchCombo(event, scope, onSelect);
+  function bindSearchCombos(scope, signal, onSelect, scrollRoot = scope, { closeOnMove = false, onDismiss } = {}) {
+    const handle = event => handleSearchCombo(event, scope, onSelect, onDismiss);
     const reposition = event => {
       if (!closeOnMove) repositionSearchCombo(scope, event);
       else if (event.type === "resize" || event.target === scrollRoot) closeSearchCombo(scope);

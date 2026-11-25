@@ -98,40 +98,53 @@
         <a id="settings" href="../settings/center.html?category=ai-services" target="_blank" rel="noopener" data-text="ai_chat_settings" hidden>配置 AI 服务</a>
         <div class="composer-pickers" hidden>
           <div class="composer-usage">
-            <button type="button" id="composer-usage" class="composer-icon" aria-describedby="composer-usage-info" aria-expanded="false">
+            <button type="button" id="composer-usage" class="composer-icon" aria-controls="composer-usage-info" aria-expanded="false">
               <svg aria-hidden="true" viewBox="0 0 16 16">
                 <circle class="composer-usage-track" cx="8" cy="8" r="7" />
                 <circle id="composer-usage-fill" cx="8" cy="8" r="7" pathLength="100" />
               </svg>
             </button>
-            <div id="composer-usage-info" class="composer-usage-info" role="tooltip" hidden>
+            <section id="composer-usage-info" class="composer-usage-info" aria-labelledby="composer-usage-title" hidden>
               <div class="composer-usage-content">
-                <strong data-text="ai_chat_context_window">上下文用量</strong>
+                <strong id="composer-usage-title" data-text="ai_chat_context_window">上下文用量</strong>
                 <span id="composer-usage-percent" hidden></span>
                 <span id="composer-usage-detail"></span>
+                <span id="composer-usage-status" role="status" hidden></span>
+                <span id="composer-usage-compression" hidden></span>
+                <dl id="composer-usage-counts" hidden></dl>
+                <details id="composer-usage-requests" hidden>
+                  <summary data-text="ai_chat_usage_requests">按请求查看</summary>
+                  <ol></ol>
+                </details>
+                <button type="button" id="composer-usage-compact" data-text="ai_chat_compact_context" disabled>压缩上下文</button>
               </div>
-            </div>
+            </section>
           </div>
           <div class="composer-model">
-            <button type="button" id="composer-model" aria-controls="composer-model-panel" aria-expanded="false">
+            <button type="button" id="composer-model" aria-controls="composer-model-panel" aria-expanded="false" aria-haspopup="dialog">
               <span id="composer-model-name"></span>
               <span id="composer-effort-badge" class="composer-effort-badge"></span>
             </button>
-            <section id="composer-model-panel" class="composer-menu" aria-labelledby="composer-model-label" hidden>
+            <section id="composer-model-panel" class="composer-menu" role="dialog" aria-modal="true" hidden>
               <div class="composer-model-content">
-                <span id="composer-model-label" data-text="ai_chat_model">模型</span>
-                <div id="composer-model-choices"></div>
-                <div class="composer-effort" hidden>
-                  <label for="composer-effort" data-text="ai_chat_effort">推理强度</label>
-                  <div class="composer-effort-actions"></div>
-                  <span class="composer-effort-status" hidden></span>
-                  <div class="composer-effort-track">
+                <div id="composer-model-choices" hidden></div>
+                <div id="composer-model-settings" class="composer-effort">
+                  <div class="composer-model-header">
+                    <button type="button" id="composer-web-search" class="composer-model-icon" aria-pressed="false" aria-disabled="true"></button>
+                    <button type="button" id="composer-model-select" aria-controls="composer-model-choices" aria-expanded="false">
+                      <span id="composer-effort-current" hidden></span>
+                      <span class="composer-model-caption"><span id="composer-model-selected"></span></span>
+                    </button>
+                    <button type="button" id="composer-effort-reset" class="composer-model-icon" aria-disabled="true" hidden></button>
+                  </div>
+                  <span id="composer-effort-status" hidden></span>
+                  <div class="composer-effort-track" hidden>
                     <span class="composer-effort-fill" aria-hidden="true"><canvas></canvas></span>
                     <span class="composer-effort-ticks" aria-hidden="true"></span>
                     <span class="composer-effort-thumb" aria-hidden="true"></span>
                     <input type="range" id="composer-effort" min="0" max="2" value="1" step="1">
                   </div>
-                  <div class="composer-effort-labels"></div>
+                  <button type="button" id="composer-effort-toggle" class="composer-model-icon" hidden></button>
                 </div>
               </div>
             </section>

@@ -26,14 +26,20 @@
     }),
   }));
 
+  const palette = [[190, 25, 51], [197, 43, 52], [213, 78, 64], [229, 81, 67], [245, 79, 69], [259, 80, 69], [273, 79, 62]];
+
   function mount(canvas, track, reducedMotion, signal) {
     const context = canvas.getContext("2d");
     let open = false, width = 0, height = 0, resolution = 1;
     let frame = 0, previousTime = 0, phase = 0, energy = 0, ratio = .5, colorRatio = .5;
+    let target = palette.length - 1, color = target;
 
     function paint() {
       if (!context || !open || document.hidden || !width || !height) return;
-      const hue = 210 + 63 * colorRatio ** 2;
+      const slot = Math.floor(color), blend = color - slot;
+      const [hue, saturation, brightness] = palette[slot].map((value, channel) =>
+        value + (palette[Math.min(slot + 1, palette.length - 1)][channel] - value) * blend);
+      const glowStrength = .35 + .65 * color / (palette.length - 1);
       const minimum = Math.min(32, width);
       const fillWidth = minimum + (width - minimum) * colorRatio;
       context.setTransform(resolution, 0, 0, resolution, 0, 0);
@@ -42,15 +48,15 @@
       shade.addColorStop(0, "#21222a");
       shade.addColorStop(.19, "#252633");
       shade.addColorStop(.40, `hsl(${hue} 38% 36%)`);
-      shade.addColorStop(.72, `hsl(${hue} 79% 62%)`);
-      shade.addColorStop(1, `hsl(${hue} 93% 76%)`);
+      shade.addColorStop(.72, `hsl(${hue} ${saturation}% ${brightness}%)`);
+      shade.addColorStop(1, `hsl(${hue} ${Math.min(100, saturation + 14)}% ${brightness + 14}%)`);
       context.globalCompositeOperation = "source-over";
       context.fillStyle = shade;
       context.fillRect(0, 0, width, height);
 
       const glowX = fillWidth * .70, glowY = height * .42;
       const glow = context.createRadialGradient(glowX, glowY, 0, glowX, glowY, Math.min(58, fillWidth * .48));
-      glow.addColorStop(0, `hsl(${hue + 12} 96% 86% / .34)`);
+      glow.addColorStop(0, `hsl(${hue + 12} 96% 86% / ${.34 * glowStrength})`);
       glow.addColorStop(1, "transparent");
       context.globalCompositeOperation = "screen";
       context.fillStyle = glow;
@@ -112,10 +118,10 @@
             trails.lineTo(x - star.radius - (2.8 + energy * 3.6) * star.speed, y + .22);
           }
         }
-        context.globalAlpha = layer.opacity;
+        context.globalAlpha = layer.opacity * glowStrength;
         context.fill();
         if (trails) {
-          context.globalAlpha = .35;
+          context.globalAlpha = .35 * glowStrength;
           context.strokeStyle = starLight;
           context.lineWidth = .72;
           context.lineCap = "round";
@@ -139,6 +145,8 @@
       const delta = previousTime ? Math.min(34, timestamp - previousTime) : 0;
       previousTime = timestamp;
       colorRatio += (ratio - colorRatio) * Math.min(1, delta / 90);
+      color += (target - color) * Math.min(1, delta / 90);
+      if (Math.abs(target - color) < .001) color = target;
       phase += delta / 1000 * (13 + 47 * colorRatio) * (1 + 2.2 * energy);
       energy *= Math.exp(-delta / 220);
       paint();
@@ -149,7 +157,7 @@
       if (!open || document.hidden || reducedMotion.matches || !width) {
         if (frame) cancelAnimationFrame(frame);
         frame = previousTime = 0;
-        if (reducedMotion.matches) colorRatio = ratio;
+        if (reducedMotion.matches) { colorRatio = ratio; color = target; }
         paint();
       } else if (!frame) frame = requestAnimationFrame(tick);
     }
@@ -179,15 +187,24 @@
         else {
           resize.disconnect();
           colorRatio = ratio;
+          color = target;
           energy = 0;
         }
         sync();
       },
-      setValue(value, speed = 0) {
+      setValue(value, speed, level) {
         ratio = value;
+        const slot = Math.round(level * (palette.length - 1));
+        if (slot !== target) {
+          target = slot;
+          const [hue, saturation, brightness] = palette[slot];
+          track.style.setProperty("--composer-effort-color", slot === palette.length - 1
+            ? "hsl(273 84% 62%)" : `hsl(${hue} ${saturation}% ${brightness}%)`);
+        }
         energy = Math.max(energy, Math.min(1, Math.abs(speed) / 2.8));
         if (!frame) {
           colorRatio = value;
+          color = target;
           paint();
         }
       },

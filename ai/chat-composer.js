@@ -49,7 +49,7 @@
     return { track, content };
   }
 
-  function mount(form, { service, text, locale, appId, onDraftChange }) {
+  function mount(form, { service, text, locale, appId, onDraftChange, onModelPreference, onSearchPreference }) {
     const get = id => document.getElementById(id);
     const input = get("message"), tools = get("tools"), approval = get("composer-approval");
     const add = get("composer-add"), files = get("composer-files");
@@ -58,28 +58,35 @@
     const previewImage = preview.querySelector("img"), previewClose = preview.querySelector("button");
     const model = get("composer-model"), modelName = get("composer-model-name"), panel = get("composer-model-panel");
     const models = get("composer-model-choices"), range = get("composer-effort"), badge = get("composer-effort-badge");
+    const modelCard = get("composer-model-settings"), chooseModel = get("composer-model-select");
+    const selectedName = get("composer-model-selected"), currentEffort = get("composer-effort-current");
+    const effortToggle = get("composer-effort-toggle"), restore = get("composer-effort-reset"), effortStatus = get("composer-effort-status");
+    const webSearch = get("composer-web-search");
     const approvalPanel = get("composer-approval-panel"), approvals = get("composer-approval-choices");
     const approvalMode = get("composer-approval-mode");
-    const effort = panel.querySelector(".composer-effort");
-    const actions = effort.querySelector(".composer-effort-actions");
-    const status = effort.querySelector(".composer-effort-status");
-    const labels = effort.querySelector(".composer-effort-labels");
     const track = range.parentElement, thumb = track.querySelector(".composer-effort-thumb");
     const ticks = track.querySelector(".composer-effort-ticks");
     const usage = get("composer-usage"), usageInfo = get("composer-usage-info");
     const usageFill = get("composer-usage-fill"), usageDetail = get("composer-usage-detail");
     const usagePercent = get("composer-usage-percent");
+    const usageStatus = get("composer-usage-status"), usageCounts = get("composer-usage-counts");
+    const usageRequests = get("composer-usage-requests"), usageCompression = get("composer-usage-compression");
+    const compact = get("composer-usage-compact");
     const mention = get("composer-mention");
     const lifetime = new AbortController(), { signal } = lifetime;
     const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)");
     const nativeSizing = CSS.supports("field-sizing", "content");
     const allowedTypes = new Set(files.accept.split(","));
     const images = new Map();
+    const numbers = new Intl.NumberFormat(locale);
+    const percent = new Intl.NumberFormat(locale, { style: "percent" });
     const effortField = window.STChatEffortField.mount(track.querySelector("canvas"), track, reduceMotion, signal);
-    let listedServices, activeChoice, usageService, busy = true;
+    let listedServices = [], busy = true, lastEnabled = {};
     let previewTrigger, mentionStart, draftId, frame = 0, drag, settle, effortValue = 0;
-    let effortProfile, effortKey, effortSelection, effortLevels = [], toolsEnabled = false;
+    let effortProfile, effortSelection, effortLevels = [], toolsEnabled = false;
+    let searchEnabled = false, searchSettings = { provider: "", invalid: false }, searchBlocked = true;
     let usageTimer = 0, usagePinned = false;
+    let canCompact = false;
     const listen = (target, event, listener) => target.addEventListener(event, listener, { signal });
 
     function rowHighlight(list, selected) {
@@ -111,7 +118,6 @@
       return { indicator, update, reset() { hovered = null; update(); } };
     }
 
-    const modelRows = rowHighlight(models, () => activeChoice);
     const approvalRows = rowHighlight(approvals, () => approvals.querySelector("input:checked"));
 
     function disclosure(trigger, menu, { prepare, onOpen, align = "end" }) {
@@ -154,16 +160,11 @@
       prepare() {
         tools.open = false;
         closeUsage(true);
-        modelRows.reset();
-        if (activeChoice) {
-          const row = activeChoice.parentElement;
-          const visibleFrom = row.offsetTop + row.offsetHeight - models.clientHeight;
-          models.scrollTop = Math.min(Math.max(models.scrollTop, visibleFrom), row.offsetTop);
-        }
-        (activeChoice || models.querySelector("input") || range).focus({ preventScroll: true });
+        showModelPicker(false);
+        chooseModel.focus({ preventScroll: true });
       },
       onOpen(open) {
-        effortField.setOpen(open && !track.hidden);
+        effortField.setOpen(open && models.hidden && !track.hidden);
         if (!open) finishDrag(true);
       },
     });
@@ -212,6 +213,20 @@
       button.title = label;
     }
 
+    function syncSearch(selected) {
+      searchBlocked = !searchSettings.provider || !selected || selected.supportsTools === false;
+      const pressed = !searchBlocked && searchEnabled;
+      const label = text("ai_chat_web_search", "联网搜索");
+      webSearch.setAttribute("aria-label", label);
+      webSearch.setAttribute("aria-pressed", String(pressed));
+      webSearch.setAttribute("aria-disabled", String(searchBlocked || busy));
+      webSearch.title = searchSettings.invalid ? text("settings_ai_search_invalid_config", "搜索服务配置无效，请重新配置或保存为未配置。")
+        : !searchSettings.provider ? text("ai_chat_search_config", "请在「AI 服务 → 搜索服务」设置提供商和 API 密钥。")
+        : !selected ? text("ai_chat_select_service", "选择 AI 服务")
+        : selected.supportsTools === false ? text("ai_chat_search_model", "当前模型不支持工具调用")
+        : pressed ? text("ai_chat_search_on", "联网搜索已开启") : text("ai_chat_search_off", "联网搜索已关闭");
+    }
+
     function syncSize() {
       if (nativeSizing || frame) return;
       frame = requestAnimationFrame(() => {
@@ -221,55 +236,89 @@
       });
     }
 
-    function syncService() {
-      const next = [...models.querySelectorAll("input")].find(choice => choice.value === service.value);
-      if (activeChoice) activeChoice.checked = false;
-      if (next) next.checked = true;
-      activeChoice = next;
-      modelRows.update();
-      if (usageService !== service.value) {
-        usageService = service.value;
-        setUsage(null);
-      }
-      const selected = listedServices?.find(item => item.id === service.value);
-      modelName.textContent = selected?.modelName || selected?.model || text("ai_chat_select_service", "选择 AI 服务");
+    function syncService(selected, choice) {
+      const label = text("ai_chat_model_select", "选择模型");
+      const profile = selected?.reasoning;
+      modelName.textContent = selectedName.textContent = selected?.modelName || selected?.model || label;
+      const caption = selected ? label + " · " + selectedName.textContent : label;
+      icon(chooseModel, profile?.supported && !profile.choices.length
+        ? caption + " · " + text("ai_chat_effort_supported", "支持深度思考")
+        : caption);
       model.title = selected
         ? selected.name + " · " + selected.model + " · " + text("ai_chat_effort", "推理强度")
         : modelName.textContent;
-      syncEffort(selected);
+      syncEffort(profile, choice);
+      syncSearch(selected);
+      syncAttachmentStatus();
     }
 
-    function setServices(items) {
-      if (items !== listedServices) {
-        listedServices = items;
-        const names = new Map();
-        for (const item of items) {
-          const name = item.modelName || item.model;
-          names.set(name, (names.get(name) || 0) + 1);
-        }
-        models.replaceChildren(modelRows.indicator, ...items.map(({ id, name, model: modelId, modelName }) => {
-          const nameOfModel = modelName || modelId;
-          const row = document.createElement("label");
-          const choice = document.createElement("input");
-          choice.type = "radio";
-          choice.name = "composer-model-choice";
-          choice.value = id;
-          choice.disabled = busy;
-          const caption = document.createElement("span");
-          caption.textContent = nameOfModel;
-          row.title = name + " · " + modelId;
-          row.append(choice, caption);
-          if (names.get(nameOfModel) > 1) {
-            const detail = document.createElement("small");
-            detail.textContent = name;
-            row.append(detail);
-          }
-          return row;
-        }));
-        activeChoice = null;
-        modelRows.reset();
+    function setServices(items, preference) {
+      listedServices = items;
+      lastEnabled = { ...preference?.lastEnabled };
+      const selected = items.find(item => item.id === service.value);
+      syncService(selected, preference?.serviceId === selected?.id ? preference?.reasoning : undefined);
+      if (modelMenu.open && !models.hidden) renderModelPicker();
+    }
+
+    function renderModelPicker() {
+      const searchLabel = text("ai_chat_model_search", "搜索模型");
+      const { esc, escAttr } = STHtml;
+      const query = models.querySelector("input")?.value ?? "";
+      const items = listedServices.map(item => ({
+        value: item.id,
+        label: item.modelName || item.model,
+        search: [item.name, item.modelName, item.model].filter(Boolean).join(" "),
+        group: { id: item.connectionId ?? item.id, label: item.name },
+        title: item.name + " · " + item.model,
+      }));
+      STSearchCombo.closeSearchCombo(models);
+      const html = STSearchCombo.searchComboHtml(items, {
+        id: "composer-model-search", label: searchLabel, placeholder: searchLabel + "…",
+        value: service.value, text: query, action: true,
+        emptyLabel: text("ai_chat_model_no_matches", "没有匹配的模型"),
+        renderOption: item => STDomUtils.trustedHTML(
+          `<span class="composer-model-option" title="${escAttr(item.title)}">${esc(item.label)}</span>` +
+          (item.value === service.value ? '<span class="composer-model-check" aria-hidden="true"></span>' : ""), "ai-chat-model-option"),
+      });
+      STDomUtils.setTrustedHTML(models, STDomUtils.trustedHTML(html, "ai-chat-search-combo"));
+      STSearchCombo.openSearchCombo(models);
+      models.querySelector("input").focus({ preventScroll: true });
+      const current = models.querySelector(".composer-model-check")?.parentElement;
+      if (!query && current) {
+        const list = models.querySelector("[data-st-combo-list]");
+        const currentBottom = current.getBoundingClientRect().bottom;
+        list.scrollTop += Math.max(0, currentBottom - list.getBoundingClientRect().bottom);
       }
-      syncService();
+    }
+
+    function showModelPicker(open) {
+      if (open === !models.hidden) return false;
+      modelMenu.finishAnimation();
+      models.hidden = !open;
+      modelCard.hidden = open;
+      chooseModel.setAttribute("aria-expanded", String(open));
+      effortField.setOpen(!open && modelMenu.open && !track.hidden);
+      if (open) renderModelPicker();
+      else {
+        STSearchCombo.closeSearchCombo(models);
+        models.replaceChildren();
+        chooseModel.focus({ preventScroll: true });
+      }
+      return true;
+    }
+
+    function selectModel(id) {
+      if (busy || models.hidden) return;
+      const selected = listedServices.find(item => item.id === id);
+      if (!selected) return;
+      if (id !== service.value) {
+        const previous = effectiveEffort();
+        service.value = id;
+        syncService(selected, switchEffort(selected.reasoning, previous));
+        saveModelPreference(rememberEnabled(effortSelection));
+        service.dispatchEvent(new Event("change", { bubbles: true }));
+      }
+      showModelPicker(false);
     }
 
     function syncApproval() {
@@ -281,29 +330,72 @@
       approvals.setAttribute("aria-label", text("ai_chat_approval_mode", "审批模式"));
     }
 
+    const tokenLabels = {
+      input: ["ai_chat_usage_input", "输入"], output: ["ai_chat_usage_output", "输出"], total: ["ai_chat_usage_total", "本轮合计"],
+      cached: ["ai_chat_usage_cached", "缓存命中"], reasoning: ["ai_chat_usage_reasoning", "推理"],
+    };
+
     function setUsage(snapshot) {
-      const { used, total } = snapshot ?? {};
-      const valid = Number.isSafeInteger(used) && used >= 0 && Number.isSafeInteger(total) && total > 0;
+      const { used, total, usage: report, status, compression, available, awaiting } = snapshot ?? {};
+      const counted = Number.isSafeInteger(used) && used >= 0;
+      const valid = counted && Number.isSafeInteger(total) && total > 0;
       if (usagePercent.hidden === valid) usageMenu.finishAnimation();
       const percentage = valid ? used / total : 0;
-      usage.dataset.level = percentage >= .92 ? "critical" : percentage >= .8 ? "warning" : percentage > 0 ? "normal" : "empty";
+      usage.dataset.level = percentage >= .8 ? "critical" : percentage >= .7 ? "warning" : valid ? "normal" : "empty";
       usageFill.style.strokeDashoffset = String(100 - Math.min(percentage, 1) * 100);
       usagePercent.hidden = !valid;
-      if (!valid) {
-        usagePercent.textContent = "";
-        usageDetail.textContent = text("ai_chat_usage_unavailable", "暂无 Token 用量");
-        return;
-      }
-      const numbers = new Intl.NumberFormat(locale);
-      const percent = new Intl.NumberFormat(locale, { style: "percent" });
-      usagePercent.textContent = text("ai_chat_usage_percent", "$percent$ 已用", { percent: percent.format(percentage) });
-      usageDetail.textContent = text("ai_chat_usage_detail", "已用 $used$ Token，共 $total$ Token", {
-        used: numbers.format(used), total: numbers.format(total),
+      usagePercent.textContent = valid ? text("ai_chat_usage_percent", "$percent$ 已用", { percent: percent.format(percentage) }) : "";
+      const requests = report?.requests ?? [];
+      const missing = text("ai_chat_usage_missing", "本次未返回用量");
+      usageDetail.textContent = valid
+        ? text("ai_chat_usage_detail", "已用 $used$ Token，共 $total$ Token", { used: numbers.format(used), total: numbers.format(total) })
+        : counted ? text("ai_chat_usage_count", "本次实报 $used$ Token", { used: numbers.format(used) })
+          : awaiting ? "" : report?.reported ? text("ai_chat_usage_total_missing", "接口未返回总 Token 数")
+            : requests.length ? missing : text("ai_chat_usage_unavailable", "暂无 Token 用量");
+      const notices = {
+        running: ["ai_chat_compaction_running", "正在压缩上下文…"],
+        done: ["ai_chat_compaction_done", "已压缩，等待新用量"],
+        failed: ["ai_chat_compaction_failed", "压缩未完成，已保留原上下文。"],
+        incomplete: ["ai_chat_compaction_failed", "压缩未完成，已保留原上下文。"],
+        stopped: ["ai_chat_compaction_stopped", "已停止压缩，已保留原上下文。"],
+      };
+      const caption = notices[status] ?? (counted && requests.length && !report.reported
+        ? ["ai_chat_usage_missing", "本次未返回用量"] : report?.reported && report.reported < requests.length
+        ? ["ai_chat_usage_partial", "部分请求未返回用量"]
+        : percentage >= .8 ? ["ai_chat_usage_high", "上下文用量较高"] : percentage >= .7 ? ["ai_chat_usage_notice", "上下文用量已达 70%"] : null);
+      usageStatus.textContent = caption ? text(...caption) : "";
+      usageStatus.hidden = !caption;
+      usageCompression.hidden = !Number.isSafeInteger(compression?.total);
+      usageCompression.textContent = usageCompression.hidden ? "" : text("ai_chat_compaction_usage", "摘要请求实报 $used$ Token", {
+        used: numbers.format(compression.total),
       });
+      usageCounts.replaceChildren(...Object.entries(tokenLabels).flatMap(([key, label]) => {
+        const record = report?.totals[key];
+        if (!record) return [];
+        const name = document.createElement("dt"), value = document.createElement("dd");
+        name.textContent = text(...label);
+        value.textContent = record.count === requests.length ? numbers.format(record.sum)
+          : text("ai_chat_usage_count_partial", "$used$（实报部分）", { used: numbers.format(record.sum) });
+        return [name, value];
+      }));
+      usageCounts.hidden = !usageCounts.children.length;
+      usageRequests.hidden = requests.length < 2;
+      if (usageRequests.hidden) usageRequests.open = false;
+      usageRequests.querySelector("ol").replaceChildren(...(usageRequests.hidden ? [] : requests.map(request => {
+        const item = document.createElement("li");
+        const fields = request && Object.entries(tokenLabels).filter(([key]) => request[key] !== undefined)
+          .map(([key, label]) => `${key === "total" ? text("ai_chat_usage_request_total", "合计") : text(...label)} ${numbers.format(request[key])}`);
+        item.textContent = fields?.length ? fields.join(" · ") : missing;
+        return item;
+      })));
+      canCompact = available === true;
+      compact.disabled = busy || !canCompact;
+      compact.title = canCompact ? text("ai_chat_compaction_cost", "使用当前模型生成摘要，会消耗 Token。")
+        : text("ai_chat_compaction_unavailable", "当前没有可压缩的完整旧对话。");
     }
 
     const effortNames = {
-      default: ["ai_chat_effort_default", "默认"], off: ["ai_chat_effort_off", "关闭"], on: ["ai_chat_effort_on", "开启"],
+      off: ["ai_chat_effort_off", "关闭"], on: ["ai_chat_effort_on", "开启"],
       minimal: ["ai_chat_effort_minimal", "极低"], low: ["ai_chat_effort_low", "低"], medium: ["ai_chat_effort_medium", "中度"],
       high: ["ai_chat_effort_high", "高"], xhigh: ["ai_chat_effort_xhigh", "很高"], max: ["ai_chat_effort_max", "最高"],
       ultra: ["ai_chat_effort_ultra", "超高"],
@@ -313,90 +405,151 @@
       return Object.hasOwn(effortNames, value) ? text(...effortNames[value]) : value;
     }
 
-    function effortButton(choice) {
-      const button = document.createElement("button");
-      button.type = "button";
-      button.dataset.reasoningChoice = choice;
-      button.textContent = effortLabel(choice);
-      button.disabled = busy;
-      return button;
-    }
-
     function effortDefault() {
       return toolsEnabled && effortProfile?.offWithToolsByDefault ? "off" : effortProfile?.defaultLevel;
     }
 
-    function showEffort(value = effortSelection) {
-      const effective = value ?? effortDefault();
-      const chosen = value ?? "default";
-      badge.textContent = !effort.hidden && effortProfile?.choices.length ? effortLabel(effective ?? "default") : "";
-      badge.hidden = !badge.textContent;
+    function effectiveEffort() {
+      return effortSelection ?? effortDefault();
+    }
+
+    function recommendedEffort(profile) {
+      return profile?.choices.includes(profile.recommendedLevel) ? profile.recommendedLevel : undefined;
+    }
+
+    function restorableEffort(profile) {
+      return recommendedEffort(profile) ?? profile?.apiDefaultLevel;
+    }
+
+    function firstEnabled(profile) {
+      const recommended = recommendedEffort(profile);
+      if (recommended && recommended !== "off") return recommended;
+      const choices = profile?.choices ?? [];
+      return choices.find(choice => choice !== "off" && choice !== "on") ?? choices.find(choice => choice === "on");
+    }
+
+    function switchEffort(profile, previous) {
+      if (profile?.choices.includes(previous)) return previous;
+      return recommendedEffort(profile) ?? firstEnabled(profile) ?? profile?.choices[0];
+    }
+
+    function toggleEffortChoice(effective) {
+      if (effortToggle.hidden) return undefined;
+      const choices = effortProfile.choices;
+      if (effective && effective !== "off") return choices.includes("off") ? "off" : undefined;
+      const saved = lastEnabled[service.value];
+      if (saved && choices.includes(saved)) return saved;
+      return firstEnabled(effortProfile) ?? (effective === undefined && choices.includes("off") ? "off" : undefined);
+    }
+
+    function showEffortToggle(effective) {
+      if (effortToggle.hidden) return;
+      const choices = effortProfile.choices;
+      const next = toggleEffortChoice(effective);
+      const enabled = effective !== undefined && effective !== "off";
+      effortToggle.dataset.state = effective === undefined ? "unknown" : enabled ? "on" : "off";
+      effortToggle.setAttribute("aria-disabled", String(busy || next === undefined));
+      if (choices.includes("off") && firstEnabled(effortProfile) && effective !== undefined)
+        effortToggle.setAttribute("aria-pressed", String(enabled));
+      else effortToggle.removeAttribute("aria-pressed");
+      const labelThinking = text("ai_chat_thinking_label", "深度思考");
+      const state = effective === undefined ? labelThinking + (next ? " · " + effortLabel(next === "off" ? "off" : "on") : "")
+        : enabled ? text("ai_chat_thinking_enabled", "深度思考已开启") : text("ai_chat_thinking_disabled", "深度思考已关闭");
+      icon(effortToggle, enabled && !choices.includes("off")
+        ? text("ai_chat_thinking_no_off", "深度思考已开启 · 此模型没有关闭档位")
+        : state);
+    }
+
+    function showEffort(effective = effectiveEffort()) {
+      const label = effective === undefined ? text("ai_chat_effort_follow", "跟随模型") : effortLabel(effective);
+      currentEffort.textContent = badge.textContent = label;
+      currentEffort.hidden = badge.hidden = track.hidden;
       const active = effortLevels.indexOf(effective);
-      model.dataset.effort = active < 0 ? "" : active === 0 ? "0" : active === effortLevels.length - 1 ? "2" : "1";
-      for (const button of effort.querySelectorAll("[data-reasoning-choice]"))
-        button.setAttribute("aria-pressed", String(button.dataset.reasoningChoice === chosen));
+      const first = effortLevels.findIndex(choice => choice !== "off" && choice !== "on");
+      model.dataset.effort = active < first || active < 0 ? "" : active === first ? "0" : active === effortLevels.length - 1 ? "2" : "1";
+      showEffortToggle(effective);
+      const target = restorableEffort(effortProfile);
+      restore.setAttribute("aria-disabled", String(busy || target === undefined));
+      const restoreLabel = recommendedEffort(effortProfile) === undefined
+        ? ["ai_chat_effort_restore_default", "恢复 API 默认档位 · $level$"]
+        : ["ai_chat_effort_restore", "恢复推荐档位 · $level$"];
+      icon(restore, target === undefined
+        ? text("ai_chat_effort_no_recommendation", "未获取到 API 默认或推荐档位")
+        : text(...restoreLabel, { level: effortLabel(target) }));
     }
 
-    function setEffort(choice) {
-      effortSelection = choice === "default" ? undefined : choice;
-      effortValue = Math.max(0, effortLevels.indexOf(effortSelection ?? effortDefault()));
+    function renderEffort() {
+      const effective = effectiveEffort();
+      const index = effortLevels.indexOf(effective);
+      effortValue = Math.max(0, index);
       range.value = String(effortValue);
-      showEffort();
-      drawEffort(effortValue);
+      showEffort(effective);
+      drawEffort(effortValue, effortValue, 0, index < 0);
     }
 
-    function syncEffort(selected) {
-      const key = selected && JSON.stringify([selected.id, selected.model, selected.revision, selected.reasoning]);
-      if (key === effortKey) return;
+    function syncEffort(profile, choice) {
       finishDrag(true);
-      effortKey = key;
-      effortProfile = selected?.reasoning;
-      const choices = effortProfile?.choices ?? [];
-      effortLevels = choices.filter(choice => choice !== "off" && choice !== "on");
-      effort.hidden = !selected || !effortProfile || effortProfile.unsupported;
-      status.hidden = Boolean(choices.length);
-      status.textContent = effortProfile?.supported
-        ? text("ai_chat_effort_supported", "支持深度思考")
-        : text("ai_chat_effort_unknown", "推理能力未确认");
-      const slider = effortLevels.length > 1;
-      const shortcuts = slider ? choices.filter(choice => !effortLevels.includes(choice)) : choices;
-      actions.hidden = !choices.length;
-      actions.replaceChildren(...(choices.length ? ["default", ...shortcuts].map(effortButton) : []));
-      track.hidden = labels.hidden = !slider;
-      labels.replaceChildren(...(slider ? effortLevels.map((choice, index) => {
-        const button = effortButton(choice);
-        button.dataset.effort = String(index);
-        if (index === effortLevels.length - 1) button.classList.add("composer-effort-last");
-        return button;
-      }) : []));
+      effortProfile = profile;
+      effortSelection = choice === undefined ? undefined : switchEffort(profile, choice);
+      const choices = profile?.choices ?? [];
+      // 自定义模型可同时提供自动开启与指定强度，它们各有独立的请求参数
+      const levels = choices.filter(level => level !== "off");
+      const slider = levels.length > 1;
+      effortLevels = slider && choices.includes("off") ? ["off", ...levels] : levels;
+      effortToggle.hidden = slider || !choices.length;
+      restore.hidden = !profile || profile.unsupported;
+      effortStatus.hidden = !profile || profile.unsupported || profile.supported || Boolean(choices.length);
+      effortStatus.textContent = text("ai_chat_effort_unknown", "推理能力未确认");
+      track.hidden = !slider;
       ticks.replaceChildren(...(slider ? effortLevels.map(() => document.createElement("i")) : []));
       range.max = String(Math.max(1, effortLevels.length - 1));
       range.disabled = busy || !slider;
-      effortField.setOpen(modelMenu.open && slider);
-      setEffort("default");
+      effortField.setOpen(modelMenu.open && models.hidden && slider);
+      renderEffort();
     }
 
-    function drawEffort(value, position = value, speed = 0) {
+    function rememberEnabled(choice) {
+      if (!choice || choice === "off" || !effortProfile?.choices.includes(choice)) return {};
+      lastEnabled[service.value] = choice;
+      return { [service.value]: choice };
+    }
+
+    function saveModelPreference(changedLevels) {
+      onModelPreference({ serviceId: service.value, reasoning: effortSelection, lastEnabled: { ...lastEnabled } }, changedLevels);
+    }
+
+    function chooseEffort(choice) {
+      if (busy || !effortProfile?.choices.includes(choice)) return;
+      const changedLevels = rememberEnabled(choice === "off" ? effectiveEffort() : choice);
+      const changed = effortSelection !== choice;
+      effortSelection = choice;
+      renderEffort();
+      if (changed) saveModelPreference(changedLevels);
+    }
+
+    function drawEffort(value, position = value, speed = 0, unset = false) {
       if (track.hidden) return;
       const ratio = position / (effortLevels.length - 1);
-      range.setAttribute("aria-valuetext", effortLabel(effortLevels[value]));
+      range.setAttribute("aria-valuetext", unset ? currentEffort.textContent : effortLabel(effortLevels[value]));
       track.style.setProperty("--composer-effort-ratio", String(ratio));
+      track.toggleAttribute("data-unset", unset);
+      track.toggleAttribute("data-off", !unset && effortLevels[value] === "off");
       track.dataset.high = String(ratio === 1);
-      effortField.setValue(ratio, speed);
-      if (drag) showEffort(effortLevels[value]);
+      const firstEnabledIndex = effortLevels[0] === "off" ? 1 : 0;
+      const level = Math.max(0, value - firstEnabledIndex) / (effortLevels.length - 1 - firstEnabledIndex);
+      effortField.setValue(ratio, speed, level);
+      if (drag && drag.displayed !== value) {
+        drag.displayed = value;
+        showEffort(effortLevels[value]);
+      }
     }
 
     function finishDrag(cancelled, pointerId) {
       if (!drag || (pointerId !== undefined && drag.id !== pointerId)) return;
       drag = null;
       track.removeAttribute("data-dragging");
-      if (cancelled) range.value = String(effortValue);
-      else {
-        effortValue = Number(range.value);
-        effortSelection = effortLevels[effortValue];
-      }
-      showEffort();
-      drawEffort(effortValue);
+      if (cancelled) renderEffort();
+      else chooseEffort(effortLevels[Number(range.value)]);
       thumb.style.removeProperty("--effort-speed");
       thumb.style.removeProperty("--effort-stretch");
       if (reduceMotion.matches || cancelled) return;
@@ -415,8 +568,19 @@
 
     function updateAttachments() {
       attachments.hidden = images.size === 0;
-      setAttachmentStatus(images.size ? text("ai_chat_images_preview_only", "图片仅供本地预览，移除图片后可发送文字。") : "");
+      syncAttachmentStatus();
       onDraftChange();
+    }
+
+    function imagesSendable() {
+      return !images.size || (listedServices?.find(item => item.id === service.value)?.inputs?.image === true &&
+        [...images.values()].every(({ file }) => STAI.CHAT_IMAGE_TYPES.includes(file.type)));
+    }
+
+    function syncAttachmentStatus() {
+      setAttachmentStatus(imagesSendable() ? "" : listedServices?.find(item => item.id === service.value)?.inputs?.image
+        ? text("ai_chat_image_send_type", "发送时支持 PNG、JPEG、WebP 和 GIF。")
+        : text("ai_chat_image_model_unavailable", "当前模型不支持图片。可切换模型或移除图片。"));
     }
 
     function openPreview(file, tile, url) {
@@ -453,12 +617,18 @@
       modelMenu.set(false);
       approvalMenu.set(false);
       closeUsage(true);
-      let rejected = false;
+      let rejected = false, oversize = false;
+      let size = [...images.values()].reduce((bytes, item) => bytes + item.file.size, 0);
       for (const file of selected) {
         if (!allowedTypes.has(file.type)) {
           rejected = true;
           continue;
         }
+        if (images.size >= STAI.CHAT_IMAGE_COUNT || size + file.size > STAI.CHAT_IMAGE_BYTES || !file.size) {
+          oversize = true;
+          continue;
+        }
+        size += file.size;
         const row = document.createElement("div");
         row.className = "composer-attachment";
         const tile = document.createElement("button"), remove = document.createElement("button");
@@ -478,7 +648,17 @@
         attachments.append(row);
       }
       updateAttachments();
-      if (rejected) setAttachmentStatus(text("ai_chat_image_type", "请选择 PNG、JPEG、WebP、GIF 或 AVIF 图片。"));
+      if (oversize) setAttachmentStatus(text("ai_chat_image_limit", "每条消息最多 4 张图片，合计不超过 8 MiB。"));
+      else if (rejected) setAttachmentStatus(text("ai_chat_image_type", "请选择 PNG、JPEG、WebP、GIF 或 AVIF 图片。"));
+    }
+
+    function readImages() {
+      return Promise.all([...images.values()].map(({ file }) => new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = () => reject(Object.assign(new Error("读取图片失败", { cause: reader.error }), { code: "CHAT_IMAGE_INVALID" }));
+        reader.readAsDataURL(file);
+      })));
     }
 
     function clearImages() {
@@ -506,6 +686,7 @@
     }
 
     function dismiss() {
+      if (modelMenu.open && showModelPicker(false)) return true;
       if (closePreview() || modelMenu.set(false, true) || approvalMenu.set(false, true)) return true;
       if (tools.open) {
         tools.open = false;
@@ -520,6 +701,8 @@
     }
 
     icon(add, text("ai_chat_add_images", "添加图片"));
+    panel.setAttribute("aria-label", text("ai_chat_model", "模型"));
+    range.setAttribute("aria-label", text("ai_chat_effort", "推理强度"));
     usage.setAttribute("aria-label", text("ai_chat_context_window", "上下文用量"));
     icon(get("send"), text("ai_chat_send", "发送"));
     icon(get("stop"), text("ai_chat_stop", "停止"));
@@ -542,6 +725,26 @@
       approvalMenu.set(false);
       modelMenu.set(!modelMenu.open, modelMenu.open);
     });
+    listen(chooseModel, "click", event => {
+      // 搜索列表与卡片在同一弹层，打开时绕过共享下拉的外部点击关闭
+      event.stopPropagation();
+      showModelPicker(true);
+    });
+    listen(models, "pointerdown", event => STSearchCombo.handleSearchCombo(event, models));
+    listen(panel, "keydown", event => {
+      if (event.key !== "Tab") return;
+      const controls = [...panel.querySelectorAll("button:not([tabindex='-1']), input:not(:disabled)")]
+        .filter(control => !control.closest("[hidden]"));
+      const first = controls[0], last = controls.at(-1);
+      if (event.shiftKey ? event.target !== first : event.target !== last) return;
+      event.preventDefault();
+      (event.shiftKey ? last : first).focus({ preventScroll: true });
+    });
+    listen(effortToggle, "click", () => chooseEffort(toggleEffortChoice(effectiveEffort())));
+    listen(webSearch, "click", () => {
+      if (!busy && !searchBlocked) onSearchPreference(!searchEnabled);
+    });
+    listen(restore, "click", () => chooseEffort(restorableEffort(effortProfile)));
     listen(approval, "click", () => {
       modelMenu.set(false);
       approvalMenu.set(!approvalMenu.open, approvalMenu.open);
@@ -552,11 +755,6 @@
       approvalMenu.set(false, true);
     });
     listen(approvals, "change", syncApproval);
-    listen(models, "change", event => {
-      service.value = event.target.value;
-      service.dispatchEvent(new Event("change", { bubbles: true }));
-    });
-    listen(service, "change", syncService);
     listen(window, "resize", () => {
       modelMenu.finishAnimation();
       approvalMenu.finishAnimation();
@@ -595,7 +793,9 @@
       if (event.pointerType !== "touch" && !usage.matches(":focus-visible")) scheduleUsage(false, 150);
     });
     listen(usage, "focus", () => { if (usage.matches(":focus-visible")) scheduleUsage(true, 0); });
-    listen(usage, "blur", () => { if (!usage.parentElement.matches(":hover")) scheduleUsage(false, 150); });
+    listen(usage.parentElement, "focusout", event => {
+      if (!usage.parentElement.contains(event.relatedTarget) && !usage.parentElement.matches(":hover")) scheduleUsage(false, 150);
+    });
     listen(reduceMotion, "change", () => {
       if (!reduceMotion.matches) return;
       modelMenu.settle();
@@ -604,7 +804,8 @@
       settle?.cancel();
       thumb.style.removeProperty("--effort-speed");
       thumb.style.removeProperty("--effort-stretch");
-      drawEffort(Number(range.value));
+      if (drag) drawEffort(Number(range.value));
+      else renderEffort();
     });
     listen(range, "pointerdown", event => {
       if (drag || !event.isPrimary) return;
@@ -629,18 +830,20 @@
     });
     listen(range, "input", () => {
       if (!drag) {
-        setEffort(effortLevels[Number(range.value)]);
+        chooseEffort(effortLevels[Number(range.value)]);
         return;
       }
       drawEffort(Number(range.value), reduceMotion.matches ? undefined : drag?.position);
     });
+    listen(range, "keydown", event => {
+      if (event.key === "Home" && track.hasAttribute("data-unset")) {
+        event.preventDefault();
+        chooseEffort(effortLevels[0]);
+      }
+    });
     listen(window, "pointerup", event => finishDrag(false, event.pointerId));
     listen(window, "pointercancel", event => finishDrag(true, event.pointerId));
     listen(window, "blur", () => finishDrag(true));
-    listen(effort, "click", event => {
-      const button = event.target.closest("[data-reasoning-choice]");
-      if (button && !busy) setEffort(button.dataset.reasoningChoice);
-    });
     listen(add, "click", () => files.click());
     listen(files, "change", () => { addImages(files.files); files.value = ""; });
     listen(attachments, "click", event => {
@@ -703,21 +906,30 @@
     });
 
     return {
-      syncSize, setServices, setUsage, dismiss,
+      syncSize, setServices, setUsage, dismiss, selectModel,
+      closeModelPicker: () => showModelPicker(false),
       getReasoning: () => effortSelection,
+      setSearchPreference(settings, enabled) {
+        searchSettings = settings;
+        searchEnabled = enabled;
+        syncSearch(listedServices.find(item => item.id === service.value));
+      },
       setToolsEnabled(value) {
         if (toolsEnabled === value) return;
         toolsEnabled = value;
-        if (effortSelection === undefined && effortProfile) setEffort("default");
+        if (effortSelection === undefined && effortProfile) renderEffort();
       },
       getApprovalMode: () => approvals.querySelector("input:checked").value,
-      hasImages: () => images.size > 0,
+      imageCount: () => images.size,
+      draftFiles: () => [...images.values()].map(item => item.file),
+      imagesSendable, readImages, clearImages,
       setBusy(value) {
         busy = value;
         add.disabled = model.disabled = approval.disabled = value;
-        for (const item of models.querySelectorAll("input")) item.disabled = value;
-        for (const item of effort.querySelectorAll("button")) item.disabled = value;
         range.disabled = value || track.hidden;
+        compact.disabled = value || !canCompact;
+        showEffort();
+        syncSearch(listedServices.find(item => item.id === service.value));
         if (!value) return;
         finishDrag(true);
         modelMenu.set(false);
@@ -726,13 +938,13 @@
         tools.open = false;
         mention.hidden = true;
       },
-      setDraft(id) {
+      setDraft(id, files = []) {
         if (id === draftId) return;
         draftId = id;
-        setEffort("default");
         approvals.querySelector("input[checked]").checked = true;
         syncApproval();
         clearImages();
+        if (files.length) addImages(files);
         closeUsage(true);
         setUsage(null);
         mention.hidden = true;

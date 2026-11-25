@@ -935,7 +935,8 @@
   const TOOL_APP_ID_MAX = 0xffffffff;
   const isToolAppId = id => Number.isSafeInteger(id) && id > 0 && id <= TOOL_APP_ID_MAX;
   const PROVIDER_TOOL_IDS = Object.freeze({ game: "tool-1", players: "tool-2", prices: "tool-3", search: "tool-4",
-    rename: "tool-5", collections: "tool-6", achievements: "tool-7", library: "tool-8", library_game: "tool-9", wishlist: "tool-10" });
+    rename: "tool-5", collections: "tool-6", achievements: "tool-7", library: "tool-8", library_game: "tool-9", wishlist: "tool-10",
+    custom_name: "tool-11", game_names: "tool-12", writable_collections: "tool-13", achievement_sources: "tool-14" });
   const STORE_SEARCH_TOOL_ID = PROVIDER_TOOL_IDS.search;
   const WEB_SEARCH_TOOL_ID = "web_search";
   const searchProvider = id => globalThis.STConfig.aiSearchProviders.find(provider => provider.id === id);
@@ -981,10 +982,24 @@
   const keywordProperty = { type: "string", description: "按游戏名称筛选，省略表示不限。" };
   const accountOptions = (label, values) => ({ type: "array", items: { type: "string", enum: values.split(" ") },
     description: `${label}。可选 ${values.replaceAll(" ", "、")}。` });
+  const appIdProperty = { type: "integer", minimum: 1, maximum: TOOL_APP_ID_MAX };
+  const nonemptyText = { type: "string", minLength: 1 };
+  const changeList = (properties, required = Object.keys(properties)) => ({ type: "array", minItems: 1,
+    items: { type: "object", additionalProperties: false, properties, required } });
+  const nameChanges = changeList({ appId: appIdProperty, name: nonemptyText });
+  const collectionChanges = changeList({ appId: appIdProperty,
+    collectionIds: { type: "array", minItems: 1, items: nonemptyText } });
+  const achievementChanges = changeList({ appId: appIdProperty, translations: changeList({ id: nonemptyText,
+    title: { type: "string" }, description: { type: "string" }, revision: pageProperty,
+    translatedTitle: nonemptyText, translatedDescription: { type: "string" } }) });
   const ACCOUNT_TOOLS = Object.freeze(Object.fromEntries([
-    ["rename", "批量游戏名汉化", "为 Steam 库内指定游戏生成中文排序名称，已有排序名称或名称已含汉字时跳过。修改前会请求确认。", { appIds: idsProperty }, ["appIds"], true],
-    ["collections", "批量添加到收藏分组", "把指定游戏加入现有可写收藏分组。可按名称或 ID 指定分组，也可省略，让 AI 根据游戏资料选择合适分组。修改前会请求确认。", { appIds: idsProperty, collection: { type: "string", description: "现有分组的精确名称或 ID。" } }, ["appIds"], true],
-    ["achievements", "批量游戏成就翻译", "分批翻译指定游戏尚无译文的成就，使用配置的目标语言。保存前会请求确认。", { appIds: idsProperty }, ["appIds"], true],
+    ["rename", "修改游戏自定义排序名称", "修改 Steam 游戏排序位置。", { changes: nameChanges }, ["changes"], true],
+    ["collections", "批量添加到收藏分组", "把游戏加入指定的可写收藏分组。", {
+      appIds: idsProperty, collection: nonemptyText, changes: collectionChanges,
+    }, [], true],
+    ["achievements", "批量游戏成就翻译", "保存指定语言的成就译文。", {
+      language: nonemptyText, changes: achievementChanges,
+    }, ["language", "changes"], true],
     ["library", "查询我的 Steam 游戏库", "按游戏名称及可选筛选条件查询当前 Steam 库，返回 AppID、名称、游玩时间和翻页位置。", {
       term: keywordProperty, start: pageProperty,
       modes: accountOptions("游戏模式", "single multiplayer coop local_multiplayer"),
@@ -1006,6 +1021,14 @@
     ["wishlist", "查询我的 Steam 愿望单", "查询当前账号的愿望单和添加时间，返回配置地区的 Steam 商店原价、现价、折扣和史低，并支持翻页。", {
       start: pageProperty, appIds: idsProperty, discountsOnly: { type: "boolean", description: "仅返回目前有折扣的游戏。本页没有命中时，仍应按 nextStart 翻页。" },
     }, []],
+    ["custom_name", "修改游戏自定义名称", "设置 Steam Buff 的独立自定义名称。", { changes: nameChanges }, ["changes"], true],
+    ["game_names", "读取游戏名称", "读取游戏官方名称和指定的当前名称字段。", {
+      appIds: idsProperty, field: { type: "string", enum: ["sort", "custom"] },
+    }, ["appIds", "field"]],
+    ["writable_collections", "查询可写收藏分组", "返回当前账号可写收藏分组的 ID 与名称。", {}, []],
+    ["achievement_sources", "读取游戏成就", "分页读取成就原文以及目标语言的译文状态。", {
+      appId: appIdProperty, language: nonemptyText, start: pageProperty,
+    }, ["appId", "language", "start"]],
   ].map(([key, name, description, properties, required, writes = false]) => [key, Object.freeze({
     id: PROVIDER_TOOL_IDS[key], label: "ai_chat_tool_" + key, name, description, properties, required, writes,
   })])));

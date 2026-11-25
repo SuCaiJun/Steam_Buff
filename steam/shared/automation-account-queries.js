@@ -68,7 +68,7 @@
     ].filter(([, present]) => present).map(([key]) => key);
   }
 
-  async function friendLibraries(names, steamId) {
+  async function friendLibraries(names, steamId, signal) {
     if (!names?.length) return [];
     const store = window.friendStore;
     if (store.m_FriendsUIFriendStore.friends_list_ready !== true) throw unset("Steam 好友列表尚未就绪");
@@ -82,6 +82,7 @@
       if (result.has(accountid)) continue;
       selectedOwner(steamId);
       const library = await store.FetchOwnedGames(accountid);
+      signal?.throwIfAborted();
       selectedOwner(steamId);
       if (!(library?.setApps instanceof Set)) throw unset(`Steam 未提供好友「${name}」的游戏权限或数据`);
       result.set(accountid, library.setApps);
@@ -89,14 +90,15 @@
     return [...result];
   }
 
-  async function library(args, steamId, nameOf) {
+  async function library(args, steamId, nameOf, signal) {
     if (window.appStore.m_bIsInitialized !== true) throw unset("Steam 游戏库尚未就绪");
     const filterStatus = args.status ?? [];
     const streaming = filterStatus.includes("ready") ? window.settingsStore.GetClientSetting("ready_to_play_includes_streaming")[0] : false;
     if (typeof streaming !== "boolean") throw unset("Steam 的准备就绪选项尚未加载");
     const privateResult = filterStatus.includes("private") ? window.appStore.m_privateAppsObserver.getCurrentResult() : null;
     if (filterStatus.includes("private") && !(privateResult?.isSuccess && privateResult.data instanceof Set)) throw unset("Steam 私密游戏资料尚未就绪");
-    const friends = await friendLibraries(args.friends, steamId);
+    const friends = await friendLibraries(args.friends, steamId, signal);
+    signal?.throwIfAborted();
     const data = api.nameFilterMetadata;
     const tagLabels = args.tags?.length ? data.context().tagLabels : null;
     const wantedTags = args.tags?.map(tag => {
@@ -113,6 +115,7 @@
     for (const app of window.appStore.m_mapApps.values()) {
       if (++count % 256 === 0) {
         await new Promise(resolve => window.setTimeout(resolve, 0));
+        signal?.throwIfAborted();
         selectedOwner(steamId);
       }
       if (!inLibrary(app) || friends.some(([id, owned]) => app.owner_account_id === id || !owned.has(app.appid))) continue;
@@ -140,7 +143,7 @@
     return { ...page(items.sort(sorted), args.start), unavailable };
   }
 
-  async function wishlist(args, steamId, nameOf) {
+  async function wishlist(args, steamId, nameOf, signal) {
     if (!wishlistService) {
       // Valve 当前客户端 Webpack 模块 60291 导出 Wishlist RPC，用当前 CM 登录传输调用
       const chunks = window.webpackChunksteamui;
@@ -148,6 +151,7 @@
       if (typeof wishlistService?.GetWishlist !== "function") throw unset("当前 Steam 客户端的愿望单接口不可用");
     }
     const response = await wishlistService.GetWishlist(window.appStore.m_cm.GetServiceTransport(), { steamid: steamId });
+    signal?.throwIfAborted();
     selectedOwner(steamId);
     if (!response.BSuccess()) throw unset("Steam 未返回当前账号的愿望单");
     const items = response.Body().toObject().items;
@@ -166,12 +170,13 @@
   }
 
   /** 只读原生账号数据。传入读取器复用自动化的名称和成就规范化。 */
-  async function query(value, nameOf, achievements, collections, readSortName) {
+  async function query(value, nameOf, achievements, collections, readSortName, signal) {
+    signal?.throwIfAborted();
     const { action, args, steamId } = value;
     if (action === "owner") return owner();
     selectedOwner(steamId);
-    if (action === "library") return library(args, steamId, nameOf);
-    if (action === "wishlist") return wishlist(args, steamId, nameOf);
+    if (action === "library") return library(args, steamId, nameOf, signal);
+    if (action === "wishlist") return wishlist(args, steamId, nameOf, signal);
     if (window.appStore.m_bIsInitialized !== true) throw unset("Steam 游戏库尚未就绪");
     if (action === "collections") return collections();
     if (action === "achievements") {
@@ -187,11 +192,13 @@
     if (action !== "library-game") throw new TypeError("Steam 账号查询动作无效");
     const items = [];
     for (const appId of args.appIds) {
+      signal?.throwIfAborted();
       const app = window.appStore.GetAppOverviewByAppID(appId);
       if (!inLibrary(app)) { items.push({ appId, found: false }); continue; }
       const details = row(app, nameOf);
       try {
         const response = await achievements(appId);
+        signal?.throwIfAborted();
         selectedOwner(steamId);
         items.push({ ...details, found: true, achievementTotal: response.length, achievementUnlocked: response.filter(item => item.unlocked).length });
       } catch (error) {

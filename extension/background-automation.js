@@ -22,8 +22,11 @@
     setupState = "waiting",
     upgradeSource,
     configQueue = Promise.resolve(),
+    frameQueue = Promise.resolve(),
     alarmQueue = Promise.resolve(),
     reconciling = null,
+    resetTask = null,
+    resetReason = null,
     accountBinding = null,
     accountCleanup = null,
     reconcileRequested = false,
@@ -42,6 +45,8 @@
   const copy = model.clone;
   const flow = root.STWorkflow, calendar = root.STAutomationCalendar, runningKeys = new Map();
   const RUN_TIMEOUT = "WORKFLOW_RUN_TIMEOUT";
+  const RESET = "AUTOMATION_RESET";
+  function checkReset() { if (resetReason) throw resetReason; }
   const expiredRun = (job, now = Date.now()) => job.runDeadlineAt > 0 && job.runDeadlineAt <= now;
   const timeoutError = (job) => Object.assign(new Error("本次运行超过 " + job.trigger.maxRunMinutes + " 分钟"), { code: RUN_TIMEOUT });
   const startExpiredError = () => Object.assign(new Error("本次排队运行已过允许启动的时间"), { code: "AUTOMATION_EXPIRED" });
@@ -82,6 +87,7 @@
   }
   const regex = (value, texts) => services.nativeFrameCommand("regex", { pattern: value, texts });
   async function pump() {
+    if (resetReason) return;
     pumpRequested = true;
     if (pumping) return pumping;
     pumping = (async () => {
@@ -93,7 +99,7 @@
           const occupied = new Set(runningKeys.values());
           for (const job of await store.byStatus(activeStates.filter(state => state !== "queued" && state !== "held")))
             occupied.add(JSON.stringify([job.owner, job.trigger?.id]));
-          for (const job of await store.queued(limit - running.size, occupied)) if (!running.has(job.id)) {
+          for (const job of await store.queued(limit - running.size, occupied)) if (!resetReason && !running.has(job.id)) {
             runningKeys.set(job.id, JSON.stringify([job.owner, job.trigger.id]));
             void runOne(job.id).catch(error => log.error("automation-worker-failed", "工作流执行失败", { error, requestId: job.id }));
           }
@@ -142,6 +148,7 @@
     return binding;
   }
   async function guard(job, verifiedBinding = null) {
+    checkReset();
     if (job.definition !== model.VERSION || !model.isTriggerType(job.trigger?.event?.type) || (await store.get(job.id))?.finalized)
       throw Object.assign(new Error("本次运行已结束"), { code: "AUTOMATION_EXPIRED" });
     flow.validateEntryPosition(job.workflow);
@@ -168,6 +175,7 @@
       if (binding.steamAccountId === null && requiresIdentity) throw Object.assign(new Error(binding.accountError || "暂时无法确认 Steam 账号"), { code: "ACCOUNT_UNCONFIRMED" });
     }
     checkRunTime(job);
+    checkReset();
     return bundle;
   }
   async function rawContext(appid, required = []) {
@@ -179,6 +187,23 @@
     const frame = (await chrome.storage.session.get(FRAME_KEY))[FRAME_KEY];
     if (!frame) throw new Error("Steam 数据入口已关闭");
     return frame;
+  }
+  async function changeNativeFrame(change) {
+    const previous = frameQueue;
+    let release;
+    frameQueue = new Promise(resolve => { release = resolve; });
+    await previous;
+    try {
+      const current = (await chrome.storage.session.get(FRAME_KEY))[FRAME_KEY];
+      const next = change(current);
+      if (next === null) await chrome.storage.session.remove(FRAME_KEY);
+      else if (next) await chrome.storage.session.set({ [FRAME_KEY]: next });
+    } finally { release(); }
+  }
+  /** 关闭与传输失败只撤销发出本次请求的连接，迟到的失败不能清除新入口 */
+  function invalidateNativeFrame(frame) {
+    return changeNativeFrame(current => current && current.tabId === frame.tabId && current.frameId === frame.frameId &&
+      current.documentId === frame.documentId && current.connectionId === frame.connectionId ? null : undefined);
   }
   async function nameState({ forContext = false, requireLogin = true, requireCustomNames = false, nameTarget = "current" } = {}) {
     const [settings, data] = await Promise.all([
@@ -387,7 +412,10 @@
       if (current.finalized) return null;
       if (status === "completed") checkRunTime(current);
       if (checkpoint && current.step === checkpoint.expectedStep) { current.flow = copy(checkpoint.job.flow); current.step = checkpoint.job.step; }
-      if (current.status === "running-script" && hasUnconfirmedRequest(current) && ["expired", "cancelled"].includes(status)) {
+      if (error?.code === RESET) {
+        status = hasUnconfirmedRequest(current) ? "uncertain" : "cancelled";
+        if (status === "uncertain") error = actionError("因恢复初始化停止，已提交的操作结果待核实", RESET, error);
+      } else if (current.status === "running-script" && hasUnconfirmedRequest(current) && ["expired", "cancelled"].includes(status)) {
         status = "uncertain";
         error = httpError("HTTP 写请求已发送，结果待核实", "WORKFLOW_HTTP_UNCERTAIN", error);
       }
@@ -400,7 +428,7 @@
   async function expireTimedJob(jobId, now, queued = false) {
     let error;
     const job = await store.change(jobId, current => {
-      if (current.finalized) return null;
+      if (current.finalized || resetReason) return null;
       if (queued) {
         if (current.status !== "queued" || current.startedAt || !current.deadline || current.deadline > now) return null;
         error = startExpiredError();
@@ -417,7 +445,7 @@
   async function finishEffects(job, error = null) {
     const { id: jobId, status } = job;
     requests.get(jobId)?.abort(Object.assign(new Error("工作流运行已结束"), { code: "AUTOMATION_EXPIRED" }));
-    if (error) {
+    if (error && status !== "cancelled") {
       if (error.name === "SyntaxError") root.STLoggerSchema.markJsonError(error);
       log[status === "expired" ? "info" : "error"]("automation-task-failed", "自动化任务已结束", {
         error,
@@ -454,6 +482,12 @@
     return appid;
   }
   const customNameState = () => nameState({ forContext: true, requireCustomNames: true });
+  async function ownedName(appid, field, steamId, native) {
+    const sort = field === "sort";
+    const [row] = await native("account-query", { action: "owned-apps", steamId, args: { appIds: [appid], includeSortName: sort } });
+    if (!row?.found) throw actionError("当前 Steam 库中没有此游戏", "ACTION_NOT_WRITTEN");
+    return sort ? row.sortName : row.name;
+  }
   async function gameFieldValue(appid, field, native) {
     if (field === "appid") return appid;
     if (["custom_name", "aliases", "mnemonic", "pinyin"].includes(field)) {
@@ -486,21 +520,16 @@
       throw actionError("游戏别名最多可设置 " + root.STUserNamesSnapshot.ALIAS_MAX + " 个", "ACTION_INPUT_INVALID");
     return [...unique.values()];
   }
-  async function setPersonalName(job, appid, field, value, native, beforeWrite) {
-    const state = await customNameState();
-    const binding = await taskIdentity();
-    await guard(job, binding);
-    const input = personalNameValue(field, value), key = String(appid);
-    const existing = state.snapshot.pending?.[key] || state.snapshot.items[key];
-    const official = existing?.steam_name || await native("game-field", { appid, field: "official" });
-    if (typeof official !== "string" || !official.trim())
-      throw actionError("未取得 Steam 原名称，未提交写入", "ACTION_NOT_WRITTEN");
-    await beforeWrite();
-    const result = await root.STBackgroundUserNamesSync.commitOwner(state.ownerId, current => {
-      checkRunTime(job);
+  const personalNameRecord = (snapshot, key) => snapshot.pending?.[key] || snapshot.items[key];
+  async function commitPersonalName(state, binding, appid, field, input, official, check, expected) {
+    const key = String(appid);
+    const mutate = current => {
+      check();
       if (!root.STBackgroundSteamAccount.current(binding))
         throw Object.assign(new Error("Steam 账号已切换"), { code: "ACCOUNT_CHANGED" });
-      const item = current.pending?.[key] || current.items[key];
+      const item = personalNameRecord(current, key);
+      if (expected !== undefined && (item?.custom_name ?? "") !== expected)
+        throw actionError("独立自定义名称已变化，保留当前名称", "ACTION_WRITE_CONFLICT");
       const patch = { appid, steam_name: item?.steam_name || official, [field]: input };
       if (field === "pinyin" || field === "mnemonic") {
         if (!item?.custom_name) throw actionError("请先设置独立自定义名称", "ACTION_NOT_WRITTEN");
@@ -510,27 +539,91 @@
         mnemonic: "", pinyin: "", mnemonic_locked: false, pinyin_locked: false,
       });
       return root.STUserNamesSnapshot.applyLocal(current, patch);
-    }, { requireCustomNames: true });
+    };
+    const result = await root.STBackgroundUserNamesSync.commitOwner(state.ownerId, mutate, { requireCustomNames: true });
     if (result.ok) return input;
     const messages = { "read-failed": "读取独立名称失败，未提交写入", "owner-changed": "Steam Buff 账号已变化，未保存独立名称",
       "entitlement-denied": "当前权益不包含独立自定义名称，未提交写入" };
     if (Object.hasOwn(messages, result.reason)) throw actionError(messages[result.reason], "ACTION_NOT_WRITTEN");
     throw new Error("独立名称保存失败，未确认写入");
   }
+  async function setPersonalName(job, appid, field, value, { native, beforeWrite, signal, expected }) {
+    const state = await customNameState();
+    const binding = await taskIdentity();
+    await guard(job, binding);
+    const input = personalNameValue(field, value), existing = personalNameRecord(state.snapshot, String(appid));
+    const official = existing?.steam_name || await native("game-field", { appid, field: "official" });
+    if (typeof official !== "string" || !official.trim())
+      throw actionError("未取得 Steam 原名称，未提交写入", "ACTION_NOT_WRITTEN");
+    await beforeWrite();
+    try {
+      return await commitPersonalName(state, binding, appid, field, input, official, () => {
+        signal.throwIfAborted();
+        checkRunTime(job);
+      }, expected);
+    }
+    catch (error) {
+      // 名称队列在写入前拒绝了旧运行，释放配置锁前记录尚未提交
+      if (error === signal.reason && error.code === RESET) await store.change(job.id, current => {
+        if (current.finalized || current.status !== "committing") return null;
+        current.status = "running-steam";
+        return current;
+      });
+      throw error;
+    }
+  }
+  async function planPersonalName(appid, name, official, checkOwner, signal) {
+    const state = await customNameState();
+    const binding = await taskIdentity();
+    await checkOwner();
+    const expected = personalNameRecord(state.snapshot, String(appid))?.custom_name ?? "";
+    return { expected, async save(check, submitting) {
+      await configExclusive(async () => {
+        await check();
+        submitting();
+        await commitPersonalName(state, binding, appid, "custom_name", name, official,
+          () => signal.throwIfAborted(), expected);
+      });
+    } };
+  }
   /** 每条指令只完成对应的 Steam 读写；数据不依赖 AI 草稿或提示词修订 */
-  async function steamOperation(job, node, beforeWrite, plan, checkDefinition) {
-    const definition = flow.effects[node.action], args = Object.fromEntries(definition.fields.map(field => [field.key, flow.read(node[field.key], execution(job).flow)]));
+  async function steamOperation(job, node, { beforeWrite, plan, checkDefinition, signal } = {}) {
+    signal?.throwIfAborted();
+    const frame = execution(job), definition = flow.effects[node.action];
+    const args = Object.fromEntries(definition.fields.map(field => [field.key, flow.read(node[field.key], frame.flow)]));
     root.STWorkflowData.validateArguments(definition, args);
     const appid = Object.hasOwn(args, "game") ? gameId(args.game) : 0;
-    const native = plan?.read ?? ((action, value) => nativeFrame().then(frame => services.native(frame, action, value)));
-    if (definition.gameField) return gameFieldValue(appid, definition.gameField, native);
-    if (node.action === "steam-collections") return native("collections", {});
+    const native = plan?.read ?? ((action, value) => nativeFrame().then(frame => services.native(frame, action, value, signal)));
+    if (definition.gameField) {
+      const field = definition.gameField;
+      if (frame.workflow?.id === root.STAI.PROVIDER_TOOL_IDS.game_names) {
+        if (field === "official" || field === "sort") return ownedName(appid, field, job.owner, native);
+        if (field === "custom_name") return personalNameRecord((await customNameState()).snapshot, String(appid))?.custom_name ?? "";
+      }
+      return gameFieldValue(appid, field, native);
+    }
+    if (node.action === "steam-collections") {
+      if (frame.workflow?.id === root.STAI.PROVIDER_TOOL_IDS.writable_collections)
+        return native("account-query", { action: "collections", steamId: job.owner, args: {} });
+      return native("collections", {});
+    }
     if (node.action === "steam-translations") return root.STAchievementTranslationStore.load(appid, args.language);
+    if (node.action === "steam-achievements" && frame.workflow?.id === root.STAI.PROVIDER_TOOL_IDS.achievement_sources)
+      return native("account-query", { action: "achievements", steamId: job.owner, args: { appId: appid } });
     if (node.action === "steam-achievements") return native("achievements", { appid });
-    if (plan && definition.nameField) throw actionError("此操作需要在获授权的工作流执行", "ACTION_NOT_WRITTEN");
+    if (plan && definition.nameField) {
+      if (definition.nameField !== "custom_name" || !plan.explicit)
+        throw actionError("此操作需要在获授权的工作流执行", "ACTION_NOT_WRITTEN");
+      const name = personalNameValue(definition.nameField, args.value);
+      if (!name) throw actionError("请填写目标名称", "ACTION_INPUT_INVALID");
+      plan.add(node.action, { appid, name }, checkDefinition);
+      return name;
+    }
     if (plan && node.action === "steam-set-sort-name") {
-      plan.add(node.action, { appid, name: args.value, expected: "" }, checkDefinition);
-      return args.value;
+      const name = plan.explicit ? args.value.trim() : args.value;
+      if (plan.explicit && !name) throw actionError("请填写目标排序名称", "ACTION_INPUT_INVALID");
+      plan.add(node.action, { appid, name, ...(!plan.explicit && { expected: "" }) }, checkDefinition);
+      return name;
     }
     if (plan && node.action === "steam-add-collections") {
       if (args.value.some(id => typeof id !== "string")) throw actionError("收藏分组需要 ID 列表", "ACTION_INPUT_INVALID");
@@ -543,11 +636,17 @@
       const frame = await nativeFrame();
       await beforeWrite();
       checkRunTime(job);
-      return services.native(frame, action, { ...value, guard: writeGuard });
+      signal?.throwIfAborted();
+      return services.native(frame, action, { ...value, guard: writeGuard }, signal);
     };
-    if (definition.nameField) return setPersonalName(job, appid, definition.nameField, args.value, native, beforeWrite);
+    if (definition.nameField) {
+      // 出厂入库流程的自动生成分支只补空值，在独立名称写入队列内检查
+      const expected = definition.nameField === "custom_name" && frame.workflow.id === "wf-6" &&
+        node.id === "step-save-generated-name" ? "" : undefined;
+      return setPersonalName(job, appid, definition.nameField, args.value, { native, beforeWrite, signal, expected });
+    }
     if (node.action === "steam-set-sort-name") {
-      const expected = await gameFieldValue(appid, "sort", native);
+      const expected = frame.workflow.id === "wf-5" ? await ownedName(appid, "sort", job.owner, native) : await gameFieldValue(appid, "sort", native);
       await nativeWrite("save-sort", { appid, name: args.value, expected });
       return args.value;
     }
@@ -557,7 +656,7 @@
     }
     if (node.action === "steam-save-translations") {
       const items = await native("achievements", { appid }), sources = new Map(items.map(item => [item.id, item]));
-      const records = await root.STAchievementTranslationStore.load(appid, args.language), revisions = new Map(records.map(item => [item.id, item.revision]));
+      const records = await root.STAchievementTranslationStore.load(appid, args.language), previous = new Map(records.map(item => [item.id, item]));
       const ids = new Set();
       const entries = args.value.map(entry => {
         const source = sources.get(entry?.id);
@@ -565,13 +664,21 @@
         ids.add(entry.id);
         if (entry.title !== undefined && entry.title !== source.title || entry.description !== undefined && entry.description !== source.description)
           throw actionError("成就原文已变化，未写入译文", "ACTION_SOURCE_CHANGED");
+        const record = previous.get(entry.id), revision = record?.revision ?? 0;
+        if (plan?.explicit && (!Number.isSafeInteger(entry.revision) || entry.revision !== revision))
+          throw actionError("成就译文已变化，请重新读取后再保存", "ACTION_WRITE_CONFLICT");
+        if (plan?.explicit && root.STAchievementTranslations.current(record, source) &&
+            record.language === args.language && record.translatedTitle === entry.translatedTitle &&
+            record.translatedDescription === entry.translatedDescription) return null;
         return { ...source, translatedTitle: entry.translatedTitle, translatedDescription: entry.translatedDescription,
-          expectedRevision: plan ? 0 : entry.expectedRevision ?? revisions.get(entry.id) ?? 0, origin: args.origin };
-      });
+          expectedRevision: plan ? plan.explicit ? revision : 0 : entry.expectedRevision ?? revision, origin: args.origin };
+      }).filter(entry => entry !== null);
       const batches = root.STAchievementTranslations.batches(entries);
       for (const batch of batches) root.STAchievementTranslations.saveEntries(batch);
       if (plan) {
-        if (entries.length) plan.add(node.action, { appid, language: args.language, batches }, checkDefinition);
+        const added = entries.filter(entry => !previous.has(entry.id) || previous.get(entry.id).cleared === true).length;
+        if (entries.length || plan.explicit) plan.add(node.action, { appid, language: args.language, batches,
+          ...(plan.explicit && { added, updated: entries.length - added }) }, checkDefinition);
         return { planned: true, saved: [] };
       }
       const saved = [];
@@ -587,12 +694,14 @@
   }
   async function steamStep(job, node) {
     const controller = new AbortController(); requests.set(job.id, controller);
+    const { signal } = controller;
     try {
       const started = await store.change(job.id, current => { if (current.finalized) return null; current.status = "running-steam"; return current; });
       if (!started) return null;
       let entered = false;
       const beforeWrite = async () => {
         guardFrames(await guard(started), started);
+        signal.throwIfAborted();
         if (entered) return;
         const committed = await store.change(job.id, current => {
           if (current.finalized) return null;
@@ -604,11 +713,12 @@
       };
       guardFrames(await guard(started), started);
       let value;
-      const spec = stepsIn(started).map(frame => providerSpec(frame.workflow.id)).findLast(item => item?.writes);
-      if (spec) {
+      const batch = stepsIn(started).findLast(frame => providerSpec(frame.workflow.id)?.writes);
+      if (batch) {
         if (node.action === "family-refresh") throw actionError("批量工具无法向本次提案添加家庭库刷新", "ACTION_NOT_WRITTEN");
-        const plan = services.batchPlan(spec, controller.signal, { expectedSteamId: started.owner });
-        value = await steamOperation(started, node, beforeWrite, plan);
+        const plan = services.batchPlan(providerSpec(batch.workflow.id), controller.signal,
+          { expectedSteamId: started.owner, explicit: model.hasExplicitWrites(batch.workflow) });
+        value = await steamOperation(started, node, { beforeWrite, plan, signal });
       } else if (node.action === "family-refresh") {
         const binding = await taskIdentity();
         value = await services.family(started, node, (write, owner) => configExclusive(async () => {
@@ -617,8 +727,8 @@
           return write();
         }), controller.signal);
       } else if (node.action.startsWith("steam-set-") || ["steam-save-translations", "steam-add-collections"].includes(node.action))
-        value = await configExclusive(() => steamOperation(started, node, beforeWrite));
-      else value = await steamOperation(started, node, beforeWrite);
+        value = await configExclusive(() => steamOperation(started, node, { beforeWrite, signal }));
+      else value = await steamOperation(started, node, { beforeWrite, signal });
       guardFrames(await guard(started), started);
       return store.change(job.id, current => completeActive(current, node, value));
     } finally { if (requests.get(job.id) === controller) requests.delete(job.id); }
@@ -643,6 +753,7 @@
     let preparing;
     try {
       preparing = await store.change(job.id, current => {
+        checkReset();
         if (current.finalized || nodeOf(execution(current))?.id !== node.id) return null;
         current.status = "preparing-notification";
         current.pendingMessage = addMessage(current, node); return current;
@@ -650,6 +761,7 @@
       if (!preparing) return null;
       await flush(job.id);
       if ((await store.get(job.id)).finalized) return null;
+      checkReset();
       if (node.delivery === "popup") {
         const shown = await services.showNotification(preparing.pendingMessage);
         if (shown?.shown !== true) throw new Error("Steam 未确认显示消息");
@@ -657,6 +769,7 @@
       // 弹窗的迟到确认不得复活已经取消的任务；账号及方案变化同样终止当前交互。
       guardFrames(await guard(preparing), preparing);
       const ready = await store.change(job.id, current => {
+        checkReset();
         if (current.finalized || current.pendingMessage !== preparing.pendingMessage || current.status !== "preparing-notification") return null;
         if (node.messageType === "notification") {
           current.pendingMessage = null; return completeActive(current, node, { status: "success" });
@@ -668,7 +781,7 @@
       if (ready?.status === "waiting-notification") await flush(job.id);
       return ready;
     } catch (error) {
-      if (["AUTOMATION_EXPIRED", "ACCOUNT_CHANGED"].includes(error.code)) throw error;
+      if ([RESET, "AUTOMATION_EXPIRED", "ACCOUNT_CHANGED"].includes(error.code)) throw error;
       if (!preparing && error.code !== "NOTICE_CONTENT_INVALID") throw error;
       log.error("automation-notification-failed", "自动化消息投递失败", { error, requestId: job.id });
       const updated = await store.change(job.id, current => {
@@ -1303,6 +1416,7 @@
   }
 
   async function hostStep(job, node) {
+    checkReset();
     const http = node.action === "http-request";
     const query = http || isToolQuery(node);
     const currentFlow = execution(job).flow;
@@ -1315,6 +1429,7 @@
       entry.status = "running-script"; return entry;
     });
     if (!current) return null;
+    checkReset();
     const controller = new AbortController();
     requests.set(job.id, controller);
     try {
@@ -1477,6 +1592,7 @@
     const spec = providerSpec(frame.workflow.id);
     const batchId = spec?.writes && options.chat?.receipt ? root.crypto.randomUUID() : null;
     const ownPlan = spec?.writes ? services.batchPlan(spec, options.signal, { expectedSteamId: options.expectedSteamId,
+      explicit: model.hasExplicitWrites(frame.workflow), planPersonalName,
       ...options.chat, checkTool: options.checkLibrary ?? options.chat?.checkTool,
       ...(options.chatScope && {
         approvalOwner: () => options.chat.account.steamId,
@@ -1493,19 +1609,13 @@
     }
     return value;
   }
-  /** 自建工具里已保存的 2.2.65 节点只做参数转接，执行同一份出厂流程 */
+  /** 已保存的 2.2.65 节点沿用当前出厂写入契约 */
   async function runLegacyBatch(toolId, args, signal, expectedSteamId, chat, checkLibrary) {
     const storage = root.STSettings.storage;
     const [bundle, locale] = await Promise.all([storage.getWorkflow(), storage.getUiLocale({ strict: true })]);
     const defaults = await model.loadDefaults(locale);
     const workflow = defaults.tools.find(item => item.id === toolId);
-    for (const node of flow.walk(workflow.steps)) {
-      if (!node.promptId) continue;
-      const packaged = defaults.prompts.find(item => item.id === node.promptId);
-      const saved = bundle.prompts.find(item => item.id === node.promptId);
-      if (saved && packaged) node.inputs = presetInputs(node, packaged, saved);
-    }
-    const input = root.STBackgroundAccountTools.argumentsFor(providerSpec(toolId), args);
+    const input = model.toolArguments(workflow, args);
     const id = "legacy-account-tool-" + root.crypto.randomUUID(), check = () => signal.throwIfAborted();
     return runDefinition({ workflow, flow: await childState(workflow, input) }, { id, signal, check, checkLibrary, chat, expectedSteamId,
       chatScope: chatApprovalScope(workflow, bundle, chat?.mode),
@@ -1572,8 +1682,8 @@
           if (options.chatScope && previewSteamRead(node)) await authorizeChatStep(frame, node, options);
           if (checkLibrary) await checkLibrary();
           check();
-          value = options.plan ? await steamOperation(frame, node, null, options.plan, checkLibrary)
-            : await readPreviewSteam(node, state, undefined, { signal, approvedOwner: options.chat?.account?.steamId });
+          value = options.plan ? await steamOperation(frame, node, { plan: options.plan, checkDefinition: checkLibrary, signal })
+            : await readPreviewSteam(node, state, undefined, { signal, approvedOwner: options.chat?.account?.steamId, workflow });
         } else if (node.action === "script" || root.STWorkflowData.readingActions.includes(node.action)) {
           if (node.action === "script") await requireWorkflowPermission(node);
           if (options.chatScope && node.action === "script") await authorizeChatStep(frame, node, options);
@@ -1708,14 +1818,16 @@
     if (previews.has(previewKey)) throw new Error("工具正在试运行");
     const inLibrary = request.action === "test-library";
     const workflow = inLibrary ? model.validateLibrary(request.tool) : model.validateTool(request.tool);
-    const state = await childState(workflow, model.toolArguments(workflow, request.inputs));
-    const frame = { workflow, flow: state, trace: {} };
+    const argumentsForTool = model.toolArguments(workflow, request.inputs), trace = {};
     const controller = new AbortController();
     const preview = { controller }, entries = [];
+    let state;
     const writes = previewHttpWrites(request.confirmNetwork === true);
     previews.set(previewKey, preview);
     try {
       return await root.STNetworkRequest.run(60_000, async (signal, check) => {
+        state = await childState(workflow, argumentsForTool);
+        const frame = { workflow, flow: state, trace };
         const id = "tool-preview-" + previewKey;
         const evaluate = (data, requestSignal = signal) => root.STWorkflowScript.run({ id, ...data, seconds: 10, signal: requestSignal });
         const options = { id, signal, check, evaluate, preview, libraryVersions: request.libraryVersions, toolVersions: request.toolVersions,
@@ -1738,10 +1850,10 @@
         }
       }, controller.signal);
     } catch (error) {
-      if (controller.signal.aborted) return { cancelled: true, ...(writes.pending && { uncertain: true }), entries, steps: Object.values(frame.trace) };
+      if (controller.signal.aborted) return { cancelled: true, ...(writes.pending && { uncertain: true }), entries, steps: Object.values(trace) };
       if (writes.pending) {
         const issue = httpError("HTTP 写请求已发送，结果待核实", "WORKFLOW_HTTP_UNCERTAIN", error);
-        return { error: previewError(issue, state.nodeId), entries, steps: Object.values(frame.trace) };
+        return { error: previewError(issue, state?.nodeId), entries, steps: Object.values(trace) };
       }
       throw error;
     } finally { if (previews.get(previewKey) === preview) previews.delete(previewKey); }
@@ -1785,6 +1897,7 @@
         let initialToolBundle = initialBundle;
         while (job && !job.finalized) {
           try {
+            checkReset();
             checkRunTime(job);
             const cursor = execution(job);
             if (initialToolBundle) {
@@ -1793,6 +1906,7 @@
             }
             initialToolBundle = null;
             const next = await flow.next(cursor.workflow, cursor.flow, regex, request => expressionValues(job, request));
+            checkReset();
             checkRunTime(job);
             const failures = cursor.flow.failures?.length || 0;
             if (next.kind === "control") {
@@ -1863,7 +1977,7 @@
               base = job.step; budget = 0;
             }
           } catch (error) {
-            if ([RUN_TIMEOUT, "AUTOMATION_EXPIRED", "ACCOUNT_CHANGED", "ACCOUNT_UNCONFIRMED"].includes(error.code)) throw error;
+            if ([RUN_TIMEOUT, RESET, "AUTOMATION_EXPIRED", "ACCOUNT_CHANGED", "ACCOUNT_UNCONFIRMED"].includes(error.code)) throw error;
             try { await rememberSiteIssue(job, error); }
             catch (diagnosticError) {
               log.warn("automation-site-diagnostic-failed", "自动化授权诊断未能保存", { error: diagnosticError, requestId: job.id });
@@ -1930,7 +2044,7 @@
         const current = await store.get(jobId);
         if (current && expiredRun(current) && await expireTimedJob(jobId, Date.now())) return;
         if (current && !finalStates.has(current.status)) await reportFailure(jobId,
-          ["AUTOMATION_EXPIRED", "ACCOUNT_CHANGED"].includes(error.code) ? "expired" :
+          error.code === RESET ? "cancelled" : ["AUTOMATION_EXPIRED", "ACCOUNT_CHANGED"].includes(error.code) ? "expired" :
             hasUnconfirmedRequest(current) || error.code === "WORKFLOW_HTTP_UNCERTAIN" ? "uncertain" : "failed", error, null,
           job ? { job, expectedStep: base } : null);
       } finally { await arm(); }
@@ -1955,6 +2069,7 @@
       throw error;
     }
     const job = await store.change(jobId, current => {
+      checkReset();
       if (!root.STBackgroundSteamAccount.current(binding) || !sameJobAccount(current, binding) || current.finalized || current.status !== "waiting-notification" || current.step !== before.step) return null;
       const node = nodeOf(execution(current)), timedOut = current.deadline > 0 && current.deadline <= Date.now();
       if (decision === "timeout" && !timedOut) return null;
@@ -1983,8 +2098,9 @@
   }
   const eventKey = (owner, trigger, event) => JSON.stringify([owner, trigger.id, event.id]);
   async function currentConfig(bundle) {
+    if (resetReason) return false;
     const current = await root.STSettings.storage.getWorkflow();
-    return current.epoch === bundle.epoch && current.revision === bundle.revision;
+    return !resetReason && current.epoch === bundle.epoch && current.revision === bundle.revision;
   }
   async function workflowState(workflow, inputs, triggerName, triggerType, nodes = flow.walk(workflow.steps, true)) {
     return childState(workflow, inputs, { triggerName, triggerType }, nodes);
@@ -2006,13 +2122,22 @@
     ["steam-collections", "steam-translations", "steam-achievements"].includes(node.action);
   const previewAction = node => previewSteamRead(node) || isToolQuery(node) || Object.hasOwn(root.STWorkflowData.byId, node.action) ||
     ["script", "http-request", "library-call", "tool-call", "log", "wait", "stop", "break", "continue", "raise", "comment"].includes(node.action);
-  async function readPreviewSteam(node, state, binding, { signal, approvedOwner } = {}) {
+  async function readPreviewSteam(node, state, binding, { signal, approvedOwner, workflow } = {}) {
+    const { game_names, writable_collections, achievement_sources } = root.STAI.PROVIDER_TOOL_IDS;
+    if (approvedOwner && [game_names, writable_collections, achievement_sources].includes(workflow?.id)) {
+      // 出厂账号工具和游戏库查询使用同一原生身份。返回前也核对本机是否切换了账号
+      const value = await steamOperation({ flow: state, workflow, owner: approvedOwner }, node, { signal });
+      const current = requiredOwner(await services.nativeFrameCommand("account-query", { action: "owner" }, { signal }));
+      signal?.throwIfAborted();
+      if (current !== approvedOwner) throw approvalStale();
+      return value;
+    }
     const accounts = root.STBackgroundSteamAccount;
     binding ??= await accounts.identity();
     signal?.throwIfAborted();
     requiredOwner(binding.steamAccountId);
     if (approvedOwner && binding.steamAccountId !== approvedOwner) throw approvalStale();
-    const value = await steamOperation({ flow: state }, node);
+    const value = await steamOperation({ flow: state, workflow, owner: binding.steamAccountId }, node, { signal });
     signal?.throwIfAborted();
     if (!accounts.current(binding)) throw Object.assign(new Error("Steam 账号已切换，请重试"), { code: "ACCOUNT_CHANGED" });
     return value;
@@ -2116,7 +2241,7 @@
                   const actual = await accounts.identity();
                   binding ??= actual;
                   check(); ensureAccount();
-                  value = await readPreviewSteam(node, state, binding);
+                  value = await readPreviewSteam(node, state, binding, { signal });
                 }
                 else if (node.action === "script" || root.STWorkflowData.readingActions.includes(node.action)) {
                   if (node.action === "script") await requireWorkflowPermission(node);
@@ -2156,7 +2281,7 @@
         }
       }, controller.signal);
     } catch (error) {
-      if (controller.signal.reason?.code === "WORKFLOW_PREVIEW_CANCELLED")
+      if (["WORKFLOW_PREVIEW_CANCELLED", RESET].includes(controller.signal.reason?.code))
         return { cancelled: true, uncertain: writes.pending, entries, steps: Object.values(trace) };
       const issue = writes.pending && error.code !== "WORKFLOW_HTTP_UNCERTAIN"
         ? Object.assign(httpError("HTTP 写请求已发送，结果待核实", "WORKFLOW_HTTP_UNCERTAIN", error), { nodeId: error.nodeId })
@@ -2193,6 +2318,7 @@
       deadline: startNow && !error && event.type === "schedule" ? trigger.event.endsAt ?? 0 : 0,
       createdAt: Date.now(), updatedAt: Date.now(), outbox: [] };
     const result = await configExclusive(async () => {
+      if (resetReason) return null;
       if (checkRevision && !await currentConfig(bundle)) return null;
       if (trigger.busy === "ignore") {
         const existing = (await store.byStatus(activeStates)).find(job => job.trigger?.id === trigger.id && job.owner === (owner || ""));
@@ -2210,6 +2336,7 @@
   }
   /** 一批包含各 AppID 在本轮的完整触发，配置变更后的批次交给下一轮 */
   async function receiveEvents(events, checkedAt = Date.now(), revision) {
+    if (resetReason) return { received: false };
     const bundle = await root.STSettings.storage.getWorkflow();
     if (revision !== bundle.revision) return { received: false };
     if (!Array.isArray(events) || !Number.isSafeInteger(checkedAt) || checkedAt <= 0) throw new TypeError("触发事件批次无效");
@@ -2285,20 +2412,20 @@
     next.revision = current.revision + 1;
     return config.normalizeServices(next);
   }
-  function reviseWorkflow(value, current, { replace, reset, creation, includePresets, translate }) {
+  function reviseWorkflow(value, current, { replace, creation, includePresets, translate }) {
     const next = model.normalize(value, { structureOnly: !replace });
     if (!Object.hasOwn(next, "libraries") && Object.hasOwn(current, "libraries")) next.libraries = current.libraries;
     if (!replace && next.revision !== current.revision)
       throw Object.assign(new Error("配置已在另一窗口修改，请重新读取后保存"), { code: "WORKFLOW_REVISION_CONFLICT" });
     if (creation !== undefined) {
-      if (replace || reset || includePresets) throw new TypeError("配置替换不能申请新增编号");
+      if (replace || includePresets) throw new TypeError("配置替换不能申请新增编号");
       model.reserveUserId(next, current, creation, featureLinks(next, translate).map(link => link.promptId));
     }
     for (const section of Object.keys(model.presetSections)) {
       if (Object.hasOwn(current.nextIds ?? {}, section))
         next.nextIds[section] = Math.max(current.nextIds?.[section], next.nextIds[section] ?? 0);
       if (replace && !(section === "libraries" && !Object.hasOwn(value, "libraries"))) continue;
-      if ((reset && section !== "libraries") || (includePresets && !Object.hasOwn(value.deletedPresets ?? {}, section))) {
+      if (includePresets && !Object.hasOwn(value.deletedPresets ?? {}, section)) {
         delete next.deletedPresets[section];
         continue;
       }
@@ -2312,7 +2439,7 @@
       if (deleted.length) next.deletedPresets[section] = deleted;
       else delete next.deletedPresets[section];
     }
-    if (!replace && !reset && !includePresets) next.presetImportVersion = current.presetImportVersion ?? "";
+    if (!replace && !includePresets) next.presetImportVersion = current.presetImportVersion ?? "";
     if (replace) next.epoch = crypto.randomUUID();
     next.revision = current.revision + 1;
     if (!replace) {
@@ -2353,7 +2480,7 @@
       if (section === "libraries" && !same) flow.validateLibraryOutputPosition(item);
       item.revision = old ? same ? old.revision : old.revision + 1 : 1;
       if (section === "tools" || section === "libraries") {
-        if (!old && (reset || includePresets) && model.isOriginalProviderTool(item)) continue;
+        if (!old && includePresets && model.isOriginalProviderTool(item)) continue;
         if (!same) item.executionId = crypto.randomUUID();
         else if (old.executionId === undefined) delete item.executionId;
         else item.executionId = old.executionId;
@@ -2515,16 +2642,13 @@
   async function persistSettings(patch, diagnostics) {
     const storage = root.STSettings.storage;
     const [current, oldAi, oldTranslate] = await Promise.all([
-      storage.getWorkflow({ reset: diagnostics.reset === true }), storage.getAi(), storage.getTranslate(),
+      storage.getWorkflow(), storage.getAi(), storage.getTranslate(),
     ]);
     let workflow = patch.workflow;
-    if (diagnostics.reset || diagnostics.includePresets) {
+    if (diagnostics.includePresets) {
       const locale = await storage.getUiLocale({ strict: true });
       const presets = await model.loadDefaults(locale);
-      if (diagnostics.reset) {
-        const { prompts, triggers, workflows, tools } = presets;
-        workflow = { ...current, prompts, triggers, workflows, tools };
-      } else workflow = addMissingPresets(current, presets, chrome.runtime.getManifest().version);
+      workflow = await addMissingPresets(current, presets, chrome.runtime.getManifest().version, locale);
     }
     if (patch.familySettings) {
       const base = workflow ?? current;
@@ -2566,7 +2690,7 @@
     }
     validateLinks({ ai, translate, workflow: next }, { ai: oldAi, translate: oldTranslate, workflow: current }, diagnostics.replace);
     let credentials;
-    if (!diagnostics.reset && next !== current) {
+    if (next !== current) {
       const nextTools = new Map((next.tools || []).map(tool => [tool.id, tool]));
       const expiredKeys = [];
       for (const prior of current.tools || []) {
@@ -2620,24 +2744,8 @@
       });
       return { ai, workflow: next };
     }
-    let steamPending = false;
-    const frame = (await chrome.storage.session.get(FRAME_KEY))[FRAME_KEY];
-    if (frame) {
-      const revisions = new Map(current.triggers.map((rule) => [rule.id, rule.revision]));
-      const resetRegex = next.epoch !== current.epoch || next.triggers.length !== current.triggers.length ||
-        next.triggers.some((rule) => revisions.get(rule.id) !== rule.revision);
-      try {
-        await services.native(frame, "configuration", model.nativeConfig(next, resetRegex));
-      } catch (error) {
-        // 配置已经提交，Steam 在下次握手时直接读取新修订号
-        steamPending = true;
-        log.warn("automation-config-native-pending", "配置已保存，Steam 窗口重新连接后生效", {
-          error, operationId: diagnostics.operationId,
-          revision: next.revision,
-        });
-      }
-    }
-    if (!diagnostics.reset || setupState !== "recovery-failed") requestReconcile();
+    const steamPending = await publishNativeConfig(current, next, diagnostics.operationId);
+    requestReconcile();
     log.info("automation-config-save-success", "提示词与自动化配置已保存", {
       revision: next.revision,
       triggerCount: next.triggers.length, workflowCount: next.workflows.length,
@@ -2645,6 +2753,75 @@
       operationId: diagnostics.operationId || "",
     });
     return { ai, workflow: next, steamPending };
+  }
+
+  async function publishNativeConfig(current, next, operationId, awaitingSteam = false) {
+    const frame = (await chrome.storage.session.get(FRAME_KEY))[FRAME_KEY];
+    if (!frame) return awaitingSteam;
+    const revisions = new Map(current.triggers.map((rule) => [rule.id, rule.revision]));
+    const resetRegex = next.epoch !== current.epoch || next.triggers.length !== current.triggers.length ||
+      next.triggers.some((rule) => revisions.get(rule.id) !== rule.revision);
+    try {
+      await services.native(frame, "configuration", model.nativeConfig(next, resetRegex));
+      return false;
+    } catch (error) {
+      // 本地已提交，Steam 的下一次握手直接读取新修订号
+      log.warn("automation-config-native-pending", "配置已保存，Steam 窗口重新连接后生效", { error, operationId, revision: next.revision });
+      return true;
+    }
+  }
+
+  async function resetAutomation(operationId) {
+    if (await initialization === false) throw new Error("请先完成安装引导");
+    let restartRecovery = false;
+    try { await startup; }
+    catch (error) {
+      if (error.code !== "WORKFLOW_CONFIG_INVALID") throw error;
+      restartRecovery = true;
+    }
+    const storage = root.STSettings.storage;
+    const presets = await model.loadDefaults(await storage.getUiLocale({ strict: true }));
+    const prompts = new Set(presets.prompts.map(prompt => prompt.id));
+    const reason = actionError("因恢复初始化停止", RESET);
+    let result;
+    resetReason = reason;
+    try {
+      // 原生写入可能正持有配置锁，先释放可取消的等待并阻止旧任务发出下一步
+      for (const controller of requests.values()) controller.abort(reason);
+      for (const { controller } of previews.values()) controller.abort(reason);
+      services.cancelChatTurns();
+      result = await configExclusive(async () => {
+        const [current, ai, translate, chatPromptId] = await Promise.all([
+          storage.getWorkflow({ reset: true }), storage.getAi(), storage.getTranslate(), storage.getChatPromptId(),
+        ]);
+        const bindings = Object.fromEntries(Object.entries(current.bindings).map(([scene, binding]) => [scene,
+          prompts.has(binding.promptId) ? binding : { ...binding, promptId: presets.bindings[scene].promptId },
+        ]));
+        const translation = Object.fromEntries(Object.entries(root.STAI.translationDefaults()).filter(([key, id]) =>
+          root.STAI.isPromptId(id) && root.STAI.isPromptId(translate[key]) && !prompts.has(translate[key])));
+        const workflow = { ...presets, bindings, nextIds: current.nextIds,
+          epoch: crypto.randomUUID(), revision: current.revision + 1, presetImportVersion: chrome.runtime.getManifest().version };
+        validateLinks({ ai, translate: { ...translate, ...translation }, workflow }, { ai, translate, workflow: current });
+
+        const jobs = await store.byStatus([...activeStates, "committing"]);
+        for (const job of jobs) await finish(job.id, "cancelled", reason);
+        try {
+          await storage.writeAiSettings({ workflow, translate: translation, toolCredentials: {},
+            ...(!prompts.has(chatPromptId) && { chatPromptId: root.STAI.PRESET_PROMPTS.chat }),
+          }, { operationId, reason: "reset-automation" });
+        } catch (error) {
+          throw actionError("旧任务已停止，出厂配置保存失败", "AUTOMATION_RESET_SAVE_FAILED", error);
+        }
+        const steamPending = await publishNativeConfig(current, workflow, operationId, root.STClientEnvironment.isSteamClientRuntime());
+        log.info("automation-reset-success", "自动化已恢复出厂设置", { operationId, revision: workflow.revision, runCount: jobs.length, steamPending });
+        return { workflow, steamPending };
+      });
+    } finally {
+      resetReason = null;
+      if (!restartRecovery) requestReconcile();
+    }
+    if (restartRecovery) await startRecovery();
+    return result;
   }
   async function requireSetup() {
     if (await startup === false) throw new Error("请先完成安装引导");
@@ -2765,6 +2942,7 @@
     }).catch(error => log.error("automation-reconcile-failed", "自动化状态检查失败", { error }));
   }
   async function reconcile() {
+    if (resetReason) return;
     if (reconciling) return reconciling;
     reconciling = (async () => {
       const now = Date.now();
@@ -2797,17 +2975,8 @@
   async function execute(request, sender, onPreviewLog) {
     if (request.action === "settings-ready") return ready({ retry: request.retry === true });
     if (request.action === "reset") {
-      if (await initialization === false) throw new Error("请先完成安装引导");
-      let restartRecovery = false;
-      try { await startup; }
-      catch (error) {
-        if (error.code !== "WORKFLOW_CONFIG_INVALID") throw error;
-        restartRecovery = true;
-      }
-      const { workflow, steamPending } = await configExclusive(() =>
-        persistSettings({}, { operationId: request.operationId, reset: true }));
-      if (restartRecovery) await startRecovery();
-      return { workflow, steamPending };
+      if (!resetTask) resetTask = resetAutomation(request.operationId).finally(() => { resetTask = null; });
+      return resetTask;
     }
     if (request.action === "site-permissions") return sitePermissions(request.hosts, request.workflow);
     if (request.action === "remove-site-permission") {
@@ -2818,8 +2987,31 @@
       if (result.removable.includes(request.pattern)) throw new Error("浏览器仍保留该站点授权");
       return result;
     }
-    // 恢复可以调用 Steam。握手只等配置读完，以免握手与恢复互相等待
-    await (request.action === "native-ready" ? initialization : startup);
+    // 恢复可以调用 Steam，握手与释放不等待任务恢复
+    if (["native-ready", "native-connected", "native-disconnected"].includes(request.action)) {
+      if (request.action === "native-ready") {
+        await initialization;
+        await services.verifyNative(sender);
+        return model.nativeConfig(await root.STSettings.storage.getWorkflow());
+      }
+      const { connectionId } = request;
+      if (typeof connectionId !== "string" || !/^[a-f0-9-]{36}$/.test(connectionId)) throw new TypeError("Steam 数据连接标识无效");
+      const frame = { tabId: sender.tab.id, frameId: sender.frameId, documentId: sender.documentId, connectionId };
+      const ready = initialization;
+      // 登记与主动关闭按消息到达顺序执行，关闭不能被更早的握手覆盖
+      return configExclusive(async () => {
+        if (request.action === "native-disconnected") return invalidateNativeFrame(frame);
+        const configured = await ready;
+        await services.verifyNative(sender);
+        const bundle = await root.STSettings.storage.getWorkflow();
+        if (request.epoch !== bundle.epoch || request.revision !== bundle.revision) return { configuration: model.nativeConfig(bundle) };
+        await changeNativeFrame(() => frame);
+        accountBinding = null;
+        if (configured !== false) requestReconcile();
+        return { connected: true };
+      });
+    }
+    await startup;
     if (request.action === "schedule-clock") {
       const bundle = await root.STSettings.storage.getWorkflow();
       const trigger = bundle.triggers.find(item => item.id === request.triggerId && item.revision === request.revision && item.enabled && item.event.type === "schedule");
@@ -2832,6 +3024,7 @@
       controller?.abort(Object.assign(new Error("试运行已停止"), { code: "WORKFLOW_PREVIEW_CANCELLED" }));
       return !!controller;
     }
+    if (["test-tool", "test-library", "test-workflow", "test-instruction", "manual-run"].includes(request.action)) checkReset();
     if (request.action === "test-tool" || request.action === "test-library") return testTool(request, previewKey);
     if (request.action === "test-workflow") return testWorkflow(request, previewKey, onPreviewLog);
     if (request.action === "tool-credential") {
@@ -2897,7 +3090,7 @@
             if (node.action !== "script") await flow.evaluateValues(flow.inputs(node, state), state, evaluate);
             const effect = flow.effects[node.action];
             if (effect?.gameField) {
-              output = await readPreviewSteam(node, state);
+              output = await readPreviewSteam(node, state, undefined, { signal: controller.signal });
               flow.complete(workflow, state, node, output);
             } else if (node.action === "http-request" || isToolQuery(node)) {
               output = await runQuery(node, state, controller.signal, flow.isToolId(workflow.id) || flow.isLibraryId(workflow.id) ? workflow : null, writes.checkpoint);
@@ -2947,19 +3140,6 @@
     }
     if (request.action === "save-config")
       return commitConfig(request.value, { operationId: request.operationId, promptDeletion: request.promptDeletion, creation: request.creation });
-    if (request.action === "native-ready") {
-      await services.verifyNative(sender);
-      const frame = { tabId: sender.tab.id, frameId: sender.frameId };
-      await chrome.storage.session.set({ [FRAME_KEY]: frame });
-      accountBinding = null;
-      const bundle = await root.STSettings.storage.getWorkflow();
-      if (await initialization !== false) requestReconcile();
-      return {
-        epoch: bundle.epoch,
-        revision: bundle.revision,
-        triggers: model.nativeConfig(bundle).triggers,
-      };
-    }
     if (request.action === "events") {
       await services.verifyNative(sender);
       if (!Number.isSafeInteger(request.revision) || !Number.isSafeInteger(request.checkedAt))
@@ -3148,6 +3328,8 @@
   root.STBackgroundAutomation = Object.freeze({
     ALARM,
     execute,
+    checkReset,
+    invalidateNativeFrame,
     runAccountChatTool,
     start,
     ready,

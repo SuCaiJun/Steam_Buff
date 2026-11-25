@@ -439,6 +439,21 @@
     }
     return input;
   }
+  const accountSpec = tool => Object.values(root.STAI.ACCOUNT_TOOLS).find(item => item.id === tool.id);
+  const hasExplicitWrites = tool => tool.parameters.some(parameter => parameter.name === "changes" && parameter.type === "array") &&
+    accountSpec(tool)?.writes === true;
+
+  function matchesToolProperty(value, property) {
+    if (!parameterAccepts(property.type, value)) return false;
+    if (property.enum && !property.enum.includes(value)) return false;
+    if (property.type === "integer") return value >= (property.minimum ?? 0) && value <= (property.maximum ?? Number.MAX_SAFE_INTEGER);
+    if (property.type === "string") return !property.minLength || value.trim().length >= property.minLength;
+    if (property.type === "array") return value.length >= (property.minItems ?? 0) && value.every(item => matchesToolProperty(item, property.items));
+    if (property.type === "object") return property.required.every(key => Object.hasOwn(value, key)) &&
+      Object.entries(value).every(([key, entry]) => Object.hasOwn(property.properties, key) && matchesToolProperty(entry, property.properties[key]));
+    return true;
+  }
+
   function toolArguments(tool, args) {
     const invalid = (message = "输入不符合工具参数定义") => Object.assign(new TypeError(message), { code: "CHAT_TOOL_INVALID" });
     if (typeof args === "string") {
@@ -447,11 +462,19 @@
         const error = invalid(); error.cause = cause; throw error;
       }
     }
+    const explicit = hasExplicitWrites(tool);
+    const spec = explicit ? accountSpec(tool) : null;
+    if (explicit && spec.required.includes("changes") && !Object.hasOwn(args ?? {}, "changes"))
+      throw invalid(spec.id === root.STAI.PROVIDER_TOOL_IDS.achievements ? "请提供目标语言和各 AppID 对应的成就译文。" : "请提供每个 AppID 对应的目标名称。");
     if (!args || typeof args !== "object" || Array.isArray(args) ||
       Object.keys(args).some(name => !tool.parameters.some(parameter => parameter.name === name))) throw invalid();
     for (const { name, type, required } of tool.parameters) {
       if (!Object.hasOwn(args, name)) { if (required) throw invalid(); continue; }
-      if (parameterAccepts(type, args[name])) continue;
+      if (parameterAccepts(type, args[name])) {
+        const property = spec?.properties[name];
+        if (property?.type === type && !matchesToolProperty(args[name], property)) throw invalid("工具参数无效：" + name);
+        continue;
+      }
       if (type !== "integer") throw invalid();
       throw Object.assign(invalid("参数「" + name + "」必须传入整数，数字无需加引号。"), {
         messageKey: "workflow_tool_parameter_integer_required", messageParams: { name },
@@ -461,7 +484,7 @@
   }
   function toolSchema(tool) {
     const preset = tool.id === root.STAI.STORE_SEARCH_TOOL_ID ? root.STAI.STORE_SEARCH_PROPERTIES
-      : Object.values(root.STAI.ACCOUNT_TOOLS).find(item => item.id === tool.id)?.properties ?? {};
+      : accountSpec(tool)?.properties ?? {};
     return { type: "function", function: {
       name: tool.id, description: tool.description,
       parameters: { type: "object", additionalProperties: false,
@@ -770,6 +793,6 @@
   root.STAutomation = Object.freeze({ empty, KEY, ROUTE, CHANNEL, PREVIEW_CHANNEL, VERSION, DEFAULT_LANGUAGE, CHECK_INTERVAL_MS, isTriggerType,
     STEP_STATES, NOTICE_TYPES, RANGES, OPS, group, conditionFields,
     newWorkflow, newTrigger, newTool, newLibrary, validateTool, validateLibrary, libraryOutputs, libraryBindingIssue, parameterAccepts,
-    toolDiagnostics, toolParameters, toolArguments, toolSchema, toolTypes, workflowDefinitionKey, triggerEventPaths, triggerParameterIssue, inputBindingIssue, workflowArguments, isOriginalProviderTool, TOOL_CREDENTIALS_KEY, presetSections, isPresetId, reserveUserId, assemblePresets, loadDefaults, restoreFamilySchedule, normalize, walkSteps, operators, validateCondition, match, matchAsync, dateWindow, inRange, triggered, nativeConfig, clone });
+    toolDiagnostics, toolParameters, toolArguments, toolSchema, toolTypes, hasExplicitWrites, workflowDefinitionKey, triggerEventPaths, triggerParameterIssue, inputBindingIssue, workflowArguments, isOriginalProviderTool, TOOL_CREDENTIALS_KEY, presetSections, isPresetId, reserveUserId, assemblePresets, loadDefaults, restoreFamilySchedule, normalize, walkSteps, operators, validateCondition, match, matchAsync, dateWindow, inRange, triggered, nativeConfig, clone });
 
 })(globalThis);

@@ -14,6 +14,7 @@
   const SOURCE = "steam-buff-automation-v1",
     NATIVE = "STEAM_AUTOMATION_NATIVE";
   let active = false,
+    nativeConnection = null,
     regexQueue = Promise.resolve(),
     regexSession = null;
   const requests = new Map(),
@@ -21,6 +22,17 @@
   const log = root.STLoggerFactory.createLogger("extension", "automation");
   function post(value) {
     root.postMessage({ source: SOURCE, side: "content", ...value }, root.location.origin);
+  }
+  const unavailable = () => ({ success: false, code: "STEAM_NATIVE_DISCONNECTED", error: "Steam 数据连接已断开" });
+  function finish(rid, pending, result) {
+    requests.delete(rid);
+    root.clearTimeout(pending.timer);
+    pending.respond(result);
+  }
+  function closeConnection(connectionId) {
+    if (nativeConnection !== connectionId) return;
+    nativeConnection = null;
+    for (const [rid, pending] of requests) finish(rid, pending, unavailable());
   }
   async function pageMessage(event) {
     const data = event.data;
@@ -37,14 +49,16 @@
     if (data.kind === "native-result") {
       const pending = requests.get(data.rid);
       if (!pending) return;
-      requests.delete(data.rid);
-      root.clearTimeout(pending.timer);
-      if (data.success) pending.respond({ success: true, value: data.value });
-      else pending.respond({ success: false, error: data.error || "Steam 原生操作失败", ...(data.code ? { code: data.code } : {}),
+      if (data.success) finish(data.rid, pending, { success: true, value: data.value });
+      else finish(data.rid, pending, { success: false, error: data.error || "Steam 原生操作失败", ...(data.code ? { code: data.code } : {}),
         ...(Number.isSafeInteger(data.savedCount) && data.savedCount > 0 ? { savedCount: data.savedCount } : {}) });
       return;
     }
-    if (!["native-ready", "events", "account-write-check"].includes(data.action)) return;
+    if (!["native-ready", "native-connected", "native-disconnected", "events", "account-write-check"].includes(data.action)) return;
+    if (["native-connected", "native-disconnected"].includes(data.action) &&
+        (typeof data.connectionId !== "string" || !/^[a-f0-9-]{36}$/.test(data.connectionId))) return;
+    if (data.action === "native-connected") nativeConnection = data.connectionId;
+    if (data.action === "native-disconnected") closeConnection(data.connectionId);
     try {
       const response = await root.STMessageBus.request(
         {
@@ -53,19 +67,36 @@
           events: data.events,
           revision: data.revision,
           checkedAt: data.checkedAt,
+          ...(data.action === "native-connected" && { epoch: data.epoch, connectionId: data.connectionId }),
+          ...(data.action === "native-disconnected" && { connectionId: data.connectionId }),
           ...(data.action === "account-write-check" && { ticket: data.ticket, command: data.command, steamId: data.steamId,
             appid: data.appid, expected: data.expected, part: data.part }),
         },
         { timeoutMs: 120000, logFailures: false },
       );
+      if (data.action === "native-connected" && !response.value?.connected) closeConnection(data.connectionId);
       if (active) post({ kind: "response", rid: data.rid, ...response });
     } catch (error) {
+      if (data.action === "native-connected") closeConnection(data.connectionId);
       log.error("automation-bridge-failed", "自动化后台通信失败", { error, requestId: data.rid });
       if (active) post({ kind: "response", rid: data.rid, success: false, error: "自动化后台通信失败" });
     }
   }
   function nativeMessage(message, sender, respond) {
     if (!active || sender.id !== root.chrome.runtime.id || message?.type !== NATIVE) return false;
+    if (message.connectionId && message.connectionId !== nativeConnection) {
+      respond(unavailable());
+      return false;
+    }
+    if (message.action === "cancel") {
+      const pending = requests.get(message.rid);
+      if (pending) {
+        finish(message.rid, pending, { success: false, code: "STEAM_NATIVE_CANCELLED", error: "Steam 操作已停止" });
+        post({ kind: "native-cancel", rid: message.rid });
+      }
+      respond({ success: true });
+      return false;
+    }
     if (message.action === "regex") {
       const previous = regexQueue;
       regexQueue = previous
@@ -125,11 +156,13 @@
       return false;
     }
     const timer = root.setTimeout(() => {
-      requests.delete(message.rid);
-      respond({ success: false, error: "Steam 原生操作超时，结果未确认" });
+      const pending = requests.get(message.rid);
+      if (!pending) return;
+      finish(message.rid, pending, { success: false, code: "STEAM_NATIVE_TIMEOUT", error: "Steam 原生操作超时，结果未确认" });
+      if (message.cancellable) post({ kind: "native-cancel", rid: message.rid });
     }, 90000);
     requests.set(message.rid, { respond, timer });
-    post({ kind: "native-command", rid: message.rid, action: message.action, value: message.value });
+    post({ kind: "native-command", rid: message.rid, action: message.action, value: message.value, cancellable: message.cancellable === true });
     return true;
   }
   function start() {
@@ -148,11 +181,15 @@
     regexSession?.cancel();
     regexSession = null;
     regexFailures.clear();
-    for (const pending of requests.values()) {
-      root.clearTimeout(pending.timer);
-      pending.respond({ success: false, error: "Steam 自动化入口已停止" });
+    const connectionId = nativeConnection;
+    nativeConnection = null;
+    for (const [rid, pending] of requests) finish(rid, pending, unavailable());
+    if (connectionId) {
+      void root.STMessageBus.request({ type: "AUTOMATION", action: "native-disconnected", connectionId }, { logFailures: false })
+        .then(response => {
+          if (!response?.success) throw new Error(response?.error || "Steam 数据连接释放失败");
+        }).catch(error => log.warn("automation-native-disconnect-failed", "Steam 数据连接释放失败", { error }));
     }
-    requests.clear();
   }
   root.STAutomationBridge = Object.freeze({ start, stop });
 })(globalThis);

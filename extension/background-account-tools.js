@@ -16,7 +16,8 @@
     ["ACTION_INPUT_INVALID", "ACTION_WRITE_CONFLICT", "ACTION_NOT_WRITTEN", "ACTION_SOURCE_CHANGED", "AI_OUTPUT_INVALID", "ACHIEVEMENT_VALUE_INVALID",
       "STEAM_DATA_UNAVAILABLE", "STEAM_ACHIEVEMENTS_UNAVAILABLE"].includes(error.code);
   const safeCount = number => Number.isSafeInteger(number) && number >= 0;
-  const writes = Object.freeze({ rename: "steam-set-sort-name", collections: "steam-add-collections", achievements: "steam-save-translations" });
+  const writes = Object.freeze({ rename: "steam-set-sort-name", custom_name: "steam-set-custom-name",
+    collections: "steam-add-collections", achievements: "steam-save-translations" });
 
   /** 校验登记的账号工具输入，去重时保持原请求顺序。 */
   function argumentsFor(tool, input) {
@@ -56,7 +57,7 @@
       let owner = options.expectedSteamId;
       const checkOwner = async () => {
         signal.throwIfAborted();
-        const current = await deps.native("account-query", { action: "owner" });
+        const current = await deps.native("account-query", { action: "owner" }, { signal });
         signal.throwIfAborted();
         const approvedOwner = options.approvalOwner?.();
         if (owner && owner !== current || approvedOwner && approvedOwner !== current)
@@ -65,7 +66,7 @@
       };
       const query = async (action, args) => {
         await checkOwner();
-        const value = await deps.native("account-query", { steamId: owner, action, args });
+        const value = await deps.native("account-query", { steamId: owner, action, args }, { signal });
         signal.throwIfAborted();
         return value;
       };
@@ -79,6 +80,7 @@
       };
       let groups;
       return {
+        explicit: options.explicit === true,
         async read(command, value) {
           await options.beforeDetails?.();
           if (command === "game-field" && ["official", "sort"].includes(value.field)) {
@@ -94,7 +96,7 @@
             return groups;
           }
           await checkOwner();
-          const result = await deps.native(command, value);
+          const result = await deps.native(command, value, { signal });
           await checkOwner();
           return result;
         },
@@ -107,7 +109,7 @@
           if (!operations.size) return result;
           if (!Array.isArray(result?.items)) throw toolError("修改工具缺少按 AppID 汇总的结果", "AI_TOOL_RESPONSE_INVALID");
           const items = result.items.map(item => ({ ...item }));
-          const changes = items.filter(item => item.status === "proposed");
+          let changes = items.filter(item => item.status === "proposed");
           if (items.some(item => !root.STAI.isToolAppId(item.appId)) || new Set(items.map(item => item.appId)).size !== items.length ||
               operations.size !== changes.length || changes.some(item => !operations.has(item.appId)))
             throw toolError("修改确认与工具结果中的 AppID 不符", "AI_TOOL_RESPONSE_INVALID");
@@ -116,22 +118,48 @@
           await options.beforeDetails?.();
           const proposal = [];
           for (const item of changes) {
-            const { value: operation } = operations.get(item.appId);
+            const planned = operations.get(item.appId), operation = planned.value;
             delete item.savedCount;
-            const display = { appId: item.appId, name: (await game(item.appId)).name };
-            if (action === "rename") display.sortName = operation.name;
-            if (action === "collections") {
-              groups ??= (await query("collections", {})).filter(group => group.writable);
-              display.collections = operation.ids.map(id => {
-                const group = groups.find(candidate => candidate.id === id);
-                if (!group) throw toolError("收藏分组已不存在或不能写入", "ACTION_NOT_WRITTEN");
-                return { id, name: group.name };
-              });
+            try {
+              const row = await game(item.appId), display = { appId: item.appId, name: row.name };
+              if (action === "rename") {
+                display.sortName = operation.name;
+                if (options.explicit) operation.expected = display.previousName = row.sortName;
+              }
+              if (action === "custom_name") {
+                planned.personalName = await options.planPersonalName(item.appId, operation.name, row.name, checkOwner, signal);
+                display.customName = operation.name;
+                display.previousName = planned.personalName.expected;
+              }
+              if (action === "collections") {
+                groups ??= (await query("collections", {})).filter(group => group.writable);
+                display.collections = operation.ids.map(id => {
+                  const group = groups.find(candidate => candidate.id === id);
+                  if (!group) throw toolError("收藏分组已不存在或不能写入", "ACTION_NOT_WRITTEN");
+                  return { id, name: group.name };
+                });
+              }
+              if (action === "achievements") {
+                display.count = operation.batches.reduce((total, batch) => total + batch.length, 0);
+                if (options.explicit) {
+                  Object.assign(display, { added: operation.added, updated: operation.updated });
+                  planned.remaining = new Set(operation.batches.flatMap(batch => batch.map(entry => entry.id)));
+                  item.achievementResults = { saved: [], conflicts: [], pending: [...planned.remaining], unconfirmed: [] };
+                }
+              }
+              Object.assign(item, display);
+              if (display.count === 0 || display.previousName !== undefined && display.previousName === operation.name) {
+                item.status = "skipped";
+                item.reason = display.count === 0 ? "成就译文已经是目标内容" : "名称已经是目标值";
+              } else proposal.push(display);
+            } catch (error) {
+              signal.throwIfAborted();
+              if (!options.explicit || !["ACTION_NOT_WRITTEN", "AUTOMATION_NAME_ACCESS"].includes(error.code)) throw error;
+              Object.assign(item, failure(error), { status: "failed" });
             }
-            if (action === "achievements") display.count = operation.batches.reduce((total, batch) => total + batch.length, 0);
-            Object.assign(item, display);
-            proposal.push(display);
           }
+          if (!proposal.length) return summary();
+          changes = changes.filter(item => item.status === "proposed");
           const guards = new Set(changes.map(item => operations.get(item.appId).checkDefinition).filter(Boolean));
           const checkDefinitions = async () => {
             await options.checkTool();
@@ -144,10 +172,11 @@
             return { ...summary(), status: "skipped", declined: true, code: "CHAT_TOOL_DECLINED" };
           }
           await checkDefinitions();
-          const receipt = () => options.receipt?.(changes.map(({ appId, status, savedCount }) => ({ appId, status, savedCount })));
+          const receipt = () => options.receipt?.(changes.map(({ appId, status, savedCount, achievementResults }) =>
+            ({ appId, status, savedCount, ...(achievementResults && { achievementResults }) })));
           for (const item of changes) {
             let submitted = false, saved = 0;
-            const { value, checkDefinition } = operations.get(item.appId);
+            const { value, checkDefinition, personalName, remaining } = operations.get(item.appId);
             const check = async () => {
               await checkOwner();
               await options.checkTool();
@@ -164,13 +193,26 @@
                   return !source || source.title !== entry.title || source.description !== entry.description;
                 }))) throw toolError("成就原文已变化，未保存旧原文的译文", "ACTION_SOURCE_CHANGED");
                 for (const entries of value.batches) {
-                  await check(); submitting();
+                  await check();
+                  const prior = item.achievementResults;
+                  if (prior) {
+                    const unconfirmed = entries.map(entry => entry.id);
+                    for (const id of unconfirmed) remaining.delete(id);
+                    item.achievementResults = { ...prior, pending: [...remaining], unconfirmed };
+                  }
+                  submitting();
                   const result = await root.STAchievementTranslationStore.save(value.appid, value.language, entries);
                   submitted = false; saved += result.saved.length;
+                  if (prior) item.achievementResults = { saved: [...prior.saved, ...result.saved.map(entry => entry.id)],
+                    conflicts: [...prior.conflicts, ...result.conflicts], pending: [...remaining], unconfirmed: [] };
                   item.savedCount = saved; item.status = "partial"; receipt();
                   if (result.conflicts.length) throw toolError("部分成就已有新译文，已保留现有译文", "ACTION_WRITE_CONFLICT");
                 }
                 item.status = "saved";
+              } else if (personalName) {
+                await personalName.save(check, submitting);
+                item.status = "saved";
+                item.savedCount = 1;
               } else {
                 submitting();
                 const command = action === "rename" ? "account-save-sort" : "account-add-collections";
@@ -221,7 +263,7 @@
       return root.STNetworkRequest.run(45_000, async operationSignal => {
         const native = async (action, value) => {
           operationSignal.throwIfAborted();
-          const result = await deps.native(action, value);
+          const result = await deps.native(action, value, { signal: operationSignal });
           operationSignal.throwIfAborted();
           return result;
         };

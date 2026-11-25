@@ -2579,7 +2579,8 @@
           });
         }
         if (!content && !chat?.hasToolCalls()) throw Object.assign(new Error("AI 响应格式异常"), { code: "AI_RESPONSE_INVALID" });
-        return { content, status: response.status };
+        const usage = chat && normalizeAiUsage(data?.usage);
+        return { content, status: response.status, ...(usage && { usage }) };
       } catch (error) {
         if (error && typeof error === "object" && Object.isExtensible(error)) {
           error.phase = phase;
@@ -2830,6 +2831,19 @@
     }
   }
 
+  function normalizeAiUsage(usage) {
+    if (!usage || typeof usage !== "object" || Array.isArray(usage)) return null;
+    const counts = {
+      input: usage.prompt_tokens,
+      output: usage.completion_tokens,
+      total: usage.total_tokens,
+      cached: usage.prompt_tokens_details?.cached_tokens ?? usage.prompt_cache_hit_tokens,
+      reasoning: usage.completion_tokens_details?.reasoning_tokens,
+    };
+    const valid = Object.entries(counts).filter(([, count]) => Number.isSafeInteger(count) && count >= 0);
+    return valid.length ? Object.fromEntries(valid) : null;
+  }
+
   function parseAiStreamEvent(block, chat) {
     const dataText = String(block || "")
       .split(/\r?\n/)
@@ -2851,9 +2865,11 @@
       throw error;
     }
     if (data.choices?.[0] && chat) chat.consume(data.choices[0]);
+    const usage = normalizeAiUsage(data.usage);
     return {
       done: false,
       text: globalThis.STAI?.chatDelta?.(data) || "",
+      ...(usage && { usage }),
     };
   }
 
@@ -2917,7 +2933,7 @@
       const decoder = new TextDecoder();
       let buffer = "";
       let content = "";
-      let finished = false;
+      let finished = false, usage;
 
       const consume = (block) => {
         phase = "parse";
@@ -2928,6 +2944,7 @@
           finished = true;
           return;
         }
+        if (event.usage) usage = event.usage;
         if (!event.text) return;
         content += event.text;
       };
@@ -2966,7 +2983,7 @@
           globalThis.STLoggerFactory.reportError(error, { domain: "extension", feature: "background", event: "fetch-ai-chat-stream-failed", message: "清理 AI 流式请求失败", level: "warn", phase: "fetchAiChatStream" });
         }
       }
-      return { content, status: response.status };
+      return { content, status: response.status, ...(usage && { usage }) };
     } catch (error) {
       if (chat && !controller.signal.aborted) controller.abort(error);
       const failure = controller.signal.aborted ? controller.signal.reason : error;
@@ -3188,32 +3205,49 @@
     if (results[0]?.result !== true) throw new Error("自动化只接受真实 SharedJSContext 数据入口");
   }
 
-  function automationNative(frame, action, value = {}) {
-    return new Promise((resolve, reject) => {
-      chrome.tabs.sendMessage(
-        frame.tabId,
-        {
-          type: "STEAM_AUTOMATION_NATIVE",
-          action,
-          value,
-          rid: `automation-command-${crypto.randomUUID()}`,
-        },
-        { frameId: frame.frameId },
-        (response) => {
-          const error = chrome.runtime.lastError;
-          if (error) {
-            reject(new Error(error.message));
-            return;
-          }
-          if (response?.success !== true) {
-            reject(Object.assign(new Error(response?.error || "Steam 自动化入口未响应"),
-              response?.code ? { code: response.code } : {}, response?.savedCount > 0 ? { savedCount: response.savedCount } : {}));
-            return;
-          }
-          resolve(response.value);
-        },
-      );
-    });
+  async function automationNative(frame, action, value = {}, signal) {
+    const send = requestSignal => {
+      requestSignal?.throwIfAborted();
+      const request = { type: "STEAM_AUTOMATION_NATIVE", rid: `automation-command-${crypto.randomUUID()}`,
+        ...(frame.connectionId && { connectionId: frame.connectionId }) };
+      const target = { frameId: frame.frameId };
+      return new Promise((resolve, reject) => {
+        let pending = true;
+        const finish = (complete, result) => {
+          if (!pending) return;
+          pending = false;
+          requestSignal?.removeEventListener("abort", cancel);
+          complete(result);
+        };
+        const cancel = () => {
+          finish(reject, requestSignal.reason);
+          // 本次等待已经结束，接收端在连接仍有效时按请求号释放桥接任务
+          chrome.tabs.sendMessage(frame.tabId, { ...request, action: "cancel" }, target, () => { void chrome.runtime.lastError; });
+        };
+        requestSignal?.addEventListener("abort", cancel, { once: true });
+        try {
+          chrome.tabs.sendMessage(frame.tabId, { ...request, action, value, cancellable: !!requestSignal }, target, response => {
+            const transport = chrome.runtime.lastError;
+            if (!pending) return;
+            if (transport) {
+              finish(reject, Object.assign(new Error("Steam 数据连接已断开", { cause: new Error(transport.message) }), { code: "STEAM_NATIVE_DISCONNECTED" }));
+            } else if (response?.success !== true) {
+              finish(reject, Object.assign(new Error(response?.error || "Steam 自动化入口未响应"),
+                response?.code ? { code: response.code } : {}, response?.savedCount > 0 ? { savedCount: response.savedCount } : {}));
+            } else finish(resolve, response.value);
+          });
+        } catch (error) { finish(reject, error); }
+      });
+    };
+    const preflight = action === "configuration" || action === "account-query" && value.action === "owner";
+    try {
+      return await (preflight ? globalThis.STNetworkRequest.run(10_000, send, signal) : send(signal));
+    } catch (error) {
+      if (error.code === "STEAM_NATIVE_DISCONNECTED") await globalThis.STBackgroundAutomation.invalidateNativeFrame(frame);
+      if (preflight && error.name === "TimeoutError" && !signal?.aborted)
+        throw Object.assign(new Error("等待 Steam 数据入口响应超时", { cause: error }), { code: "STEAM_NATIVE_TIMEOUT" });
+      throw error;
+    }
   }
 
   const nativeToolWrites = new Map();
@@ -3221,12 +3255,12 @@
     const key = "st.automation.native-frame.v1";
     const frame = (await chrome.storage.session.get(key))[key];
     if (!frame) throw Object.assign(new Error("请打开 Steam 客户端，等待游戏库加载"), { code: "STEAM_CLIENT_REQUIRED", aiToolFailure: true });
-    if (action !== "account-save-sort" && action !== "account-add-collections") return automationNative(frame, action, value);
+    if (action !== "account-save-sort" && action !== "account-add-collections") return automationNative(frame, action, value, permission?.signal);
     if (!permission) throw new Error("Steam 写入缺少已确认的操作授权");
     const ticket = crypto.randomUUID();
     const remaining = new Set(action === "account-save-sort" ? [value.name] : value.ids);
     nativeToolWrites.set(ticket, { frame, action, value, remaining, permission });
-    try { return await automationNative(frame, action, { ...value, ticket }); }
+    try { return await automationNative(frame, action, { ...value, ticket }, permission.signal); }
     finally { nativeToolWrites.delete(ticket); }
   }
 
@@ -3245,7 +3279,7 @@
   }
 
   async function automationRoute(request, sender, sendResponse, onPreviewLog) {
-    const nativeActions = ["native-ready", "events", "account-write-check"];
+    const nativeActions = ["native-ready", "native-connected", "native-disconnected", "events", "account-write-check"];
     const onboardingAiSave = request.action === "save-ai-services" && isOnboardingSender(sender);
     if (
       sender?.id !== chrome.runtime.id ||
@@ -4205,10 +4239,13 @@
   });
   const aiTools = {
     accountTool: accountTools.execute,
+    hasAiGatewayPermission,
     async round(service, messages, tools, signal, chat, reasoning) {
       const next = globalThis.STAI.chatRequest(service, messages);
       const url = new URL(next.url);
       next.body.stream = true;
+      const gateway = globalThis.STAI.reasoningGateway(service);
+      if (gateway === "openai") next.body.stream_options = { include_usage: true };
       if (tools.length) next.body.tools = tools;
       if (reasoning?.ignoreTemperature) delete next.body.temperature;
       if (reasoning?.body) Object.assign(next.body, reasoning.body);
@@ -4268,6 +4305,7 @@
     native: automationNative,
     verifyNative: verifyAutomationNative,
     nativeFrameCommand: nativeAutomationCommand,
+    cancelChatTurns: globalThis.STBackgroundAiChat.cancelTurns,
     batchPlan: accountTools.batchPlan,
     ai: (input) => new Promise((resolve, reject) => {
       void aiChat({ ...input, [AI_PREPARED]: true }, {}, resolve).catch(reject);

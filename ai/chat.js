@@ -45,8 +45,11 @@
   let needsSettings = false;
   let records = [], services = [];
   let servicesChanged = false;
+  let searchSettings = { provider: "", invalid: false }, searchSettingsChanged = false;
   let failedTurn;
   let composerView, composerBusy = true;
+  const preferenceSaves = new Map();
+  let liveUsage, compressing = false;
 
   function option(id, label) {
     return new Option(label, id);
@@ -118,13 +121,22 @@
     if (follow) transcript.scrollTop = transcript.scrollHeight;
   }
   function approvalRows(message, category) {
-    if (message.kind === "write") return message.items.map(item => [
-      `${item.name || "Steam"} · AppID ${item.appId}`,
-      item.sortName ?? item.collections?.map(group => group.name).join("、") ??
-        text("ai_chat_tool_approval_achievements", "保存 $count$ 条成就译文", { count: item.count }),
-    ]);
+    if (message.kind === "write") return message.items.map(item => {
+      let detail = item.sortName ?? item.collections?.map(group => group.name).join("、");
+      if (item.previousName !== undefined) {
+        const values = { before: item.previousName || text("ai_chat_tool_approval_name_unset", "未设置"), after: item.customName ?? item.sortName };
+        detail = item.customName !== undefined
+          ? text("ai_chat_tool_approval_custom_change", "自定义名称  $before$ → $after$", values)
+          : text("ai_chat_tool_approval_sort_change", "排序名称  $before$ → $after$", values);
+      }
+      if (item.added !== undefined)
+        detail = text("ai_chat_tool_approval_translation_changes", "新增 $added$ 条，更新 $updated$ 条成就译文", item);
+      return [`${item.name || "Steam"} · AppID ${item.appId}`, detail ??
+        text("ai_chat_tool_approval_achievements", "保存 $count$ 条成就译文", { count: item.count })];
+    });
     const rows = [], operations = new Map();
-    const { appIds, term } = message.parameters;
+    const { appIds, term, searchProvider } = message.parameters;
+    if (searchProvider) rows.push([text("settings.ai.provider", "供应商"), searchProviderName(searchProvider)]);
     if (appIds?.length) rows.push([text("ai_chat_approval_app_id", "当前查询 AppID"), appIds.join(", ")]);
     if (term) rows.push([text("ai_chat_approval_keyword", "搜索词"), term]);
     for (const operation of message.operations) {
@@ -142,8 +154,7 @@
   function showApproval(notice, message, sendDecision) {
     clearApproval();
     const card = document.createElement("article"), title = document.createElement("h2");
-    const definition = STAI.CHAT_TOOLS.find(tool => tool.id === message.toolId);
-    const name = message.toolName ?? (definition ? text(definition.label, definition.name) : text("ai_chat_tool_call", "工具调用"));
+    const name = message.toolName ?? toolName(message.toolId);
     const kinds = new Set(message.kind === "write" ? ["write"] : message.operations.map(operation => operation.kind));
     const kind = kinds.size === 1 ? kinds.values().next().value : "mixed";
     const header = document.createElement("header"), category = document.createElement("span");
@@ -218,6 +229,12 @@
     port = opened;
     opened.onMessage.addListener(message => {
       if (message.type === "thread-title") { updateThreadTitle(message.id, message.title); return; }
+      if (message.type === "composer-saved") {
+        const saved = preferenceSaves.get(message.sequence);
+        if (saved && !message.ok && thread?.id === saved.id) showComposerSaveFailure(saved.search);
+        preferenceSaves.delete(message.sequence);
+        return;
+      }
       if (message.sequence !== pending?.sequence) return;
       const { progress, resolve, reject } = pending;
       if (message.type === "tool-approval") return progress?.(message, approved => {
@@ -225,7 +242,7 @@
           action: "decide-tool", sequence: message.sequence, id: message.id, approved,
         });
       });
-      if (["delta", "tools", "thinking"].includes(message.type)) return progress?.(message);
+      if (["delta", "tools", "thinking", "reasoning", "usage", "compaction"].includes(message.type)) return progress?.(message);
       clearApproval();
       pending = null;
       if (message.type === "done") resolve(message.result);
@@ -236,6 +253,9 @@
       if (port !== opened) return;
       clearApproval();
       port = null;
+      for (const saved of preferenceSaves.values())
+        if (saved.id === thread?.id) showComposerSaveFailure(saved.search);
+      preferenceSaves.clear();
       pending?.reject(Object.assign(new Error("AI chat connection ended", { cause: reason }), { code: "CHAT_CONNECTION_LOST" }));
       pending = null;
     });
@@ -250,6 +270,37 @@
       try { channel.postMessage({ action, sequence, ...payload }); }
       catch (error) { pending = null; reject(error); }
     });
+  }
+
+  function showComposerSaveFailure(search) {
+    status.textContent = search ? text("ai_chat_search_preference_failed", "未能保存本会话的联网搜索设置")
+      : text("ai_chat_model_preference_failed", "未能保存本会话的模型和思考档位");
+  }
+
+  function saveConversationPreference(patch) {
+    if (!thread.revision) return;
+    const channel = connect();
+    const data = { id: thread.id, sequence: ++sequence };
+    const search = Object.hasOwn(patch, "searchEnabled");
+    preferenceSaves.set(data.sequence, { id: data.id, search });
+    try {
+      channel.postMessage({ action: "set-composer", ...data, ...patch });
+    } catch (error) {
+      preferenceSaves.delete(data.sequence);
+      log.error("chat-composer-save-request-failed", "提交会话偏好失败", { error });
+      showComposerSaveFailure(search);
+    }
+  }
+
+  function saveModelPreference(composer, changedLevels = {}) {
+    thread.composer = composer;
+    saveConversationPreference({ composer: { ...composer, lastEnabled: changedLevels } });
+  }
+
+  function saveSearchPreference(enabled) {
+    thread.searchEnabled = enabled;
+    saveConversationPreference({ searchEnabled: enabled });
+    syncSearch();
   }
 
   function markdownLink(value) {
@@ -411,11 +462,16 @@
     const href = markdownLink(source.url);
     if (!href) return null;
     const url = new URL(href);
-    if (url.protocol !== "https:" || !["store.steampowered.com", "isthereanydeal.com"].includes(url.hostname)) return null;
+    if (source.kind !== "web-search" && (url.protocol !== "https:" || !["store.steampowered.com", "isthereanydeal.com"].includes(url.hostname)))
+      return null;
     const link = document.createElement("a");
     STConfig.externalNavigation.applyToLink(link, href);
     link.textContent = label;
     return link;
+  }
+
+  function referenceLink(source, index) {
+    return sourceLink(source, "[" + (source.reference ?? index + 1) + "] " + source.name + " ↗");
   }
 
   function appendSources(reply, sources = [], legacy = false) {
@@ -425,7 +481,7 @@
     label.textContent = text("ai_chat_references", "参考资料");
     footer.append(label);
     for (const [index, source] of sources.entries()) {
-      const link = sourceLink(source, "[" + (index + 1) + "] " + source.name + " ↗");
+      const link = referenceLink(source, index);
       if (link) {
         if (legacy) {
           const timestamp = localeTime(source.checkedAt);
@@ -442,6 +498,10 @@
       text("common_none", "暂无");
   }
 
+  function searchProviderName(id) {
+    return id === "bocha" ? text("settings_ai_search_bocha", "博查 Web Search") : STAI.searchProvider(id)?.name;
+  }
+
   function toolFacts(step, sources) {
     const facts = document.createElement("dl");
     const field = (label, value) => {
@@ -454,11 +514,29 @@
     };
     field("AppID", step.appId);
     field(text("ai_chat_tool_started", "开始时间"), localeTime(step.startedAt));
+    if (step.search) {
+      field(text("settings.ai.provider", "供应商"), searchProviderName(step.search.provider));
+      field(text("ai_chat_approval_keyword", "搜索词"), step.search.query);
+    }
     if (step.state !== "done") {
       if (step.errorCode) field(text("ai_chat_tool_result", "结果"), failureText(step.errorCode));
       return facts;
     }
     const { source, facts: data } = step;
+    if (step.search) {
+      const { count, references } = step.search;
+      if (count === 0) field(text("ai_chat_tool_result", "结果"), text("ai_chat_search_no_results", "没有找到相关网页"));
+      else if (Number.isInteger(count)) field(text("ai_chat_search_result_count", "结果数"), count.toLocaleString(STI18n.intlLocale()));
+      const links = document.createDocumentFragment();
+      for (const item of sources) {
+        if (item.kind !== "web-search" || !references?.includes(item.reference)) continue;
+        const link = referenceLink(item);
+        if (link) links.append(link, document.createElement("br"));
+      }
+      if (links.childNodes.length) field(text("ai_chat_references", "参考资料"), links);
+      else if (count > 0 && STAI.searchProvider(step.search.provider)?.transientSources)
+        field(text("ai_chat_references", "参考资料"), text("ai_chat_search_transient_sources", "Brave 来源仅在本次回复中展示。"));
+    }
     if (step.id === STAI.PROVIDER_TOOL_IDS.game) field(text("ai_chat_tool_result", "结果"), data.found ? data.name : text("common_none", "暂无"));
     if (step.id === STAI.PROVIDER_TOOL_IDS.players)
       field(text("ai_chat_tool_players", "Steam 在线人数"), data.players.toLocaleString(STI18n.intlLocale()));
@@ -482,8 +560,8 @@
     }
     if (source) {
       field(text("ai_chat_tool_data_at", "数据时间"), localeTime(source.checkedAt));
-      const index = sources.findIndex(item => item.url === source.url);
-      if (index >= 0) field(text("ai_chat_references", "参考资料"), sourceLink(source, "[" + (index + 1) + "] " + source.name + " ↗"));
+      const index = sources.findIndex(item => !item.kind && item.url === source.url);
+      if (index >= 0) field(text("ai_chat_references", "参考资料"), referenceLink(sources[index], index));
     }
     return facts;
   }
@@ -497,14 +575,19 @@
     stopped: ["ai_chat_tool_stopped", "已停止"],
   };
 
+  function toolName(id) {
+    if (id === STAI.WEB_SEARCH_TOOL_ID) return text("ai_chat_web_search", "联网搜索");
+    const definition = STAI.CHAT_TOOLS.find(item => item.id === id);
+    return definition ? text(definition.label, definition.name) : text("ai_chat_tool_call", "工具调用");
+  }
+
   function replyTool(step, sources, tool = document.createElement("details")) {
     if (!tool.firstChild) {
       tool.className = "reply-tool";
       const summary = document.createElement("summary");
       const name = document.createElement("span");
       const state = document.createElement("span");
-      const definition = STAI.CHAT_TOOLS.find(item => item.id === step.id);
-      name.textContent = definition ? text(definition.label, definition.name) : text("ai_chat_tool_call", "工具调用");
+      name.textContent = toolName(step.id);
       state.className = "reply-tool-state";
       summary.append(name, state);
       tool.append(summary);
@@ -534,9 +617,12 @@
       body.inert = false;
     }
 
-    summary.addEventListener("click", event => {
-      event.preventDefault();
-      const nextOpen = closing || !details.open;
+    function setOpen(nextOpen) {
+      if (!animation && nextOpen === details.open) return;
+      if (matchMedia("(prefers-reduced-motion: reduce)").matches) {
+        settle(nextOpen);
+        return;
+      }
       const start = details.getBoundingClientRect();
       settle(nextOpen);
       const end = details.getBoundingClientRect();
@@ -552,14 +638,33 @@
       transition.onfinish = () => {
         if (animation === transition) settle(nextOpen);
       };
+    }
+    summary.addEventListener("click", event => {
+      event.preventDefault();
+      setOpen(closing || !details.open);
     });
     details.append(summary, body);
     content.insertBefore(details, before);
     return { details, summary, body, close: () => settle(false) };
   }
 
-  function labelProcess(process, calls) {
-    const title = text("ai_chat_view_process", "查看过程");
+  function replyReasoning(parent, content = "") {
+    const section = document.createElement("div");
+    section.className = "reply-reasoning";
+    const title = document.createElement("div");
+    title.className = "reply-reasoning-title";
+    title.textContent = text("ai_chat_thinking_label", "深度思考");
+    const copy = document.createElement("div");
+    copy.className = "reply-reasoning-text";
+    const value = copy.appendChild(document.createTextNode(content));
+    section.append(title, copy);
+    parent.append(section);
+    return value;
+  }
+
+  function labelProcess(process, calls, onlyReasoning = false) {
+    process.details.toggleAttribute("data-reasoning-only", onlyReasoning);
+    const title = onlyReasoning ? text("ai_chat_thinking_label", "深度思考") : text("ai_chat_view_process", "查看过程");
     process.summary.textContent = calls
       ? title + " · " + text("ai_chat_tool_call_count", "$count$ 次工具调用", { count: calls })
       : title;
@@ -567,22 +672,32 @@
 
   function addMessage(message) {
     const { row, content } = messageFrame(message.role);
-    if (message.role === "user") content.textContent = message.content;
+    if (message.role === "user") {
+      const attachments = message.imageCount && text("ai_chat_sent_images", "$count$ 张图片", { count: message.imageCount });
+      content.textContent = [message.content, attachments].filter(Boolean).join("\n");
+    }
     else {
-      if (message.steps?.length) {
+      const steps = message.steps ?? [];
+      const reasoningSteps = message.reasoningSteps ?? [];
+      const hasProcess = steps.length || reasoningSteps.length;
+      if (hasProcess) {
         const process = replyProcess(content);
-        let calls = 0;
-        for (const step of message.steps) {
+        let calls = 0, reasoningIndex = 0;
+        for (const [index, step] of steps.entries()) {
+          while (reasoningSteps[reasoningIndex]?.beforeStep === index)
+            replyReasoning(process.body, reasoningSteps[reasoningIndex++].content);
           if (step.type === "text") replyText(process.body, step.content);
           else {
             process.body.append(replyTool(step, message.sources ?? []));
             if (step.state !== "blocked") calls += 1;
           }
         }
-        labelProcess(process, calls);
+        for (; reasoningIndex < reasoningSteps.length; reasoningIndex++)
+          replyReasoning(process.body, reasoningSteps[reasoningIndex].content);
+        labelProcess(process, calls, !steps.length);
       }
       replyText(content, message.content);
-      appendSources(content, message.sources, !message.steps);
+      appendSources(content, message.sources, !hasProcess);
     }
     return row;
   }
@@ -627,13 +742,18 @@
   }
 
   function renderServices(selectedService) {
-    service.replaceChildren(...services.map(item => option(item.id, item.name + " · " + item.model)));
+    service.replaceChildren(...services.map(item => option(item.id, item.name + " · " + (item.modelName || item.model))));
+    if (selectedService === STAI.DEFAULT_SERVICE_ID && !services.some(item => item.id === selectedService))
+      selectedService = services.find(item => item.isDefault)?.id ?? selectedService;
     if (services.some(item => item.id === selectedService)) service.value = selectedService;
+    else if (!selectedService && services.length) service.value = services.find(item => item.isDefault)?.id ?? services[0].id;
     else if (selectedService) {
       service.prepend(option("", text("ai_chat_select_service", "选择 AI 服务")));
       service.value = "";
     }
-    composerView?.setServices(services);
+    composerView?.setServices(services, thread.composer);
+    syncSearch();
+    syncUsage();
     updateSettingsLink();
     if (desktop) {
       const setup = text("ai_chat_setup_service", "请前往「扩展设置 → AI 服务」配置可用的服务。");
@@ -645,13 +765,15 @@
   function renderControls() {
     const draft = desktop ? drafts.get(thread.id) : undefined;
     renderHistory();
-    renderServices(draft?.serviceId ?? thread.serviceId);
-    composerView?.setDraft(thread.id);
+    renderServices(thread.composer?.serviceId ?? thread.serviceId);
+    composerView?.setDraft(thread.id, draft?.files);
     busy(false);
+    syncUsage();
   }
 
   function render() {
     failedTurn = null;
+    liveUsage = undefined;
     if (web) {
       welcome.hidden = thread.messages.length > 0;
       transcript.replaceChildren(welcome);
@@ -686,24 +808,112 @@
   }
 
   function syncComposer() {
-    send.disabled = composerBusy || !!pending || savingTool || !service.value || !input.value.trim() || composerView?.hasImages() === true;
+    send.disabled = !canSend();
     composerView?.syncSize();
   }
 
+  const selectedService = () => services.find(item => item.id === service.value);
+
+  function enabledSearchProvider() {
+    const selected = selectedService();
+    return pane && thread?.searchEnabled === true && selected && selected.supportsTools !== false ? searchSettings.provider : "";
+  }
+
+  function syncSearch() {
+    composerView?.setSearchPreference(searchSettings, thread?.searchEnabled === true);
+    composerView?.setToolsEnabled(Boolean(enabledSearchProvider()) || toolOptions.some(tool => tool.enabled));
+  }
+
+  function canSend() {
+    const selected = selectedService(), typed = Boolean(input.value.trim()), images = composerView?.imageCount() ?? 0;
+    return !composerBusy && !pending && !savingTool && Boolean(selected) && Boolean(typed || images) &&
+      (!typed || selected.inputs?.text !== false) && (composerView?.imagesSendable() ?? true);
+  }
+
+  function syncUsage() {
+    if (!thread || !composerView) return;
+    const selected = selectedService();
+    const matches = record => selected && record?.serviceId === selected.id && record.serviceRevision === selected.revision;
+    const actual = liveUsage ?? thread.usage;
+    const report = matches(actual) ? actual : undefined;
+    const compression = matches(thread.compaction) ? thread.compaction : undefined;
+    const awaiting = !liveUsage?.completed && thread.awaitingUsage;
+    const last = liveUsage && !liveUsage.completed && matches(thread.usage) ? thread.usage.last : report?.last;
+    const waitingForSelected = matches(awaiting);
+    const phase = compressing ? "running" : !liveUsage && compression?.atRevision === thread.revision ? compression.status
+      : waitingForSelected ? "done" : undefined;
+    composerView.setUsage({
+      used: awaiting ? undefined : last?.total,
+      total: selected?.contextWindow,
+      awaiting: Boolean(awaiting && (waitingForSelected || report)),
+      usage: report,
+      status: phase,
+      compression: compression?.usage,
+      available: Boolean(selected?.inputs?.text !== false && selected && thread.canCompact),
+    });
+  }
+
+  function compactionText(phase) {
+    const message = {
+      running: ["ai_chat_compaction_running", "正在压缩上下文…"],
+      done: ["ai_chat_compaction_done", "已压缩，等待新用量"],
+      failed: ["ai_chat_compaction_failed", "压缩未完成，已保留原上下文。"],
+      incomplete: ["ai_chat_compaction_failed", "压缩未完成，已保留原上下文。"],
+      stopped: ["ai_chat_compaction_stopped", "已停止压缩，已保留原上下文。"],
+    }[phase];
+    return message ? text(...message) : "";
+  }
+
+  function beginCompaction() {
+    compressing = true;
+    status.textContent = compactionText("running");
+    syncUsage();
+  }
+
+  function finishCompaction() {
+    if (!compressing) return;
+    compressing = false;
+    const record = thread.compaction;
+    status.textContent = compactionText(record?.atRevision === thread.revision ? record.status : "failed");
+    syncUsage();
+  }
+
+  async function compactContext() {
+    const selected = selectedService();
+    if (composerBusy || pending || !thread?.canCompact || !selected || selected.inputs?.text === false) return;
+    busy(true, true);
+    beginCompaction();
+    const { composer, searchEnabled } = thread;
+    try {
+      thread = await call("compact", { id: thread.id, revision: thread.revision, serviceId: selected.id, serviceRevision: selected.revision });
+      thread.composer = composer;
+      thread.searchEnabled = searchEnabled;
+      finishCompaction();
+    } catch (error) {
+      compressing = false;
+      if (error.code !== "CHAT_STOPPED") log.error("chat-compaction-request-failed", "压缩操作未完成", { error });
+      failed(error);
+    } finally {
+      busy(false);
+      syncUsage();
+      input.focus();
+    }
+  }
+
   function newThread() {
-    return { id: crypto.randomUUID(), revision: 0, serviceId: services[0]?.id, messages: [] };
+    return { id: crypto.randomUUID(), revision: 0, serviceId: services.find(item => item.isDefault)?.id ?? services[0]?.id, messages: [] };
   }
 
   function stashDraft() {
     if (!desktop) return;
-    const serviceId = service.value && service.value !== thread.serviceId ? service.value : undefined;
-    if (!input.value && !serviceId && thread.revision !== 0) {
+    const files = composerView?.draftFiles() ?? [];
+    if (!input.value && !files.length && thread.revision !== 0) {
       drafts.delete(thread.id);
       return;
     }
     drafts.set(thread.id, {
       text: input.value,
-      serviceId,
+      files,
       unsaved: thread.revision === 0 ? thread : null,
     });
   }
@@ -716,7 +926,7 @@
     const sameRows = items.length === toolOptions.length && items.every((tool, index) =>
       tool.id === toolOptions[index].id && tool.name === toolOptions[index].name);
     toolOptions = items;
-    composerView?.setToolsEnabled(items.some(tool => tool.enabled));
+    syncSearch();
     if (!sameRows) {
       const focused = checks.contains(document.activeElement) ? document.activeElement.value : null;
       checks.replaceChildren(...items.map(tool => {
@@ -748,7 +958,7 @@
       const updated = await results;
       if (servicesChanged) return;
       services = updated;
-      renderServices(service.value || thread.serviceId);
+      renderServices(thread.composer?.serviceId ?? (service.value || thread.serviceId));
     } catch (error) {
       log.error("chat-services-refresh-failed", "刷新聊天服务信息失败", { error });
       failed(error);
@@ -763,6 +973,11 @@
     if (Object.hasOwn(changes, sendShortcutKey)) {
       sendShortcutChanged = true;
       applySendShortcut(changes[sendShortcutKey].newValue);
+    }
+    if (Object.hasOwn(changes, STConfig.aiSearchKey)) {
+      searchSettingsChanged = true;
+      searchSettings = STAI.searchSettingsState(changes[STConfig.aiSearchKey].newValue);
+      syncSearch();
     }
     const change = changes[STConfig.automationConfigKey];
     if (change) {
@@ -851,7 +1066,12 @@
     history.replaceWith(historySlot);
     STComponents.ensureStyle("st-ai-chat-search-combo", STComponents.searchComboCss);
     const scope = header.closest("main");
-    STSearchCombo.bindSearchCombos(scope, undefined, (_input, id) => { void switchSession(id); });
+    STSearchCombo.bindSearchCombos(scope, undefined, (control, id) => {
+      if (control === history) void switchSession(id);
+      else if (control.id === "composer-model-search") composerView.selectModel(id);
+    }, scope, {
+      onDismiss: control => { if (control.id === "composer-model-search") composerView.closeModelPicker(); },
+    });
     const session = document.createElement("div");
     session.className = "chat-session";
     session.append(historyLabel, create);
@@ -860,7 +1080,8 @@
     document.querySelector(".selectors").hidden = true;
     input.placeholder = text("ai_chat_composer_placeholder", "尽管问…");
     composerView = STChatComposer.mount(composer, {
-      service, text, locale: STI18n.intlLocale(), appId, onDraftChange: syncComposer,
+      service, text, locale: STI18n.intlLocale(), appId, onDraftChange: syncComposer, onModelPreference: saveModelPreference,
+      onSearchPreference: saveSearchPreference,
     });
     composerView.setBusy(composerBusy);
     syncComposer();
@@ -899,7 +1120,7 @@
       CHAT_STOPPED: ["ai_chat_stopped", "已停止生成"],
       CHAT_TIMEOUT: ["ai_chat_timeout", "请求超时。可以重新发送。"],
       CHAT_CONNECTION_LOST: ["ai_chat_disconnected", "对话连接已断开。可以重新发送。"],
-      CHAT_CONTEXT_LIMIT: ["ai_chat_context_limit", "对话上下文过长，请新建对话。"],
+      CHAT_CONTEXT_LIMIT: ["ai_chat_context_too_large", "对话请求过长。可压缩上下文或新建对话。"],
       CHAT_PROMPT_UNAVAILABLE: ["ai_chat_prompt_unavailable", "关联提示词不可用，请在「AI 服务 → 对话入口」重新选择。"],
       CHAT_PROMPT_DISABLED: ["ai_chat_prompt_disabled", "关联提示词已停用，请启用或重新选择。"],
       CHAT_PROMPT_MESSAGE_MISSING: ["ai_chat_prompt_message_missing", "所选提示词的用户消息缺少「聊天消息」占位符。请在「自动化 → 提示词」中修改。"],
@@ -910,8 +1131,25 @@
       PROMPT_INVALID: ["ai_chat_prompt_invalid", "所选提示词的请求格式无效，请在「自动化 → 提示词」中修改。"],
       CHAT_BUSY: ["ai_chat_busy", "此对话正在另一个窗口生成。"],
       CHAT_CHANGED: ["ai_chat_changed", "此对话已更新，请查看最新记录后重新发送。"],
+      CHAT_SERVICE_CHANGED: ["ai_chat_service_changed", "AI 模型设置已更新，请重新选择后再试。"],
+      CHAT_COMPACTION_UNAVAILABLE: ["ai_chat_compaction_unavailable", "当前没有可压缩的完整旧对话。"],
+      CHAT_COMPACTION_TOO_LARGE: ["ai_chat_compaction_too_large", "旧对话超出单次摘要请求的长度限制。原记录已保留。"],
+      CHAT_IMAGE_INVALID: ["ai_chat_image_invalid", "无法发送图片，请检查文件类型和大小。"],
+      CHAT_INPUT_TYPE_UNAVAILABLE: ["ai_chat_inputs_unavailable", "当前模型不支持此输入类型。"],
       CHAT_REASONING_INVALID: ["ai_chat_effort_invalid", "推理设置已失效，请检查 AI 服务和当前模型的推理档位。"],
       CHAT_REASONING_RESPONSE_INVALID: ["ai_chat_effort_response_invalid", "模型返回的推理续答数据无效。"],
+      CHAT_SEARCH_CONFIG: ["ai_chat_search_config", "请在「AI 服务 → 搜索服务」设置提供商和 API 密钥。"],
+      CHAT_SEARCH_MODEL: ["ai_chat_search_model", "当前模型不支持工具调用"],
+      CHAT_SEARCH_CHANGED: ["ai_chat_search_changed", "搜索服务配置已更改，请重新发送。"],
+      CHAT_SEARCH_PREFERENCE_CHANGED: ["ai_chat_search_preference_changed", "此会话的联网搜索已关闭，请确认开关后重新发送。"],
+      CHAT_SEARCH_PERMISSION: ["ai_chat_search_permission", "请在「AI 服务 → 搜索服务」重新保存设置以授权此域名。"],
+      CHAT_SEARCH_ACCESS: ["ai_chat_search_access", "搜索服务拒绝访问，请检查 API 密钥、权限或余额。"],
+      CHAT_SEARCH_QUOTA: ["ai_chat_search_quota", "搜索服务余额或配额不足。"],
+      CHAT_SEARCH_RATE: ["ai_chat_search_rate", "搜索服务达到请求频率或配额限制。"],
+      CHAT_SEARCH_TIMEOUT: ["ai_chat_search_timeout", "搜索服务响应超时，请稍后重试。"],
+      CHAT_SEARCH_NETWORK: ["ai_chat_search_network", "无法连接搜索服务，请检查网络。"],
+      CHAT_SEARCH_HTTP: ["ai_chat_search_http", "搜索服务请求失败，请稍后重试。"],
+      CHAT_SEARCH_RESPONSE: ["ai_chat_search_response", "搜索服务返回了无效或过大的响应。"],
       AI_HOST_PERMISSION_REQUIRED: ["ai_chat_permission", "请在「AI 服务」中编辑并保存当前服务，以授权 AI 网关。"],
       AI_CONFIG_UNAVAILABLE: desktop ? ["ai_chat_setup_service", "请前往「扩展设置 → AI 服务」配置可用的服务。"] :
         ["ai_chat_config", "当前 AI 服务不可用，请检查设置。"],
@@ -923,6 +1161,10 @@
       CHAT_APPROVAL_STALE: ["ai_chat_approval_stale", "操作范围已变化，本次授权已失效。请重新发送。"],
       CHAT_APPROVAL_TIMEOUT: ["ai_chat_approval_timeout", "等待授权超时。请重新发送。"],
       CHAT_APPROVAL_REOPEN: ["ai_chat_approval_reopen", "请重新打开聊天，以处理工具审批。"],
+      AUTOMATION_RESET: ["ai_chat_automation_reset", "自动化正在恢复出厂设置，请稍后重试。"],
+      STEAM_CLIENT_REQUIRED: ["ai_chat_steam_connection_unavailable", "Steam 数据入口未就绪。请打开 Steam 游戏库后重试。"],
+      STEAM_NATIVE_DISCONNECTED: ["ai_chat_steam_connection_unavailable", "Steam 数据入口未就绪。请打开 Steam 游戏库后重试。"],
+      STEAM_NATIVE_TIMEOUT: ["ai_chat_steam_connection_timeout", "Steam 数据入口响应超时，请重试。"],
       WORKFLOW_TOOL_UNAVAILABLE: ["ai_chat_approval_stale", "操作范围已变化，本次授权已失效。请重新发送。"],
       WORKFLOW_LIBRARY_UNAVAILABLE: ["ai_chat_approval_stale", "操作范围已变化，本次授权已失效。请重新发送。"],
       CHAT_HISTORY_WRITE_FAILED: ["ai_chat_save_failed", "保存对话失败，请检查扩展存储空间。"],
@@ -932,7 +1174,8 @@
 
   function failed(error, notice = status) {
     notice.textContent = failureText(error.code, error.parameter);
-    if (["AI_HOST_PERMISSION_REQUIRED", "AI_CONFIG_UNAVAILABLE", "PROVIDER_CONFIG_MISSING", "PROVIDER_DISABLED", "CHAT_REASONING_INVALID"].includes(error.code))
+    if (["AI_HOST_PERMISSION_REQUIRED", "AI_CONFIG_UNAVAILABLE", "PROVIDER_CONFIG_MISSING", "PROVIDER_DISABLED", "CHAT_REASONING_INVALID",
+      "CHAT_SEARCH_CONFIG", "CHAT_SEARCH_ACCESS", "CHAT_SEARCH_PERMISSION"].includes(error.code))
       needsSettings = true;
     if (!error.code) log.error("chat-ui-failed", "AI 对话界面操作失败", { error });
     if (notice === status && error.code !== "CHAT_STOPPED") {
@@ -955,6 +1198,7 @@
     const tools = new Map();
     const sources = [];
     let process;
+    let reasoning, hasToolSteps = false;
     let calls = 0;
     let previewTimer = 0;
     let liveText;
@@ -990,10 +1234,20 @@
     function flush(preview = true) {
       previewTimer = 0;
       const follow = atTranscriptEnd();
+      const additions = new Map();
       for (const update of updates) {
         if (update.type === "thinking") {
           notice.dataset.phase = "active";
           notice.textContent = text("ai_chat_thinking", "正在思考…");
+          continue;
+        }
+        if (update.type === "reasoning") {
+          if (reasoning?.round !== update.round) {
+            process ??= replyProcess(content, liveText ?? notice, true);
+            reasoning = { round: update.round, node: replyReasoning(process.body) };
+            labelProcess(process, calls, !hasToolSteps);
+          }
+          additions.set(reasoning.node, (additions.get(reasoning.node) ?? "") + update.text);
           continue;
         }
         if (update.type === "delta") {
@@ -1005,6 +1259,7 @@
         const previous = step && tools.get(index);
         if (!previous) {
           if (step || liveSource.trim()) {
+            hasToolSteps = true;
             process ??= replyProcess(content, liveText ?? notice, true);
             finishText(undefined, process.body);
             if (step && step.state !== "blocked") calls += 1;
@@ -1016,7 +1271,9 @@
           notice.textContent = text(...toolStates.running);
           continue;
         }
-        if (step.source?.url && !sources.some(source => source.url === step.source.url)) sources.push(step.source);
+        if (step.source?.url && !sources.some(source => !source.kind && source.url === step.source.url)) sources.push(step.source);
+        for (const source of update.webSources ?? [])
+          if (!sources.some(item => item.kind === "web-search" && item.reference === source.reference)) sources.push(source);
         const tool = replyTool(step, sources, previous?.tool);
         if (!previous) process.body.append(tool);
         tools.set(index, { step, tool });
@@ -1025,6 +1282,7 @@
           ? tool.firstChild.firstChild.textContent + " · " + text(...toolStates.running)
           : step.state === "done" ? waiting : "";
       }
+      for (const [node, value] of additions) node.appendData(value);
       updates.length = 0;
       if (preview) renderText();
       if (follow) transcript.scrollTop = transcript.scrollHeight;
@@ -1047,20 +1305,29 @@
         if (previewTimer) clearTimeout(previewTimer);
         flush(false);
         notice.removeAttribute("data-phase");
-        finishText(answer?.content);
-        if (error) {
+        if (answer?.interrupted) {
+          finishText();
+          replyText(content, answer.content, notice);
+        } else finishText(answer?.content);
+        if (error || answer?.interrupted) {
+          const code = error?.code ?? answer?.interrupted;
           for (const { step, tool } of tools.values()) {
             if (step.state === "running" || step.state === "waiting")
               replyTool({
-                ...step, state: error.code === "CHAT_STOPPED" ? "stopped" : "failed", errorCode: error.code,
+                ...step, state: code === "CHAT_STOPPED" ? "stopped" : "failed", errorCode: code,
               }, sources, tool);
           }
-          failed(error, notice);
-        } else {
-          notice.remove();
-          if (process && !process.details.contains(document.activeElement)) process.close();
         }
-        appendSources(content, answer?.sources ?? sources);
+        if (error) failed(error, notice);
+        else {
+          notice.remove();
+          if (process && answer?.content?.trim() && !answer.interrupted && !process.details.contains(document.activeElement))
+            process.close();
+        }
+        const references = answer ? [...(answer.sources ?? []), ...sources.filter(source => source.transient)]
+          : sources;
+        if (references.some(source => source.transient)) references.sort((a, b) => a.reference - b.reference);
+        appendSources(content, references);
         if (follow) transcript.scrollTop = transcript.scrollHeight;
       },
     };
@@ -1068,38 +1335,65 @@
 
   async function submit(event) {
     event.preventDefault();
+    if (!canSend()) return;
     const draft = input.value;
     const message = draft.trim();
-    if (composerBusy || !message || !service.value || pending || composerView?.hasImages()) return;
     const serviceId = service.value;
     const approvalMode = composerView?.getApprovalMode() ?? "ask";
     const reasoning = composerView?.getReasoning();
+    const preference = thread.composer && { ...thread.composer, serviceId, reasoning };
+    const searchEnabled = thread.searchEnabled === true;
+    const provider = enabledSearchProvider();
     const serviceRevision = services.find(item => item.id === serviceId)?.revision;
     if (desktop) stashDraft();
     else thread.serviceId = serviceId;
+    let images = [];
+    if (composerView?.imageCount()) {
+      busy(true);
+      try { images = await composerView.readImages(); }
+      catch (error) {
+        log.error("chat-attachment-read-failed", "读取对话附件失败", { error });
+        busy(false);
+        failed(error);
+        return;
+      }
+    }
     busy(true, true);
     failedTurn?.forEach(row => row.remove());
     failedTurn = null;
     if (web) welcome.hidden = true;
     toolsMenu.open = false;
     status.textContent = "";
-    const question = addMessage({ role: "user", content: message });
+    const question = addMessage({ role: "user", content: message, imageCount: images.length });
     const reply = startReply();
     input.value = "";
     syncComposer();
     transcript.scrollTop = transcript.scrollHeight;
     let failure;
-    const request = { id: thread.id, revision: thread.revision, serviceId, text: message, appId, approvalMode,
-      ...(reasoning !== undefined && { reasoning, serviceRevision }) };
+    liveUsage = undefined;
+    const request = { id: thread.id, revision: thread.revision, serviceId, serviceRevision, text: message, appId, approvalMode,
+      reasoningProgress: true, searchEnabled, ...(provider && { searchProvider: provider }),
+      ...(reasoning !== undefined && { reasoning }), ...(!thread.revision && preference && { composer: preference }),
+      ...(images.length && { images }) };
     try {
-      thread = await call("send", request, reply.progress);
+      thread = await call("send", request, (update, decide) => {
+        if (update.type === "usage") { liveUsage = update.usage; syncUsage(); }
+        else if (update.type === "compaction") beginCompaction();
+        else reply.progress(update, decide);
+      });
+      thread.composer = preference;
+      thread.searchEnabled = searchEnabled;
+      liveUsage = undefined;
+      composerView?.clearImages();
+      finishCompaction();
       records = [thread, ...records.filter(item => item.id !== thread.id)];
       if (desktop) drafts.delete(thread.id);
       needsSettings = false;
     } catch (error) {
+      if (compressing) finishCompaction();
       input.value = draft;
       failure = error;
-      if (error.code === "CHAT_CHANGED") {
+      if (error.code === "CHAT_CHANGED" || error.code === "CHAT_SEARCH_PREFERENCE_CHANGED") {
         try {
           const latest = await call("read", { id: thread.id });
           if (!latest) throw new Error("AI chat history record unavailable");
@@ -1135,6 +1429,7 @@
     ]);
     if (version === toolSyncVersion) renderTools(state.tools);
     if (!sendShortcutChanged) applySendShortcut(prefs[sendShortcutKey]);
+    if (!searchSettingsChanged && state.search) searchSettings = state.search;
     ({ threads: records, services } = state);
     thread = records.length ? await call("read", { id: records[0].id }) : newThread();
     render();
@@ -1155,14 +1450,21 @@
   });
   if (!pane) history.addEventListener("change", () => { void switchSession(history.value); });
   checks.addEventListener("change", event => { void setToolEnabled(event); });
-  service.addEventListener("change", syncComposer);
+  service.addEventListener("change", () => {
+    if (!composerView && thread && service.value) saveModelPreference({ serviceId: service.value, lastEnabled: {} });
+    if (thread?.compaction && status.textContent === compactionText(thread.compaction.status)) status.textContent = "";
+    syncSearch();
+    syncComposer();
+    syncUsage();
+  });
+  byId("composer-usage-compact").addEventListener("click", () => { void compactContext(); });
   input.addEventListener("input", syncComposer);
   composer.addEventListener("submit", submit);
   input.addEventListener("keydown", event => {
     if (event.key !== "Enter" || event.defaultPrevented || event.isComposing || event.keyCode === 229 ||
         event.shiftKey || event.altKey || event.metaKey || event.ctrlKey !== sendWithCtrl) return;
     event.preventDefault();
-    if (!event.repeat && !send.disabled && input.value.trim()) composer.requestSubmit(send);
+    if (!event.repeat && !send.disabled) composer.requestSubmit(send);
   });
   stop.addEventListener("click", () => {
     stop.disabled = true;

@@ -900,7 +900,7 @@
   }
 
   /** 三处关联配置在后台串行校验后一次写入，避免迁移或导入留下悬空引用 */
-  async function writeAiSettings({ ai, translate, workflow, familyFeature, familySettings, setupLocale, gameLinks, finishPendingConnection, toolCredentials }, diagnostics = {}) {
+  async function writeAiSettings({ ai, translate, workflow, familyFeature, familySettings, setupLocale, gameLinks, finishPendingConnection, toolCredentials, chatPromptId }, diagnostics = {}) {
     const data = translate ? translatePatch(translate) : {};
     if (ai) {
       const model = globalThis.STAI;
@@ -925,6 +925,7 @@
     if (finishPendingConnection) data[globalThis.STAI.ONBOARDING_CONNECTION_KEY] = null;
     if (workflow) data[globalThis.STAutomation.KEY] = workflow;
     if (toolCredentials) data[globalThis.STAutomation.TOOL_CREDENTIALS_KEY] = toolCredentials;
+    if (chatPromptId !== undefined) data[globalThis.STConfig.aiChatPromptKey] = chatPromptId;
     if (setupLocale) data[SETUP_KEY] = setupLocale;
     if (gameLinks) data[GAME_LINKS_KEY] = gameLinks;
     if (typeof familyFeature === "boolean") data[key("family-library-owned-marker")] = familyFeature;
@@ -1059,15 +1060,22 @@
     return globalThis.STAI.chatToolsFromWorkflow(data[key]);
   }
 
+  function chatPromptId(data) {
+    return normalizeStored("ai-chat-prompt", data[globalThis.STConfig.aiChatPromptKey], api.catalog.featureById("ai-chat-prompt").default);
+  }
+
+  async function getChatPromptId() {
+    return chatPromptId(await get([globalThis.STConfig.aiChatPromptKey], { strict: true }));
+  }
+
   async function getChatConfiguration() {
     const config = globalThis.STConfig;
     const data = await get([config.automationConfigKey, config.aiChatPromptKey], { strict: true });
     const workflow = data[config.automationConfigKey];
-    const savedPromptId = data[config.aiChatPromptKey];
     return {
       tools: globalThis.STAI.chatToolsFromWorkflow(workflow),
       prompts: workflow?.prompts ?? [],
-      promptId: normalizeStored("ai-chat-prompt", savedPromptId, api.catalog.featureById("ai-chat-prompt").default),
+      promptId: chatPromptId(data),
     };
   }
 
@@ -1159,13 +1167,15 @@
     const data = await get([model.KEY], { strict: true });
     if (!Object.hasOwn(data, model.KEY)) return model.empty();
     const saved = data[model.KEY];
-    if (!reset) return model.normalize(saved, { structureOnly: true });
-    // 恢复只校验要保留的配置，旧定义仅用于比较修订号和引用
-    const { prompts, workflows, tools = [], triggers } = saved;
-    const sections = { prompts, workflows, tools, triggers };
-    if (!Object.values(sections).every(Array.isArray)) throw new TypeError("自动化配置分类无效");
-    const retained = model.normalize({ ...saved, prompts: [], workflows: [], tools: [], triggers: [] }, { structureOnly: true });
-    return { ...retained, ...sections };
+    try {
+      if (!reset) return model.normalize(saved, { structureOnly: true });
+      // 只校验重置需要读取的原有字段，待替换的内容可以包含无效旧定义
+      const { version, epoch, revision, bindings, nextIds } = saved ?? {};
+      return model.normalize({ ...model.empty(), version, epoch, revision, bindings, nextIds }, { structureOnly: true });
+    } catch (error) {
+      if (error instanceof TypeError && !error.code) error.code = "WORKFLOW_CONFIG_INVALID";
+      throw error;
+    }
   }
 
   /** 2.2.2 的下载开关独立于工作流配置 */
@@ -1302,6 +1312,7 @@
     waitForAiSettings,
     getChatTools,
     getChatConfiguration,
+    getChatPromptId,
     setChatPreferences,
     setAi,
     setAiSearch,

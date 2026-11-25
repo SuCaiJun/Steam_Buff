@@ -11251,6 +11251,15 @@
   "ai_chat_approval_reopen": {
     "message": "도구 작업을 승인하려면 채팅을 다시 여세요."
   },
+  "ai_chat_automation_reset": {
+    "message": "자동화 초기 설정을 복원하는 중입니다. 완료 후 다시 시도하세요."
+  },
+  "ai_chat_steam_connection_unavailable": {
+    "message": "Steam 데이터에 연결할 수 없습니다. Steam 라이브러리를 열고 다시 시도하세요."
+  },
+  "ai_chat_steam_connection_timeout": {
+    "message": "Steam 데이터 연결 시간이 초과되었습니다. 다시 시도하세요."
+  },
   "ai_chat_context_window": {
     "message": "컨텍스트 사용량"
   },
@@ -11430,6 +11439,165 @@
         "content": "$1"
       }
     }
+  },
+  "ai_chat_usage_requests": {
+    "message": "요청별 보기"
+  },
+  "ai_chat_usage_input": {
+    "message": "입력"
+  },
+  "ai_chat_usage_output": {
+    "message": "출력"
+  },
+  "ai_chat_usage_total": {
+    "message": "이번 대화 턴 합계"
+  },
+  "ai_chat_usage_request_total": {
+    "message": "합계"
+  },
+  "ai_chat_usage_cached": {
+    "message": "캐시 적중"
+  },
+  "ai_chat_usage_reasoning": {
+    "message": "추론"
+  },
+  "ai_chat_usage_missing": {
+    "message": "사용량이 반환되지 않았습니다"
+  },
+  "ai_chat_usage_total_missing": {
+    "message": "총 토큰 수가 반환되지 않았습니다"
+  },
+  "ai_chat_usage_count": {
+    "message": "보고된 토큰 $used$개",
+    "placeholders": {
+      "used": {
+        "content": "$1"
+      }
+    }
+  },
+  "ai_chat_usage_count_partial": {
+    "message": "$used$개 보고됨",
+    "placeholders": {
+      "used": {
+        "content": "$1"
+      }
+    }
+  },
+  "ai_chat_usage_partial": {
+    "message": "일부 요청에서 사용량이 반환되지 않았습니다"
+  },
+  "ai_chat_usage_high": {
+    "message": "컨텍스트 사용량이 높습니다"
+  },
+  "ai_chat_usage_notice": {
+    "message": "컨텍스트 사용량이 70%에 도달했습니다"
+  },
+  "ai_chat_compact_context": {
+    "message": "컨텍스트 압축"
+  },
+  "ai_chat_compaction_running": {
+    "message": "컨텍스트 압축 중…"
+  },
+  "ai_chat_compaction_done": {
+    "message": "압축했습니다. 새 사용량을 기다리는 중입니다."
+  },
+  "ai_chat_compaction_failed": {
+    "message": "압축이 완료되지 않아 원래 컨텍스트를 보존했습니다."
+  },
+  "ai_chat_compaction_stopped": {
+    "message": "압축을 중지하고 원래 컨텍스트를 보존했습니다."
+  },
+  "ai_chat_compaction_usage": {
+    "message": "요약 요청에서 토큰 $used$개 보고됨",
+    "placeholders": {
+      "used": {
+        "content": "$1"
+      }
+    }
+  },
+  "ai_chat_compaction_cost": {
+    "message": "현재 모델로 요약을 만들 때 토큰을 사용합니다."
+  },
+  "ai_chat_compaction_unavailable": {
+    "message": "압축할 수 있는 이전 대화 턴이 없습니다."
+  },
+  "ai_chat_compaction_too_large": {
+    "message": "이전 대화가 한 번의 요약 요청 크기 제한을 초과합니다. 원본 대화는 보존됩니다."
+  },
+  "ai_chat_context_too_large": {
+    "message": "요청이 너무 깁니다. 컨텍스트를 압축하거나 새 대화를 시작하세요."
+  },
+  "ai_chat_service_changed": {
+    "message": "모델 설정이 변경되었습니다. 모델을 다시 선택한 뒤 재시도하세요."
+  },
+  "ai_chat_image_invalid": {
+    "message": "이미지를 보낼 수 없습니다. 파일 유형과 크기를 확인하세요."
+  },
+  "ai_chat_image_limit": {
+    "message": "메시지당 이미지 4개, 총 8 MiB까지 첨부할 수 있습니다."
+  },
+  "ai_chat_image_model_unavailable": {
+    "message": "현재 모델이 이미지를 지원하지 않습니다. 모델을 바꾸거나 이미지를 제거하세요."
+  },
+  "ai_chat_image_send_type": {
+    "message": "PNG, JPEG, WebP, GIF 형식으로 보낼 수 있습니다."
+  },
+  "ai_chat_inputs_unavailable": {
+    "message": "현재 모델은 이 입력 유형을 지원하지 않습니다."
+  },
+  "ai_chat_sent_images": {
+    "message": "이미지 $count$개",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "ai_chat_model_select": {
+    "message": "모델 선택"
+  },
+  "ai_chat_model_search": {
+    "message": "모델 검색"
+  },
+  "ai_chat_model_no_matches": {
+    "message": "일치하는 모델이 없습니다"
+  },
+  "ai_chat_thinking_label": {
+    "message": "심층 사고"
+  },
+  "ai_chat_thinking_enabled": {
+    "message": "심층 사고 켜짐"
+  },
+  "ai_chat_thinking_disabled": {
+    "message": "심층 사고 꺼짐"
+  },
+  "ai_chat_thinking_no_off": {
+    "message": "심층 사고 켜짐 · 이 모델은 끌 수 없습니다"
+  },
+  "ai_chat_effort_follow": {
+    "message": "모델 기본값 사용"
+  },
+  "ai_chat_effort_restore": {
+    "message": "권장 추론 강도로 복원 · $level$",
+    "placeholders": {
+      "level": {
+        "content": "$1"
+      }
+    }
+  },
+  "ai_chat_effort_restore_default": {
+    "message": "API 기본 추론 강도로 복원 · $level$",
+    "placeholders": {
+      "level": {
+        "content": "$1"
+      }
+    }
+  },
+  "ai_chat_effort_no_recommendation": {
+    "message": "API 기본 또는 권장 추론 강도를 가져오지 못했습니다"
+  },
+  "ai_chat_model_preference_failed": {
+    "message": "대화의 모델과 추론 강도를 저장하지 못했습니다"
   },
   "ai_chat_model": {
     "message": "모델"
@@ -12371,7 +12539,16 @@
     "message": "자동화 초기 설정 복원"
   },
   "workflow_ui_restore_automation_defaults_warning": {
-    "message": "워크플로, 프롬프트, 도구 및 트리거를 초기 설정으로 되돌립니다. 계속하시겠습니까?"
+    "message": "완료되지 않은 자동화 실행, 테스트 실행과 관련 도구 승인을 중지합니다. 워크플로, 트리거, 프롬프트, AI 도구, 사용자 지정 라이브러리 및 도구 전용 HTTP 키를 지운 후 현재 언어의 초기 설정을 가져옵니다. 삭제된 프롬프트의 연결은 기본값으로 복원됩니다. 실행 기록과 AI 서비스는 유지됩니다. 이 작업은 되돌릴 수 없습니다."
+  },
+  "workflow_ui_restoring_defaults": {
+    "message": "이전 실행을 중지하고 초기 설정을 복원하는 중…"
+  },
+  "workflow_ui_restored_defaults": {
+    "message": "자동화 초기 설정을 복원했습니다."
+  },
+  "workflow_ui_restored_defaults_steam_pending": {
+    "message": "이 기기의 초기 설정을 복원했습니다. Steam이 다시 연결되기를 기다리는 중입니다."
   },
   "workflow_ui_the_referenced_workflow_was_deleted_select_another_workflow": {
     "message": "참조한 워크플로가 삭제되었습니다. 다른 워크플로를 선택하세요."
@@ -14790,6 +14967,60 @@
   "settings_ai_search_invalid_key": {
     "message": "유효한 API 키를 입력하세요."
   },
+  "ai_chat_web_search": {
+    "message": "웹 검색"
+  },
+  "ai_chat_search_on": {
+    "message": "웹 검색이 켜져 있습니다"
+  },
+  "ai_chat_search_off": {
+    "message": "웹 검색이 꺼져 있습니다"
+  },
+  "ai_chat_search_config": {
+    "message": "‘AI 서비스 → 검색 서비스’에서 제공업체와 API 키를 설정하세요."
+  },
+  "ai_chat_search_model": {
+    "message": "이 모델은 도구 호출을 지원하지 않습니다"
+  },
+  "ai_chat_search_preference_failed": {
+    "message": "이 대화의 웹 검색 설정을 저장하지 못했습니다"
+  },
+  "ai_chat_search_no_results": {
+    "message": "관련 웹페이지를 찾지 못했습니다"
+  },
+  "ai_chat_search_result_count": {
+    "message": "검색 결과 수"
+  },
+  "ai_chat_search_changed": {
+    "message": "검색 서비스 설정이 변경되었습니다. 다시 보내세요."
+  },
+  "ai_chat_search_permission": {
+    "message": "‘AI 서비스 → 검색 서비스’에서 설정을 다시 저장해 도메인 접근을 허용하세요."
+  },
+  "ai_chat_search_access": {
+    "message": "검색 서비스 접근이 거부되었습니다. API 키, 권한 또는 잔액을 확인하세요."
+  },
+  "ai_chat_search_quota": {
+    "message": "검색 서비스의 잔액이나 할당량이 부족합니다."
+  },
+  "ai_chat_search_rate": {
+    "message": "검색 서비스의 요청 속도 또는 할당량 한도에 도달했습니다."
+  },
+  "ai_chat_search_timeout": {
+    "message": "검색 서비스 응답 시간이 초과되었습니다. 잠시 후 다시 시도하세요."
+  },
+  "ai_chat_search_network": {
+    "message": "검색 서비스에 연결할 수 없습니다. 네트워크를 확인하세요."
+  },
+  "ai_chat_search_http": {
+    "message": "검색 요청에 실패했습니다. 잠시 후 다시 시도하세요."
+  },
+  "ai_chat_search_response": {
+    "message": "검색 서비스가 잘못되었거나 너무 큰 응답을 반환했습니다."
+  },
+  "ai_chat_search_transient_sources": {
+    "message": "Brave 출처는 이번 답변에서만 표시됩니다."
+  },
   "settings_ai_search_invalid_config": {
     "message": "검색 서비스 설정이 잘못되었습니다. 다시 설정하거나 미설정으로 저장하세요."
   },
@@ -14815,5 +15046,56 @@
   },
   "settings_ai_deepseekTemperatureHint": {
     "message": "비워 두면 기본값 1.0을 사용합니다. 사고 모드에서는 온도가 적용되지 않습니다."
+  },
+  "ai_chat_search_preference_changed": {
+    "message": "이 대화의 웹 검색이 꺼졌습니다. 설정을 확인한 뒤 다시 보내세요."
+  },
+  "ai_chat_tool_custom_name": {
+    "message": "게임 사용자 지정 이름 변경"
+  },
+  "ai_chat_tool_game_names": {
+    "message": "게임 이름 조회"
+  },
+  "ai_chat_tool_writable_collections": {
+    "message": "편집 가능한 컬렉션 조회"
+  },
+  "ai_chat_tool_achievement_sources": {
+    "message": "게임 도전 과제 조회"
+  },
+  "ai_chat_tool_approval_sort_change": {
+    "message": "정렬 이름  $before$ → $after$",
+    "placeholders": {
+      "before": {
+        "content": "$1"
+      },
+      "after": {
+        "content": "$2"
+      }
+    }
+  },
+  "ai_chat_tool_approval_custom_change": {
+    "message": "사용자 지정 이름  $before$ → $after$",
+    "placeholders": {
+      "before": {
+        "content": "$1"
+      },
+      "after": {
+        "content": "$2"
+      }
+    }
+  },
+  "ai_chat_tool_approval_name_unset": {
+    "message": "미설정"
+  },
+  "ai_chat_tool_approval_translation_changes": {
+    "message": "도전 과제 번역 $added$개 추가, $updated$개 업데이트",
+    "placeholders": {
+      "added": {
+        "content": "$1"
+      },
+      "updated": {
+        "content": "$2"
+      }
+    }
   }
 }
