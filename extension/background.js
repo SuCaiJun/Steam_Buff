@@ -33,6 +33,7 @@
   importScripts(chrome.runtime.getURL("extension/background-debug.js"));
   importScripts(chrome.runtime.getURL("shared/error-boundary.js"));
   importScripts(chrome.runtime.getURL("shared/i18n.js"));
+  importScripts(chrome.runtime.getURL("shared/settings-bus.js"));
   importScripts(chrome.runtime.getURL("shared/utils/network-request.js"));
   importScripts(chrome.runtime.getURL("extension/background-cart.js"));
   importScripts(chrome.runtime.getURL("shared/lifecycle-prompt-contract.js"));
@@ -71,8 +72,11 @@
   importScripts(chrome.runtime.getURL("extension/background-automation.js"));
   importScripts(chrome.runtime.getURL("settings/panel-snapshot.js"));
   importScripts(chrome.runtime.getURL("settings/settings-cloud.js"));
+  importScripts(chrome.runtime.getURL("extension/settings-cloud-vault.js"));
+  importScripts(chrome.runtime.getURL("extension/settings-cloud-data.js"));
   importScripts(chrome.runtime.getURL("shared/auth-client.js"));
   importScripts(chrome.runtime.getURL("shared/user-names-snapshot.js"));
+  importScripts(chrome.runtime.getURL("extension/settings-cloud-remotes.js"));
   importScripts(chrome.runtime.getURL("extension/background-settings-sync.js"));
   importScripts(chrome.runtime.getURL("extension/background-user-names-sync.js"));
 
@@ -258,6 +262,7 @@
     "settings/pages/automation-instructions.js",
     "settings/pages/workflow-tools.js", "settings/pages/workflow-values.js", "settings/pages/automation-editor.js",
     "settings/pages/workflow.js",
+    "settings/settings-cloud-prompt.js",
     "settings/settings-cloud-ui.js",
     "settings/ui/toast.js",
     "settings/ui/fields.js",
@@ -542,6 +547,10 @@
   const STEAM_ROOT_MENU_BROWSER_FALLBACK = "https://sucaijun.com/";
   const STEAM_ROOT_MENU_EXTENSIONS_URL = "chrome://extensions/";
   const STEAM_ROOT_MENU_SETTINGS_PAGE = "settings/center.html";
+  const CLOUD_CARD_PAGE = "settings/cloud-card.html";
+  const CLOUD_CARD_ACTIONS = ["select-provider", "authorize-webdav", "configure-webdav", "enable", "disable", "sync"];
+  const CLOUD_CONFIRMATIONS = ["devices", "restore", "reset", "conflict", "recovery"];
+  const cloudConfirmations = new Map();
   const STEAM_ROOT_MENU_REFOCUS_DELAY_MS = 200;
   const AI_PERMISSION_PAGE = "permissions/ai/index.html";
   const AI_PERMISSION_SESSION_PREFIX = "st.aiGatewayPermission.session.v1.";
@@ -1778,8 +1787,7 @@
       sendResponse({ success: false, code: "AI_HOST_PERMISSION_UNAVAILABLE", error: "AI 网关权限申请不可用" });
       return;
     }
-    chrome.permissions.request({ origins: [origin] }, (granted) => {
-      const error = chrome.runtime.lastError;
+    requestOptionalSitePermission(origin, (granted, error) => {
       if (error) {
         sendResponse({
           success: false,
@@ -1797,6 +1805,114 @@
           code: "AI_HOST_PERMISSION_DENIED",
           error: "未获得当前 AI 网关的访问权限",
         }),
+      });
+    });
+  }
+
+  function requestOptionalSitePermission(pattern, done) {
+    chrome.permissions.request({ origins: [pattern] }, granted => done(granted === true, chrome.runtime.lastError));
+  }
+
+  function isCloudCardSender(sender) {
+    const origin = "chrome-extension://" + chrome.runtime.id;
+    const source = senderUrlObject(sender);
+    if (!Number.isInteger(sender?.frameId) || sender.frameId <= 0 || sender.origin !== origin
+      || source?.protocol !== "chrome-extension:" || source.hostname !== chrome.runtime.id || source.pathname !== "/" + CLOUD_CARD_PAGE) return false;
+    const tab = senderUrlObject({ url: sender.tab?.url });
+    return tab?.protocol === "https:" && (MATCH.isSteamPoweredLikeHost(tab.hostname) || MATCH.isSteamCommunityLikeHost(tab.hostname));
+  }
+
+  function openPrivateCloudSettings(request, embedded, sendResponse) {
+    const url = new URL(chrome.runtime.getURL(STEAM_ROOT_MENU_SETTINGS_PAGE));
+    url.searchParams.set("category", "extension-settings");
+    let id;
+    if (Object.hasOwn(request, "intent")) {
+      const { intent, channelId, expectedSession, recoveryId } = request;
+      const hash = globalThis.STSettingsCloud.HASH;
+      if (!embedded || !CLOUD_CONFIRMATIONS.includes(intent) || (channelId !== null && typeof channelId !== "string")
+        || !(hash.test(expectedSession) || (intent === "restore" && expectedSession === ""))
+        || (intent === "recovery" && !hash.test(recoveryId))) {
+        sendResponse({ success: false, code: "cloud-sender", error: "云同步确认请求无效" });
+        return;
+      }
+      const now = Date.now();
+      for (const [key, entry] of cloudConfirmations) if (entry.expires <= now) cloudConfirmations.delete(key);
+      id = crypto.randomUUID();
+      cloudConfirmations.set(id, { intent, channelId, expectedSession, expires: now + 60000, ...(intent === "recovery" && { recoveryId }) });
+      url.searchParams.set("cloudRequest", id);
+    }
+    chrome.tabs.create({ url: url.href }, () => {
+      const error = chrome.runtime.lastError;
+      if (error) {
+        if (id) cloudConfirmations.delete(id);
+        globalThis.STLoggerFactory.reportError(new Error(error.message), {
+          domain: "background", feature: "settings-cloud", event: "settings-cloud-open-private-settings-failed",
+          message: "打开独立云同步设置页失败", operationId: request.operationId,
+        });
+      }
+      sendResponse(error ? { success: false, code: "cloud-open", error: "无法打开独立设置页" } : { success: true });
+    });
+  }
+
+  function settingsCloudMessage(request, sender, sendResponse) {
+    const loginSync = request.action === "sync" && request.reason === "login";
+    const embedded = isCloudCardSender(sender);
+    if (sender?.id !== chrome.runtime.id || (!embedded && (sender.frameId !== 0
+      || !(isSettingsSender(sender) || (loginSync && isOnboardingSender(sender)))))) {
+      sendResponse({ success: false, code: "cloud-sender", error: "云同步操作来源无效" });
+      return;
+    }
+    if (request.action === "take-private-confirmation") {
+      const source = senderUrlObject(sender);
+      const id = request.requestId;
+      const entry = cloudConfirmations.get(id);
+      if (embedded || source?.protocol !== "chrome-extension:" || source.searchParams.get("cloudRequest") !== id) {
+        sendResponse({ success: false, code: "cloud-sender", error: "云同步确认请求来源无效" });
+        return;
+      }
+      cloudConfirmations.delete(id);
+      if (!entry || entry.expires <= Date.now()) {
+        sendResponse({ success: false, code: "stale-prompt", error: "云同步确认请求已失效" });
+        return;
+      }
+      const { expires, ...confirmation } = entry;
+      sendResponse({ success: true, confirmation });
+      return;
+    }
+    if (request.action === "open-private-settings") {
+      return openPrivateCloudSettings(request, embedded, sendResponse);
+    }
+    if (embedded && (!CLOUD_CARD_ACTIONS.includes(request.action) || request.reason !== "manual"
+      || Object.hasOwn(request, "settingsClosed"))) {
+      sendResponse({ success: false, code: "cloud-sender", error: "请在扩展独立页确认此操作" });
+      return;
+    }
+    // 保留登录与面板生命周期触发的后台同步。用户操作与冲突选择来自独立扩展页
+    const panelLifecycle = request.action === "sync" && (request.reason === "open-settings"
+      || (request.reason === "debounce" && request.settingsClosed === true));
+    if (!loginSync && !panelLifecycle && senderUrlObject(sender)?.protocol !== "chrome-extension:") {
+      sendResponse({ success: false, code: "cloud-sender", error: "请在扩展设置中心操作云同步" });
+      return;
+    }
+    if (request.action !== "authorize-webdav") {
+      return globalThis.STBackgroundSettingsSync.handleMessage(request, sender, sendResponse, { embedded });
+    }
+    const url = globalThis.STSettingsCloud.webdavDirectory(request.directory);
+    const pattern = globalThis.STAI.hostPermissionPattern(url.origin);
+    if (!pattern || !chrome.permissions?.request) {
+      sendResponse({ success: false, code: "webdav-permission", error: "WebDAV 站点授权不可用" });
+      return;
+    }
+    // 浏览器权限请求必须直接使用设置按钮传来的用户手势
+    requestOptionalSitePermission(pattern, (granted, error) => {
+      if (error) {
+        globalThis.STLoggerFactory.reportError(new Error(error.message), {
+          domain: "background", feature: "settings-cloud", event: "settings-cloud-webdav-permission-failed",
+          message: "申请 WebDAV 站点授权失败", operationId: request.operationId,
+        });
+      }
+      sendResponse(granted ? { success: true } : {
+        success: false, code: error ? "webdav-permission" : "webdav-permission-denied", error: "未获得 WebDAV 站点访问权限",
       });
     });
   }
@@ -4143,7 +4259,7 @@
       respond({ success: true });
     },
     [ONBOARDING_OPEN_SETTINGS_MESSAGE]: openOnboardingSettings,
-    SETTINGS_CLOUD_SYNC: globalThis.STBackgroundSettingsSync.handleMessage,
+    SETTINGS_CLOUD_SYNC: settingsCloudMessage,
     USER_NAMES_COMMIT: commitUserNames,
     AUTH_COMMIT: commitAuthMessage,
     LOG_APPEND(request, sender, sendResponse) {

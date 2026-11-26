@@ -1711,6 +1711,85 @@
           width: auto;
         }
 
+        .settings-cloud-card [hidden] { display: none; }
+        .settings-cloud-frame { min-width: 0; margin-bottom: 16px; }
+        .settings-cloud-frame > iframe { display: block; width: 100%; border: 0; }
+        .settings-cloud-frame [hidden] { display: none; }
+        .settings-cloud-frame > .settings-card { margin: 0; }
+        .settings-cloud-card .settings-label { overflow-wrap: anywhere; }
+        .settings-cloud-card > .settings-actions { flex-wrap: wrap; }
+        .cloud-dav-form .settings-control { box-sizing: border-box; min-width: 0; }
+        .settings-cloud-card .cloud-dav-actions {
+          flex-direction: row;
+          flex-wrap: wrap;
+          align-items: center;
+          border-bottom: 1px solid var(--st-color-white-alpha-03);
+        }
+        .cloud-dav-actions .dialog-btn { margin-inline-start: auto; }
+        .cloud-dav-feedback { margin: 0; min-width: 0; font-size: var(--st-font-size-body-small); overflow-wrap: anywhere; }
+        .cloud-dav-feedback:not(:empty) { flex: 1 1 12em; }
+        .cloud-dav-feedback[data-tone="error"] { color: var(--st-color-danger-text); }
+        .cloud-dav-feedback[data-tone="success"] { color: var(--st-color-success); }
+        .cloud-dav-field { display: grid; gap: 4px; }
+        .cloud-dav-field[hidden] { display: none; }
+        .cloud-dav-status { margin: 0; font-size: 13px; color: var(--st-dialog-text-color); }
+        .cloud-dav-status:empty { display: none; }
+        .cloud-vault-dialog .settings-dialog-message,
+        .cloud-device-dialog .settings-dialog-message { display: grid; gap: 12px; }
+        .cloud-vault-dialog .settings-control { box-sizing: border-box; min-width: 0; width: 100%; }
+        .cloud-vault-dialog textarea { resize: vertical; }
+        .cloud-vault-menu,
+        .cloud-restore-choice .settings-dialog-actions {
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(min(100%, 172px), 1fr));
+          gap: 8px;
+        }
+        .cloud-restore-choice .settings-dialog-message:empty { display: none; }
+        .cloud-restore-choice .settings-dialog-actions {
+          border-top: 0;
+          padding: 16px;
+        }
+        .cloud-device-dialog .settings-dialog-actions:empty { display: none; }
+        .cloud-device-note { margin: 0; }
+        .cloud-device-dialog .cloud-device-link {
+          justify-self: center;
+          border-color: transparent;
+          background: transparent;
+          color: var(--st-color-steam-blue);
+        }
+        .cloud-device-dialog .cloud-device-link:hover {
+          border-color: transparent;
+          background: transparent;
+          text-decoration: underline;
+        }
+        .cloud-device-dialog details > summary {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 8px;
+          min-height: 32px;
+          border-top: 1px solid var(--st-dialog-divider);
+          padding: 4px 2px 0;
+          list-style: none;
+          cursor: pointer;
+        }
+        .cloud-device-dialog summary::-webkit-details-marker { display: none; }
+        .cloud-device-dialog summary::after {
+          content: "";
+          width: 6px;
+          height: 6px;
+          margin-inline-end: 5px;
+          border: solid var(--st-dialog-muted-color);
+          border-width: 0 1px 1px 0;
+          transform: rotate(45deg);
+        }
+        .cloud-device-dialog details[open] > summary::after { transform: rotate(225deg); }
+        .cloud-device-dialog summary:focus-visible {
+          outline: 2px solid var(--st-color-steam-blue);
+          outline-offset: 2px;
+        }
+        .cloud-device-downloads { margin-top: 8px; }
+
         .control,
         .translate-value,
         .settings-value {

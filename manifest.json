@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "__MSG_extName__",
-  "version": "2.2.71",
+  "version": "2.2.72",
   "description": "__MSG_extDescription__",
   "default_locale": "zh_CN",
   "author": "Ricky",
@@ -237,6 +237,10 @@
     }
   ],
   "web_accessible_resources": [
+    {
+      "resources": ["settings/cloud-card.html"],
+      "matches": ["https://*.steampowered.com/*", "https://*.steamcommunity.com/*"]
+    },
     {
       "resources": ["ai/chat.html", "images/ai/avatar.png"],
       "matches": ["https://store.steampowered.com/*", "https://steamcommunity.com/*", "https://steamloopback.host/*"]

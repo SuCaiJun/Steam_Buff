@@ -363,7 +363,8 @@
     function refreshLocale(shadow) {
       if (renderedLocale === root.STI18n.locale()) return;
       const body = shadow.querySelector(".body");
-      const hasDraft = shadow.querySelector(".settings-dialog-layer") || (body && root.STSettingsFields.hasEdits(body));
+      const hasDraft = shadow.querySelector(".settings-dialog-layer") || (body && root.STSettingsFields.hasEdits(body))
+        || root.STSettingsCloudUi?.hasFrameDraft();
       if (hasDraft) {
         // 保留正在填写的表单；主内容在下一次正常渲染时使用新语言。
         syncChromeText(shadow);

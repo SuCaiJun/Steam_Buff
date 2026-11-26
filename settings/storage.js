@@ -32,12 +32,16 @@
   const UI_LOCALE_KEY = globalThis.STI18n?.STORAGE_KEY || api.catalog?.UI_LOCALE_KEY || "SETTING_UI_LOCALE";
   const AUTH_KEY = "steam_buff_auth";
   const MEMBERSHIP_KEY = globalThis.STSettingsMembership?.KEY || "steam_buff_membership";
-  // 退出登录必须同时切断设置云同步通道，避免下一账号沿用密钥和 revision
+  // 退出登录同时移除当前账号的备份目标、凭据和修订状态
   // 独立名称按账号分槽留在本地，退出时不删除
   const CLOUD_CHANNEL_KEYS = Object.freeze([
     "st.settings.cloud.enabled",
     "st.settings.cloud.secret",
     "st.settings.cloud.syncMeta",
+    "st.settings.cloud.channelV2",
+    "st.settings.cloud.metaV2",
+    "st.settings.cloud.channelV3",
+    "st.settings.cloud.metaV3",
   ]);
   const AUTH_CLEAR_KEYS = Object.freeze([AUTH_KEY, MEMBERSHIP_KEY, ...CLOUD_CHANNEL_KEYS]);
   const AI_SERVICE = "steam-buff.ai";
@@ -423,7 +427,8 @@
     });
   }
 
-  function put(data, diagnostics = {}) {
+  async function put(data, diagnostics = {}) {
+    if (diagnostics.beforeCloudWrite) await diagnostics.beforeCloudWrite();
     if (globalThis.STSettingsBus?.rawSet) {
       return globalThis.STSettingsBus.rawSet(data, {
         operationId: String(diagnostics?.operationId || ""),
@@ -587,13 +592,16 @@
   }
 
   // 一次读出令牌和会员 userId，认证请求绑定身份时不能拆成两次读取
-  async function getAuthIdentity() {
-    const rt = await get([AUTH_KEY, MEMBERSHIP_KEY]);
+  async function getAuthIdentity(options = {}) {
+    const rt = await get([AUTH_KEY, MEMBERSHIP_KEY], options);
     const auth = rt[AUTH_KEY] && typeof rt[AUTH_KEY] === "object" ? rt[AUTH_KEY] : null;
     const membership = rt[MEMBERSHIP_KEY] && typeof rt[MEMBERSHIP_KEY] === "object" ? rt[MEMBERSHIP_KEY] : null;
     return {
       auth,
       userId: String(membership?.userId || membership?.user?.id || "").trim(),
+      ...(options.withSettingsCloud === true && {
+        settingsCloud: normalizeMembership(membership, auth).permissions.settingsCloud === true,
+      }),
     };
   }
 
@@ -900,7 +908,7 @@
   }
 
   /** 三处关联配置在后台串行校验后一次写入，避免迁移或导入留下悬空引用 */
-  async function writeAiSettings({ ai, translate, workflow, familyFeature, familySettings, setupLocale, gameLinks, finishPendingConnection, toolCredentials, chatPromptId }, diagnostics = {}) {
+  async function writeAiSettings({ ai, translate, workflow, familyFeature, familySettings, setupLocale, gameLinks, finishPendingConnection, toolCredentials, chatPromptId, aiSearch }, diagnostics = {}) {
     const data = translate ? translatePatch(translate) : {};
     if (ai) {
       const model = globalThis.STAI;
@@ -925,6 +933,7 @@
     if (finishPendingConnection) data[globalThis.STAI.ONBOARDING_CONNECTION_KEY] = null;
     if (workflow) data[globalThis.STAutomation.KEY] = workflow;
     if (toolCredentials) data[globalThis.STAutomation.TOOL_CREDENTIALS_KEY] = toolCredentials;
+    if (aiSearch !== undefined) data[globalThis.STConfig.aiSearchKey] = globalThis.STAI.normalizeSearchSettings(aiSearch);
     if (chatPromptId !== undefined) data[globalThis.STConfig.aiChatPromptKey] = chatPromptId;
     if (setupLocale) data[SETUP_KEY] = setupLocale;
     if (gameLinks) data[GAME_LINKS_KEY] = gameLinks;

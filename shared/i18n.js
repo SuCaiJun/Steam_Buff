@@ -308,6 +308,7 @@
     const next = normalizeLocale(value);
     const operationId = String(diagnostics?.operationId || "");
     await Promise.all([load(DEFAULT_LOCALE), load(next)]);
+    if (diagnostics.beforeCloudWrite) await diagnostics.beforeCloudWrite();
     const ok = await put({ [STORAGE_KEY]: next }, { ...diagnostics, operationId });
     if (ok === false) {
       log.warn("i18n-locale-save-failed", "界面语言保存失败", {

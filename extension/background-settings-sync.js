@@ -16,1038 +16,745 @@
     return;
   }
 
-  const CFG = root.STConfig;
-  const TYPE = "SETTINGS_CLOUD_SYNC";
-  const PROMPT_TYPE = "SETTINGS_CLOUD_PROMPT";
+  const cloud = root.STSettingsCloud;
+  const config = root.STConfig;
+  const vault = root.STSettingsVault;
+  const data = root.STSettingsCloudData;
+  const remotes = root.STSettingsCloudRemotes;
   const ALARM = "steam-buff-settings-cloud";
   const JITTER_ALARM = "steam-buff-settings-cloud-jitter";
   const PERIOD_MIN = 5;
   const JITTER_MAX_MS = 20 * 1000;
-  const DEBOUNCE_MS = 45 * 1000;
-  const FETCH_TIMEOUT_MS = 15 * 1000;
   const MIN_ALARM_GAP_MS = 4 * 60 * 1000;
-  const UPLOAD_PASSES = 8;
-  const PROMPT_FILES = Object.freeze([
-    "shared/styles/theme.js",
-    "shared/utils/dom.js",
-    "shared/styles/components.js",
-    "shared/dialog-lifecycle.js",
-    "settings/settings-cloud-prompt.js",
-  ]);
+  const DEBOUNCE_MS = 45 * 1000;
+  const PROMPT_FILES = [
+    "shared/styles/theme.js", "shared/utils/dom.js", "shared/styles/components.js",
+    "shared/dialog-lifecycle.js", "settings/settings-cloud-prompt.js",
+  ];
   const log = root.STLoggerFactory.createLogger("background", "settings-cloud");
+  const storage = root.STSettings.storage;
 
-  let inflight = null;
-  let queued = null;
+  let operations = Promise.resolve();
+  let metaWrites = Promise.resolve();
+  let waiting = 0;
+  let editClock = 0;
+  let migrated = false;
   let debounceTimer = 0;
   let settingsOpen = 0;
-  let authClient = null;
-  const sessionPrompted = new Set();
+  let lastPrompt = "";
 
-  function cloud() {
-    return root.STSettingsCloud || root.STSettings?.cloud;
+  function auto(input) {
+    return ["alarm", "debounce", "startup", "login"].includes(input.reason);
   }
 
-  function storage() {
-    return root.STSettings?.storage || null;
+  function serialMeta(task) {
+    const next = metaWrites.then(task, task);
+    metaWrites = next;
+    return next;
   }
 
-  function getAuthClient() {
-    if (!authClient) {
-      authClient = root.STAuthClient?.createClient?.({
-        storage: storage(),
-        refreshUrl: CFG.loginAuth("/auth/refresh"),
-      }) || null;
+  async function identity() {
+    const value = await storage.getAuthIdentity({ strict: true, withSettingsCloud: true });
+    return { ...value, sessionKey: root.STAuthSession.authKey(value.auth) };
+  }
+
+  async function context(input, { allowDisabled = false, requirePermission = true } = {}) {
+    const who = await identity();
+    if (!who.sessionKey || !who.userId) {
+      if (input.action === "sync" && input.reason !== "manual") return null;
+      throw cloud.error("login-required", "请先在设置中登录");
     }
-    return authClient;
+    const stored = await cloud.readChannel({ credentials: true });
+    const session = await root.STAuthSession.fingerprint(who.auth);
+    const channel = stored.channel?.userId === who.userId && stored.channel.session === session ? stored.channel : null;
+    const expectedId = stored.channel?.id ?? null;
+    if (Object.hasOwn(input, "expectedSession") && input.expectedSession !== session) {
+      throw cloud.error("owner-changed", "登录账号已变化，请重新操作");
+    }
+    if (Object.hasOwn(input, "channelId") && input.channelId !== (channel?.id ?? null)) {
+      throw cloud.error("channel-changed", "备份位置已变化，请重新操作");
+    }
+    if (!allowDisabled && (!channel?.enabled || !who.settingsCloud)) {
+      if (input.action === "sync" && input.reason !== "manual") return null;
+      throw cloud.error("unavailable", "请先开启云同步并确认当前权益");
+    }
+    if (requirePermission && !who.settingsCloud) {
+      throw cloud.error("no-entitlement", "当前权益不包含设置云同步");
+    }
+    const ctx = {
+      channel, session, userId: who.userId, sessionKey: who.sessionKey, operationId: input.operationId,
+      async check() {
+        const [{ channel: actual, meta }, current] = await Promise.all([cloud.readChannel(), identity()]);
+        if (current.sessionKey !== who.sessionKey || current.userId !== who.userId) {
+          throw cloud.error("owner-changed", "登录账号已变化，请重新操作");
+        }
+        if (requirePermission && !current.settingsCloud) {
+          throw cloud.error("no-entitlement", "当前权益不包含设置云同步");
+        }
+        if ((actual?.id ?? null) !== expectedId) {
+          throw cloud.error("channel-changed", "备份位置已变化，请重新操作");
+        }
+        return channel ? meta : cloud.emptyMeta();
+      },
+    };
+    await ctx.check();
+    return ctx;
   }
 
-  function opId(value) {
-    const text = String(value || "").trim();
-    if (text) {
-      return text;
-    }
-    return root.STLoggerFactory?.createOperationId?.() || "";
-  }
-
-  function details(operationId, extra = {}) {
-    const out = { ...extra };
-    if (operationId) {
-      out.operationId = operationId;
-    }
-    return out;
-  }
-
-  async function readyAuth(operationId, userId) {
-    const client = getAuthClient();
-    if (!client) {
-      return null;
-    }
-    return client.readyAuth({
-      operationId,
-      ownerId: String(userId || ""),
+  function changeMeta(ctx, update) {
+    return serialMeta(async () => {
+      const meta = await ctx.check();
+      const next = update(meta);
+      await cloud.saveMeta(ctx.channel.id, next);
+      return next;
     });
   }
 
-  async function currentUserId() {
-    const membership = await storage()?.getMembership?.();
-    return String(membership?.userId || "").trim();
+  function commitChannel(ctx, update) {
+    return serialMeta(async () => {
+      await ctx.check();
+      const channel = { ...update, id: root.crypto.randomUUID(), userId: ctx.userId, session: ctx.session };
+      await cloud.saveChannel(channel);
+      lastPrompt = "";
+      return channel;
+    });
   }
 
-  async function sameAccount(userId) {
-    const current = await currentUserId();
-    return !!userId && current === userId;
+  function requestRemote(ctx) {
+    if (ctx.channel.provider === "official") return remotes.official(ctx);
+    if (ctx.channel.dav) return remotes.webdav(ctx, ctx.channel.dav);
+    throw cloud.error("webdav-config", "请先测试并保存 WebDAV 连接");
   }
 
-  function logOwnerChanged(operationId, reason) {
-    log.warn("settings-cloud-owner-changed", "设置云同步时账号已切换，已停止", details(operationId, { reason }));
+  function selectedBackup(ctx) {
+    return ctx.channel ? ctx : { ...ctx, channel: { provider: "official" } };
   }
 
-  function ownerStop(error, operationId, reason) {
-    if (error?.code !== "owner-changed") {
-      return null;
+  function shouldUpgrade(remote) {
+    return remote.exists && (remote.requiresUpgrade === true
+      || cloud.compareVersion(cloud.localVersion(), remote.extensionVersion) < 0);
+  }
+
+  function sameRemote(left, right) {
+    return left.revision === right.revision && left.payloadHash === right.payloadHash
+      && left.extensionVersion === right.extensionVersion;
+  }
+
+  function checked(patch = {}) {
+    return { lastCheckedAt: Date.now(), lastError: "", ...patch };
+  }
+
+  async function synced(ctx, remote, atEdit, action) {
+    const meta = await changeMeta(ctx, current => ({
+      ...current, ...checked(),
+      revision: remote.revision, payloadHash: remote.payloadHash, extensionVersion: remote.extensionVersion,
+      dirty: editClock !== atEdit, lastSyncedAt: Date.now(), conflict: null, pending: null,
+    }));
+    if (action !== "unchanged") {
+      log.info(action === "upload" ? "settings-cloud-upload-success" : "settings-cloud-download-success",
+        action === "upload" ? "已写入远端设置备份" : "已恢复远端设置备份",
+        { operationId: ctx.operationId, provider: ctx.channel.provider, payloadBytes: remote.payloadBytes, pending: meta.dirty });
     }
-    logOwnerChanged(operationId, reason);
-    return { success: false, reason: "account-changed" };
+    return { success: true, action, pending: meta.dirty };
   }
 
-  // 使用云端、使用本机只接受已保存密钥。另一串不能从这两条路径上传或删除云端
-  function lockedSecret(saved, requested) {
-    const stored = String(saved || "").trim();
-    const typed = String(requested || "").trim();
-    if (stored && typed && typed !== stored) {
-      return null;
+  function tabsCall(invoke) {
+    return new Promise((resolve, reject) => {
+      invoke(value => {
+        if (root.chrome.runtime.lastError) reject(new Error(root.chrome.runtime.lastError.message));
+        else resolve(value);
+      });
+    });
+  }
+
+  function settingsTab(tab) {
+    return String(tab.url || "").split(/[?#]/, 1)[0] === root.chrome.runtime.getURL("settings/center.html");
+  }
+
+  // 手动操作由发起它的设置窗口显示回执；后台继续沿用商店/社区的冲突通知范围
+  async function notifyPrompt(payload, key, operationId) {
+    if (lastPrompt === key || !root.chrome.tabs?.query) return;
+    try {
+      const tabs = await tabsCall(done => root.chrome.tabs.query({ url: [
+        root.chrome.runtime.getURL("settings/center.html"), "https://store.steampowered.com/*",
+        "https://checkout.steampowered.com/*", "https://steamcommunity.com/*", "https://*.steamcommunity.com/*",
+      ] }, done));
+      const candidates = tabs.filter(tab => Number.isInteger(tab.id) && tab.id >= 0);
+      const target = candidates.find(settingsTab) || candidates.find(tab => tab.active) || candidates[0];
+      if (!target) return;
+      const privateTab = settingsTab(target);
+      if (!privateTab) {
+        await tabsCall(done => root.chrome.scripting.executeScript({ target: { tabId: target.id }, files: PROMPT_FILES }, done));
+      }
+      const message = privateTab ? payload : { kind: payload.kind };
+      await tabsCall(done => root.chrome.tabs.sendMessage(target.id, { type: "SETTINGS_CLOUD_PROMPT", ...message }, done));
+      lastPrompt = key;
+    } catch (error) {
+      // 备份状态已保存，打开设置仍可处理。页面关闭只影响当次投递
+      log.warn("settings-cloud-prompt-delivery-failed", "云同步提示投递失败", { error, operationId });
     }
-    return stored;
   }
 
-  function rejectSecretMismatch(operationId, reason, stage) {
-    const verify = stage === "verify";
-    log.warn("settings-cloud-secret-rejected", verify
-      ? "候选密钥无法解密已有云端设置，已拒绝"
-      : "同步密钥与已保存密钥不一致，已拒绝", details(operationId, { reason, stage }));
-    return { success: false, error: "密钥错误", code: "secret-mismatch" };
-  }
-
-  async function reportCheckFailure(error, operationId, reason) {
-    const status = Number(error?.status) || 0;
-    await markChecked({ lastError: error.message || "检查云端设置失败" });
-    if (status === 403) {
-      log.error("settings-cloud-forbidden", "当前权益不包含设置云同步", details(operationId, { reason, error }));
-    } else if (status === 401) {
-      log.warn("settings-cloud-unauthorized", "设置云同步登录已失效", details(operationId, { reason, error }));
-    } else {
-      log.error("settings-cloud-check-failed", "检查云端设置失败", details(operationId, { reason, error }));
+  async function conflict(ctx, remote, input, { notify = false } = {}) {
+    if (!remote.exists) {
+      await changeMeta(ctx, meta => ({ ...meta, ...checked(), conflict: "remote-deleted", pending: null }));
+      return { success: true, action: "remote-deleted" };
     }
-    return { success: false, error: error.message || "检查云端设置失败" };
+    const upgrade = shouldUpgrade(remote);
+    const kind = upgrade ? "upgrade" : "conflict";
+    const saved = await changeMeta(ctx, meta => {
+      const sameDecision = meta.pending && meta.pending.editSeq === meta.editSeq && sameRemote(meta.pending, remote);
+      const pending = upgrade ? null : (sameDecision ? meta.pending : {
+        ticket: root.crypto.randomUUID(), revision: remote.revision,
+        payloadHash: remote.payloadHash, extensionVersion: remote.extensionVersion, editSeq: meta.editSeq,
+      });
+      return { ...meta, ...checked(), conflict: upgrade ? "upgrade" : "data", pending };
+    });
+    const prompt = { kind, ticket: saved.pending?.ticket, channelId: ctx.channel.id };
+    if ((notify || upgrade || input.reason === "login") && auto(input) && !input.settingsClosed) {
+      await notifyPrompt(prompt, prompt.ticket || ctx.channel.id + ":upgrade:" + remote.extensionVersion, ctx.operationId);
+    }
+    return { success: true, action: kind, prompt };
   }
 
-  function asMeta(body) {
-    const src = body && typeof body === "object" ? body : {};
-    return {
-      exists: src.exists === true,
-      revision: Number(src.revision) || 0,
-      payloadHash: String(src.payloadHash || ""),
-      extensionVersion: String(src.extensionVersion || ""),
-      updatedAt: String(src.updatedAt || ""),
-      payloadBytes: Number(src.payloadBytes) || 0,
-      alg: String(src.alg || ""),
-      ciphertext: typeof src.ciphertext === "string" ? src.ciphertext : "",
+  function beforeWrite(ctx, atEdit) {
+    return async () => {
+      await ctx.check();
+      if (editClock !== atEdit) throw cloud.error("local-changed", "云同步期间本机数据已变化");
     };
   }
 
-  // userId 是这次操作开始时的账号，令牌必须和这个账号在同一次身份读取里对上，401 刷新也沿用该约束
-  async function api(method, url, body, operationId, userId) {
-    const client = getAuthClient();
-    const ownerId = String(userId || "").trim();
-    if (!client || !ownerId) {
-      const error = new Error("请先在设置中登录");
-      error.status = 401;
-      throw error;
+  async function readVault(ctx, adapter, remote, device, recovery = false) {
+    const body = remote.bundle ? remote : await adapter.read();
+    if (!sameRemote(body, remote) || !body.exists || shouldUpgrade(body)) {
+      throw Object.assign(cloud.error("remote-changed", "读取时远端备份已变化"), { remote: body });
     }
-    const result = await client.authedRequest(url, {
-      method,
-      body,
-      operationId,
-      ownerId,
-      timeoutMs: FETCH_TIMEOUT_MS,
-      throwOnMissingAuth: true,
-      logFailures: false,
-      lenientJson: true,
-      touchAuth: false,
+    const { document, payload } = vault.decodeDocument(body.bundle);
+    if (body.bundle.extensionVersion !== body.extensionVersion || payload.length !== body.payloadBytes || await cloud.hash(payload) !== body.payloadHash)
+      throw vault.invalid();
+    return vault.openRemote(ctx, document, device, recovery);
+  }
+
+  async function publish(ctx, adapter, prior, header, content, device, atEdit) {
+    const next = { ...header, sequence: header.sequence + 1 };
+    const document = await vault.seal(next, content);
+    const bundle = vault.encodeDocument(document);
+    const digest = await cloud.hash(vault.decodeDocument(bundle).payload);
+    const opened = await vault.open(document, { ...device, vaultId: next.vaultId, rootKey: next.rootKey }, ctx.userId);
+    await beforeWrite(ctx, atEdit)();
+    const saved = await adapter.put(prior.revision, bundle, () => editClock === atEdit);
+    if (saved.payloadHash !== digest || saved.extensionVersion !== bundle.extensionVersion) throw vault.invalid();
+    return { saved, opened };
+  }
+
+  async function cached(ctx, device) {
+    // 本机缓存是上次实际应用的内容，版本比较仍以当前远端验签为准
+    return device.document ? vault.open(device.document, { ...device, seen: undefined }, ctx.userId) : null;
+  }
+
+  async function applySettings(ctx, checkedSettings, guard) {
+    const ok = await root.STSettings.panelSnapshot.write(checkedSettings.panel, {
+      reason: "settings-cloud-apply", operationId: ctx.operationId, beforeCloudWrite: guard, reportSections: true,
+      cloudCredentials: checkedSettings.credentials,
     });
-    if (result.code >= 400) {
-      const error = new Error(String(result.body?.message || `HTTP状态码错误: ${result.code}`));
-      error.status = result.code;
-      error.meta = asMeta(result.body);
+    if (ok !== true) throw cloud.error("apply-failed", "恢复设置没有完成");
+  }
+
+  async function writeChanges(ctx, adapter, remote, input, device, incoming, baseline) {
+    const atEdit = editClock;
+    const meta = await serialMeta(() => ctx.check());
+    const guard = beforeWrite(ctx, atEdit);
+    const selected = input.action === "use-local" || input.action === "use-cloud" ? input.action : "";
+    const preceding = baseline?.data.settings;
+    const local = preceding && !meta.dirty && meta.revision !== null ? preceding : await data.captureSettings();
+    const received = incoming.data.settings;
+    const verified = await data.unpackSettings(received);
+    await vault.remember(ctx, device, incoming, false);
+    const localChanged = !data.settingsEqual(local, preceding ?? received);
+    const remoteChanged = !preceding || !data.settingsEqual(received, preceding);
+    const settingConflict = localChanged && remoteChanged && !data.settingsEqual(local, received);
+    if (settingConflict && !selected) return conflict(ctx, remote, input);
+    const useRemote = settingConflict ? selected === "use-cloud" : remoteChanged && !localChanged;
+    const settings = useRemote ? received : local;
+    const checkedSettings = useRemote && !data.settingsEqual(local, received) ? verified : null;
+    const store = root.STAchievementTranslationStore;
+    await store.claimCloud(ctx.userId, meta.revision === null);
+    const plan = await data.achievementPlan(adapter, incoming.header, baseline?.data.achievements ?? {}, incoming.data.achievements, selected, guard);
+    if (plan.conflict && !selected) return conflict(ctx, remote, input);
+    await guard();
+    let result = { saved: remote, opened: incoming };
+    const upload = !data.settingsEqual(settings, received) || plan.upload;
+    if (upload) {
+      const achievements = await data.publishAchievements(adapter, incoming.header, plan, () => editClock === atEdit);
+      result = await publish(ctx, adapter, remote, incoming.header, { ...incoming.data, settings, achievements }, device, atEdit);
+    }
+    if (upload && !checkedSettings && !plan.changes.length) {
+      // 上传完成后收到的本机修改保留为待上传状态。这里没有需要回写的本机业务数据
+      await vault.remember(ctx, device, result.opened);
+      return synced(ctx, result.saved, atEdit, "upload");
+    }
+    if (checkedSettings || plan.changes.length) {
+      await guard();
+      // 中途失败时保留冲突状态，避免下一轮把只恢复了一部分的本机数据误当作完整设置上传
+      await changeMeta(ctx, current => ({ ...current, conflict: "applying", pending: null }));
+      if (checkedSettings) await applySettings(ctx, checkedSettings, guard);
+      await guard();
+      await store.cloudApply(ctx.userId, plan.changes);
+    }
+    await guard();
+    await vault.remember(ctx, device, result.opened);
+    return synced(ctx, result.saved, atEdit, upload ? "upload" : (checkedSettings || plan.changes.length ? "download" : "unchanged"));
+  }
+
+  async function startVault(ctx, adapter, remote, device, input) {
+    const atEdit = editClock;
+    const store = root.STAchievementTranslationStore;
+    const document = device.latest ?? device.document;
+    const previous = document ? await vault.openRemote(ctx, document, device) : null;
+    await store.claimCloud(ctx.userId, true);
+    const baseline = await cached(ctx, device);
+    const initial = previous ?? await vault.create(ctx, device);
+    const guard = beforeWrite(ctx, atEdit);
+    const settings = await data.captureSettings();
+    const plan = await data.achievementPlan(adapter, initial.header, baseline?.data.achievements ?? {}, initial.data.achievements ?? {}, "use-local", guard);
+    const achievements = await data.publishAchievements(adapter, initial.header, plan, () => editClock === atEdit);
+    const result = await publish(ctx, adapter, remote, initial.header, { ...initial.data, settings, achievements }, device, atEdit);
+    // 先保留新身份。即使后面的本地回执失败，本机也能再次解开已发布的备份
+    await vault.remember(ctx, initial.recovery ? { ...device, pendingRecovery: initial.recovery } : device, result.opened);
+    await guard();
+    await store.cloudApply(ctx.userId, plan.changes);
+    const status = await synced(ctx, result.saved, atEdit, "upload");
+    if (input.action !== "enable" || !initial.recovery) return status;
+    const recovery = input.embedded ? { pendingRecoveryId: initial.recovery.kid } : { recovery: initial.recovery };
+    return { ...status, ...recovery, channelId: ctx.channel.id };
+  }
+
+  async function sync(ctx, adapter, input) {
+    const atEdit = editClock;
+    const meta = await serialMeta(() => ctx.check());
+    const known = meta.revision === null ? null : {
+      revision: meta.revision, payloadHash: meta.payloadHash, extensionVersion: meta.extensionVersion,
+    };
+    const remote = await adapter.check(known);
+    if (!remote.exists) {
+      if (input.action !== "enable" && !(await vault.readDevice(ctx))?.draft) return conflict(ctx, remote, input);
+      return startVault(ctx, adapter, remote, await vault.newDevice(ctx), input);
+    }
+    if (shouldUpgrade(remote) || ["data", "applying"].includes(meta.conflict)) return conflict(ctx, remote, input);
+    const device = await vault.readDevice(ctx);
+    if (!device) throw cloud.error("vault-device", "请先生成配对请求并在已授权设备确认");
+    if (!meta.dirty && editClock === atEdit && device.document && known && sameRemote(known, remote)
+      && !(await root.STAchievementTranslationStore.cloudPending(ctx.userId)).size) {
+      return synced(ctx, remote, atEdit, "unchanged");
+    }
+    const incoming = await readVault(ctx, adapter, remote, device);
+    return writeChanges(ctx, adapter, remote, input, device, incoming, await cached(ctx, device));
+  }
+
+  async function resolve(ctx, adapter, input) {
+    await metaWrites;
+    const { pending } = await ctx.check();
+    if (!pending || input.ticket !== pending.ticket) {
+      throw cloud.error("stale-prompt", "同步提示已失效，请重新同步");
+    }
+    const remote = await adapter.check();
+    await metaWrites;
+    if (!sameRemote(pending, remote) || !remote.exists || shouldUpgrade(remote)
+      || (await ctx.check()).editSeq !== pending.editSeq || editClock !== input.atEdit) {
+      return conflict(ctx, remote, input);
+    }
+    const device = await vault.readDevice(ctx);
+    if (!device) throw cloud.error("vault-device", "请先生成配对请求并在已授权设备确认");
+    const incoming = await readVault(ctx, adapter, remote, device);
+    await beforeWrite(ctx, input.atEdit)();
+    return writeChanges(ctx, adapter, remote, input, device, incoming, await cached(ctx, device));
+  }
+
+  async function pairApproved(ctx, adapter, remote, device) {
+    if (!device?.request || device.vaultId) return false;
+    try {
+      await readVault(ctx, adapter, remote, device);
+      return true;
+    } catch (error) {
+      if (error?.code === "vault-device" || error?.code === "vault-pair") return false;
       throw error;
     }
-    return asMeta(result.body);
   }
 
-  function promptAllowed(urlText) {
+  // 只读取当前备份位置的状态，恢复文件继续通过原有下载操作交付
+  async function deviceStatus(ctx) {
+    const target = selectedBackup(ctx);
+    const device = await vault.readDevice(target);
+    const pendingRecoveryId = device?.pendingRecovery?.kid ?? null;
     try {
-      const url = new URL(String(urlText || ""));
-      if (url.protocol === "chrome-extension:" && url.pathname.endsWith("/settings/center.html")) {
-        return true;
+      const adapter = requestRemote(target);
+      if (target.channel.provider === "webdav") await remotes.verifyEntitlement(ctx);
+      const remote = await adapter.check();
+      if (shouldUpgrade(remote)) throw cloud.error("vault-upgrade", "云端设置来自更高版本扩展");
+      let deviceState = "empty";
+      if (remote.exists) {
+        deviceState = device?.vaultId ? "authorized" : await pairApproved(target, adapter, remote, device) ? "approved" : "unpaired";
       }
-      const host = url.hostname;
-      const match = CFG.matchers;
-      if (match.isSteamStoreHost(host) || match.isSteamCheckoutHost(host)) {
-        return true;
+      return { success: true, action: "device-status", deviceState, pendingRecoveryId };
+    } catch (cause) {
+      if (!pendingRecoveryId || ["owner-changed", "channel-changed", "no-entitlement"].includes(cause?.code)) throw cause;
+      await ctx.check();
+      throw Object.assign(new Error("读取设备管理状态失败", { cause }), {
+        name: cause?.name, code: cause?.code, status: cause?.status, pendingRecoveryId,
+      });
+    }
+  }
+
+  async function manageDevice(ctx, adapter, input) {
+    const { action } = input;
+    const atEdit = editClock;
+    const remote = await adapter.check();
+    if (!remote.exists) throw cloud.error("vault-missing", "当前备份位置没有可用的加密备份");
+    if (shouldUpgrade(remote)) return conflict(ctx, remote, input);
+    if (action === "pair-request") {
+      const device = await vault.readDevice(ctx);
+      if (device?.draft) {
+        try {
+          const opened = await readVault(ctx, adapter, remote, device);
+          await vault.remember(ctx, device, opened, false);
+          if (opened.header.vaultId === device.draft.header.vaultId)
+            return { success: true, action, recovery: device.draft.recovery, channelId: ctx.channel.id };
+          throw cloud.error("vault-authorized", "当前浏览器已经获得授权");
+        } catch (error) {
+          if (!["vault-device", "vault-pair"].includes(error.code)) throw error;
+        }
       }
-      return match.isSteamCommunityHost(host) || match.isSteamCommunityLikeHost(host);
+      if (await pairApproved(ctx, adapter, remote, device)) return { success: true, action, pairingApproved: true };
+      // 在有效期内再次打开时沿用同一请求，避免覆盖另一端正在确认的凭据
+      if (!device?.vaultId && device?.request?.expires > Date.now()) return { success: true, action, pair: device.request };
+      const pair = await vault.pairRequest(ctx);
+      return { success: true, action, pair };
+    }
+    const device = await (action === "recover-device" ? vault.newDevice(ctx) : vault.readDevice(ctx));
+    if (action !== "recover-device" && !device?.vaultId)
+      throw cloud.error("vault-device", "请先用已授权设备确认配对");
+    if (action === "recover-device" && input.recovery?.owner !== ctx.userId)
+      throw cloud.error("owner-changed", "所选恢复文件属于其他账号");
+    const recoveryDevice = action === "recover-device" ? await vault.recoveryDevice(input.recovery) : null;
+    const incoming = await readVault(ctx, adapter, remote, recoveryDevice ? { ...recoveryDevice, seen: device.seen } : device, !!recoveryDevice);
+    if (device.vaultId && device.vaultId !== incoming.header.vaultId) throw vault.invalid();
+    if (action === "export-archive") return { success: true, action, archive: await data.exportArchive(adapter, incoming) };
+
+    let members = incoming.data.members;
+    let recovery;
+    if (action === "approve-device") {
+      const member = await vault.parsePair(input.pair, ctx.userId);
+      const old = members[input.pair.kid];
+      if (input.pair.kid === device.id || old?.recovery) throw vault.invalid();
+      if (old?.proof === member.proof) return { success: true, action };
+      members = { ...members, [input.pair.kid]: member };
+    } else if (action === "new-recovery") {
+      const added = await vault.recoveryRecipient(incoming.header, members);
+      members = added.members;
+      recovery = added.file;
+    } else {
+      members = { ...members, [device.id]: { key: device.publicKey } };
+      await vault.remember(ctx, device, incoming, false);
+    }
+    const result = await publish(ctx, adapter, remote, incoming.header, { ...incoming.data, members }, device, atEdit);
+    await vault.remember(ctx, recovery ? { ...device, pendingRecovery: recovery } : device, result.opened, false);
+    return { success: true, action, ...(recovery && { recovery, channelId: ctx.channel.id }) };
+  }
+
+  function restoreGuard(owner, sessionKey, atEdit) {
+    return async () => {
+      const current = await identity();
+      if ((current.userId && current.userId !== owner) || current.sessionKey !== sessionKey)
+        throw cloud.error("owner-changed", "恢复文件属于其他账号，或登录状态已变化");
+      if (editClock !== atEdit) throw cloud.error("local-changed", "恢复期间本机数据已变化");
+    };
+  }
+
+  async function applyRestore(input, reader, opened, guard, source) {
+    await guard();
+    const settings = await data.unpackSettings(opened.data.settings);
+    const store = root.STAchievementTranslationStore;
+    const plan = await data.achievementPlan(reader, opened.header, {}, opened.data.achievements, "use-cloud", guard);
+    await guard();
+    if (source) await vault.rememberRestore(source, opened);
+    const channel = source ? source.channel : (await cloud.readChannel()).channel;
+    if (channel?.enabled) {
+      const ctx = source ?? await context({ ...input, channelId: channel.id }, { allowDisabled: true, requirePermission: false });
+      await commitChannel(ctx, { ...ctx.channel, enabled: false });
+    }
+    await guard();
+    try {
+      await applySettings(input, settings, guard);
+    } catch (cause) {
+      const code = cause?.savedSections?.length ? "restore-settings-partial" : "restore-settings-interrupted";
+      throw Object.assign(new Error("本机设置恢复中断", { cause }), { code });
+    }
+    try {
+      await guard();
+      await store.cloudApply(opened.header.owner, plan.changes, { claim: true });
+    } catch (cause) {
+      throw Object.assign(new Error("本机设置已恢复，成就译文恢复中断", { cause }), { code: "restore-achievements-interrupted" });
+    }
+    return { success: true, action: input.action };
+  }
+
+  async function restoreArchive(input) {
+    const started = await identity();
+    if (Object.hasOwn(input, "expectedSession")) {
+      const session = started.sessionKey ? await root.STAuthSession.fingerprint(started.auth) : "";
+      if (session !== input.expectedSession) throw cloud.error("owner-changed", "登录状态已变化，请重新打开恢复备份");
+    }
+    const reader = data.archiveReader(input.archive);
+    const { document } = input.archive;
+    const fromFile = input.recovery !== undefined;
+    const { owner, device } = fromFile
+      ? { owner: input.recovery?.owner, device: await vault.recoveryDevice(input.recovery) }
+      : await vault.findArchiveDevice(document, started.userId);
+    const guard = restoreGuard(owner, started.sessionKey, input.atEdit);
+    await guard();
+    if (!device) return { success: false, code: "vault-recovery-required" };
+    // 手动选取的离线文件可以是较旧的备份。仍须验签，并且不清除已记录的云端版本。
+    const opened = await vault.open(document, { ...device, seen: undefined }, owner, fromFile);
+    return applyRestore(input, reader, opened, guard);
+  }
+
+  async function restoreRemote(ctx, input) {
+    const guard = restoreGuard(ctx.userId, ctx.sessionKey, input.atEdit);
+    if (input.recovery?.owner !== ctx.userId) throw cloud.error("owner-changed", "恢复文件属于其他账号");
+    const recovery = await vault.recoveryDevice(input.recovery);
+    const target = selectedBackup(ctx);
+    const adapter = requestRemote(target);
+    if (target.channel.provider === "webdav") await remotes.verifyEntitlement(ctx);
+    const remote = await adapter.check();
+    if (!remote.exists) throw cloud.error("vault-missing", "所选位置没有可用的加密备份");
+    if (shouldUpgrade(remote)) throw cloud.error("vault-upgrade", "云端设置来自更高版本扩展");
+    const device = await vault.readDevice(target);
+    if (device?.vaultId && (device.vaultId !== recovery.vaultId || cloud.canonical(device.rootKey) !== cloud.canonical(recovery.rootKey)))
+      throw vault.invalid();
+    const opened = await readVault(target, adapter, remote, { ...recovery, seen: device?.seen }, true);
+    return applyRestore(input, adapter, opened, guard, target);
+  }
+
+  async function deleteBackup(ctx, adapter, input) {
+    const remote = await adapter.check();
+    if (remote.exists) await adapter.remove(remote.revision);
+    try {
+      await commitChannel(ctx, { provider: ctx.channel.provider, dav: ctx.channel.dav ?? null, enabled: false });
+    } catch (cause) {
+      throw Object.assign(new Error("远端备份已删除，本机同步状态更新失败", { cause }),
+        { code: "delete-partial", cloudCleared: true });
+    }
+    log.info("settings-cloud-delete-success", "已删除远端备份", { operationId: input.operationId, provider: ctx.channel.provider });
+    return { success: true, action: "reset" };
+  }
+
+  async function synchronize(ctx, adapter, input) {
+    try {
+      if (input.action === "use-local" || input.action === "use-cloud") return await resolve(ctx, adapter, input);
+      return await sync(ctx, adapter, input);
     } catch (error) {
-      globalThis.STLoggerFactory.reportError(error, { domain: "extension", feature: "background-settings-sync", event: "prompt-allowed-failed", message: "扩展后台或桥接处理失败", level: "warn", phase: "promptAllowed" });
-      return false;
+      if (["remote-changed", "local-changed"].includes(error?.code)) {
+        const remote = error.remote ?? await adapter.check();
+        return conflict(ctx, remote, input, { notify: true });
+      }
+      throw error;
     }
   }
 
-  function isSettingsTab(tab) {
+  async function execute(input) {
+    let ctx, adapter;
+    let accessVerified = false;
     try {
-      const url = new URL(String(tab?.url || ""));
-      return url.protocol === "chrome-extension:" && url.pathname.endsWith("/settings/center.html");
-    } catch {
-      return false;
-    }
-  }
-
-  function queryPromptTabs() {
-    return new Promise((resolve) => {
-      try {
-        chrome.tabs.query({
-          url: [
-            chrome.runtime.getURL("settings/center.html"),
-            "https://store.steampowered.com/*",
-            "https://checkout.steampowered.com/*",
-            "https://steamcommunity.com/*",
-            "https://*.steamcommunity.com/*",
-          ],
-        }, (tabs) => {
-          if (chrome.runtime.lastError) {
-            resolve([]);
-            return;
+      if (!migrated) {
+        const removed = await cloud.removeLegacy();
+        migrated = true;
+        if (removed) log.info("settings-cloud-v1-cleared", "已清理本机旧版云同步状态", { operationId: input.operationId });
+      }
+      if (input.action === "migrate") return { success: true };
+      if (input.action === "restore-archive") return await restoreArchive(input);
+      ctx = await context(input, { allowDisabled: CONFIG_ACTIONS.includes(input.action), requirePermission: input.action !== "disable" });
+      if (!ctx) return { success: true, skipped: true, reason: "unavailable" };
+      if (input.action === "restore-remote") return await restoreRemote(ctx, input);
+      if (input.action === "device-status") return await deviceStatus(ctx);
+      if (input.action === "new-recovery" && Object.hasOwn(input, "recoveryId")) {
+        const recovery = (await vault.readDevice(selectedBackup(ctx)))?.pendingRecovery;
+        await ctx.check();
+        if (typeof input.recoveryId !== "string" || !recovery || input.recoveryId !== recovery.kid)
+          throw cloud.error("recovery-changed", "待保存的恢复文件已变化，请重新打开设备管理");
+        return { success: true, action: input.action, recovery, channelId: ctx.channel?.id ?? null };
+      }
+      if (input.action === "select-provider") {
+        if (!cloud.PROVIDERS.includes(input.provider)) throw cloud.error("provider-invalid", "请选择有效的备份位置");
+        if (ctx.channel?.provider !== input.provider) {
+          await commitChannel(ctx, { provider: input.provider, enabled: false, dav: ctx.channel?.dav ?? null });
+        }
+        return { success: true, action: input.action };
+      }
+      if (input.action === "disable") {
+        if (ctx.channel?.enabled) {
+          await commitChannel(ctx, { ...ctx.channel, enabled: false });
+          log.info("settings-cloud-disabled", "已关闭设置云同步", { operationId: input.operationId, provider: ctx.channel.provider });
+        }
+        return { success: true, action: input.action };
+      }
+      if (input.action === "configure-webdav") {
+        if (ctx.channel?.provider !== "webdav") throw cloud.error("channel-changed", "请先选择 WebDAV 作为备份位置");
+        const dav = cloud.webdavConfig(input.dav);
+        await remotes.verifyEntitlement(ctx);
+        await remotes.testWebdav(ctx, dav);
+        await commitChannel(ctx, { provider: "webdav", dav, enabled: false });
+        log.info("settings-cloud-webdav-configured", "WebDAV 连接测试通过并已保存", { operationId: input.operationId });
+        return { success: true, action: input.action };
+      }
+      if (input.action === "enable") {
+        if (ctx.channel?.enabled || input.consent !== true) throw cloud.error("consent-required", "请确认备份隐私说明后开启云同步");
+        const provider = ctx.channel?.provider || "official";
+        if (provider === "webdav" && !ctx.channel?.dav) throw cloud.error("webdav-config", "请先测试并保存 WebDAV 连接");
+        await remotes.verifyEntitlement(ctx);
+        accessVerified = true;
+        const enabled = await commitChannel(ctx, { provider, enabled: true, dav: ctx.channel?.dav ?? null });
+        ctx = await context({ ...input, channelId: enabled.id });
+        log.info("settings-cloud-enabled", "已开启设置云同步", { operationId: input.operationId, provider });
+      }
+      if (!ctx.channel && DEVICE_ACTIONS.includes(input.action)) {
+        const selected = await commitChannel(ctx, { provider: "official", enabled: false, dav: null });
+        ctx = await context({ ...input, channelId: selected.id }, { allowDisabled: true });
+      }
+      if (!ctx.channel) throw cloud.error("channel-invalid", "请先选择备份位置");
+      if (input.action === "recovery-saved") {
+        if (typeof input.recoveryId !== "string" || !cloud.HASH.test(input.recoveryId)) throw vault.invalid();
+        await vault.recoverySaved(ctx, input.recoveryId);
+        return { success: true, action: input.action };
+      }
+      if (input.action === "new-recovery") {
+        const device = await vault.readDevice(ctx);
+        if (device?.pendingRecovery) {
+          return { success: true, action: input.action, recovery: device.pendingRecovery, channelId: ctx.channel.id };
+        }
+      }
+      if (input.reason === "alarm" && input.action === "sync"
+        && Date.now() - (await ctx.check()).lastCheckedAt < MIN_ALARM_GAP_MS) {
+        return { success: true, skipped: true, reason: "interval" };
+      }
+      adapter = requestRemote(ctx);
+      if (ctx.channel.provider === "webdav" && !accessVerified) await remotes.verifyEntitlement(ctx);
+      if (input.action === "reset") return await deleteBackup(ctx, adapter, input);
+      if (DEVICE_ACTIONS.includes(input.action)) return await manageDevice(ctx, adapter, input);
+      return await synchronize(ctx, adapter, input);
+    } catch (error) {
+      const changed = ["owner-changed", "channel-changed", "no-entitlement"].includes(error?.code);
+      const code = error?.code ?? (error?.name === "TimeoutError" ? "timeout" : "sync-failed");
+      const status = Number.isInteger(error?.status) ? error.status : undefined;
+      const message = code === "sync-failed" ? "设置云同步失败，请稍后重试" : error.message;
+      if (ctx?.channel && adapter && !changed && !error?.cloudCleared) {
+        try {
+          await changeMeta(ctx, meta => ({ ...meta, ...checked({ lastError: { code, status } }) }));
+        } catch (statusError) {
+          if (!["owner-changed", "channel-changed", "no-entitlement"].includes(statusError.code)) {
+            log.warn("settings-cloud-status-save-failed", "云同步失败状态保存失败", { operationId: input.operationId, error: statusError });
           }
-          resolve((tabs || []).filter((tab) => promptAllowed(tab.url)));
-        });
-      } catch (error) {
-        globalThis.STLoggerFactory.reportError(error, { domain: "extension", feature: "background-settings-sync", event: "query-prompt-tabs-failed", message: "扩展后台或桥接处理失败", level: "warn", phase: "queryPromptTabs" });
-        resolve([]);
-      }
-    });
-  }
-
-  function execFiles(tabId, files) {
-    return new Promise((resolve) => {
-      try {
-        chrome.scripting.executeScript({
-          target: { tabId },
-          files,
-        }, () => {
-          resolve(!chrome.runtime.lastError);
-        });
-      } catch (error) {
-        globalThis.STLoggerFactory.reportError(error, { domain: "extension", feature: "background-settings-sync", event: "exec-files-failed", message: "扩展后台或桥接处理失败", level: "warn", phase: "execFiles" });
-        resolve(false);
-      }
-    });
-  }
-
-  function sendTab(tabId, payload) {
-    return new Promise((resolve) => {
-      try {
-        chrome.tabs.sendMessage(tabId, payload, () => {
-          resolve(!chrome.runtime.lastError);
-        });
-      } catch (error) {
-        globalThis.STLoggerFactory.reportError(error, { domain: "extension", feature: "background-settings-sync", event: "send-tab-failed", message: "扩展后台或桥接处理失败", level: "warn", phase: "sendTab" });
-        resolve(false);
-      }
-    });
-  }
-
-  function fingerprint(kind, payload) {
-    return `${kind}:${payload.reason || ""}:${payload.revision || 0}:${payload.payloadHash || ""}`;
-  }
-
-  async function notifyPrompt(kind, payload, options = {}) {
-    const force = options.force === true;
-    const key = fingerprint(kind, payload);
-    if (!force && sessionPrompted.has(key)) {
-      return false;
-    }
-    const tabs = await queryPromptTabs();
-    if (!tabs.length) {
-      return false;
-    }
-    const settingsTabs = tabs.filter(isSettingsTab);
-    const targets = settingsTabs.length ? settingsTabs : tabs;
-    let sent = false;
-    for (const tab of targets) {
-      if (!tab?.id) {
-        continue;
-      }
-      if (!isSettingsTab(tab)) {
-        await execFiles(tab.id, PROMPT_FILES);
-      }
-      if (await sendTab(tab.id, { type: PROMPT_TYPE, kind, ...payload })) {
-        sent = true;
-      }
-    }
-    if (sent) {
-      sessionPrompted.add(key);
-    }
-    return sent;
-  }
-
-  async function writeMeta(patch) {
-    const apiCloud = cloud();
-    const meta = await apiCloud.getMeta();
-    return apiCloud.setMeta({ ...meta, ...patch });
-  }
-
-  async function markChecked(patch = {}) {
-    return writeMeta({ lastCheckedAt: Date.now(), ...patch });
-  }
-
-  async function bindSyncedMeta(patch, userId) {
-    const apiCloud = cloud();
-    const meta = await apiCloud.getMeta();
-    return apiCloud.setMeta({
-      ...meta,
-      ...patch,
-      userId: String(userId || meta.userId || ""),
-    });
-  }
-
-  function downloadMayPrompt(reason) {
-    return reason === "open-settings" || reason === "manual" || reason === "resolve";
-  }
-
-  // 自动下载看到 dirty 就停。显式使用云端只接受确认时的 editSeq，确认后再加代次仍停
-  async function downloadGuard(userId, remote, operationId, reason, seq, acceptedSeq) {
-    if (!(await sameAccount(userId))) {
-      logOwnerChanged(operationId, reason);
-      return { ok: false, result: { success: false, reason: "account-changed" } };
-    }
-    const meta = await cloud().getMeta();
-    const pinned = Number.isInteger(acceptedSeq);
-    if (seq === undefined) {
-      if (pinned) {
-        if (meta.editSeq !== acceptedSeq) {
-          return {
-            ok: false,
-            result: await promptConflict("both-dirty", remote, operationId, downloadMayPrompt(reason)),
-          };
-        }
-        return { ok: true, seq: meta.editSeq };
-      }
-      if (meta.dirty === true) {
-        return {
-          ok: false,
-          result: await promptConflict("both-dirty", remote, operationId, downloadMayPrompt(reason)),
-        };
-      }
-      return { ok: true, seq: meta.editSeq };
-    }
-    if (meta.editSeq !== seq || (!pinned && meta.dirty === true)) {
-      return {
-        ok: false,
-        result: await promptConflict("both-dirty", remote, operationId, downloadMayPrompt(reason)),
-      };
-    }
-    return { ok: true, seq };
-  }
-
-  async function download(secret, remote, operationId, reason, userId, acceptedSeq) {
-    const apiCloud = cloud();
-    if (remote.alg && remote.alg !== apiCloud.ALG) {
-      const error = new Error("云端设置格式需要升级扩展");
-      error.code = "alg";
-      throw error;
-    }
-    const opened = await downloadGuard(userId, remote, operationId, reason, undefined, acceptedSeq);
-    if (!opened.ok) {
-      return opened.result;
-    }
-    const packed = await apiCloud.decrypt(remote.ciphertext, secret, remote.alg || apiCloud.ALG);
-    const beforeApply = await downloadGuard(userId, remote, operationId, reason, opened.seq, acceptedSeq);
-    if (!beforeApply.ok) {
-      return beforeApply.result;
-    }
-    await apiCloud.apply(packed);
-    const applied = await downloadGuard(userId, remote, operationId, reason, opened.seq, acceptedSeq);
-    if (!applied.ok) {
-      return applied.result;
-    }
-    await bindSyncedMeta({
-      revision: remote.revision,
-      payloadHash: remote.payloadHash,
-      dirty: false,
-      editSeq: opened.seq,
-      conflict: null,
-      decryptBlocked: false,
-      lastCheckedAt: Date.now(),
-      lastSyncedAt: Date.now(),
-      lastError: "",
-    }, userId);
-    log.info("settings-cloud-download-success", "已从云端拉取设置", details(operationId, {
-      reason,
-      revision: remote.revision,
-      extensionVersion: remote.extensionVersion,
-      payloadBytes: remote.payloadBytes,
-    }));
-    return { success: true, action: "download", revision: remote.revision };
-  }
-
-  async function upload(secret, basedOnRevision, force, operationId, reason, userId) {
-    const apiCloud = cloud();
-    let based = Number(basedOnRevision) || 0;
-    let forceFlag = force === true;
-    let saved = null;
-    let envelope = null;
-    // 代次还在变就接着传。超过次数仍保留 dirty，交给下一次同步
-    for (let pass = 0; pass < UPLOAD_PASSES; pass += 1) {
-      if (!(await sameAccount(userId))) {
-        logOwnerChanged(operationId, reason);
-        return { success: false, reason: "account-changed" };
-      }
-      const seq = (await apiCloud.getMeta()).editSeq;
-      const packed = await apiCloud.pack();
-      if (!(await sameAccount(userId))) {
-        logOwnerChanged(operationId, reason);
-        return { success: false, reason: "account-changed" };
-      }
-      envelope = await apiCloud.encrypt(packed, secret);
-      if (!(await sameAccount(userId))) {
-        logOwnerChanged(operationId, reason);
-        return { success: false, reason: "account-changed" };
-      }
-      saved = await api("PUT", CFG.urls.userSettings, {
-        basedOnRevision: based,
-        force: forceFlag,
-        extensionVersion: apiCloud.localVersion(),
-        alg: envelope.alg,
-        ciphertext: envelope.ciphertext,
-      }, operationId, userId);
-      if (!(await sameAccount(userId))) {
-        logOwnerChanged(operationId, reason);
-        return { success: true, action: "upload", revision: saved.revision, kept: true };
-      }
-      const after = await apiCloud.getMeta();
-      const clean = after.editSeq === seq;
-      await bindSyncedMeta({
-        revision: saved.revision,
-        payloadHash: saved.payloadHash,
-        dirty: clean ? false : true,
-        editSeq: seq,
-        conflict: null,
-        decryptBlocked: false,
-        lastCheckedAt: Date.now(),
-        lastSyncedAt: Date.now(),
-        lastError: "",
-      }, userId);
-      const confirmed = await apiCloud.getMeta();
-      if (clean && confirmed.editSeq === seq && confirmed.dirty !== true) {
-        log.info("settings-cloud-upload-success", "已上传本机设置到云端", details(operationId, {
-          reason,
-          revision: saved.revision,
-          extensionVersion: saved.extensionVersion,
-          payloadBytes: saved.payloadBytes || envelope.payloadBytes,
-        }));
-        return { success: true, action: "upload", revision: saved.revision };
-      }
-      log.warn("settings-cloud-upload-stale", "上传期间本地设置又有修改，继续上传", details(operationId, {
-        reason,
-        revision: saved.revision,
-      }));
-      based = Number(saved.revision) || based;
-      forceFlag = false;
-    }
-    log.warn("settings-cloud-upload-stale", "上传期间本地设置仍在变化，保留待同步", details(operationId, {
-      reason,
-      revision: saved?.revision || based,
-    }));
-    return { success: true, action: "upload", revision: saved?.revision, pending: true };
-  }
-
-  async function fetchMeta(operationId, userId) {
-    return api("GET", CFG.urls.userSettingsMeta, undefined, operationId, userId);
-  }
-
-  async function fetchBody(operationId, userId) {
-    return api("GET", CFG.urls.userSettings, undefined, operationId, userId);
-  }
-
-  // 立即同步附带的另一串只读解开已有密文。成功后才写入本机密钥，失败不上传、不删除
-  async function verifyCandidate(typed, operationId, reason, userId, forcePrompt) {
-    let body;
-    try {
-      body = await fetchBody(operationId, userId);
-    } catch (error) {
-      const stopped = ownerStop(error, operationId, reason);
-      if (stopped) {
-        return { result: stopped };
-      }
-      return { result: await reportCheckFailure(error, operationId, reason) };
-    }
-    const ciphertext = String(body.ciphertext || "");
-    if (body.exists !== true || !ciphertext) {
-      return { result: rejectSecretMismatch(operationId, reason, "verify") };
-    }
-    const apiCloud = cloud();
-    try {
-      await apiCloud.decrypt(ciphertext, typed, body.alg || apiCloud.ALG);
-    } catch (error) {
-      globalThis.STLoggerFactory.reportError(error, { domain: "extension", feature: "background-settings-sync", event: "verify-candidate-failed", message: "校验云同步密钥失败", level: "warn", phase: "verifyCandidate", operationId });
-      if (error?.code === "alg") {
-        return { result: await promptUpgrade(body, operationId, forcePrompt) };
-      }
-      return { result: rejectSecretMismatch(operationId, reason, "verify") };
-    }
-    const saved = await apiCloud.setSecret(typed);
-    if (saved !== true) {
-      const error = new Error("同步密钥保存失败");
-      log.error("settings-cloud-secret-save-failed", "核对成功但本机同步密钥保存失败", details(operationId, {
-        reason,
-        error,
-      }));
-      return { result: { success: false, error: "同步密钥保存失败", code: "secret-save" } };
-    }
-    log.info("settings-cloud-secret-corrected", "已用云端密文核对并保存本机同步密钥", details(operationId, { reason }));
-    return { secret: typed };
-  }
-
-  async function promptConflict(reason, remote, operationId, forcePrompt) {
-    await writeMeta({
-      conflict: "data",
-      decryptBlocked: false,
-      lastCheckedAt: Date.now(),
-      lastError: "",
-    });
-    log.info("settings-cloud-conflict", "设置云同步出现数据冲突", details(operationId, {
-      reason,
-      revision: remote.revision,
-      extensionVersion: remote.extensionVersion,
-      payloadBytes: remote.payloadBytes,
-    }));
-    await notifyPrompt("conflict", {
-      reason,
-      revision: remote.revision,
-      extensionVersion: remote.extensionVersion,
-      payloadHash: remote.payloadHash,
-    }, { force: forcePrompt });
-    return { success: true, action: "conflict", reason };
-  }
-
-  async function promptUpgrade(remote, operationId, forcePrompt) {
-    await writeMeta({
-      conflict: "upgrade",
-      lastCheckedAt: Date.now(),
-      lastError: "",
-    });
-    log.info("settings-cloud-version-low", "本机扩展版本低于云端设置", details(operationId, {
-      reason: "version-low",
-      revision: remote.revision,
-      extensionVersion: remote.extensionVersion,
-      payloadBytes: remote.payloadBytes,
-    }));
-    await notifyPrompt("upgrade", {
-      reason: "version-low",
-      revision: remote.revision,
-      extensionVersion: remote.extensionVersion,
-      payloadHash: remote.payloadHash,
-    }, { force: forcePrompt });
-    return { success: true, action: "upgrade", reason: "version-low" };
-  }
-
-  async function promptDecrypt(error, remote, operationId, forcePrompt) {
-    const alg = error?.code === "alg";
-    if (alg) {
-      return promptUpgrade(remote, operationId, forcePrompt);
-    }
-    await writeMeta({
-      decryptBlocked: true,
-      conflict: null,
-      lastCheckedAt: Date.now(),
-      lastError: "密钥错误",
-    });
-    log.warn("settings-cloud-decrypt-failed", "无法解密云端设置", details(operationId, {
-      reason: "decrypt",
-      revision: remote.revision,
-      extensionVersion: remote.extensionVersion,
-      payloadBytes: remote.payloadBytes,
-      error,
-    }));
-    await notifyPrompt("decrypt", {
-      reason: "decrypt",
-      revision: remote.revision,
-      extensionVersion: remote.extensionVersion,
-      payloadHash: remote.payloadHash,
-    }, { force: forcePrompt });
-    return { success: true, action: "decrypt", reason: "decrypt" };
-  }
-
-  async function syncNow(input = {}) {
-    const apiCloud = cloud();
-    if (!apiCloud?.ready) {
-      return { success: false, error: "云同步模块未加载" };
-    }
-    const reason = String(input.reason || "alarm");
-    const operationId = opId(input.operationId);
-    const forcePrompt = reason === "open-settings" || reason === "manual" || reason === "resolve";
-    const auto = reason === "alarm" || reason === "debounce" || reason === "startup";
-    const membership = await storage()?.getMembership?.() || null;
-    const hasPermission = membership?.permissions?.settingsCloud === true;
-    const userId = String(membership?.userId || "").trim();
-    // 当前账号未知时不能沿用上一账号通道，否则空云端会把本机残留面板上传到新账号
-    if (!userId) {
-      if (reason === "manual" || reason === "login") {
-        log.info("settings-cloud-skip", "设置云同步当前不可用", details(operationId, { reason }));
-      }
-      return { success: true, skipped: true, reason: "unavailable" };
-    }
-    const adopted = await apiCloud.adoptForUser(userId);
-    if (adopted.switched) {
-      log.info("settings-cloud-account-switched", "设置云同步已断开上一账号通道", details(operationId, { reason }));
-    }
-    if (!adopted.enabled || !hasPermission) {
-      if (!adopted.switched && (reason === "manual" || reason === "login")) {
-        log.info("settings-cloud-skip", "设置云同步当前不可用", details(operationId, { reason }));
-      }
-      return { success: true, skipped: true, reason: "unavailable" };
-    }
-    let auth;
-    try {
-      auth = await readyAuth(operationId, userId);
-    } catch (error) {
-      const stopped = ownerStop(error, operationId, reason);
-      if (stopped) {
-        return stopped;
-      }
-      throw error;
-    }
-    if (!auth?.access_token) {
-      if (reason === "manual" || reason === "login") {
-        log.info("settings-cloud-skip", "设置云同步当前不可用", details(operationId, { reason }));
-      }
-      return { success: true, skipped: true, reason: "unavailable" };
-    }
-
-    const adoptedSecret = String(adopted.secret || "").trim();
-    const typedSecret = String(input.secret || "").trim();
-    let secret = adoptedSecret;
-    if (adoptedSecret && typedSecret && typedSecret !== adoptedSecret) {
-      const verified = await verifyCandidate(typedSecret, operationId, reason, userId, forcePrompt);
-      if (verified.result) {
-        return verified.result;
-      }
-      secret = verified.secret;
-    }
-    const meta = adopted.meta;
-    if (reason === "alarm" && meta.lastCheckedAt && (Date.now() - meta.lastCheckedAt) < MIN_ALARM_GAP_MS) {
-      return { success: true, skipped: true, reason: "interval" };
-    }
-    if (!secret) {
-      await markChecked({ lastError: "需要同步密钥" });
-      return { success: false, error: "需要同步密钥", needSecret: true };
-    }
-
-    let remote;
-    try {
-      remote = await fetchMeta(operationId, userId);
-    } catch (error) {
-      const stopped = ownerStop(error, operationId, reason);
-      if (stopped) {
-        return stopped;
-      }
-      return reportCheckFailure(error, operationId, reason);
-    }
-
-    const localPack = await apiCloud.pack();
-    const allowEmptyUpload = reason === "manual" || reason === "resolve" || reason === "open-settings"
-      || (!adopted.unbound && !adopted.switched);
-    const decided = apiCloud.decide({
-      enabled: true,
-      loggedIn: true,
-      hasPermission: true,
-      cloud: remote,
-      meta,
-      localVersion: apiCloud.localVersion(),
-      localIsDefault: await apiCloud.isDefaultPack(localPack),
-      allowEmptyUpload,
-    });
-
-    if (decided.action === "skip") {
-      await markChecked({ lastError: "", conflict: decided.reason === "unchanged" ? null : meta.conflict });
-      return { success: true, skipped: true, reason: decided.reason };
-    }
-
-    if (decided.action === "upgrade") {
-      return promptUpgrade(remote, operationId, forcePrompt);
-    }
-
-    if (decided.action === "decrypt" && auto) {
-      await markChecked({});
-      return { success: true, skipped: true, action: "decrypt", reason: "decrypt-blocked" };
-    }
-
-    if (decided.action === "conflict") {
-      if (auto) {
-        await markChecked({ conflict: meta.conflict || decided.reason || "data" });
-        return { success: true, skipped: true, action: "conflict", reason: decided.reason };
-      }
-      return promptConflict(decided.reason, remote, operationId, forcePrompt);
-    }
-
-    try {
-      if (decided.action === "decrypt") {
-        const body = await fetchBody(operationId, userId);
-        if (body.exists !== true) {
-          return await upload(secret, 0, false, operationId, reason, userId);
-        }
-        if (meta.dirty === true) {
-          await apiCloud.decrypt(body.ciphertext, secret, body.alg || apiCloud.ALG);
-          return promptConflict("both-dirty", body, operationId, forcePrompt);
-        }
-        return await download(secret, body, operationId, reason, userId);
-      }
-      if (decided.action === "upload") {
-        return await upload(secret, remote.revision, false, operationId, reason, userId);
-      }
-      const body = await fetchBody(operationId, userId);
-      if (body.exists !== true) {
-        return await upload(secret, 0, false, operationId, reason, userId);
-      }
-      return await download(secret, body, operationId, reason, userId);
-    } catch (error) {
-      const stopped = ownerStop(error, operationId, reason);
-      if (stopped) {
-        return stopped;
-      }
-      const status = Number(error?.status) || 0;
-      if (error?.code === "decrypt" || error?.code === "alg") {
-        const body = error?.code === "alg" ? remote : (remote.exists ? remote : await fetchBody(operationId, userId).catch((fetchError) => {
-          if (fetchError?.code === "owner-changed") {
-            throw fetchError;
-          }
-          return remote;
-        }));
-        return promptDecrypt(error, body, operationId, forcePrompt);
-      }
-      if (error?.code === "too-large") {
-        await markChecked({ lastError: error.message });
-        log.warn("settings-cloud-too-large", "设置体积过大无法上传", details(operationId, { reason, error }));
-        return { success: false, error: error.message, code: "too-large" };
-      }
-      if (status === 409) {
-        log.warn("settings-cloud-put-conflict", "上传设置时云端已更新", details(operationId, {
-          reason,
-          revision: error.meta?.revision,
-          extensionVersion: error.meta?.extensionVersion,
-          error,
-        }));
-        return promptConflict("put-409", error.meta || remote, operationId, forcePrompt);
-      }
-      if (status === 403) {
-        await markChecked({ lastError: error.message || "当前权益不包含设置云同步" });
-        log.error("settings-cloud-forbidden", "当前权益不包含设置云同步", details(operationId, { reason, error }));
-        return { success: false, error: error.message };
-      }
-      await markChecked({ lastError: error.message || "设置云同步失败" });
-      log.error("settings-cloud-sync-failed", "设置云同步失败", details(operationId, { reason, error }));
-      return { success: false, error: error.message || "设置云同步失败" };
-    }
-  }
-
-  async function useCloud(input = {}) {
-    const apiCloud = cloud();
-    const operationId = opId(input.operationId);
-    const userId = await currentUserId();
-    const adopted = await apiCloud.adoptForUser(userId);
-    const secret = lockedSecret(adopted.secret, input.secret);
-    if (secret === null) {
-      return rejectSecretMismatch(operationId, "resolve", "locked");
-    }
-    if (!secret) {
-      return { success: false, error: "需要同步密钥", needSecret: true };
-    }
-    try {
-      // 这一代是用户确认要舍弃的修改。拉取期间再改设置会加代次，下载保护会停
-      const acceptedSeq = (await apiCloud.getMeta()).editSeq;
-      const body = await fetchBody(operationId, userId);
-      if (body.exists !== true) {
-        return syncNow({ ...input, reason: input.reason || "resolve", action: "sync" });
-      }
-      sessionPrompted.clear();
-      return await download(secret, body, operationId, input.reason || "resolve", userId, acceptedSeq);
-    } catch (error) {
-      const stopped = ownerStop(error, operationId, "resolve");
-      if (stopped) {
-        return stopped;
-      }
-      if (error?.code === "decrypt" || error?.code === "alg") {
-        return promptDecrypt(error, error.meta || {}, operationId, true);
-      }
-      await markChecked({ lastError: error.message || "拉取云端设置失败" });
-      log.error("settings-cloud-sync-failed", "使用云端设置失败", details(operationId, {
-        reason: "resolve",
-        error,
-      }));
-      return { success: false, error: error.message || "使用云端设置失败" };
-    }
-  }
-
-  async function useLocal(input = {}) {
-    const apiCloud = cloud();
-    const operationId = opId(input.operationId);
-    const userId = await currentUserId();
-    const adopted = await apiCloud.adoptForUser(userId);
-    const secret = lockedSecret(adopted.secret, input.secret);
-    if (secret === null) {
-      return rejectSecretMismatch(operationId, "resolve", "locked");
-    }
-    if (!secret) {
-      return { success: false, error: "需要同步密钥", needSecret: true };
-    }
-    try {
-      let remote = { revision: 0 };
-      try {
-        remote = await fetchMeta(operationId, userId);
-      } catch (error) {
-        if (Number(error?.status) !== 404) {
-          throw error;
         }
       }
-      sessionPrompted.clear();
-      return await upload(secret, remote.revision, true, operationId, input.reason || "resolve", userId);
-    } catch (error) {
-      const stopped = ownerStop(error, operationId, "resolve");
-      if (stopped) {
-        return stopped;
-      }
-      await markChecked({ lastError: error.message || "覆盖云端设置失败" });
-      log.error("settings-cloud-sync-failed", "使用本机覆盖云端失败", details(operationId, {
-        reason: "resolve",
-        error,
-      }));
-      return { success: false, error: error.message || "使用本机覆盖云端失败" };
+      log.error("settings-cloud-operation-failed", "设置云同步操作失败", {
+        operationId: input.operationId, phase: input.action, provider: ctx?.channel?.provider, error,
+      });
+      return { success: false, error: message, code, status, cloudCleared: error?.cloudCleared === true,
+        ...(input.action === "device-status" && error?.pendingRecoveryId && { pendingRecoveryId: error.pendingRecoveryId }) };
     }
-  }
-
-  async function resetCloud(input = {}) {
-    const apiCloud = cloud();
-    const operationId = opId(input.operationId);
-    const userId = await currentUserId();
-    if (!userId) {
-      return { success: false, error: "请先登录后再重置云同步" };
-    }
-    let cloudCleared = false;
-    try {
-      if (!(await sameAccount(userId))) {
-        logOwnerChanged(operationId, "reset");
-        return { success: false, reason: "account-changed" };
-      }
-      await api("DELETE", CFG.urls.userSettings, undefined, operationId, userId);
-      cloudCleared = true;
-      if (!(await sameAccount(userId))) {
-        logOwnerChanged(operationId, "reset");
-        return { success: false, reason: "account-changed", cloudCleared: true };
-      }
-      const cleared = await apiCloud.resetChannel();
-      if (cleared !== true) {
-        const error = new Error("云端设置已清除，但本地云同步关闭失败");
-        log.error("settings-cloud-reset-failed", "云端设置已清除，但本地云同步关闭失败", details(operationId, {
-          reason: "reset",
-          error,
-        }));
-        return { success: false, error: error.message, cloudCleared: true };
-      }
-      sessionPrompted.clear();
-      log.info("settings-cloud-reset", "已清除云端设置并关闭本地云同步", details(operationId, { reason: "reset" }));
-      return { success: true, action: "reset" };
-    } catch (error) {
-      const stopped = ownerStop(error, operationId, "reset");
-      if (stopped) {
-        return stopped;
-      }
-      if (!cloudCleared) {
-        await markChecked({ lastError: error.message || "清除云端设置失败" });
-      }
-      log.error("settings-cloud-reset-failed", "清除云端设置失败", details(operationId, {
-        reason: "reset",
-        error,
-      }));
-      return { success: false, error: error.message || "清除云端设置失败", cloudCleared };
-    }
-  }
-
-  async function deferConflict() {
-    const apiCloud = cloud();
-    const meta = await apiCloud.getMeta();
-    await apiCloud.setMeta({
-      ...meta,
-      lastCheckedAt: Date.now(),
-    });
-    return { success: true, action: "defer" };
-  }
-
-  async function execute(input = {}) {
-    const action = String(input.action || "sync");
-    if (action === "use-cloud") {
-      return useCloud(input);
-    }
-    if (action === "use-local") {
-      return useLocal(input);
-    }
-    if (action === "reset") {
-      return resetCloud(input);
-    }
-    if (action === "defer") {
-      return deferConflict();
-    }
-    return syncNow(input);
   }
 
   function run(input = {}) {
-    const reason = String(input.reason || "alarm");
-    const action = String(input.action || "sync");
-    const skipQueue = action === "sync" && (reason === "alarm" || reason === "debounce") && input.settingsClosed !== true;
-    if (inflight) {
-      if (skipQueue) {
-        return Promise.resolve({ success: true, skipped: true });
-      }
-      queued = input;
-      return inflight.then(() => {
-        if (queued !== input) {
-          return { success: true, skipped: true };
-        }
-        queued = null;
-        return run(input);
-      });
+    const request = { reason: "manual", action: "sync", ...input, atEdit: editClock };
+    request.operationId ||= root.STLoggerFactory.createOperationId();
+    if (waiting && request.action === "sync" && auto(request) && !request.settingsClosed) {
+      return Promise.resolve({ success: true, skipped: true, reason: "busy" });
     }
-    inflight = execute(input).finally(() => {
-      inflight = null;
-    });
-    return inflight;
+    if (waiting >= 4) return Promise.resolve({ success: false, error: "云同步正在处理其它操作，请稍后再试" });
+    waiting += 1;
+    const after = async () => {
+      try {
+        return await execute(request);
+      } finally {
+        waiting -= 1;
+      }
+    };
+    operations = operations.then(after, after);
+    return operations;
   }
 
   function scheduleDebounce() {
-    if (debounceTimer) {
-      clearTimeout(debounceTimer);
-    }
-    debounceTimer = setTimeout(() => {
+    if (debounceTimer) root.clearTimeout(debounceTimer);
+    debounceTimer = root.setTimeout(() => {
       debounceTimer = 0;
-      run({ reason: "debounce", action: "sync" });
+      void run({ reason: "debounce" });
     }, DEBOUNCE_MS);
   }
 
-  function handleMessage(request, sender, sendResponse) {
-    const reason = String(request?.reason || "manual");
-    if (reason === "open-settings") {
-      settingsOpen += 1;
-    }
-    if (request?.settingsClosed === true && settingsOpen > 0) {
-      settingsOpen -= 1;
-    }
-    run({
-      reason,
-      action: request?.action || "sync",
-      secret: request?.secret,
-      operationId: request?.operationId,
-      settingsClosed: request?.settingsClosed === true,
-    }).then((result) => {
-      sendResponse({ success: result?.success !== false, ...result });
-    }).catch((error) => {
-      globalThis.STLoggerFactory.reportError(error, { domain: "extension", feature: "background-settings-sync", event: "handle-message-failed", message: "处理后台消息失败", level: "error", phase: "handleMessage" });
-      sendResponse({ success: false, error: error?.message || String(error) });
+  function trackChange() {
+    editClock += 1;
+    return serialMeta(async () => {
+      const { channel, meta } = await cloud.readChannel();
+      if (!channel?.enabled) return;
+      await cloud.saveMeta(channel.id, { ...meta, dirty: true, editSeq: meta.editSeq + 1 });
+      if (settingsOpen > 0) scheduleDebounce();
     });
   }
 
-  function markStorageDirty(apiCloud) {
-    return apiCloud.markDirty().then((dirty) => {
-      if (dirty && settingsOpen > 0) {
-        scheduleDebounce();
-      }
-    }).catch((error) => {
-      log.warn("settings-cloud-dirty-failed", "标记设置云同步改动失败", { error });
-    });
+  function trackEdit(event) {
+    if (event.owner === "settings:storage" && event.reason === "settings-cloud-apply") return;
+    if (event.changedKeys.some(cloud.isSyncedKey)) return trackChange();
   }
 
-  function bindStorage() {
-    const apiCloud = cloud();
-    if (root.STSettingsBus?.subscribe && apiCloud) {
-      const localeKey = root.STSettings?.storage?.UI_LOCALE_KEY || "SETTING_UI_LOCALE";
-      root.STSettingsBus.subscribe((event) => {
-        const keys = Array.isArray(event?.changedKeys) ? event.changedKeys : [];
-        if (!keys.some((key) => apiCloud.isSyncedKey(key))) {
-          return;
-        }
-        // 云端应用自己发出的设置总线事件不能被当成本地新编辑；应用期间其他事件仍会递增 editSeq。
-        if (event?.owner === "settings:storage" && event?.reason === "settings-cloud-apply") {
-          return;
-        }
-        void markStorageDirty(apiCloud);
-      }, {
-        owner: "background:settings-cloud",
-        key: "dirty-tracker",
-        keys: [localeKey, root.STConfig.updates.settingKey],
-        prefixes: ["st.settings."],
-      });
-      return;
-    }
-    if (!chrome.storage?.onChanged) {
-      return;
-    }
-    chrome.storage.onChanged.addListener((changes, area) => {
-      if (area !== "local") {
-        return;
-      }
-      if (!apiCloud || apiCloud.isApplying()) {
-        return;
-      }
-      const keys = Object.keys(changes || {});
-      if (!keys.some((key) => apiCloud.isSyncedKey(key))) {
-        return;
-      }
-      void markStorageDirty(apiCloud);
-    });
+  function achievementEdited() {
+    void trackChange().catch(error => log.error("settings-cloud-achievement-dirty-failed", "记录待同步成就译文失败", { error }));
   }
 
-  function ensureAlarm() {
-    if (!chrome.alarms?.create) {
+  const DEVICE_ACTIONS = ["pair-request", "approve-device", "new-recovery", "recovery-saved", "recover-device", "export-archive"];
+  const CONFIG_ACTIONS = ["enable", "disable", "select-provider", "configure-webdav", "reset", "restore-remote", "device-status", ...DEVICE_ACTIONS];
+  const ACTIONS = ["sync", "use-cloud", "use-local", "restore-archive", ...CONFIG_ACTIONS];
+
+  /** 由消息路由验证来源。凭据只用于显式配置，不进入状态回复、日志或提示 */
+  async function handleMessage(request, sender, sendResponse, { embedded = false } = {}) {
+    const { action = "sync", reason = "manual", settingsClosed, channelId, provider, consent, dav, ticket, operationId, expectedSession } = request;
+    if (!ACTIONS.includes(action)) {
+      sendResponse({ success: false, error: "云同步操作无效" });
       return;
     }
-    chrome.alarms.get(ALARM, (existing) => {
-      if (existing) {
-        return;
-      }
-      chrome.alarms.create(ALARM, { periodInMinutes: PERIOD_MIN });
-    });
-  }
-
-  function handleAlarm(alarm) {
-    if (alarm?.name === ALARM) {
-      const delayMin = Math.max(0.01, Math.random() * (JITTER_MAX_MS / 60000));
-      chrome.alarms.create(JITTER_ALARM, { delayInMinutes: delayMin });
+    if ((CONFIG_ACTIONS.includes(action) || (embedded && action === "sync"))
+      && (!Object.hasOwn(request, "channelId") || !cloud.HASH.test(expectedSession))) {
+      sendResponse({ success: false, code: "owner-changed", error: "当前登录状态已变化，请重新打开设置" });
       return;
     }
-    if (alarm?.name === JITTER_ALARM) {
-      run({ reason: "alarm", action: "sync" });
-    }
+    if (reason === "open-settings") settingsOpen += 1;
+    if (settingsClosed === true && settingsOpen > 0) settingsOpen -= 1;
+    const privateFiles = action === "approve-device" ? { pair: request.pair }
+      : (action === "recovery-saved" || (action === "new-recovery" && Object.hasOwn(request, "recoveryId"))) ? { recoveryId: request.recoveryId }
+      : (action === "recover-device" || action === "restore-remote") ? { recovery: request.recovery }
+        : action === "restore-archive" ? { recovery: request.recovery, archive: request.archive } : {};
+    sendResponse(await run({ action, reason, settingsClosed, provider, consent, dav, ticket, operationId, embedded,
+      ...privateFiles,
+      ...(Object.hasOwn(request, "channelId") && { channelId }),
+      ...(Object.hasOwn(request, "expectedSession") && { expectedSession }),
+    }));
   }
 
-  bindStorage();
-  ensureAlarm();
-  chrome.alarms?.onAlarm?.addListener(handleAlarm);
-  chrome.runtime.onStartup.addListener(() => {
-    run({ reason: "startup", action: "sync" });
+  root.STSettingsBus.subscribe(trackEdit, {
+    owner: "background:settings-cloud", key: "dirty-tracker",
+    keys: [storage.UI_LOCALE_KEY, config.updates.settingKey, root.STAutomation.TOOL_CREDENTIALS_KEY], prefixes: ["st.settings."],
   });
 
-  root.STBackgroundSettingsSync = Object.freeze({
-    ready: true,
-    TYPE,
-    PROMPT_TYPE,
-    handleMessage,
-    run,
+  root.chrome.alarms.get(ALARM, existing => {
+    if (!existing) root.chrome.alarms.create(ALARM, { periodInMinutes: PERIOD_MIN });
   });
-})(typeof globalThis !== "undefined" ? globalThis : self);
+  root.chrome.alarms.onAlarm.addListener(alarm => {
+    if (alarm.name === ALARM) {
+      root.chrome.alarms.create(JITTER_ALARM, { delayInMinutes: Math.max(0.01, Math.random() * JITTER_MAX_MS / 60000) });
+    } else if (alarm.name === JITTER_ALARM) {
+      void run({ reason: "alarm" });
+    }
+  });
+  root.chrome.runtime.onStartup.addListener(() => { void run({ reason: "startup" }); });
+  void run({ action: "migrate", reason: "startup" });
+
+  root.STBackgroundSettingsSync = Object.freeze({ ready: true, handleMessage, run, achievementEdited });
+})(globalThis);

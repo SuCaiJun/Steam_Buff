@@ -79,17 +79,8 @@
   "settings_cloud_title": {
     "message": "設定のクラウド同期"
   },
-  "settings_cloud_desc": {
-    "message": "設定センターのパネル設定を暗号化して、現在の Steam Buff アカウントに同期します。同期キーはこの端末だけに保存されます。"
-  },
   "settings_cloud_enable": {
     "message": "クラウド同期を有効化"
-  },
-  "settings_cloud_secret": {
-    "message": "同期キー"
-  },
-  "settings_cloud_secretPlaceholder": {
-    "message": "この端末だけに保存されます。他の端末でも同じ文字列を入力してください"
   },
   "settings_cloud_syncNow": {
     "message": "今すぐ同期"
@@ -102,24 +93,6 @@
   },
   "settings_cloud_needPermission": {
     "message": "現在の特典には設定のクラウド同期が含まれていません。"
-  },
-  "settings_cloud_needSecret": {
-    "message": "同期する前に同期キーを入力してください。他の端末でも同じキーを使います。"
-  },
-  "settings_cloud_idle": {
-    "message": "有効にすると、設定センターのパネル設定が暗号化されてこのアカウントに同期されます。"
-  },
-  "settings_cloud_dirty": {
-    "message": "未アップロードの変更があります。設定ページを閉じるか「今すぐ同期」を押すとアップロードされます。"
-  },
-  "settings_cloud_conflictPending": {
-    "message": "この端末とクラウドの両方で設定が変更されています。残す方を選んでください。"
-  },
-  "settings_cloud_decryptPending": {
-    "message": "キーが違います"
-  },
-  "settings_cloud_secretWrongMessage": {
-    "message": "同期キーではクラウド設定を復号できません。正しいキーを入力してから同期してください。クラウドの暗号文を復号できたときだけ、この端末のキーを置き換えます。クラウド側の暗号化キーを変えるには、先にリセットでクラウド設定を削除し、クラウド同期を開き直してから新しいキーを入力してください。"
   },
   "settings_cloud_upgradePending": {
     "message": "クラウド設定は新しい拡張機能バージョンのものです。先に Steam Buff を更新してください。"
@@ -135,23 +108,11 @@
   "settings_cloud_conflictTitle": {
     "message": "設定クラウド同期の競合"
   },
-  "settings_cloud_conflictMessage": {
-    "message": "この端末とクラウドの両方で設定が変更されています。クラウドを使うとこの端末のパネル設定が上書きされ、この端末を使うとクラウドが上書きされます。自動バックアップは作成されません。"
-  },
-  "settings_cloud_useCloud": {
-    "message": "クラウドを使う"
-  },
   "settings_cloud_useLocal": {
     "message": "この端末を使う"
   },
   "settings_cloud_later": {
     "message": "後で"
-  },
-  "settings_cloud_overwriteConfirmTitle": {
-    "message": "クラウドを上書きしますか？"
-  },
-  "settings_cloud_overwriteConfirmMessage": {
-    "message": "クラウド上の現在の設定は、この端末の設定を現在のキーで暗号化したものに置き換えられ、履歴は残りません。"
   },
   "settings_cloud_upgradeTitle": {
     "message": "拡張機能の更新が必要です"
@@ -159,29 +120,281 @@
   "settings_cloud_upgradeMessage": {
     "message": "クラウド設定は新しい Steam Buff バージョンのものです。新しい項目を失わないよう、更新してから同期してください。"
   },
-  "settings_cloud_reset": {
-    "message": "リセット"
-  },
-  "settings_cloud_resetTitle": {
-    "message": "クラウド設定を消去しますか？"
-  },
-  "settings_cloud_resetMessage": {
-    "message": "リセットすると、現在のアカウントのクラウド設定コピーが削除され、元に戻せません。この端末のパネル設定は残ります。この端末のクラウド同期はオフになり、他の端末はこのクラウドコピーを取得できなくなります。その後、自分でクラウド同期をオンにし、新しい同期キーを入力してください。"
-  },
-  "settings_cloud_resetConfirm": {
-    "message": "確認"
-  },
-  "settings_cloud_resetFailed": {
-    "message": "クラウド設定を消去できませんでした。クラウド同期はそのままです。"
-  },
-  "settings_cloud_tooLarge": {
-    "message": "設定が大きすぎます。レビューフィルタールールを減らしてから同期してください。"
-  },
-  "settings_cloud_syncSuccess": {
-    "message": "設定を同期しました。"
-  },
   "settings_cloud_syncFailed": {
     "message": "同期に失敗しました。しばらくしてから再試行してください。"
+  },
+  "settings_cloud_invalidDavCredentials": {
+    "message": "WebDAV のユーザー名とパスワードを確認してください。"
+  },
+  "settings_cloud_invalidDavFolder": {
+    "message": "WebDAV フォルダーの URL と読み書き権限を確認してください。"
+  },
+  "settings_cloud_davHttpFailed": {
+    "message": "WebDAV リクエストに失敗しました（HTTP $status$）。",
+    "placeholders": {
+      "status": { "content": "$1" }
+    }
+  },
+  "settings_cloud_officialUnavailable": {
+    "message": "公式クラウドバックアップまたは独立したアーカイブは現在利用できません。"
+  },
+  "settings_cloud_davPermission": {
+    "message": "WebDAV サイトへのアクセスが許可されていません。"
+  },
+  "settings_cloud_invalidDavUrl": {
+    "message": "認証情報やクエリを含まない HTTPS フォルダー URL を入力してください。"
+  },
+  "settings_cloud_davIncompatible": {
+    "message": "安全な同期に必要な強い ETag または条件付き書き込みを WebDAV サーバーがサポートしていません。"
+  },
+  "settings_cloud_davCleanupFailed": {
+    "message": "接続テストに失敗しました。フォルダーに一時ファイル steam-buff-webdav-test が残っている場合があります。"
+  },
+  "settings_cloud_tooLarge": {
+    "message": "バックアップのサイズが大きすぎます。設定を減らしてもう一度お試しください。"
+  },
+  "settings_cloud_invalidBundle": {
+    "message": "リモートのバックアップまたはサーバーの応答の形式が無効です。"
+  },
+  "settings_cloud_deletePartial": {
+    "message": "リモートのバックアップは削除されました。この端末の同期を手動でオフにしてください。"
+  },
+  "settings_cloud_provider": {
+    "message": "バックアップ先"
+  },
+  "settings_cloud_frameLoading": {
+    "message": "クラウド同期設定を読み込んでいます…"
+  },
+  "settings_cloud_frameFailed": {
+    "message": "ここではクラウド同期設定を読み込めませんでした。"
+  },
+  "settings_cloud_openSettings": {
+    "message": "クラウド同期設定を開く"
+  },
+  "settings_cloud_privateSettingsRequired": {
+    "message": "クラウド同期は拡張機能の設定画面で操作してください。"
+  },
+  "settings_cloud_official": {
+    "message": "Steam Buff クラウド"
+  },
+  "settings_cloud_readFailed": {
+    "message": "同期設定を読み込めませんでした。設定を開き直してください。"
+  },
+  "settings_cloud_devices": {
+    "message": "端末管理"
+  },
+  "settings_cloud_deviceChecking": {
+    "message": "端末を確認しています…"
+  },
+  "settings_cloud_backupFiles": {
+    "message": "バックアップファイル"
+  },
+  "settings_cloud_deviceBackupMissing": {
+    "message": "選択した場所にバックアップがありません。クラウド同期をいったんオフにしてからオンにすると作成できます。"
+  },
+  "settings_cloud_restoreBackup": {
+    "message": "バックアップを復元"
+  },
+  "settings_cloud_restoreRemote": {
+    "message": "クラウドから復元"
+  },
+  "settings_cloud_restoreArchive": {
+    "message": "この端末から復元"
+  },
+  "settings_cloud_pairApproved": {
+    "message": "既存の端末でペアリングが承認されました。"
+  },
+  "settings_cloud_finishPairing": {
+    "message": "ペアリングを完了"
+  },
+  "settings_cloud_recoveryChanged": {
+    "message": "保存待ちの復旧ファイルが変更されました。「端末管理」を開き直してください。"
+  },
+  "settings_cloud_pairRequest": {
+    "message": "このブラウザーをペアリング"
+  },
+  "settings_cloud_approveDevice": {
+    "message": "新しい端末を承認"
+  },
+  "settings_cloud_downloadRecovery": {
+    "message": "復旧ファイルを保存"
+  },
+  "settings_cloud_recoverDevice": {
+    "message": "復旧ファイルで承認"
+  },
+  "settings_cloud_downloadArchive": {
+    "message": "暗号化バックアップをダウンロード"
+  },
+  "settings_cloud_pairInstructions": {
+    "message": "このペアリング要求を承認済み端末にコピーし、「新しい端末を承認」に貼り付けてください。有効期限は 15 分です。公開しないでください。"
+  },
+  "settings_cloud_pairCode": {
+    "message": "ペアリング要求"
+  },
+  "settings_cloud_pairCopy": {
+    "message": "要求をコピー"
+  },
+  "settings_cloud_pairCopied": {
+    "message": "ペアリング要求をコピーしました。"
+  },
+  "settings_cloud_pairSelect": {
+    "message": "選択したペアリング要求を手動でコピーしてください。"
+  },
+  "settings_cloud_approveInstructions": {
+    "message": "自分の新しいブラウザーで発行した要求を貼り付けてください。承認すると、そのブラウザーでバックアップを復号できます。"
+  },
+  "settings_cloud_approved": {
+    "message": "端末を承認しました。新しい端末の「端末管理」で「ペアリングを完了」を選択してください。"
+  },
+  "settings_cloud_recoveryNotice": {
+    "message": "復旧ファイルを別に保管してください。新しい復旧ファイルはこれからダウンロードするバックアップに使えます。以前のバックアップには元の復旧ファイルが必要です。"
+  },
+  "settings_cloud_restoreArchiveMessage": {
+    "message": "バックアップで端末内の設定と対応する実績翻訳を置き換え、クラウド同期を一時停止します。"
+  },
+  "settings_cloud_recoveryFile": {
+    "message": "復旧ファイル"
+  },
+  "settings_cloud_archiveFile": {
+    "message": "暗号化バックアップファイル"
+  },
+  "settings_cloud_restoreWorking": {
+    "message": "バックアップを確認して処理しています…"
+  },
+  "settings_cloud_restoreNeedsKey": {
+    "message": "このバックアップに対応する復旧ファイルも選択してください。"
+  },
+  "settings_cloud_restoreRollback": {
+    "message": "クラウドのバックアップはこの端末で確認済みのバージョンより古いため、復元できません。"
+  },
+  "settings_cloud_restoreSettingsPartial": {
+    "message": "端末内の設定の一部を復元しました。実績翻訳は復元待ちです。内容を確認してから再試行してください。"
+  },
+  "settings_cloud_restoreSettingsInterrupted": {
+    "message": "設定の復元が中断されました。一部の設定が保存された可能性があります。内容を確認してから再試行してください。"
+  },
+  "settings_cloud_restoreAchievementsInterrupted": {
+    "message": "端末内の設定を復元しました。実績翻訳の復元が中断されたため、内容を確認してから再試行してください。"
+  },
+  "settings_cloud_remoteRestored": {
+    "message": "クラウドバックアップから端末内のデータを復元しました。"
+  },
+  "settings_cloud_archiveRestored": {
+    "message": "暗号化バックアップから端末内のデータを復元しました。"
+  },
+  "settings_cloud_deviceRecovered": {
+    "message": "この端末を承認しました。クラウド同期を有効にするか、今すぐ同期できます。"
+  },
+  "settings_cloud_deviceRequired": {
+    "message": "このブラウザーは未承認です。「端末管理」からペアリングしてください。"
+  },
+  "settings_cloud_deviceAlreadyAuthorized": {
+    "message": "このブラウザーは承認済みです。"
+  },
+  "settings_cloud_pairInvalid": {
+    "message": "要求が無効か、有効期限切れか、別のアカウントのものです。ペアリング要求を再発行してください。"
+  },
+  "settings_cloud_backupMissing": {
+    "message": "選択した場所に暗号化バックアップがありません。"
+  },
+  "settings_cloud_fileInvalid": {
+    "message": "サイズ上限内の有効な復旧ファイルまたはバックアップを選択してください。"
+  },
+  "settings_cloud_vaultInvalid": {
+    "message": "暗号化バックアップ、署名、または復旧ファイルを確認できませんでした。"
+  },
+  "settings_cloud_vaultRollback": {
+    "message": "リモートのバックアップがこの端末で確認済みの版より古いため、同期を一時停止しました。"
+  },
+  "settings_cloud_achievementOwner": {
+    "message": "この端末の実績翻訳は別の Steam Buff アカウントにリンクされています。アカウントごとに別のブラウザープロファイルを使ってください。"
+  },
+  "settings_cloud_resetMessageDav": {
+    "message": "現在の WebDAV バックアップを削除し、この端末の同期を停止します。端末内のデータとダウンロード済みのバックアップは保持されます。"
+  },
+  "settings_cloud_fileMismatch": {
+    "message": "この復旧ファイルで選択したバックアップを開けません。対応する復旧ファイルを使用してください。"
+  },
+  "settings_cloud_recoverySaved": {
+    "message": "復旧ファイルを保存しました"
+  },
+  "settings_cloud_rateLimited": {
+    "message": "バックアップの要求が多すぎます。しばらくしてから再試行してください。"
+  },
+  "settings_cloud_objectsMissing": {
+    "message": "公式クラウドバックアップに暗号化データの一部がありません。独立したアーカイブから復元してください。"
+  },
+  "settings_cloud_consentOfficial": {
+    "message": "API キー、設定、実績の翻訳は、この端末で暗号化してから Steam Buff にアップロードします。承認済みの端末または復旧ファイルで復号できます。"
+  },
+  "settings_cloud_consentDav": {
+    "message": "API キー、設定、実績の翻訳は、この端末で暗号化してから WebDAV にアップロードします。承認済みの端末または復旧ファイルで復号できます。"
+  },
+  "settings_cloud_enableConfirm": {
+    "message": "同期を有効にする"
+  },
+  "settings_cloud_webdavTitle": {
+    "message": "WebDAV 接続"
+  },
+  "settings_cloud_webdavDirectory": {
+    "message": "HTTPS フォルダー URL"
+  },
+  "settings_cloud_webdavUser": {
+    "message": "ユーザー名"
+  },
+  "settings_cloud_webdavPassword": {
+    "message": "パスワードまたはアプリパスワード"
+  },
+  "settings_cloud_webdavPasswordSaved": {
+    "message": "保存済み"
+  },
+  "settings_cloud_webdavTestSave": {
+    "message": "接続をテストして保存"
+  },
+  "settings_cloud_webdavTesting": {
+    "message": "WebDAV 接続をテスト中…"
+  },
+  "settings_cloud_webdavMissing": {
+    "message": "先に WebDAV 接続をテストして保存してください。"
+  },
+  "settings_cloud_webdavSaved": {
+    "message": "接続を保存しました。クラウド同期を有効にできます。"
+  },
+  "settings_cloud_remoteDeleted": {
+    "message": "リモートのバックアップがありません。同期をオフにしてから再度オンにすると新規バックアップを作成できます。"
+  },
+  "settings_cloud_conflictChanged": {
+    "message": "同期中に設定が変わりました。設定を開き直して解決してください。"
+  },
+  "settings_cloud_restoreConfirm": {
+    "message": "競合する設定や翻訳にリモートの版を使用しますか？"
+  },
+  "settings_cloud_dirty": {
+    "message": "この端末に未アップロードの変更があります。"
+  },
+  "settings_cloud_conflictPending": {
+    "message": "端末とリモートの設定が異なります。「今すぐ同期」で残す方を選んでください。"
+  },
+  "settings_cloud_conflictMessage": {
+    "message": "この端末とリモートの設定、または実績翻訳が競合しています。競合部分で保持する版を選んでください。他の翻訳は統合されます。"
+  },
+  "settings_cloud_conflictNotice": {
+    "message": "端末とリモートの設定が異なります。"
+  },
+  "settings_cloud_useCloud": {
+    "message": "リモートを使用"
+  },
+  "settings_cloud_overwriteConfirmMessage": {
+    "message": "競合する設定や翻訳にこの端末の版を使用しますか？"
+  },
+  "settings_cloud_reset": {
+    "message": "リモートのバックアップを削除"
+  },
+  "settings_cloud_resetTitle": {
+    "message": "リモートのバックアップを削除しますか？"
+  },
+  "settings_cloud_resetMessage": {
+    "message": "現在のクラウドバックアップを削除し、この端末の同期を停止します。端末内のデータと独立したアーカイブは保持されます。"
   },
   "settings_category_extension_settings_name": {
     "message": "拡張機能設定"
@@ -8501,17 +8714,11 @@
   "settings_translate_wholePage": {
     "message": "ページ全体の翻訳"
   },
-  "settings_cloud_syncDone": {
-    "message": "同期完了"
-  },
   "settings_cloud_syncDoneBody": {
     "message": "設定の同期が完了しました。"
   },
-  "settings_cloud_resetDone": {
-    "message": "リセット完了"
-  },
   "settings_cloud_resetDoneBody": {
-    "message": "クラウドの設定を削除しました。"
+    "message": "リモートのバックアップを削除しました。"
   },
   "playerStats_hours": {
     "message": "$hours$ 時間",

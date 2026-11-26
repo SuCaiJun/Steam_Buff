@@ -17,548 +17,226 @@
     return;
   }
 
-  const ALG = "aes-256-gcm-gzip-v1";
-  const ENABLED_KEY = "st.settings.cloud.enabled";
-  const SECRET_KEY = "st.settings.cloud.secret";
-  const META_KEY = "st.settings.cloud.syncMeta";
-  const PLAIN_LIMIT = 64 * 1024;
-  const SALT_BYTES = 16;
-  const NONCE_BYTES = 12;
-  const PBKDF2_ITERATIONS = 600000;
-  const log = root.STLoggerFactory?.createLogger?.("settings", "settings-cloud") || {
-    info() {},
-    warn() {},
-    error() {},
-  };
+  const FORMAT = 2;
+  const CHANNEL_KEY = "st.settings.cloud.channelV3";
+  const META_KEY = "st.settings.cloud.metaV3";
+  const LEGACY_KEYS = Object.freeze(["st.settings.cloud.enabled", "st.settings.cloud.secret", "st.settings.cloud.syncMeta"]);
+  const PACKED_LIMIT = 64 * 1024;
+  const JSON_LIMIT = 8 * 1024 * 1024;
+  const ENVELOPE_LIMIT = 90 * 1024;
+  const ARCHIVE_FILE_LIMIT = 32 * 1024 * 1024;
+  const VERSION = /^[0-9]{1,4}(?:\.[0-9]{1,4}){0,3}$/;
+  const HASH = /^[0-9a-f]{64}$/;
+  const PROVIDERS = Object.freeze(["official", "webdav"]);
+  const options = { owner: "background:settings-cloud", strict: true };
 
-  let applyLock = 0;
-  let applyDirty = false;
-  // 本进程已经发出的修改代次。存储写回完成前，其他写 meta 的路径也要看见它
-  let memorySeq = 0;
-
-  function snapshot() {
-    return settings.panelSnapshot || {};
+  function error(code, message) {
+    return Object.assign(new Error(message), { code });
   }
 
-  function catalog() {
-    return settings.catalog || {};
-  }
-
-  function area() {
-    return root.chrome?.storage?.local;
+  function bus() {
+    return root.STSettingsBus;
   }
 
   function emptyMeta() {
-    return {
-      schemaVersion: 1,
-      userId: "",
-      revision: 0,
-      payloadHash: "",
-      dirty: false,
-      editSeq: 0,
-      conflict: null,
-      decryptBlocked: false,
-      lastCheckedAt: 0,
-      lastSyncedAt: 0,
-      lastError: "",
-    };
+    return { revision: null, payloadHash: "", extensionVersion: "", editSeq: 0, dirty: false,
+      lastCheckedAt: 0, lastSyncedAt: 0, lastError: "", conflict: null, pending: null };
   }
 
-  function userIdOf(value) {
-    return String(value || "").trim();
-  }
-
-  function localGet(keys) {
-    const box = area();
-    if (!box) {
-      return Promise.resolve({});
+  /** 按通道代次读取同步状态，前台只获得 WebDAV 地址和用户名 */
+  async function readChannel({ credentials = false } = {}) {
+    const saved = await bus().rawGet([CHANNEL_KEY, META_KEY], options);
+    const channel = saved[CHANNEL_KEY] || null;
+    if (channel && (!PROVIDERS.includes(channel.provider) || !channel.id || !channel.userId || !channel.session)) {
+      throw error("channel-invalid", "云同步配置无效，请重新设置备份位置");
     }
-    return new Promise((resolve) => {
-      try {
-        box.get(keys, (data) => {
-          resolve(root.chrome?.runtime?.lastError ? {} : (data || {}));
-        });
-      } catch (error) {
-        globalThis.STLoggerFactory.reportError(error, { domain: "settings", feature: "settings-cloud", event: "local-get-failed", message: "设置中心处理失败", level: "warn", phase: "localGet" });
-        resolve({});
-      }
-    });
+    const meta = channel && saved[META_KEY]?.id === channel.id ? saved[META_KEY] : emptyMeta();
+    if (!channel || credentials || !channel.dav) return { channel, meta };
+    return { channel: { ...channel, dav: { directory: channel.dav.directory, username: channel.dav.username } }, meta };
   }
 
-  function localSet(data) {
-    const box = area();
-    if (!box) {
-      return Promise.resolve(false);
+  async function saveChannel(channel) {
+    if (!await bus().rawSet({ [CHANNEL_KEY]: channel, [META_KEY]: { ...emptyMeta(), id: channel.id } },
+      { ...options, reason: "settings-cloud-channel" })) {
+      throw error("cloud-storage", "保存云同步配置失败");
     }
-    return new Promise((resolve) => {
-      try {
-        box.set(data, () => {
-          resolve(!root.chrome?.runtime?.lastError);
-        });
-      } catch (error) {
-        globalThis.STLoggerFactory.reportError(error, { domain: "settings", feature: "settings-cloud", event: "local-set-failed", message: "设置中心处理失败", level: "error", phase: "localSet" });
-        resolve(false);
-      }
-    });
   }
 
-  function isPlainObject(value) {
-    return !!value && typeof value === "object" && !Array.isArray(value);
+  async function saveMeta(id, meta) {
+    if (!await bus().rawSet({ [META_KEY]: { ...meta, id } }, options)) {
+      throw error("cloud-storage", "保存云同步状态失败");
+    }
+  }
+
+  // 新通道独立于旧开关，旧备份不会自动上传到新位置
+  async function removeLegacy() {
+    const data = await bus().rawGet(LEGACY_KEYS, options);
+    const found = LEGACY_KEYS.filter(key => Object.hasOwn(data, key));
+    if (found.length && !await bus().rawRemove(found, { ...options, reason: "settings-cloud-v1-cleanup" })) {
+      throw error("cloud-storage", "清理旧版云同步状态失败");
+    }
+    return found.length;
   }
 
   function canonical(value) {
-    if (value === null || typeof value !== "object") {
-      return JSON.stringify(value);
-    }
-    if (Array.isArray(value)) {
-      return `[${value.map(canonical).join(",")}]`;
-    }
-    const keys = Object.keys(value).filter((key) => (
-      key !== "__proto__" && key !== "constructor" && key !== "prototype"
-    )).sort();
-    return `{${keys.map((key) => `${JSON.stringify(key)}:${canonical(value[key])}`).join(",")}}`;
+    if (value === null || typeof value !== "object") return JSON.stringify(value);
+    if (Array.isArray(value)) return `[${value.map(canonical).join(",")}]`;
+    const keys = Object.keys(value).filter(key => !["__proto__", "constructor", "prototype"].includes(key)).sort();
+    return `{${keys.map(key => `${JSON.stringify(key)}:${canonical(value[key])}`).join(",")}}`;
   }
 
-  function utf8(text) {
-    return new TextEncoder().encode(String(text || ""));
-  }
-
-  function fromUtf8(bytes) {
-    return new TextDecoder().decode(bytes);
-  }
-
-  function concatBytes(chunks) {
-    const size = chunks.reduce((sum, item) => sum + item.length, 0);
-    const out = new Uint8Array(size);
-    let offset = 0;
-    for (const chunk of chunks) {
-      out.set(chunk, offset);
-      offset += chunk.length;
-    }
-    return out;
-  }
-
-  function bytesToBase64(bytes) {
+  function base64(bytes) {
     let binary = "";
-    const chunk = 0x8000;
-    for (let index = 0; index < bytes.length; index += chunk) {
-      binary += String.fromCharCode(...bytes.subarray(index, index + chunk));
+    for (let i = 0; i < bytes.length; i += 0x8000) {
+      binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
     }
-    return btoa(binary);
+    return root.btoa(binary);
   }
 
-  function base64ToBytes(value) {
-    const binary = atob(String(value || ""));
-    const out = new Uint8Array(binary.length);
-    for (let index = 0; index < binary.length; index += 1) {
-      out[index] = binary.charCodeAt(index);
-    }
-    return out;
+  function validVersion(version) {
+    return typeof version === "string" && VERSION.test(version);
   }
 
-  function gzipBytes(bytes) {
-    const gzip = root.fflate?.gzipSync;
-    if (typeof gzip !== "function") {
-      throw new Error("gzip 不可用");
-    }
-    return gzip(bytes);
-  }
-
-  function gunzipBytes(bytes) {
-    const gunzip = root.fflate?.gunzipSync;
-    if (typeof gunzip !== "function") {
-      throw new Error("gzip 不可用");
-    }
-    return gunzip(bytes);
-  }
-
-  function randomBytes(size) {
-    const out = new Uint8Array(size);
-    root.crypto.getRandomValues(out);
-    return out;
-  }
-
-  async function deriveKey(secret, salt) {
-    const material = await root.crypto.subtle.importKey("raw", utf8(secret), "PBKDF2", false, ["deriveKey"]);
-    return root.crypto.subtle.deriveKey(
-      {
-        name: "PBKDF2",
-        salt,
-        iterations: PBKDF2_ITERATIONS,
-        hash: "SHA-256",
-      },
-      material,
-      { name: "AES-GCM", length: 256 },
-      false,
-      ["encrypt", "decrypt"],
-    );
-  }
-
-  function normalize(settingsValue) {
-    return snapshot().normalize(settingsValue);
-  }
-
-  function defaultsPack() {
-    return snapshot().defaultsPack();
-  }
-
-  async function pack() {
-    return snapshot().pack();
-  }
-
-  async function isDefaultPack(settingsValue) {
-    const current = normalize(settingsValue);
-    const expected = await snapshot().defaultsPack(current.uiLocale);
-    if (current.workflow) current.workflow.presetImportVersion = "";
-    return canonical(current) === canonical(expected);
-  }
-
-  async function apply(settingsValue) {
-    const next = normalize(settingsValue);
-    applyLock += 1;
-    try {
-      const ok = await snapshot().write(next, { reason: "settings-cloud-apply" });
-      if (ok !== true) {
-        throw new Error("设置写入失败");
-      }
-      return next;
-    } finally {
-      applyLock -= 1;
-      if (applyLock === 0 && applyDirty) {
-        applyDirty = false;
-        const issued = ++memorySeq;
-        const stored = await readStoredMeta();
-        const editSeq = Math.max(issued, stored.editSeq + 1, memorySeq);
-        memorySeq = editSeq;
-        await setMeta({ ...stored, dirty: true, editSeq });
-      }
-    }
-  }
-
-  async function encrypt(settingsValue, secret) {
-    const pass = String(secret || "").trim();
-    if (!pass) {
-      throw new Error("同步密钥不能为空");
-    }
-    const json = canonical(normalize(settingsValue));
-    const plain = gzipBytes(utf8(json));
-    if (plain.length > PLAIN_LIMIT) {
-      const error = new Error("设置体积过大，请精简评论规则后再同步");
-      error.code = "too-large";
-      throw error;
-    }
-    const salt = randomBytes(SALT_BYTES);
-    const nonce = randomBytes(NONCE_BYTES);
-    const key = await deriveKey(pass, salt);
-    const cipher = new Uint8Array(await root.crypto.subtle.encrypt({ name: "AES-GCM", iv: nonce }, key, plain));
-    return {
-      alg: ALG,
-      ciphertext: bytesToBase64(concatBytes([salt, nonce, cipher])),
-      payloadBytes: salt.length + nonce.length + cipher.length,
-    };
-  }
-
-  async function decrypt(ciphertext, secret, alg = ALG) {
-    if (alg !== ALG) {
-      const error = new Error("云端设置格式需要升级扩展");
-      error.code = "alg";
-      throw error;
-    }
-    const pass = String(secret || "").trim();
-    if (!pass) {
-      const error = new Error("同步密钥不能为空");
-      error.code = "decrypt";
-      throw error;
-    }
-    let packed;
-    try {
-      const raw = base64ToBytes(ciphertext);
-      if (raw.length < SALT_BYTES + NONCE_BYTES + 16) {
-        throw new Error("密文长度无效");
-      }
-      const salt = raw.subarray(0, SALT_BYTES);
-      const nonce = raw.subarray(SALT_BYTES, SALT_BYTES + NONCE_BYTES);
-      const body = raw.subarray(SALT_BYTES + NONCE_BYTES);
-      const key = await deriveKey(pass, salt);
-      const plain = new Uint8Array(await root.crypto.subtle.decrypt({ name: "AES-GCM", iv: nonce }, key, body));
-      const unzipped = gunzipBytes(plain);
-      if (unzipped.length > PLAIN_LIMIT) {
-        throw new Error("解压结果过大");
-      }
-      packed = JSON.parse(fromUtf8(unzipped));
-    } catch (error) {
-      if (error?.code === "alg") {
-        throw error;
-      }
-      const fail = new Error("无法解密云端设置");
-      fail.code = "decrypt";
-      fail.cause = error;
-      throw fail;
-    }
-    if (!isPlainObject(packed)) {
-      const error = new Error("云端设置格式无效");
-      error.code = "decrypt";
-      throw error;
-    }
-    return normalize(packed);
-  }
-
-  function cmpVer(left, right) {
-    const parts = (value) => String(value || "").replace(/^v/i, "").split(".").map((item) => Number.parseInt(item, 10) || 0);
-    const a = parts(left);
-    const b = parts(right);
-    const len = Math.max(a.length, b.length);
-    for (let index = 0; index < len; index += 1) {
-      const diff = (a[index] || 0) - (b[index] || 0);
-      if (diff !== 0) {
-        return diff > 0 ? 1 : -1;
-      }
+  function compareVersion(local, remote) {
+    const left = local.split(".").map(Number);
+    const right = remote.split(".").map(Number);
+    for (let i = 0; i < 4; i++) {
+      const diff = (left[i] || 0) - (right[i] || 0);
+      if (diff) return Math.sign(diff);
     }
     return 0;
   }
 
   function localVersion() {
+    const version = root.chrome.runtime.getManifest().version;
+    if (!validVersion(version)) throw error("version-invalid", "当前扩展版本无效");
+    return version;
+  }
+
+  function validateBundle(bundle) {
+    if (!bundle || typeof bundle !== "object" || !validVersion(bundle.extensionVersion)
+      || !Number.isInteger(bundle.formatVersion)) {
+      throw error("bundle-invalid", "远端备份格式无效");
+    }
+    if (bundle.formatVersion > FORMAT || compareVersion(localVersion(), bundle.extensionVersion) < 0) {
+      throw error("upgrade", "远端备份需要更高版本的扩展");
+    }
+    if (bundle.formatVersion !== FORMAT || Object.keys(bundle).length !== 3
+      || typeof bundle.payload !== "string" || bundle.payload.length > Math.ceil(PACKED_LIMIT / 3) * 4
+      || !/^[A-Za-z0-9+/]+={0,2}$/.test(bundle.payload) || bundle.payload.length % 4) {
+      throw error("bundle-invalid", "远端备份格式无效");
+    }
+    const bytes = Uint8Array.from(root.atob(bundle.payload), ch => ch.charCodeAt(0));
+    if (bytes.length > PACKED_LIMIT || bytes[0] !== 0x1f || bytes[1] !== 0x8b || base64(bytes) !== bundle.payload) {
+      throw error("bundle-invalid", "远端备份不是有效的压缩数据");
+    }
+    return bytes;
+  }
+
+  async function hash(bytes) {
+    const digest = await root.crypto.subtle.digest("SHA-256", bytes);
+    return Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, "0")).join("");
+  }
+
+  /** 使用现有面板快照构造两个远端共用的包。gzip 是传输格式，不是加密 */
+  async function pack(settingsValue = undefined) {
+    settingsValue ??= await settings.panelSnapshot.pack({ strict: true });
+    const input = new TextEncoder().encode(canonical(settingsValue));
+    const fail = () => error("too-large", "设置备份体积过大，请精简设置后再同步");
+    if (input.length > JSON_LIMIT) throw fail();
+    const bytes = root.fflate.gzipSync(input, { mtime: 0 });
+    if (bytes.length > PACKED_LIMIT) throw fail();
+    return {
+      bundle: { formatVersion: FORMAT, extensionVersion: localVersion(), payload: base64(bytes) },
+      payloadHash: await hash(bytes),
+      payloadBytes: bytes.length,
+    };
+  }
+
+  /** 限制远端响应和解压的实际字节数，超限即停止读取 */
+  async function readText(stream, limit) {
+    const reader = stream.getReader();
+    const decoder = new TextDecoder("utf-8", { fatal: true });
+    let size = 0, result = "";
+    let complete = false;
     try {
-      return String(root.chrome?.runtime?.getManifest?.()?.version || "");
-    } catch (error) {
-      globalThis.STLoggerFactory.reportError(error, { domain: "settings", feature: "settings-cloud", event: "local-version-failed", message: "设置中心处理失败", level: "warn", phase: "localVersion" });
-      return "";
-    }
-  }
-
-  function normalizeMeta(value) {
-    const src = isPlainObject(value) ? value : {};
-    return {
-      schemaVersion: 1,
-      userId: userIdOf(src.userId),
-      revision: Number.isInteger(src.revision) && src.revision >= 0 ? src.revision : 0,
-      payloadHash: String(src.payloadHash || ""),
-      dirty: src.dirty === true,
-      editSeq: Number.isInteger(src.editSeq) && src.editSeq >= 0 ? src.editSeq : 0,
-      conflict: src.conflict == null ? null : src.conflict,
-      decryptBlocked: src.decryptBlocked === true,
-      lastCheckedAt: Number(src.lastCheckedAt) || 0,
-      lastSyncedAt: Number(src.lastSyncedAt) || 0,
-      lastError: String(src.lastError || ""),
-    };
-  }
-
-  async function getEnabled() {
-    const data = await localGet([ENABLED_KEY]);
-    return data[ENABLED_KEY] === true;
-  }
-
-  async function setEnabled(value) {
-    return localSet({ [ENABLED_KEY]: value === true });
-  }
-
-  async function getSecret() {
-    const data = await localGet([SECRET_KEY]);
-    return String(data[SECRET_KEY] || "");
-  }
-
-  async function setSecret(value) {
-    return localSet({ [SECRET_KEY]: String(value || "") });
-  }
-
-  function withMemory(meta) {
-    if (memorySeq > meta.editSeq) {
-      meta.editSeq = memorySeq;
-      meta.dirty = true;
-    }
-    return meta;
-  }
-
-  async function readStoredMeta() {
-    const data = await localGet([META_KEY]);
-    return normalizeMeta(data[META_KEY]);
-  }
-
-  async function getMeta() {
-    return withMemory(await readStoredMeta());
-  }
-
-  // 清 dirty 时如果传入的代次已经落后，必须保留待同步，不能用旧代次覆盖新修改
-  async function setMeta(value) {
-    const incoming = normalizeMeta(value);
-    if (memorySeq > incoming.editSeq) {
-      incoming.editSeq = memorySeq;
-      incoming.dirty = true;
-    }
-    const stored = await readStoredMeta();
-    if (stored.editSeq > incoming.editSeq) {
-      incoming.editSeq = stored.editSeq;
-      incoming.dirty = true;
-    }
-    memorySeq = Math.max(memorySeq, incoming.editSeq);
-    return localSet({ [META_KEY]: incoming });
-  }
-
-  async function readChannel() {
-    const data = await localGet([ENABLED_KEY, SECRET_KEY, META_KEY]);
-    return {
-      enabled: data[ENABLED_KEY] === true,
-      secret: String(data[SECRET_KEY] || ""),
-      meta: withMemory(normalizeMeta(data[META_KEY])),
-    };
-  }
-
-  // 退出登录或换账号时切断通道，避免上一账号的密钥/revision 被下一账号继续使用
-  async function resetChannel() {
-    memorySeq = 0;
-    return localSet({
-      [ENABLED_KEY]: false,
-      [SECRET_KEY]: "",
-      [META_KEY]: emptyMeta(),
-    });
-  }
-
-  async function bindUser(userId) {
-    const id = userIdOf(userId);
-    if (!id) {
-      return false;
-    }
-    const meta = await getMeta();
-    if (meta.userId === id) {
-      return true;
-    }
-    return setMeta({ ...meta, userId: id });
-  }
-
-  // 通道必须绑到当前 user_id；对不上就重置，不能把上一账号的面板加密上传到新账号
-  async function adoptForUser(userId) {
-    const id = userIdOf(userId);
-    const channel = await readChannel();
-    const bound = userIdOf(channel.meta.userId);
-    if (bound && id && bound !== id) {
-      await resetChannel();
-      return {
-        userId: id,
-        bound: "",
-        enabled: false,
-        secret: "",
-        meta: emptyMeta(),
-        switched: true,
-        unbound: true,
-      };
-    }
-    return {
-      userId: id,
-      bound,
-      enabled: channel.enabled,
-      secret: channel.secret,
-      meta: channel.meta,
-      switched: false,
-      unbound: !bound,
-    };
-  }
-
-  function isApplying() {
-    return applyLock > 0;
-  }
-
-  function isSyncedKey(name) {
-    return catalog().isPanelStorageKey?.(name) === true;
-  }
-
-  // 已经 dirty 时也要加代次。上传开始时的 true 不能和上传期间的新修改当成同一次
-  async function markDirty() {
-    if (applyLock > 0) {
-      applyDirty = true;
-      return true;
-    }
-    const issued = ++memorySeq;
-    const stored = await readStoredMeta();
-    const editSeq = Math.max(issued, stored.editSeq + 1, memorySeq);
-    memorySeq = editSeq;
-    return setMeta({ ...stored, dirty: true, editSeq });
-  }
-
-  function decide(input = {}) {
-    if (input.enabled !== true || input.loggedIn !== true || input.hasPermission !== true) {
-      return { action: "skip", reason: "unavailable" };
-    }
-    const cloud = input.cloud && typeof input.cloud === "object" ? input.cloud : {};
-    const meta = normalizeMeta(input.meta);
-    const local = String(input.localVersion || "");
-    if (cloud.exists === true && cmpVer(local, cloud.extensionVersion) < 0) {
-      return { action: "upgrade", reason: "version-low" };
-    }
-    if (cloud.exists !== true) {
-      // 登录/后台自动同步在通道未绑定或刚换账号时不得把本机残留面板上传到空云端
-      if (input.allowEmptyUpload === false) {
-        return { action: "skip", reason: "hold-empty" };
+      for (;;) {
+        const { value, done } = await reader.read();
+        if (done) {
+          complete = true;
+          return result + decoder.decode();
+        }
+        size += value.byteLength;
+        if (size > limit) throw error("bundle-invalid", "远端备份内容超出大小限制");
+        result += decoder.decode(value, { stream: true });
       }
-      return { action: "upload", reason: "cloud-empty" };
+    } finally {
+      if (!complete) void reader.cancel().catch(error => {
+        root.STLoggerFactory.reportError(error, { domain: "background", feature: "settings-cloud",
+          event: "settings-cloud-stream-cancel-failed", message: "释放备份读取流失败", level: "warn" });
+      });
+      reader.releaseLock();
     }
-    // 解不开或「稍后」期间禁止自动 PUT/GET 覆盖；打开设置或立即同步再处理
-    if (meta.decryptBlocked === true) {
-      return { action: "decrypt", reason: "decrypt-blocked" };
+  }
+
+  function parseJson(text) {
+    try {
+      return JSON.parse(text);
+    } catch (cause) {
+      root.STLoggerSchema.markJsonError(cause);
+      throw new Error("远端备份不是有效的 JSON", { cause });
     }
-    if (meta.conflict && meta.conflict !== "upgrade") {
-      return { action: "conflict", reason: String(meta.conflict) };
+  }
+
+  /** 完整校验后才交给面板写回，空文件或缺失分区不会被填成默认设置 */
+  async function unpack(bundle, expectedHash) {
+    const bytes = validateBundle(bundle);
+    if (expectedHash && await hash(bytes) !== expectedHash) {
+      throw error("bundle-invalid", "远端备份内容校验失败");
     }
-    if (!meta.revision && !meta.payloadHash) {
-      return input.localIsDefault === true
-        ? { action: "download", reason: "fresh-device" }
-        : { action: "conflict", reason: "fresh-local-dirty" };
+    const stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream("gzip"));
+    const data = parseJson(await readText(stream, JSON_LIMIT));
+    const sections = settings.panelSnapshot.SECTIONS;
+    if (!data || typeof data !== "object" || Object.keys(data).length !== sections.length
+      || !sections.every(key => Object.hasOwn(data, key)
+        && (key === "uiLocale" ? settings.panelSnapshot.LOCALES.includes(data[key])
+          : settings.panelSnapshot.isPlainObject(data[key])))) {
+      throw error("bundle-invalid", "远端备份的设置分区不完整");
     }
-    if (String(cloud.payloadHash || "") === meta.payloadHash && meta.dirty !== true) {
-      return { action: "skip", reason: "unchanged" };
+    return data;
+  }
+
+  function webdavDirectory(value) {
+    const address = typeof value === "string" ? value.trim() : "";
+    const url = /^https:\/\//i.test(address) && URL.canParse(address) ? new URL(address) : null;
+    if (!url || url.protocol !== "https:" || !url.hostname || url.hostname.includes("*")
+      || url.username || url.password || url.search || url.hash || /[?#]/.test(url.href)) {
+      throw error("webdav-url", "请输入不含登录信息、查询参数或片段的 HTTPS WebDAV 文件夹地址");
     }
-    const remoteRev = Number(cloud.revision) || 0;
-    if (remoteRev === meta.revision && meta.dirty === true) {
-      return { action: "upload", reason: "local-dirty" };
+    if (!url.pathname.endsWith("/")) url.pathname += "/";
+    return url;
+  }
+
+  function webdavConfig(value) {
+    const directory = webdavDirectory(value?.directory).href;
+    const username = value?.username;
+    const password = value?.password;
+    if (typeof username !== "string" || !username.trim() || /[:\u0000-\u001f\u007f]/.test(username)
+      || typeof password !== "string" || !password || /[\u0000-\u001f\u007f]/.test(password)
+      || username.length > 1024 || password.length > 4096) {
+      throw error("webdav-credentials", "请输入有效的 WebDAV 用户名和密码或应用密码");
     }
-    if (remoteRev >= meta.revision && meta.dirty !== true) {
-      return { action: "download", reason: "cloud-newer" };
-    }
-    if (remoteRev > meta.revision && meta.dirty === true) {
-      return { action: "conflict", reason: "both-dirty" };
-    }
-    return { action: "conflict", reason: "revision-mismatch" };
+    return { directory, username, password };
   }
 
   const api = Object.freeze({
-    ready: true,
-    ALG,
-    ENABLED_KEY,
-    SECRET_KEY,
-    META_KEY,
-    get SECTIONS() {
-      return catalog().panelSections || [];
-    },
-    emptyMeta,
-    canonical,
-    cmpVer,
-    localVersion,
-    normalize,
-    defaultsPack,
-    isDefaultPack,
-    pack,
-    apply,
-    encrypt,
-    decrypt,
-    getEnabled,
-    setEnabled,
-    getSecret,
-    setSecret,
-    getMeta,
-    setMeta,
-    readChannel,
-    resetChannel,
-    bindUser,
-    adoptForUser,
-    markDirty,
-    isApplying,
-    isSyncedKey,
-    decide,
+    ready: true, CHANNEL_KEY, META_KEY, PACKED_LIMIT, ENVELOPE_LIMIT, ARCHIVE_FILE_LIMIT, HASH, PROVIDERS,
+    error, emptyMeta, readChannel, saveChannel, saveMeta, removeLegacy,
+    compareVersion, localVersion, validVersion, pack, unpack, validateBundle, hash, base64, canonical, readText, parseJson,
+    webdavDirectory, webdavConfig,
+    isSyncedKey: key => key === root.STConfig.aiSearchKey || key === root.STAutomation.TOOL_CREDENTIALS_KEY
+      || settings.catalog.isPanelStorageKey(key),
   });
-
   settings.cloud = api;
   root.STSettingsCloud = api;
-
-  if (typeof module === "object" && module.exports) {
-    module.exports = api;
-  }
-})(typeof globalThis !== "undefined" ? globalThis : window);
+})(globalThis);

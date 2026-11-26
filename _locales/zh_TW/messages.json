@@ -79,17 +79,8 @@
   "settings_cloud_title": {
     "message": "設定雲端同步"
   },
-  "settings_cloud_desc": {
-    "message": "將設定中心面板設定加密同步到目前 Steam Buff 帳號。同步金鑰只保存在本機。"
-  },
   "settings_cloud_enable": {
     "message": "啟用雲端同步"
-  },
-  "settings_cloud_secret": {
-    "message": "同步金鑰"
-  },
-  "settings_cloud_secretPlaceholder": {
-    "message": "只保存在本機，請在其他裝置填寫同一串"
   },
   "settings_cloud_syncNow": {
     "message": "立即同步"
@@ -102,24 +93,6 @@
   },
   "settings_cloud_needPermission": {
     "message": "目前權益不包含設定雲端同步。"
-  },
-  "settings_cloud_needSecret": {
-    "message": "請填寫同步金鑰後再同步。其他裝置使用同一串金鑰。"
-  },
-  "settings_cloud_idle": {
-    "message": "開啟後，設定中心面板設定會加密同步到目前帳號。"
-  },
-  "settings_cloud_dirty": {
-    "message": "有尚未上傳的本機變更，關閉設定頁或點立即同步後會上傳。"
-  },
-  "settings_cloud_conflictPending": {
-    "message": "本機和雲端都改過設定，需要選擇保留哪一份。"
-  },
-  "settings_cloud_decryptPending": {
-    "message": "金鑰錯誤"
-  },
-  "settings_cloud_secretWrongMessage": {
-    "message": "同步金鑰無法解密雲端設定。可以填寫正確金鑰後再同步，核對成功後才會替換本機金鑰。要更換雲端密文的加密金鑰，請先重置清除雲端設定，再重新開啟並填寫新金鑰。"
   },
   "settings_cloud_upgradePending": {
     "message": "雲端設定來自更高版本擴充功能，請先升級 Steam Buff。"
@@ -135,23 +108,11 @@
   "settings_cloud_conflictTitle": {
     "message": "設定雲端同步衝突"
   },
-  "settings_cloud_conflictMessage": {
-    "message": "這台裝置和雲端都改過設定。使用雲端會覆蓋本機面板設定；使用本機則會覆蓋雲端。不會自動備份。"
-  },
-  "settings_cloud_useCloud": {
-    "message": "使用雲端"
-  },
   "settings_cloud_useLocal": {
     "message": "使用本機"
   },
   "settings_cloud_later": {
     "message": "稍後"
-  },
-  "settings_cloud_overwriteConfirmTitle": {
-    "message": "確認覆蓋雲端？"
-  },
-  "settings_cloud_overwriteConfirmMessage": {
-    "message": "雲端現有設定會被這台裝置用目前金鑰加密後覆蓋，且不會保留歷史版本。"
   },
   "settings_cloud_upgradeTitle": {
     "message": "需要升級擴充功能"
@@ -159,29 +120,281 @@
   "settings_cloud_upgradeMessage": {
     "message": "雲端設定來自更高版本的 Steam Buff。升級後再同步，避免丟掉新欄位。"
   },
-  "settings_cloud_reset": {
-    "message": "重置"
-  },
-  "settings_cloud_resetTitle": {
-    "message": "清除雲端設定？"
-  },
-  "settings_cloud_resetMessage": {
-    "message": "重置會刪除目前帳號在雲端儲存的設定副本，刪除後不能恢復。本機的面板設定會保留。雲端同步會在這台裝置上關閉，其他裝置不能再從雲端拉回這份設定。之後需要你自己重新開啟雲端同步，並填寫新的同步金鑰。"
-  },
-  "settings_cloud_resetConfirm": {
-    "message": "確認"
-  },
-  "settings_cloud_resetFailed": {
-    "message": "清除雲端設定失敗，雲端同步仍保持原狀。"
-  },
-  "settings_cloud_tooLarge": {
-    "message": "設定體積過大，請精簡評論規則後再同步。"
-  },
-  "settings_cloud_syncSuccess": {
-    "message": "設定已同步。"
-  },
   "settings_cloud_syncFailed": {
     "message": "同步失敗，請稍後再試。"
+  },
+  "settings_cloud_invalidDavCredentials": {
+    "message": "WebDAV 使用者名稱或密碼不正確。"
+  },
+  "settings_cloud_invalidDavFolder": {
+    "message": "請檢查 WebDAV 資料夾位址和讀寫權限。"
+  },
+  "settings_cloud_davHttpFailed": {
+    "message": "WebDAV 請求失敗（HTTP $status$）。",
+    "placeholders": {
+      "status": { "content": "$1" }
+    }
+  },
+  "settings_cloud_officialUnavailable": {
+    "message": "官方雲端備份或獨立封存暫時無法使用。"
+  },
+  "settings_cloud_davPermission": {
+    "message": "未取得 WebDAV 站點的存取權限。"
+  },
+  "settings_cloud_invalidDavUrl": {
+    "message": "請輸入不含登入資訊和查詢參數的 HTTPS 資料夾位址。"
+  },
+  "settings_cloud_davIncompatible": {
+    "message": "WebDAV 不支援強 ETag 或條件式寫入，無法安全同步。"
+  },
+  "settings_cloud_davCleanupFailed": {
+    "message": "連線測試失敗，遠端可能留有 steam-buff-webdav-test 暫存檔。"
+  },
+  "settings_cloud_tooLarge": {
+    "message": "設定備份太大，請精簡設定後再試。"
+  },
+  "settings_cloud_invalidBundle": {
+    "message": "遠端備份或伺服器回應格式無效。"
+  },
+  "settings_cloud_deletePartial": {
+    "message": "遠端備份已刪除，但無法關閉本機同步，請手動關閉。"
+  },
+  "settings_cloud_provider": {
+    "message": "備份位置"
+  },
+  "settings_cloud_frameLoading": {
+    "message": "正在載入雲端同步設定…"
+  },
+  "settings_cloud_frameFailed": {
+    "message": "無法在此載入雲端同步設定。"
+  },
+  "settings_cloud_openSettings": {
+    "message": "開啟雲端同步設定"
+  },
+  "settings_cloud_privateSettingsRequired": {
+    "message": "請在擴充功能的設定中心操作雲端同步。"
+  },
+  "settings_cloud_official": {
+    "message": "Steam Buff 雲端"
+  },
+  "settings_cloud_readFailed": {
+    "message": "無法讀取雲端同步設定，請重新開啟設定再試。"
+  },
+  "settings_cloud_devices": {
+    "message": "裝置管理"
+  },
+  "settings_cloud_deviceChecking": {
+    "message": "正在檢查裝置…"
+  },
+  "settings_cloud_backupFiles": {
+    "message": "備份檔案"
+  },
+  "settings_cloud_deviceBackupMissing": {
+    "message": "所選位置沒有備份。關閉後重新開啟雲端同步即可建立備份。"
+  },
+  "settings_cloud_restoreBackup": {
+    "message": "還原備份"
+  },
+  "settings_cloud_restoreRemote": {
+    "message": "從雲端還原"
+  },
+  "settings_cloud_restoreArchive": {
+    "message": "從電腦還原"
+  },
+  "settings_cloud_pairApproved": {
+    "message": "舊裝置已確認配對。"
+  },
+  "settings_cloud_finishPairing": {
+    "message": "完成配對"
+  },
+  "settings_cloud_recoveryChanged": {
+    "message": "待儲存的復原檔已變更，請重新開啟「裝置管理」。"
+  },
+  "settings_cloud_pairRequest": {
+    "message": "配對此瀏覽器"
+  },
+  "settings_cloud_approveDevice": {
+    "message": "授權新裝置"
+  },
+  "settings_cloud_downloadRecovery": {
+    "message": "儲存復原檔"
+  },
+  "settings_cloud_recoverDevice": {
+    "message": "使用復原檔授權"
+  },
+  "settings_cloud_downloadArchive": {
+    "message": "下載加密備份"
+  },
+  "settings_cloud_pairInstructions": {
+    "message": "將這段配對要求複製到一部已授權的裝置，在「授權新裝置」中貼上。要求在 15 分鐘內有效，請勿公開分享。"
+  },
+  "settings_cloud_pairCode": {
+    "message": "配對要求"
+  },
+  "settings_cloud_pairCopy": {
+    "message": "複製要求"
+  },
+  "settings_cloud_pairCopied": {
+    "message": "已複製配對要求。"
+  },
+  "settings_cloud_pairSelect": {
+    "message": "已選取配對要求，請手動複製。"
+  },
+  "settings_cloud_approveInstructions": {
+    "message": "請只貼上從自己的新瀏覽器取得的要求。授權後，該瀏覽器可解密這份備份。"
+  },
+  "settings_cloud_approved": {
+    "message": "授權成功。請在新裝置的「裝置管理」中選取「完成配對」。"
+  },
+  "settings_cloud_recoveryNotice": {
+    "message": "請單獨保管復原檔。新產生的復原檔可開啟從現在起下載的備份，較舊的備份仍需使用原本的復原檔。"
+  },
+  "settings_cloud_restoreArchiveMessage": {
+    "message": "這會以備份取代本機設定和對應的成就譯文，並暫停本機雲端同步。"
+  },
+  "settings_cloud_recoveryFile": {
+    "message": "復原檔"
+  },
+  "settings_cloud_archiveFile": {
+    "message": "加密備份檔"
+  },
+  "settings_cloud_restoreWorking": {
+    "message": "正在驗證並處理備份…"
+  },
+  "settings_cloud_restoreNeedsKey": {
+    "message": "請再選擇與這份備份對應的復原檔案。"
+  },
+  "settings_cloud_restoreRollback": {
+    "message": "所選的雲端備份早於本機已驗證的版本，無法還原。"
+  },
+  "settings_cloud_restoreSettingsPartial": {
+    "message": "已還原部分本機設定。成就譯文尚待還原，請檢查後重試。"
+  },
+  "settings_cloud_restoreSettingsInterrupted": {
+    "message": "設定還原中斷，可能已有部分設定寫入。請檢查後重試。"
+  },
+  "settings_cloud_restoreAchievementsInterrupted": {
+    "message": "本機設定已還原。成就譯文還原中斷，請檢查後重試。"
+  },
+  "settings_cloud_remoteRestored": {
+    "message": "已從雲端備份還原本機資料。"
+  },
+  "settings_cloud_archiveRestored": {
+    "message": "已從加密備份還原本機資料。"
+  },
+  "settings_cloud_deviceRecovered": {
+    "message": "本機已獲授權。你可以開啟雲端同步或立即同步。"
+  },
+  "settings_cloud_deviceRequired": {
+    "message": "此瀏覽器尚未獲授權。請在「裝置管理」中配對。"
+  },
+  "settings_cloud_deviceAlreadyAuthorized": {
+    "message": "此瀏覽器已獲授權。"
+  },
+  "settings_cloud_pairInvalid": {
+    "message": "配對要求無效、已逾期或屬於其他帳號。請重新產生要求。"
+  },
+  "settings_cloud_backupMissing": {
+    "message": "所選位置沒有可用的加密備份。"
+  },
+  "settings_cloud_fileInvalid": {
+    "message": "請選擇有效且未超過大小限制的備份檔或復原檔。"
+  },
+  "settings_cloud_vaultInvalid": {
+    "message": "無法驗證加密備份、簽章或復原檔。"
+  },
+  "settings_cloud_vaultRollback": {
+    "message": "遠端備份早於本機已驗證的版本，已暫停同步。"
+  },
+  "settings_cloud_achievementOwner": {
+    "message": "本機成就譯文已連結至其他 Steam Buff 帳號。請為各帳號使用個別的瀏覽器設定檔。"
+  },
+  "settings_cloud_resetMessageDav": {
+    "message": "這會刪除 WebDAV 上目前的備份，並關閉本機同步。本機資料和已下載的備份會保留。"
+  },
+  "settings_cloud_fileMismatch": {
+    "message": "無法使用這個復原檔開啟所選備份，請使用對應版本的復原檔。"
+  },
+  "settings_cloud_recoverySaved": {
+    "message": "已儲存復原檔"
+  },
+  "settings_cloud_rateLimited": {
+    "message": "備份要求過於頻繁，請稍後重試。"
+  },
+  "settings_cloud_objectsMissing": {
+    "message": "官方雲端備份缺少加密分片，請從獨立封存還原。"
+  },
+  "settings_cloud_consentOfficial": {
+    "message": "API 金鑰、設定和成就譯文會在本機加密後上傳至 Steam Buff。可用已授權的裝置或復原檔解密。"
+  },
+  "settings_cloud_consentDav": {
+    "message": "API 金鑰、設定和成就譯文會在本機加密後上傳至 WebDAV。可用已授權的裝置或復原檔解密。"
+  },
+  "settings_cloud_enableConfirm": {
+    "message": "確認開啟"
+  },
+  "settings_cloud_webdavTitle": {
+    "message": "WebDAV 連線"
+  },
+  "settings_cloud_webdavDirectory": {
+    "message": "HTTPS 資料夾位址"
+  },
+  "settings_cloud_webdavUser": {
+    "message": "使用者名稱"
+  },
+  "settings_cloud_webdavPassword": {
+    "message": "密碼或應用程式密碼"
+  },
+  "settings_cloud_webdavPasswordSaved": {
+    "message": "已儲存"
+  },
+  "settings_cloud_webdavTestSave": {
+    "message": "測試連線並儲存"
+  },
+  "settings_cloud_webdavTesting": {
+    "message": "正在測試 WebDAV 連線…"
+  },
+  "settings_cloud_webdavMissing": {
+    "message": "請先測試並儲存 WebDAV 連線。"
+  },
+  "settings_cloud_webdavSaved": {
+    "message": "連線已儲存，可以開啟雲端同步。"
+  },
+  "settings_cloud_remoteDeleted": {
+    "message": "遠端備份已不存在。關閉後再開啟雲端同步，就能建立新備份。"
+  },
+  "settings_cloud_conflictChanged": {
+    "message": "同步期間設定發生變更，請重新開啟設定處理。"
+  },
+  "settings_cloud_restoreConfirm": {
+    "message": "衝突的設定或譯文會使用遠端版本，確定要繼續嗎？"
+  },
+  "settings_cloud_dirty": {
+    "message": "本機有尚未上傳的設定。"
+  },
+  "settings_cloud_conflictPending": {
+    "message": "本機與遠端設定不同，點選「立即同步」選擇要保留的版本。"
+  },
+  "settings_cloud_conflictMessage": {
+    "message": "本機與遠端的設定或成就譯文有衝突。請選擇衝突部分要保留的版本，其餘譯文會合併。"
+  },
+  "settings_cloud_conflictNotice": {
+    "message": "本機與遠端備份的設定不同。"
+  },
+  "settings_cloud_useCloud": {
+    "message": "使用遠端"
+  },
+  "settings_cloud_overwriteConfirmMessage": {
+    "message": "衝突的設定或譯文會使用本機版本，確定要繼續嗎？"
+  },
+  "settings_cloud_reset": {
+    "message": "刪除遠端備份"
+  },
+  "settings_cloud_resetTitle": {
+    "message": "刪除遠端備份？"
+  },
+  "settings_cloud_resetMessage": {
+    "message": "這會刪除目前的雲端同步備份並關閉本機同步。本機資料和獨立封存會保留。"
   },
   "settings_category_extension_settings_name": {
     "message": "擴充功能設定"
@@ -8501,17 +8714,11 @@
   "settings_translate_wholePage": {
     "message": "整頁翻譯"
   },
-  "settings_cloud_syncDone": {
-    "message": "同步完成"
-  },
   "settings_cloud_syncDoneBody": {
     "message": "設定雲同步已完成。"
   },
-  "settings_cloud_resetDone": {
-    "message": "重置完成"
-  },
   "settings_cloud_resetDoneBody": {
-    "message": "雲端設定已清除。"
+    "message": "遠端備份已刪除。"
   },
   "playerStats_hours": {
     "message": "$hours$ 小時",

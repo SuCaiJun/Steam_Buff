@@ -79,17 +79,8 @@
   "settings_cloud_title": {
     "message": "설정 클라우드 동기화"
   },
-  "settings_cloud_desc": {
-    "message": "설정 센터 패널 구성을 암호화해 현재 Steam Buff 계정에 동기화합니다. 동기화 키는 이 기기에만 저장됩니다."
-  },
   "settings_cloud_enable": {
     "message": "클라우드 동기화 사용"
-  },
-  "settings_cloud_secret": {
-    "message": "동기화 키"
-  },
-  "settings_cloud_secretPlaceholder": {
-    "message": "이 기기에만 저장됩니다. 다른 기기에도 같은 문자열을 입력하세요"
   },
   "settings_cloud_syncNow": {
     "message": "지금 동기화"
@@ -102,24 +93,6 @@
   },
   "settings_cloud_needPermission": {
     "message": "현재 혜택에 설정 클라우드 동기화가 포함되어 있지 않습니다."
-  },
-  "settings_cloud_needSecret": {
-    "message": "동기화하기 전에 동기화 키를 입력하세요. 다른 기기도 같은 키를 사용합니다."
-  },
-  "settings_cloud_idle": {
-    "message": "켜면 설정 센터 패널 구성이 암호화되어 이 계정에 동기화됩니다."
-  },
-  "settings_cloud_dirty": {
-    "message": "아직 업로드되지 않은 로컬 변경이 있습니다. 설정 페이지를 닫거나 지금 동기화를 누르면 업로드됩니다."
-  },
-  "settings_cloud_conflictPending": {
-    "message": "이 기기와 클라우드에서 모두 설정이 변경되었습니다. 유지할 쪽을 선택하세요."
-  },
-  "settings_cloud_decryptPending": {
-    "message": "키가 올바르지 않습니다"
-  },
-  "settings_cloud_secretWrongMessage": {
-    "message": "동기화 키로 클라우드 설정을 복호화할 수 없습니다. 올바른 키를 입력한 뒤 다시 동기화하세요. 클라우드 암호문을 복호화한 뒤에만 이 기기의 키가 바뀝니다. 클라우드 암호문의 암호화 키를 바꾸려면 먼저 초기화로 클라우드 설정을 삭제한 뒤, 클라우드 동기화를 다시 켜고 새 키를 입력하세요."
   },
   "settings_cloud_upgradePending": {
     "message": "클라우드 설정이 더 높은 확장 프로그램 버전에서 왔습니다. 먼저 Steam Buff를 업데이트하세요."
@@ -135,23 +108,11 @@
   "settings_cloud_conflictTitle": {
     "message": "설정 클라우드 동기화 충돌"
   },
-  "settings_cloud_conflictMessage": {
-    "message": "이 기기와 클라우드에서 모두 설정이 변경되었습니다. 클라우드를 사용하면 이 기기의 패널 설정이 덮어씌워지고, 이 기기를 사용하면 클라우드가 덮어씌워집니다. 자동 백업은 만들지 않습니다."
-  },
-  "settings_cloud_useCloud": {
-    "message": "클라우드 사용"
-  },
   "settings_cloud_useLocal": {
     "message": "이 기기 사용"
   },
   "settings_cloud_later": {
     "message": "나중에"
-  },
-  "settings_cloud_overwriteConfirmTitle": {
-    "message": "클라우드를 덮어쓸까요?"
-  },
-  "settings_cloud_overwriteConfirmMessage": {
-    "message": "클라우드의 현재 설정은 이 기기 설정을 현재 키로 암호화한 내용으로 바뀌며, 이전 버전은 보관되지 않습니다."
   },
   "settings_cloud_upgradeTitle": {
     "message": "확장 프로그램 업데이트가 필요합니다"
@@ -159,29 +120,281 @@
   "settings_cloud_upgradeMessage": {
     "message": "클라우드 설정이 더 높은 Steam Buff 버전에서 왔습니다. 새 필드가 사라지지 않도록 업데이트한 뒤 동기화하세요."
   },
-  "settings_cloud_reset": {
-    "message": "초기화"
-  },
-  "settings_cloud_resetTitle": {
-    "message": "클라우드 설정을 지울까요?"
-  },
-  "settings_cloud_resetMessage": {
-    "message": "초기화하면 현재 계정의 클라우드 설정 사본이 삭제되며 되돌릴 수 없습니다. 이 기기의 패널 설정은 유지됩니다. 이 기기의 클라우드 동기화는 꺼지고, 다른 기기는 이 클라우드 사본을 다시 받을 수 없습니다. 이후 직접 클라우드 동기화를 다시 켜고 새 동기화 키를 입력해야 합니다."
-  },
-  "settings_cloud_resetConfirm": {
-    "message": "확인"
-  },
-  "settings_cloud_resetFailed": {
-    "message": "클라우드 설정을 지우지 못했습니다. 클라우드 동기화는 그대로입니다."
-  },
-  "settings_cloud_tooLarge": {
-    "message": "설정이 너무 큽니다. 리뷰 필터 규칙을 줄인 뒤 다시 동기화하세요."
-  },
-  "settings_cloud_syncSuccess": {
-    "message": "설정이 동기화되었습니다."
-  },
   "settings_cloud_syncFailed": {
     "message": "동기화에 실패했습니다. 나중에 다시 시도하세요."
+  },
+  "settings_cloud_invalidDavCredentials": {
+    "message": "WebDAV 사용자 이름과 비밀번호를 확인하세요."
+  },
+  "settings_cloud_invalidDavFolder": {
+    "message": "WebDAV 폴더 주소와 읽기·쓰기 권한을 확인하세요."
+  },
+  "settings_cloud_davHttpFailed": {
+    "message": "WebDAV 요청에 실패했습니다(HTTP $status$).",
+    "placeholders": {
+      "status": { "content": "$1" }
+    }
+  },
+  "settings_cloud_officialUnavailable": {
+    "message": "공식 클라우드 백업 또는 별도 보관소를 일시적으로 사용할 수 없습니다."
+  },
+  "settings_cloud_davPermission": {
+    "message": "WebDAV 사이트 접근 권한이 부여되지 않았습니다."
+  },
+  "settings_cloud_invalidDavUrl": {
+    "message": "로그인 정보나 쿼리 매개변수가 없는 HTTPS 폴더 주소를 입력하세요."
+  },
+  "settings_cloud_davIncompatible": {
+    "message": "이 WebDAV 서버는 안전한 동기화에 필요한 강한 ETag 또는 조건부 쓰기를 지원하지 않습니다."
+  },
+  "settings_cloud_davCleanupFailed": {
+    "message": "연결 테스트에 실패했습니다. 폴더에 임시 steam-buff-webdav-test 파일이 남아 있을 수 있습니다."
+  },
+  "settings_cloud_tooLarge": {
+    "message": "백업 용량이 너무 큽니다. 설정 용량을 줄인 후 다시 시도하세요."
+  },
+  "settings_cloud_invalidBundle": {
+    "message": "원격 백업 또는 서버 응답 형식이 잘못되었습니다."
+  },
+  "settings_cloud_deletePartial": {
+    "message": "원격 백업을 삭제했습니다. 이 기기의 동기화를 수동으로 꺼 주세요."
+  },
+  "settings_cloud_provider": {
+    "message": "백업 위치"
+  },
+  "settings_cloud_frameLoading": {
+    "message": "클라우드 동기화 설정을 불러오는 중…"
+  },
+  "settings_cloud_frameFailed": {
+    "message": "여기에서 클라우드 동기화 설정을 불러오지 못했습니다."
+  },
+  "settings_cloud_openSettings": {
+    "message": "클라우드 동기화 설정 열기"
+  },
+  "settings_cloud_privateSettingsRequired": {
+    "message": "확장 프로그램 설정에서 클라우드 동기화를 관리하세요."
+  },
+  "settings_cloud_official": {
+    "message": "Steam Buff 클라우드"
+  },
+  "settings_cloud_readFailed": {
+    "message": "동기화 설정을 불러오지 못했습니다. 설정을 다시 열어 주세요."
+  },
+  "settings_cloud_devices": {
+    "message": "기기 관리"
+  },
+  "settings_cloud_deviceChecking": {
+    "message": "기기 확인 중…"
+  },
+  "settings_cloud_backupFiles": {
+    "message": "백업 파일"
+  },
+  "settings_cloud_deviceBackupMissing": {
+    "message": "선택한 위치에 백업이 없습니다. 클라우드 동기화를 껐다가 다시 켜면 백업을 만들 수 있습니다."
+  },
+  "settings_cloud_restoreBackup": {
+    "message": "백업 복원"
+  },
+  "settings_cloud_restoreRemote": {
+    "message": "클라우드에서 복원"
+  },
+  "settings_cloud_restoreArchive": {
+    "message": "이 컴퓨터에서 복원"
+  },
+  "settings_cloud_pairApproved": {
+    "message": "기존 기기에서 페어링을 승인했습니다."
+  },
+  "settings_cloud_finishPairing": {
+    "message": "페어링 완료"
+  },
+  "settings_cloud_recoveryChanged": {
+    "message": "저장 대기 중인 복구 파일이 변경되었습니다. 기기 관리를 다시 여세요."
+  },
+  "settings_cloud_pairRequest": {
+    "message": "이 브라우저 페어링"
+  },
+  "settings_cloud_approveDevice": {
+    "message": "새 기기 승인"
+  },
+  "settings_cloud_downloadRecovery": {
+    "message": "복구 파일 저장"
+  },
+  "settings_cloud_recoverDevice": {
+    "message": "복구 파일로 승인"
+  },
+  "settings_cloud_downloadArchive": {
+    "message": "암호화 백업 다운로드"
+  },
+  "settings_cloud_pairInstructions": {
+    "message": "이 페어링 요청을 승인된 기기로 복사해 ‘새 기기 승인’에 붙여넣으세요. 요청은 15분간 유효하며 공개하지 마세요."
+  },
+  "settings_cloud_pairCode": {
+    "message": "페어링 요청"
+  },
+  "settings_cloud_pairCopy": {
+    "message": "요청 복사"
+  },
+  "settings_cloud_pairCopied": {
+    "message": "페어링 요청을 복사했습니다."
+  },
+  "settings_cloud_pairSelect": {
+    "message": "선택된 페어링 요청을 직접 복사하세요."
+  },
+  "settings_cloud_approveInstructions": {
+    "message": "본인의 새 브라우저에서 생성한 요청을 붙여넣으세요. 승인하면 해당 브라우저에서 이 백업을 복호화할 수 있습니다."
+  },
+  "settings_cloud_approved": {
+    "message": "기기를 승인했습니다. 새 기기의 기기 관리에서 ‘페어링 완료’를 선택하세요."
+  },
+  "settings_cloud_recoveryNotice": {
+    "message": "복구 파일을 별도로 보관하세요. 새 파일로 지금부터 다운로드하는 백업을 열 수 있습니다. 이전 백업을 열려면 기존 복구 파일이 필요합니다."
+  },
+  "settings_cloud_restoreArchiveMessage": {
+    "message": "백업으로 로컬 설정과 같은 항목의 도전 과제 번역을 덮어쓰고, 이 기기의 클라우드 동기화를 일시 중지합니다."
+  },
+  "settings_cloud_recoveryFile": {
+    "message": "복구 파일"
+  },
+  "settings_cloud_archiveFile": {
+    "message": "암호화 백업 파일"
+  },
+  "settings_cloud_restoreWorking": {
+    "message": "백업을 확인하고 처리하는 중…"
+  },
+  "settings_cloud_restoreNeedsKey": {
+    "message": "이 백업에 해당하는 복구 파일도 선택해 주세요."
+  },
+  "settings_cloud_restoreRollback": {
+    "message": "이 클라우드 백업은 이 기기에서 확인한 버전보다 오래되어 복원할 수 없습니다."
+  },
+  "settings_cloud_restoreSettingsPartial": {
+    "message": "일부 로컬 설정이 복원되었습니다. 도전 과제 번역은 복원 대기 중입니다. 설정을 확인한 후 다시 시도하세요."
+  },
+  "settings_cloud_restoreSettingsInterrupted": {
+    "message": "설정 복원이 중단되었습니다. 일부 설정이 저장되었을 수 있습니다. 설정을 확인한 후 다시 시도하세요."
+  },
+  "settings_cloud_restoreAchievementsInterrupted": {
+    "message": "로컬 설정이 복원되었습니다. 도전 과제 번역 복원이 중단되었습니다. 번역을 확인한 후 다시 시도하세요."
+  },
+  "settings_cloud_remoteRestored": {
+    "message": "클라우드 백업에서 로컬 데이터를 복원했습니다."
+  },
+  "settings_cloud_archiveRestored": {
+    "message": "암호화 백업에서 로컬 데이터를 복원했습니다."
+  },
+  "settings_cloud_deviceRecovered": {
+    "message": "이 기기를 승인했습니다. 클라우드 동기화를 켜거나 지금 동기화할 수 있습니다."
+  },
+  "settings_cloud_deviceRequired": {
+    "message": "이 브라우저는 승인되지 않았습니다. ‘기기 관리’에서 페어링하세요."
+  },
+  "settings_cloud_deviceAlreadyAuthorized": {
+    "message": "이 브라우저는 이미 승인되었습니다."
+  },
+  "settings_cloud_pairInvalid": {
+    "message": "유효하지 않거나 만료된 요청 또는 다른 계정의 요청입니다. 새 요청을 생성하세요."
+  },
+  "settings_cloud_backupMissing": {
+    "message": "선택한 위치에 암호화 백업이 없습니다."
+  },
+  "settings_cloud_fileInvalid": {
+    "message": "크기 제한 이내의 올바른 백업 파일 또는 복구 파일을 선택하세요."
+  },
+  "settings_cloud_vaultInvalid": {
+    "message": "암호화 백업, 서명 또는 복구 파일을 확인하지 못했습니다."
+  },
+  "settings_cloud_vaultRollback": {
+    "message": "원격 백업이 이 기기에서 확인한 버전보다 오래되어 동기화를 일시 중지했습니다."
+  },
+  "settings_cloud_achievementOwner": {
+    "message": "로컬 도전 과제 번역이 다른 Steam Buff 계정에 연결되어 있습니다. 계정별로 별도의 브라우저 프로필을 사용하세요."
+  },
+  "settings_cloud_resetMessageDav": {
+    "message": "현재 WebDAV 백업을 삭제하고 이 기기의 동기화를 끕니다. 로컬 데이터와 다운로드한 백업은 유지됩니다."
+  },
+  "settings_cloud_fileMismatch": {
+    "message": "이 복구 파일로 선택한 백업을 열 수 없습니다. 해당 백업과 일치하는 복구 파일을 사용하세요."
+  },
+  "settings_cloud_recoverySaved": {
+    "message": "복구 파일을 저장했습니다"
+  },
+  "settings_cloud_rateLimited": {
+    "message": "백업 요청이 너무 많습니다. 잠시 후 다시 시도하세요."
+  },
+  "settings_cloud_objectsMissing": {
+    "message": "공식 클라우드 백업의 일부 암호화 데이터가 누락되었습니다. 별도 보관본에서 복원하세요."
+  },
+  "settings_cloud_consentOfficial": {
+    "message": "API 키, 설정 및 도전 과제 번역을 이 기기에서 암호화한 후 Steam Buff에 업로드합니다. 승인된 기기 또는 복구 파일로 복호화할 수 있습니다."
+  },
+  "settings_cloud_consentDav": {
+    "message": "API 키, 설정 및 도전 과제 번역을 이 기기에서 암호화한 후 WebDAV에 업로드합니다. 승인된 기기 또는 복구 파일로 복호화할 수 있습니다."
+  },
+  "settings_cloud_enableConfirm": {
+    "message": "동기화 켜기"
+  },
+  "settings_cloud_webdavTitle": {
+    "message": "WebDAV 연결"
+  },
+  "settings_cloud_webdavDirectory": {
+    "message": "HTTPS 폴더 주소"
+  },
+  "settings_cloud_webdavUser": {
+    "message": "사용자 이름"
+  },
+  "settings_cloud_webdavPassword": {
+    "message": "비밀번호 또는 앱 비밀번호"
+  },
+  "settings_cloud_webdavPasswordSaved": {
+    "message": "저장됨"
+  },
+  "settings_cloud_webdavTestSave": {
+    "message": "연결 테스트 후 저장"
+  },
+  "settings_cloud_webdavTesting": {
+    "message": "WebDAV 연결 테스트 중…"
+  },
+  "settings_cloud_webdavMissing": {
+    "message": "먼저 WebDAV 연결을 테스트하고 저장해 주세요."
+  },
+  "settings_cloud_webdavSaved": {
+    "message": "연결을 저장했습니다. 클라우드 동기화를 켤 수 있습니다."
+  },
+  "settings_cloud_remoteDeleted": {
+    "message": "원격 백업이 없습니다. 동기화를 껐다가 다시 켜면 새 백업을 만들 수 있습니다."
+  },
+  "settings_cloud_conflictChanged": {
+    "message": "동기화 중 설정이 변경되었습니다. 설정을 다시 열어 충돌을 해결하세요."
+  },
+  "settings_cloud_restoreConfirm": {
+    "message": "충돌하는 설정이나 번역에 원격 버전을 사용할까요?"
+  },
+  "settings_cloud_dirty": {
+    "message": "이 기기에 아직 업로드하지 않은 설정이 있습니다."
+  },
+  "settings_cloud_conflictPending": {
+    "message": "기기와 원격 설정이 다릅니다. ‘지금 동기화’를 눌러 보관할 사본을 선택하세요."
+  },
+  "settings_cloud_conflictMessage": {
+    "message": "로컬과 원격의 설정 또는 도전 과제 번역이 충돌합니다. 충돌한 부분에 유지할 버전을 선택하세요. 나머지 번역은 병합됩니다."
+  },
+  "settings_cloud_conflictNotice": {
+    "message": "기기 설정과 원격 백업이 다릅니다."
+  },
+  "settings_cloud_useCloud": {
+    "message": "원격 설정 사용"
+  },
+  "settings_cloud_overwriteConfirmMessage": {
+    "message": "충돌하는 설정이나 번역에 이 기기의 버전을 사용할까요?"
+  },
+  "settings_cloud_reset": {
+    "message": "원격 백업 삭제"
+  },
+  "settings_cloud_resetTitle": {
+    "message": "원격 백업을 삭제할까요?"
+  },
+  "settings_cloud_resetMessage": {
+    "message": "현재 클라우드 백업을 삭제하고 이 기기의 동기화를 끕니다. 로컬 데이터와 별도의 보관본은 유지됩니다."
   },
   "settings_category_extension_settings_name": {
     "message": "확장 프로그램 설정"
@@ -8501,17 +8714,11 @@
   "settings_translate_wholePage": {
     "message": "전체 페이지 번역"
   },
-  "settings_cloud_syncDone": {
-    "message": "동기화 완료"
-  },
   "settings_cloud_syncDoneBody": {
     "message": "설정을 동기화했습니다."
   },
-  "settings_cloud_resetDone": {
-    "message": "초기화 완료"
-  },
   "settings_cloud_resetDoneBody": {
-    "message": "클라우드 설정을 삭제했습니다."
+    "message": "원격 백업을 삭제했습니다."
   },
   "playerStats_hours": {
     "message": "$hours$시간",

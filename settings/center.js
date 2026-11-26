@@ -12,6 +12,6 @@
   const root = document.documentElement;
   if (!root?.dataset) return;
   const category = new URL(location.href).searchParams.get("category");
-  if (category === "automation" || category === "ai-services") root.dataset.steamBuffOpenCat = category;
+  if (["automation", "ai-services", "extension-settings"].includes(category)) root.dataset.steamBuffOpenCat = category;
   root.dataset.steamBuffOpenRequested = String(Date.now());
 })();

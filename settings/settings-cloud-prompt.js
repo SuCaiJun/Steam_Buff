@@ -4,7 +4,7 @@
  * @Email         : Ricky@LiHai.La
  * @Project       : Steam Buff
  * @Description   : Steam 客户端增强小工具
- * @File          : 商店和社区页的设置云同步冲突弹窗
+ * @File          : 网页云同步提示与独立设置页的冲突确认
  * @Read me       : 感谢使用Steam Buff，源码注释齐全，支持二次开发。
  * @Remind        : 二次开发请保留原版权信息，谢谢。
  */
@@ -34,20 +34,18 @@
   }
 
   function request(payload) {
-    const message = { type: SYNC_TYPE, ...payload };
-    if (root.STMessageBus?.ready && root.STMessageBus?.request) {
-      return root.STMessageBus.request(message, { expectSuccess: false });
-    }
-    return new Promise((resolve) => {
-      try {
-        chrome.runtime.sendMessage(message, (res) => {
-          resolve(chrome.runtime.lastError ? { success: false } : (res || {}));
-        });
-      } catch (error) {
-        globalThis.STLoggerFactory.reportError(error, { domain: "settings", feature: "settings-cloud-prompt", event: "request-failed", message: "发送请求失败", level: "error", phase: "request" });
-        resolve({ success: false });
-      }
+    return new Promise((resolve, reject) => {
+      root.chrome.runtime.sendMessage({ type: SYNC_TYPE, reason: "resolve", ...payload }, result => {
+        const error = root.chrome.runtime.lastError;
+        if (error) reject(new Error(error.message));
+        else if (!result || typeof result.success !== "boolean") reject(new Error("云同步没有返回有效结果"));
+        else resolve(result);
+      });
     });
+  }
+
+  function openSettings() {
+    return request({ action: "open-private-settings", operationId: root.STLoggerFactory.createOperationId() });
   }
 
   function themeCss() {
@@ -155,7 +153,7 @@
         btn.type = "button";
         btn.className = `action${action.primary ? " primary" : ""}`;
         btn.textContent = String(action.label || "");
-        btn.addEventListener("click", () => close(action.id));
+        btn.addEventListener("click", event => { if (event.isTrusted) close(action.id); });
         actions.appendChild(btn);
       }
       life = root.STDialogLifecycle?.open?.({
@@ -169,93 +167,142 @@
     });
   }
 
-  async function handle(payload) {
-    if (settingsUiReady() || prompting) {
-      return;
+  /** 网页只提示冲突，用户在独立设置页确认保留哪一份备份 */
+  async function present(payload, dialog, active = () => true) {
+    if (!active()) return null;
+    if (payload.kind === "upgrade") {
+      await dialog({
+        title: tr("settings.cloud.upgradeTitle", "需要升级扩展"),
+        message: tr("settings.cloud.upgradeMessage", "远端备份来自更高版本的 Steam Buff，请升级后再同步。"),
+        actions: [{ id: "ok", label: tr("common.confirm", "确定"), primary: true }],
+      });
+      return null;
     }
+    if (payload.kind !== "conflict") return null;
+    if (root.location?.protocol !== "chrome-extension:") {
+      const choice = await dialog({
+        title: tr("settings.cloud.conflictTitle", "设置云同步冲突"),
+        message: tr("settings.cloud.conflictNotice", "本机与远端备份的设置不同。"),
+        actions: [
+          { id: "later", label: tr("settings.cloud.later", "稍后") },
+          { id: "open", label: tr("settings.cloud.openSettings", "打开云同步设置"), primary: true },
+        ],
+      });
+      if (!active() || choice !== "open") return null;
+      const result = await openSettings();
+      return result.success ? null : result;
+    }
+    if (!payload.ticket || !payload.channelId) return null;
+    const choice = await dialog({
+      title: tr("settings.cloud.conflictTitle", "设置云同步冲突"),
+      message: tr("settings.cloud.conflictMessage", "本机与远端的设置或成就译文有冲突。请选择冲突部分要保留的版本，其他译文会合并。"),
+      actions: [
+        { id: "cloud", label: tr("settings.cloud.useCloud", "使用远端") },
+        { id: "local", label: tr("settings.cloud.useLocal", "使用本机") },
+        { id: "later", label: tr("settings.cloud.later", "稍后"), primary: true },
+      ],
+    });
+    if (!active() || (choice !== "cloud" && choice !== "local")) return null;
+    const answer = await dialog({
+      title: choice === "cloud" ? tr("settings.cloud.useCloud", "使用远端") : tr("settings.cloud.useLocal", "使用本机"),
+      message: choice === "cloud"
+        ? tr("settings.cloud.restoreConfirm", "冲突的设置或译文将使用远端版本。请确认要继续。")
+        : tr("settings.cloud.overwriteConfirmMessage", "冲突的设置或译文将使用这台设备的版本。请确认要继续。"),
+      actions: [
+        { id: "cancel", label: tr("common.cancel", "取消") },
+        { id: "ok", label: tr("common.confirm", "确定"), primary: true, danger: true },
+      ],
+    });
+    if (!active() || answer !== "ok") return null;
+    return request({ action: choice === "cloud" ? "use-cloud" : "use-local", channelId: payload.channelId, ticket: payload.ticket });
+  }
+
+  function failureText({ code, status }) {
+    if (status === 429) return tr("settings.cloud.rateLimited", "备份请求过于频繁，请稍后重试。");
+    if (code === "webdav-http") {
+      if (status === 401) return tr("settings.cloud.invalidDavCredentials", "WebDAV 用户名或密码不正确。");
+      if (status === 403 || status === 404 || status === 409) {
+        return tr("settings.cloud.invalidDavFolder", "请检查 WebDAV 文件夹地址和读写权限。");
+      }
+      return tr("settings.cloud.davHttpFailed", "WebDAV 请求失败（HTTP $status$）。", { status });
+    }
+    if (code === "official-http" && status === 503)
+      return tr("settings.cloud.officialUnavailable", "官方云备份或独立归档暂不可用。");
+    if (code === "official-http" && status === 422)
+      return tr("settings.cloud.objectsMissing", "官方云备份缺少加密分片，请从独立归档恢复。");
+    if (code === "no-entitlement" || status === 403) return tr("settings.cloud.needPermission", "当前权益不包含设置云同步。");
+    if (code === "login-required" || status === 401) return tr("settings.cloud.needLogin", "请先登录 Steam Buff 账号。");
+    if (code === "cloud-open") return tr("onboarding.openSettingsFailed", "设置中心打开失败，请稍后重试。");
+    if (code === "cloud-sender") return tr("settings.cloud.privateSettingsRequired", "请在扩展设置中心操作云同步。");
+    if (["owner-changed", "channel-changed", "stale-prompt", "remote-changed", "local-changed"].includes(code))
+      return tr("settings.cloud.conflictChanged", "同步期间设置发生变化，请重新打开设置处理。");
+    if (["webdav-permission", "webdav-permission-denied"].includes(code))
+      return tr("settings.cloud.davPermission", "未获得 WebDAV 站点访问权限。");
+    if (code === "webdav-url") return tr("settings.cloud.invalidDavUrl", "请输入不含登录信息和查询参数的 HTTPS 文件夹地址。");
+    if (code === "webdav-credentials") return tr("settings.cloud.invalidDavCredentials", "请输入有效的 WebDAV 用户名和密码。");
+    if (code === "webdav-config") return tr("settings.cloud.webdavMissing", "请先测试并保存 WebDAV 连接。");
+    if (code === "webdav-etag" || code === "webdav-conditions")
+      return tr("settings.cloud.davIncompatible", "WebDAV 不支持强 ETag 或条件写入，无法安全同步。");
+    if (code === "webdav-cleanup")
+      return tr("settings.cloud.davCleanupFailed", "连接测试失败，远端可能留有 steam-buff-webdav-test 临时文件。");
+    if (code === "too-large") return tr("settings.cloud.tooLarge", "设置备份体积过大，请精简设置后重试。");
+    if (code === "bundle-invalid" || code === "reply-invalid")
+      return tr("settings.cloud.invalidBundle", "远端备份或服务器响应格式无效。");
+    if (code === "vault-device") return tr("settings.cloud.deviceRequired", "此浏览器尚未获得授权。请在「设备管理」中配对。");
+    if (code === "vault-authorized") return tr("settings.cloud.deviceAlreadyAuthorized", "此浏览器已获得授权。");
+    if (code === "vault-pair") return tr("settings.cloud.pairInvalid", "配对请求无效、已过期或属于其他账号。请重新生成请求。");
+    if (code === "recovery-changed") return tr("settings.cloud.recoveryChanged", "待保存的恢复文件已变化，请重新打开「设备管理」。");
+    if (code === "vault-missing") return tr("settings.cloud.backupMissing", "所选位置没有可用的加密备份。");
+    if (code === "vault-upgrade") return tr("settings.cloud.upgradePending", "云端设置来自更高版本扩展，请先升级 Steam Buff。");
+    if (code === "vault-file") return tr("settings.cloud.fileInvalid", "请选择有效且未超出大小限制的备份或恢复文件。");
+    if (code === "vault-file-mismatch") return tr("settings.cloud.fileMismatch", "这个恢复文件无法打开所选备份，请使用对应版本的恢复文件。");
+    if (code === "vault-invalid") return tr("settings.cloud.vaultInvalid", "加密备份、签名或恢复文件验证失败。");
+    if (code === "vault-rollback") return tr("settings.cloud.vaultRollback", "远端备份早于本机已验证的版本，已暂停同步。");
+    if (code === "restore-settings-partial")
+      return tr("settings.cloud.restoreSettingsPartial", "已恢复部分本机设置。成就译文等待恢复，请检查后重试。");
+    if (code === "restore-settings-interrupted")
+      return tr("settings.cloud.restoreSettingsInterrupted", "设置恢复中断，部分设置可能已写入。请检查后重试。");
+    if (code === "restore-achievements-interrupted")
+      return tr("settings.cloud.restoreAchievementsInterrupted", "本机设置已恢复。成就译文恢复中断，请检查后重试。");
+    if (code === "achievement-owner") return tr("settings.cloud.achievementOwner", "本机成就译文已关联其他 Steam Buff 账号。请为不同账号使用各自的浏览器配置。");
+    if (code === "delete-partial")
+      return tr("settings.cloud.deletePartial", "远端备份已删除，但关闭本机同步失败。请手动关闭。");
+    return tr("settings.cloud.syncFailed", "同步失败，请稍后重试。");
+  }
+
+  function resultText(result) {
+    if (result?.success === false) return failureText(result);
+    if (result?.prompt) return tr("settings.cloud.conflictChanged", "同步期间设置发生变化，请重新打开设置处理。");
+    if (result?.action === "remote-deleted") {
+      return tr("settings.cloud.remoteDeleted", "远端备份已不存在。关闭后重新开启云同步，可以创建新的备份。");
+    }
+    return "";
+  }
+
+  async function handle(payload) {
+    if (settingsUiReady() || prompting) return;
     prompting = true;
     try {
-      const kind = String(payload?.kind || "");
-      if (kind === "upgrade") {
-        await showDialog({
-          title: tr("settings.cloud.upgradeTitle", "需要升级扩展"),
-          message: tr("settings.cloud.upgradeMessage", "云端设置来自更高版本的 Steam Buff。升级后再同步，避免丢掉新字段。"),
-          actions: [{ id: "ok", label: tr("common.confirm", "确定"), primary: true }],
-        });
-        return;
-      }
-      if (kind === "decrypt") {
-        await showDialog({
-          title: tr("settings.cloud.decryptPending", "密钥错误"),
-          message: tr("settings.cloud.secretWrongMessage", "同步密钥无法解密云端设置。可以填写正确密钥后再同步，核对成功后才会替换本机密钥。要更换云端密文的加密密钥，请先重置清除云端设置，再重新开启并填写新密钥。"),
-          actions: [{ id: "ok", label: tr("common.confirm", "确定"), primary: true }],
-        });
-        await request({ reason: "resolve", action: "defer" });
-        return;
-      }
-      if (kind === "conflict") {
-        const action = await showDialog({
-          title: tr("settings.cloud.conflictTitle", "设置云同步冲突"),
-          message: tr("settings.cloud.conflictMessage", "这台设备和云端都改过设置。使用云端会覆盖本机面板设置；使用本机则会覆盖云端。不会自动备份。"),
-          actions: [
-            { id: "cloud", label: tr("settings.cloud.useCloud", "使用云端") },
-            { id: "local", label: tr("settings.cloud.useLocal", "使用本机") },
-            { id: "later", label: tr("settings.cloud.later", "稍后"), primary: true },
-          ],
-        });
-        if (action === "cloud") {
-          const confirm = await showDialog({
-            title: tr("settings.cloud.useCloud", "使用云端"),
-            message: tr("settings.cloud.conflictMessage", "这台设备和云端都改过设置。使用云端会覆盖本机面板设置；使用本机则会覆盖云端。不会自动备份。"),
-            actions: [
-              { id: "cancel", label: tr("common.cancel", "取消") },
-              { id: "ok", label: tr("common.confirm", "确定"), primary: true },
-            ],
-          });
-          if (confirm === "ok") {
-            await request({ reason: "resolve", action: "use-cloud" });
-          }
-          return;
-        }
-        if (action === "local") {
-          const confirm = await showDialog({
-            title: tr("settings.cloud.useLocal", "使用本机"),
-            message: tr("settings.cloud.overwriteConfirmMessage", "云端现有设置会被这台设备用当前密钥加密后覆盖，且不会保留历史版本。"),
-            actions: [
-              { id: "cancel", label: tr("common.cancel", "取消") },
-              { id: "ok", label: tr("common.confirm", "确定"), primary: true },
-            ],
-          });
-          if (confirm === "ok") {
-            await request({ reason: "resolve", action: "use-local" });
-          }
-          return;
-        }
-        await request({ reason: "resolve", action: "defer" });
-      }
+      const result = await present(payload, showDialog);
+      const message = resultText(result);
+      if (message) await showDialog({ title: tr("settings.cloud.title", "设置云同步"), message,
+        actions: [{ id: "ok", label: tr("common.confirm", "确定"), primary: true }] });
     } finally {
       prompting = false;
     }
   }
 
-  if (root.STMessageBus?.ready && root.STMessageBus?.listen) {
-    root.STMessageBus.listen(PROMPT_TYPE, (request) => {
-      handle(request).catch((error) => {
-        log.warn("settings-cloud-prompt-failed", "设置云同步弹窗失败", { error });
-      });
-    }, { owner: "settings:cloud-prompt", key: "prompt" });
-  } else if (root.chrome?.runtime?.onMessage) {
-    chrome.runtime.onMessage.addListener((request) => {
-      if (request?.type !== PROMPT_TYPE) {
-        return;
-      }
-      handle(request).catch((error) => {
-        log.warn("settings-cloud-prompt-failed", "设置云同步弹窗失败", { error });
-      });
+  function onPrompt(payload) {
+    void handle(payload).catch(error => {
+      log.warn("settings-cloud-prompt-failed", "设置云同步弹窗失败", { error });
     });
   }
 
-  root.STSettingsCloudPrompt = Object.freeze({
-    ready: true,
-  });
-})(typeof globalThis !== "undefined" ? globalThis : window);
+  if (root.STMessageBus?.ready && root.STMessageBus.listen) {
+    root.STMessageBus.listen(PROMPT_TYPE, onPrompt, { owner: "settings:cloud-prompt", key: "prompt" });
+  } else {
+    root.chrome.runtime.onMessage.addListener(payload => { if (payload?.type === PROMPT_TYPE) onPrompt(payload); });
+  }
+
+  root.STSettingsCloudPrompt = Object.freeze({ ready: true, openSettings, present, resultText });
+})(globalThis);

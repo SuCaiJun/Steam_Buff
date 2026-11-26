@@ -79,17 +79,8 @@
   "settings_cloud_title": {
     "message": "设置云同步"
   },
-  "settings_cloud_desc": {
-    "message": "把设置中心面板配置加密同步到当前 Steam Buff 账号。同步密钥只保存在本机。"
-  },
   "settings_cloud_enable": {
     "message": "启用云同步"
-  },
-  "settings_cloud_secret": {
-    "message": "同步密钥"
-  },
-  "settings_cloud_secretPlaceholder": {
-    "message": "只保存在本机，请在其它设备填写同一串"
   },
   "settings_cloud_syncNow": {
     "message": "立即同步"
@@ -102,24 +93,6 @@
   },
   "settings_cloud_needPermission": {
     "message": "当前权益不包含设置云同步。"
-  },
-  "settings_cloud_needSecret": {
-    "message": "请填写同步密钥后再同步。其它设备使用同一串密钥。"
-  },
-  "settings_cloud_idle": {
-    "message": "开启后，设置中心面板配置会加密同步到当前账号。"
-  },
-  "settings_cloud_dirty": {
-    "message": "有未上传的本机改动，关闭设置页或点击立即同步后会上传。"
-  },
-  "settings_cloud_conflictPending": {
-    "message": "本机和云端都改过设置，需要选择保留哪一份。"
-  },
-  "settings_cloud_decryptPending": {
-    "message": "密钥错误"
-  },
-  "settings_cloud_secretWrongMessage": {
-    "message": "同步密钥无法解密云端设置。可以填写正确密钥后再同步，核对成功后才会替换本机密钥。要更换云端密文的加密密钥，请先重置清除云端设置，再重新开启并填写新密钥。"
   },
   "settings_cloud_upgradePending": {
     "message": "云端设置来自更高版本扩展，请先升级 Steam Buff。"
@@ -135,23 +108,11 @@
   "settings_cloud_conflictTitle": {
     "message": "设置云同步冲突"
   },
-  "settings_cloud_conflictMessage": {
-    "message": "这台设备和云端都改过设置。使用云端会覆盖本机面板设置；使用本机则会覆盖云端。不会自动备份。"
-  },
-  "settings_cloud_useCloud": {
-    "message": "使用云端"
-  },
   "settings_cloud_useLocal": {
     "message": "使用本机"
   },
   "settings_cloud_later": {
     "message": "稍后"
-  },
-  "settings_cloud_overwriteConfirmTitle": {
-    "message": "确认覆盖云端？"
-  },
-  "settings_cloud_overwriteConfirmMessage": {
-    "message": "云端现有设置会被这台设备用当前密钥加密后覆盖，且不会保留历史版本。"
   },
   "settings_cloud_upgradeTitle": {
     "message": "需要升级扩展"
@@ -159,29 +120,281 @@
   "settings_cloud_upgradeMessage": {
     "message": "云端设置来自更高版本的 Steam Buff。升级后再同步，避免丢掉新字段。"
   },
-  "settings_cloud_reset": {
-    "message": "重置"
-  },
-  "settings_cloud_resetTitle": {
-    "message": "清除云端设置？"
-  },
-  "settings_cloud_resetMessage": {
-    "message": "重置会删除当前账号在云端保存的设置副本，删除后不能恢复。本机的面板设置会保留。云同步会在这台设备上关闭，其他设备不能再从云端拉回这份设置。之后需要你自己重新开启云同步，并填写新的同步密钥。"
-  },
-  "settings_cloud_resetConfirm": {
-    "message": "确认"
-  },
-  "settings_cloud_resetFailed": {
-    "message": "清除云端设置失败，云同步仍保持原状。"
-  },
-  "settings_cloud_tooLarge": {
-    "message": "设置体积过大，请精简评论规则后再同步。"
-  },
-  "settings_cloud_syncSuccess": {
-    "message": "设置已同步。"
-  },
   "settings_cloud_syncFailed": {
     "message": "同步失败，请稍后重试。"
+  },
+  "settings_cloud_invalidDavCredentials": {
+    "message": "WebDAV 用户名或密码不正确。"
+  },
+  "settings_cloud_invalidDavFolder": {
+    "message": "请检查 WebDAV 文件夹地址和读写权限。"
+  },
+  "settings_cloud_davHttpFailed": {
+    "message": "WebDAV 请求失败（HTTP $status$）。",
+    "placeholders": {
+      "status": { "content": "$1" }
+    }
+  },
+  "settings_cloud_officialUnavailable": {
+    "message": "官方云备份或独立归档暂不可用。"
+  },
+  "settings_cloud_davPermission": {
+    "message": "未获得 WebDAV 站点访问权限。"
+  },
+  "settings_cloud_invalidDavUrl": {
+    "message": "请输入不含登录信息和查询参数的 HTTPS 文件夹地址。"
+  },
+  "settings_cloud_davIncompatible": {
+    "message": "WebDAV 不支持强 ETag 或条件写入，无法安全同步。"
+  },
+  "settings_cloud_davCleanupFailed": {
+    "message": "连接测试失败，远端可能留有 steam-buff-webdav-test 临时文件。"
+  },
+  "settings_cloud_tooLarge": {
+    "message": "设置备份体积过大，请精简设置后重试。"
+  },
+  "settings_cloud_invalidBundle": {
+    "message": "远端备份或服务器响应格式无效。"
+  },
+  "settings_cloud_deletePartial": {
+    "message": "远端备份已删除，但关闭本机同步失败。请手动关闭。"
+  },
+  "settings_cloud_provider": {
+    "message": "备份位置"
+  },
+  "settings_cloud_frameLoading": {
+    "message": "正在加载云同步设置…"
+  },
+  "settings_cloud_frameFailed": {
+    "message": "无法在此加载云同步设置。"
+  },
+  "settings_cloud_openSettings": {
+    "message": "打开云同步设置"
+  },
+  "settings_cloud_privateSettingsRequired": {
+    "message": "请在扩展设置中心操作云同步。"
+  },
+  "settings_cloud_official": {
+    "message": "Steam Buff 云端"
+  },
+  "settings_cloud_readFailed": {
+    "message": "无法读取云同步设置，请重新打开设置重试。"
+  },
+  "settings_cloud_devices": {
+    "message": "设备管理"
+  },
+  "settings_cloud_deviceChecking": {
+    "message": "正在检查设备…"
+  },
+  "settings_cloud_backupFiles": {
+    "message": "备份文件"
+  },
+  "settings_cloud_deviceBackupMissing": {
+    "message": "所选位置没有备份。关闭后重新开启云同步可创建备份。"
+  },
+  "settings_cloud_restoreBackup": {
+    "message": "恢复备份"
+  },
+  "settings_cloud_restoreRemote": {
+    "message": "从云端恢复"
+  },
+  "settings_cloud_restoreArchive": {
+    "message": "从电脑恢复"
+  },
+  "settings_cloud_pairApproved": {
+    "message": "旧设备已确认配对。"
+  },
+  "settings_cloud_finishPairing": {
+    "message": "完成配对"
+  },
+  "settings_cloud_recoveryChanged": {
+    "message": "待保存的恢复文件已变化，请重新打开「设备管理」。"
+  },
+  "settings_cloud_pairRequest": {
+    "message": "配对此浏览器"
+  },
+  "settings_cloud_approveDevice": {
+    "message": "授权新设备"
+  },
+  "settings_cloud_downloadRecovery": {
+    "message": "保存恢复文件"
+  },
+  "settings_cloud_recoverDevice": {
+    "message": "用恢复文件授权"
+  },
+  "settings_cloud_downloadArchive": {
+    "message": "下载加密备份"
+  },
+  "settings_cloud_pairInstructions": {
+    "message": "把这段配对请求复制到一台已授权的设备，在「授权新设备」中粘贴。请求 15 分钟内有效，请勿公开分享。"
+  },
+  "settings_cloud_pairCode": {
+    "message": "配对请求"
+  },
+  "settings_cloud_pairCopy": {
+    "message": "复制请求"
+  },
+  "settings_cloud_pairCopied": {
+    "message": "配对请求已复制。"
+  },
+  "settings_cloud_pairSelect": {
+    "message": "已选中配对请求，请手动复制。"
+  },
+  "settings_cloud_approveInstructions": {
+    "message": "仅粘贴从你自己的新浏览器取得的请求。授权后，它可以解密此备份。"
+  },
+  "settings_cloud_approved": {
+    "message": "授权成功。请在新设备的「设备管理」中点「完成配对」。"
+  },
+  "settings_cloud_recoveryNotice": {
+    "message": "请单独保存恢复文件。新生成的恢复文件可打开从现在起下载的备份，旧备份要用原来的恢复文件。"
+  },
+  "settings_cloud_restoreArchiveMessage": {
+    "message": "将用备份覆盖本机设置和同一条目的成就译文，并暂停本机云同步。"
+  },
+  "settings_cloud_recoveryFile": {
+    "message": "恢复文件"
+  },
+  "settings_cloud_archiveFile": {
+    "message": "加密备份文件"
+  },
+  "settings_cloud_restoreWorking": {
+    "message": "正在验证并处理备份…"
+  },
+  "settings_cloud_restoreNeedsKey": {
+    "message": "请再选择与这份备份对应的恢复文件。"
+  },
+  "settings_cloud_restoreRollback": {
+    "message": "所选云备份早于本机已验证的版本，无法恢复。"
+  },
+  "settings_cloud_restoreSettingsPartial": {
+    "message": "已恢复部分本机设置。成就译文等待恢复，请检查后重试。"
+  },
+  "settings_cloud_restoreSettingsInterrupted": {
+    "message": "设置恢复中断，部分设置可能已写入。请检查后重试。"
+  },
+  "settings_cloud_restoreAchievementsInterrupted": {
+    "message": "本机设置已恢复。成就译文恢复中断，请检查后重试。"
+  },
+  "settings_cloud_remoteRestored": {
+    "message": "已从云端备份恢复本机数据。"
+  },
+  "settings_cloud_archiveRestored": {
+    "message": "已从加密备份恢复本机数据。"
+  },
+  "settings_cloud_deviceRecovered": {
+    "message": "本机已获得授权。可以开启或立即执行云同步。"
+  },
+  "settings_cloud_deviceRequired": {
+    "message": "此浏览器尚未获得授权。请在「设备管理」中配对。"
+  },
+  "settings_cloud_deviceAlreadyAuthorized": {
+    "message": "此浏览器已获得授权。"
+  },
+  "settings_cloud_pairInvalid": {
+    "message": "配对请求无效、已过期或属于其他账号。请重新生成请求。"
+  },
+  "settings_cloud_backupMissing": {
+    "message": "所选位置没有可用的加密备份。"
+  },
+  "settings_cloud_fileInvalid": {
+    "message": "请选择有效且未超出大小限制的备份或恢复文件。"
+  },
+  "settings_cloud_vaultInvalid": {
+    "message": "加密备份、签名或恢复文件验证失败。"
+  },
+  "settings_cloud_vaultRollback": {
+    "message": "远端备份早于本机已验证的版本，已暂停同步。"
+  },
+  "settings_cloud_achievementOwner": {
+    "message": "本机成就译文已关联其他 Steam Buff 账号。请为不同账号使用各自的浏览器配置。"
+  },
+  "settings_cloud_resetMessageDav": {
+    "message": "这将删除 WebDAV 上的当前备份并关闭本机同步。已下载的备份和本机数据会保留。"
+  },
+  "settings_cloud_fileMismatch": {
+    "message": "这个恢复文件无法打开所选备份，请使用对应版本的恢复文件。"
+  },
+  "settings_cloud_recoverySaved": {
+    "message": "已保存恢复文件"
+  },
+  "settings_cloud_rateLimited": {
+    "message": "备份请求过于频繁，请稍后重试。"
+  },
+  "settings_cloud_objectsMissing": {
+    "message": "官方云备份缺少加密分片，请从独立归档恢复。"
+  },
+  "settings_cloud_consentOfficial": {
+    "message": "API 密钥、设置和成就译文会在本机加密后上传至 Steam Buff。可用已授权的设备或恢复文件解密。"
+  },
+  "settings_cloud_consentDav": {
+    "message": "API 密钥、设置和成就译文会在本机加密后上传至 WebDAV。可用已授权的设备或恢复文件解密。"
+  },
+  "settings_cloud_enableConfirm": {
+    "message": "确认开启"
+  },
+  "settings_cloud_webdavTitle": {
+    "message": "WebDAV 连接"
+  },
+  "settings_cloud_webdavDirectory": {
+    "message": "HTTPS 文件夹地址"
+  },
+  "settings_cloud_webdavUser": {
+    "message": "用户名"
+  },
+  "settings_cloud_webdavPassword": {
+    "message": "密码或应用密码"
+  },
+  "settings_cloud_webdavPasswordSaved": {
+    "message": "已保存"
+  },
+  "settings_cloud_webdavTestSave": {
+    "message": "测试连接并保存"
+  },
+  "settings_cloud_webdavTesting": {
+    "message": "正在测试 WebDAV 连接…"
+  },
+  "settings_cloud_webdavMissing": {
+    "message": "请先测试并保存 WebDAV 连接。"
+  },
+  "settings_cloud_webdavSaved": {
+    "message": "连接已保存，可以开启云同步。"
+  },
+  "settings_cloud_remoteDeleted": {
+    "message": "远端备份已不存在。关闭后重新开启云同步，可以创建新的备份。"
+  },
+  "settings_cloud_conflictChanged": {
+    "message": "同步期间设置发生变化，请重新打开设置处理。"
+  },
+  "settings_cloud_restoreConfirm": {
+    "message": "冲突的设置或译文将使用远端版本。请确认要继续。"
+  },
+  "settings_cloud_dirty": {
+    "message": "本机有未上传的设置。"
+  },
+  "settings_cloud_conflictPending": {
+    "message": "本机与远端设置不同，点击「立即同步」选择要保留的版本。"
+  },
+  "settings_cloud_conflictMessage": {
+    "message": "本机与远端的设置或成就译文有冲突。请选择冲突部分要保留的版本，其他译文会合并。"
+  },
+  "settings_cloud_conflictNotice": {
+    "message": "本机与远端备份的设置不同。"
+  },
+  "settings_cloud_useCloud": {
+    "message": "使用远端"
+  },
+  "settings_cloud_overwriteConfirmMessage": {
+    "message": "冲突的设置或译文将使用这台设备的版本。请确认要继续。"
+  },
+  "settings_cloud_reset": {
+    "message": "删除远端备份"
+  },
+  "settings_cloud_resetTitle": {
+    "message": "删除远端备份？"
+  },
+  "settings_cloud_resetMessage": {
+    "message": "这将删除当前云同步备份并关闭本机同步。本机数据和独立归档会保留。"
   },
   "settings_category_extension_settings_name": {
     "message": "扩展设置"
@@ -8501,17 +8714,11 @@
   "settings_translate_wholePage": {
     "message": "整页翻译"
   },
-  "settings_cloud_syncDone": {
-    "message": "同步完成"
-  },
   "settings_cloud_syncDoneBody": {
     "message": "设置云同步已完成。"
   },
-  "settings_cloud_resetDone": {
-    "message": "重置完成"
-  },
   "settings_cloud_resetDoneBody": {
-    "message": "云端设置已清除。"
+    "message": "远端备份已删除。"
   },
   "playerStats_hours": {
     "message": "$hours$ 小时",

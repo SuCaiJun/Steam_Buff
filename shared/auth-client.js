@@ -312,7 +312,7 @@
     }
   }
 
-  async function fetchDirect(request, timeoutMs) {
+  async function fetchDirect(request, timeoutMs, readResponse) {
     let phase = "network";
     let diagnostics;
     try {
@@ -322,13 +322,16 @@
           ? root.STConfig.client.versionedHeaders(request.url, request.headers || {})
           : { ...(request.headers || {}) };
         const init = { method, headers, credentials: "omit", cache: "no-cache" };
+        if (request.privateRequest === true) {
+          Object.assign(init, { cache: "no-store", redirect: "error", referrerPolicy: "no-referrer" });
+        }
         if (request.data !== undefined && method !== "GET" && method !== "HEAD") {
           init.body = typeof request.data === "string" ? request.data : JSON.stringify(request.data);
         }
         const response = await fetch(request.url, { ...init, signal });
         diagnostics = root.STLoggerSchema?.httpFacts?.(response);
         phase = "response-read";
-        const data = await response.text();
+        const data = await (readResponse ? readResponse(response) : response.text());
         diagnostics = { ...diagnostics, bodyLength: data.length };
         phase = "http";
         if (!response.ok && request.allowHttpError !== true) {
@@ -443,7 +446,7 @@
       try {
         // 后台 Service Worker 不能给自己发 STORE_FETCH，刷新令牌必须在进程内发网
         if (direct) {
-          fetchDirect(request, timeoutMs).then(acceptResponse).catch(failRequest);
+          fetchDirect(request, timeoutMs, options.readResponse).then(acceptResponse).catch(failRequest);
           return;
         }
         if (root.STMessageBus?.ready && root.STMessageBus?.send) {
@@ -619,6 +622,9 @@
       if (snap.userId !== ownerId) {
         throw ownerChangedError();
       }
+      if (diagnostics.sessionKey && sessionKey(snap.auth) !== diagnostics.sessionKey) {
+        throw ownerChangedError();
+      }
       if (!snap.auth.access_token || expired(snap.auth)) {
         return refreshAuth(snap.auth, diagnostics);
       }
@@ -690,7 +696,7 @@
       const requestId = String(options.requestId || "").trim() || root.STLoggerFactory?.createRequestId?.() || "";
       const ownerId = String(options.ownerId || "").trim();
       const timeoutMs = Number(options.timeoutMs) || DEFAULT_TIMEOUT_MS;
-      const diagnostics = { operationId, requestId, ownerId, timeoutMs };
+      const diagnostics = { operationId, requestId, ownerId, timeoutMs, sessionKey: options.sessionKey };
       let auth = await readyAuth(diagnostics);
       if (!auth?.access_token) {
         if (options.throwOnMissingAuth) {
@@ -698,8 +704,10 @@
         }
         return { auth: null, response: null, body: null, code: 401 };
       }
+      if (options.sessionKey && sessionKey(auth) !== options.sessionKey) throw ownerChangedError();
 
-      const send = (token) => {
+      const send = async (token) => {
+        if (options.beforeSend) await options.beforeSend();
         const headers = {
           Accept: "application/json",
           Authorization: `Bearer ${token}`,
@@ -713,15 +721,19 @@
           headers,
           data: options.body,
           allowHttpError: true,
+          privateRequest: options.privateRequest === true,
           timeoutMs,
           operationId,
           requestId,
-        }, { logFailures: options.logFailures !== false });
+        }, { logFailures: options.logFailures !== false, readResponse: options.readResponse });
       };
 
       let response = await send(auth.access_token);
-      let data = readBody(response, options.lenientJson);
-      let code = Number(data?.code) || response.status || 0;
+      const privateRequest = options.privateRequest === true;
+      const parse = value => readBody(value, privateRequest ? !value.ok : options.lenientJson);
+      const resultCode = (reply, body) => privateRequest ? reply.status : Number(body?.code) || reply.status || 0;
+      let data = parse(response);
+      let code = resultCode(response, data);
       if (code === 401 && auth.refresh_token) {
         const sentSession = sessionKey(auth);
         auth = await refreshAuth(auth, diagnostics);
@@ -735,8 +747,8 @@
           throw ownerChangedError();
         }
         response = await send(auth.access_token);
-        data = readBody(response, options.lenientJson);
-        code = Number(data?.code) || response.status || 0;
+        data = parse(response);
+        code = resultCode(response, data);
       }
       if (options.touchAuth !== false && code >= 200 && code < 300 && auth?.access_token) {
         await touchUsed(auth, diagnostics);

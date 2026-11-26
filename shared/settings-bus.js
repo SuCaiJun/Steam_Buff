@@ -124,38 +124,63 @@
     return Object.keys(data || {});
   }
 
-  function rememberWrite(keys, options) {
-    pendingWrites.push({
-      keys: keys.slice(),
-      owner: ownerOf(options),
-      reason: text(options?.reason || "write"),
-      operationId: text(options?.operationId || ""),
-      createdAt: now(),
-    });
+  // Chrome 存储会调整对象字段顺序，数组元素顺序仍有业务含义
+  function sameStoredValue(left, right) {
+    if (left === right) return true;
+    if (!left || !right || typeof left !== "object" || typeof right !== "object") return false;
+    const array = Array.isArray(left);
+    if (array !== Array.isArray(right) || (array && left.length !== right.length)) return false;
+    const keys = Object.keys(left);
+    return keys.length === Object.keys(right).length
+      && keys.every(key => Object.hasOwn(right, key) && sameStoredValue(left[key], right[key]));
   }
 
-  function consumeWrite(keys) {
-    const changed = new Set(keys);
-    const matched = pendingWrites.filter((item) => item.keys.every((key) => changed.has(key)));
-    if (!matched.length) {
-      return null;
+  function rememberWrite(data, options) {
+    const write = {
+      values: new Map(Object.entries(data)),
+      owner: ownerOf(options),
+      reason: options.reason,
+      operationId: text(options?.operationId || ""),
+      createdAt: now(),
+    };
+    pendingWrites.push(write);
+    return write;
+  }
+
+  function forgetWrite(write) {
+    const index = pendingWrites.indexOf(write);
+    if (index >= 0) pendingWrites.splice(index, 1);
+  }
+
+  function expireWrites() {
+    const time = now();
+    for (let i = pendingWrites.length - 1; i >= 0; i -= 1) {
+      if (time - pendingWrites[i].createdAt > 30 * 1000) pendingWrites.splice(i, 1);
     }
-    for (const item of matched) {
-      const index = pendingWrites.indexOf(item);
-      if (index >= 0) {
-        pendingWrites.splice(index, 1);
+  }
+
+  function consumeWrite(changes) {
+    if (!pendingWrites.length) return null;
+    expireWrites();
+    // Chrome 只报告实际变化的字段，事件也可能在 set 回调前到达
+    let first = null, unmatched = false;
+    for (const [key, change] of Object.entries(changes)) {
+      const candidates = pendingWrites.filter(item => item.values.has(key));
+      const write = candidates.findLast(item => sameStoredValue(item.values.get(key), change.newValue));
+      // 这个值之前的同键写入已被消费或取代，不能用于识别之后的本机编辑
+      for (const item of candidates) {
+        item.values.delete(key);
+        if (!item.values.size) forgetWrite(item);
+        if (item === write) break;
       }
+      if (!write) {
+        unmatched = true;
+        continue;
+      }
+      first ??= write;
+      if (first.operationId !== write.operationId) unmatched = true;
     }
-    const covered = new Set(matched.flatMap((item) => item.keys));
-    if (covered.size !== changed.size) {
-      return null;
-    }
-    const owner = matched[0].owner;
-    const reason = matched[0].reason;
-    const operationId = matched[0].operationId;
-    return matched.every((item) => item.owner === owner && item.reason === reason)
-      ? { owner, reason, operationId: matched.every(item => item.operationId === operationId) ? operationId : "" }
-      : null;
+    return !unmatched && first ? { owner: first.owner, reason: first.reason, operationId: first.operationId } : null;
   }
 
   function normalizeKeys(keys) {
@@ -173,11 +198,7 @@
 
   function prune() {
     const time = now();
-    for (let i = pendingWrites.length - 1; i >= 0; i -= 1) {
-      if (time - pendingWrites[i].createdAt > 30 * 1000) {
-        pendingWrites.splice(i, 1);
-      }
-    }
+    expireWrites();
     let removed = 0;
     for (const [key, item] of cache.entries()) {
       if (item.expiresAt <= time) {
@@ -290,6 +311,8 @@
     stats.writes += 1;
     const keys = changedKeysFrom(data);
     return new Promise((resolve) => {
+      const cloudWrite = boundStorage && options.reason === "settings-cloud-apply" && options.owner === "settings:storage"
+        ? rememberWrite(data, options) : null;
       try {
         box.set(data, () => {
           const ok = !root.chrome?.runtime?.lastError;
@@ -302,10 +325,9 @@
                 operationId: options.operationId,
                 changedKeys: keys,
               });
-            } else if (options.reason === "settings-cloud-apply") {
-              rememberWrite(keys, options);
             }
           } else {
+            if (cloudWrite) forgetWrite(cloudWrite);
             log.warn("settings-bus-write-failed", "设置总线写入失败", {
               operationId: text(options.operationId || ""),
               owner: ownerOf(options),
@@ -317,6 +339,7 @@
           resolve(ok);
         });
       } catch (error) {
+        if (cloudWrite) forgetWrite(cloudWrite);
         log.warn("settings-bus-write-failed", "设置总线写入失败", {
           operationId: text(options.operationId || ""),
           owner: ownerOf(options),
@@ -413,7 +436,7 @@
 
   function isSettingsKey(key) {
     const value = text(key);
-    return value.startsWith(PREFIX) ||
+    return value.startsWith(PREFIX) || value === root.STAutomation?.TOOL_CREDENTIALS_KEY ||
       value === "steam_buff_membership" || value === "steam_buff_auth" || value === "SETTING_UI_LOCALE" || value === "SETTING_UPDATE_CHECK_HOURS";
   }
 
@@ -508,7 +531,7 @@
         }
         const keys = Object.keys(changes || {});
         invalidateKeys(keys);
-        const source = consumeWrite(keys);
+        const source = consumeWrite(changes);
         publish({
           owner: source?.owner || "chrome.storage.onChanged",
           reason: source?.reason || "storage-change",

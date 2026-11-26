@@ -79,17 +79,8 @@
   "settings_cloud_title": {
     "message": "Settings cloud sync"
   },
-  "settings_cloud_desc": {
-    "message": "Encrypt and sync Settings panel configuration to the current Steam Buff account. The sync key stays on this device."
-  },
   "settings_cloud_enable": {
     "message": "Enable cloud sync"
-  },
-  "settings_cloud_secret": {
-    "message": "Sync key"
-  },
-  "settings_cloud_secretPlaceholder": {
-    "message": "Stored on this device only. Use the same key on other devices."
   },
   "settings_cloud_syncNow": {
     "message": "Sync now"
@@ -102,24 +93,6 @@
   },
   "settings_cloud_needPermission": {
     "message": "Your current entitlement does not include settings cloud sync."
-  },
-  "settings_cloud_needSecret": {
-    "message": "Enter a sync key before syncing. Other devices must use the same key."
-  },
-  "settings_cloud_idle": {
-    "message": "When enabled, Settings panel configuration is encrypted and synced to this account."
-  },
-  "settings_cloud_dirty": {
-    "message": "There are local changes that have not been uploaded. They will upload when you close Settings or tap Sync now."
-  },
-  "settings_cloud_conflictPending": {
-    "message": "This device and the cloud both changed settings. Choose which copy to keep."
-  },
-  "settings_cloud_decryptPending": {
-    "message": "Wrong key"
-  },
-  "settings_cloud_secretWrongMessage": {
-    "message": "The sync key cannot decrypt the cloud settings. Enter the correct key and sync again. This device replaces its saved key only after that key decrypts the cloud copy. To encrypt the cloud copy with a different key, reset and clear the cloud settings, then turn cloud sync on again and enter the new key."
   },
   "settings_cloud_upgradePending": {
     "message": "Cloud settings come from a newer Steam Buff version. Update the extension first."
@@ -135,23 +108,11 @@
   "settings_cloud_conflictTitle": {
     "message": "Settings cloud sync conflict"
   },
-  "settings_cloud_conflictMessage": {
-    "message": "This device and the cloud both changed settings. Using the cloud overwrites this device. Using this device overwrites the cloud. No backup file is created."
-  },
-  "settings_cloud_useCloud": {
-    "message": "Use cloud"
-  },
   "settings_cloud_useLocal": {
     "message": "Use this device"
   },
   "settings_cloud_later": {
     "message": "Later"
-  },
-  "settings_cloud_overwriteConfirmTitle": {
-    "message": "Overwrite the cloud?"
-  },
-  "settings_cloud_overwriteConfirmMessage": {
-    "message": "The current cloud settings will be replaced with this device’s settings, encrypted with the current key. Previous cloud versions are not kept."
   },
   "settings_cloud_upgradeTitle": {
     "message": "Update the extension"
@@ -159,29 +120,281 @@
   "settings_cloud_upgradeMessage": {
     "message": "Cloud settings come from a newer Steam Buff version. Update before syncing so new fields are not dropped."
   },
-  "settings_cloud_reset": {
-    "message": "Reset"
-  },
-  "settings_cloud_resetTitle": {
-    "message": "Clear cloud settings?"
-  },
-  "settings_cloud_resetMessage": {
-    "message": "Reset deletes this account's cloud settings copy and cannot be undone. Settings on this device stay. Cloud sync turns off on this device, and other devices can no longer download this cloud copy. Turn cloud sync on again yourself and enter a new sync key."
-  },
-  "settings_cloud_resetConfirm": {
-    "message": "Confirm"
-  },
-  "settings_cloud_resetFailed": {
-    "message": "Could not clear cloud settings. Cloud sync is unchanged."
-  },
-  "settings_cloud_tooLarge": {
-    "message": "Settings are too large. Reduce review-filter rules before syncing."
-  },
-  "settings_cloud_syncSuccess": {
-    "message": "Settings synced."
-  },
   "settings_cloud_syncFailed": {
     "message": "Sync failed. Try again later."
+  },
+  "settings_cloud_invalidDavCredentials": {
+    "message": "Check the WebDAV username and password."
+  },
+  "settings_cloud_invalidDavFolder": {
+    "message": "Check the WebDAV folder URL and its read/write permissions."
+  },
+  "settings_cloud_davHttpFailed": {
+    "message": "The WebDAV request failed (HTTP $status$).",
+    "placeholders": {
+      "status": { "content": "$1" }
+    }
+  },
+  "settings_cloud_officialUnavailable": {
+    "message": "Steam Buff cloud backup or its independent archive is temporarily unavailable."
+  },
+  "settings_cloud_davPermission": {
+    "message": "WebDAV site access was not granted."
+  },
+  "settings_cloud_invalidDavUrl": {
+    "message": "Enter an HTTPS folder URL without credentials or query parameters."
+  },
+  "settings_cloud_davIncompatible": {
+    "message": "This WebDAV server doesn’t support strong ETags or conditional writes required for safe sync."
+  },
+  "settings_cloud_davCleanupFailed": {
+    "message": "The connection test failed. A temporary steam-buff-webdav-test file may remain in the folder."
+  },
+  "settings_cloud_tooLarge": {
+    "message": "The backup is too large. Reduce the size of your settings and try again."
+  },
+  "settings_cloud_invalidBundle": {
+    "message": "The remote backup or server response has an invalid format."
+  },
+  "settings_cloud_deletePartial": {
+    "message": "The remote backup was deleted. Turn off sync on this device manually."
+  },
+  "settings_cloud_provider": {
+    "message": "Backup location"
+  },
+  "settings_cloud_frameLoading": {
+    "message": "Loading cloud sync settings…"
+  },
+  "settings_cloud_frameFailed": {
+    "message": "Cloud sync settings could not load here."
+  },
+  "settings_cloud_openSettings": {
+    "message": "Open cloud sync settings"
+  },
+  "settings_cloud_privateSettingsRequired": {
+    "message": "Manage cloud sync in the extension's Settings Center."
+  },
+  "settings_cloud_official": {
+    "message": "Steam Buff Cloud"
+  },
+  "settings_cloud_readFailed": {
+    "message": "Couldn’t load sync settings. Reopen Settings and try again."
+  },
+  "settings_cloud_devices": {
+    "message": "Device management"
+  },
+  "settings_cloud_deviceChecking": {
+    "message": "Checking device…"
+  },
+  "settings_cloud_backupFiles": {
+    "message": "Backup files"
+  },
+  "settings_cloud_deviceBackupMissing": {
+    "message": "There is no backup at the selected location. Turn cloud sync off and back on to create a backup."
+  },
+  "settings_cloud_restoreBackup": {
+    "message": "Restore a backup"
+  },
+  "settings_cloud_restoreRemote": {
+    "message": "Restore from the cloud"
+  },
+  "settings_cloud_restoreArchive": {
+    "message": "Restore from this computer"
+  },
+  "settings_cloud_pairApproved": {
+    "message": "The other device approved this pairing."
+  },
+  "settings_cloud_finishPairing": {
+    "message": "Finish pairing"
+  },
+  "settings_cloud_recoveryChanged": {
+    "message": "The recovery file waiting to be saved has changed. Reopen Device management."
+  },
+  "settings_cloud_pairRequest": {
+    "message": "Pair this browser"
+  },
+  "settings_cloud_approveDevice": {
+    "message": "Authorize a new device"
+  },
+  "settings_cloud_downloadRecovery": {
+    "message": "Save recovery file"
+  },
+  "settings_cloud_recoverDevice": {
+    "message": "Authorize with a recovery file"
+  },
+  "settings_cloud_downloadArchive": {
+    "message": "Download encrypted backup"
+  },
+  "settings_cloud_pairInstructions": {
+    "message": "Copy this pairing request to an authorized device and paste it under Authorize a new device. It expires in 15 minutes. Keep it private."
+  },
+  "settings_cloud_pairCode": {
+    "message": "Pairing request"
+  },
+  "settings_cloud_pairCopy": {
+    "message": "Copy request"
+  },
+  "settings_cloud_pairCopied": {
+    "message": "Pairing request copied."
+  },
+  "settings_cloud_pairSelect": {
+    "message": "The pairing request is selected. Copy it manually."
+  },
+  "settings_cloud_approveInstructions": {
+    "message": "Paste a request you generated in your own new browser. Authorizing it allows that browser to decrypt this backup."
+  },
+  "settings_cloud_approved": {
+    "message": "Device authorized. Open Device management on the new device and choose Finish pairing."
+  },
+  "settings_cloud_recoveryNotice": {
+    "message": "Keep the recovery file separately. It can open backups downloaded from now on. Older backups still need their original recovery file."
+  },
+  "settings_cloud_restoreArchiveMessage": {
+    "message": "This replaces local settings and matching achievement translations with the backup and pauses cloud sync on this device."
+  },
+  "settings_cloud_recoveryFile": {
+    "message": "Recovery file"
+  },
+  "settings_cloud_archiveFile": {
+    "message": "Encrypted backup file"
+  },
+  "settings_cloud_restoreWorking": {
+    "message": "Verifying and processing backup…"
+  },
+  "settings_cloud_restoreNeedsKey": {
+    "message": "Select the recovery file that matches this backup."
+  },
+  "settings_cloud_restoreRollback": {
+    "message": "This cloud backup is older than the version verified on this device and cannot be restored."
+  },
+  "settings_cloud_restoreSettingsPartial": {
+    "message": "Some local settings were restored. Achievement translations are still pending. Check your settings before retrying."
+  },
+  "settings_cloud_restoreSettingsInterrupted": {
+    "message": "Settings restoration was interrupted. Some settings may have been saved. Check your settings before retrying."
+  },
+  "settings_cloud_restoreAchievementsInterrupted": {
+    "message": "Local settings were restored. Achievement translation restoration was interrupted. Check your translations before retrying."
+  },
+  "settings_cloud_remoteRestored": {
+    "message": "Local data restored from the cloud backup."
+  },
+  "settings_cloud_archiveRestored": {
+    "message": "Local data restored from the encrypted backup."
+  },
+  "settings_cloud_deviceRecovered": {
+    "message": "This device is authorized. You can turn on cloud sync or sync now."
+  },
+  "settings_cloud_deviceRequired": {
+    "message": "This browser is waiting for authorization. Pair it in Device management."
+  },
+  "settings_cloud_deviceAlreadyAuthorized": {
+    "message": "This browser is already authorized."
+  },
+  "settings_cloud_pairInvalid": {
+    "message": "This pairing request is invalid, has expired or belongs to another account. Generate a new one."
+  },
+  "settings_cloud_backupMissing": {
+    "message": "There is no encrypted backup at the selected location."
+  },
+  "settings_cloud_fileInvalid": {
+    "message": "Choose a valid backup or recovery file within the size limit."
+  },
+  "settings_cloud_vaultInvalid": {
+    "message": "Could not verify the encrypted backup, signature or recovery file."
+  },
+  "settings_cloud_vaultRollback": {
+    "message": "The remote backup is older than a version verified on this device. Sync has been paused."
+  },
+  "settings_cloud_achievementOwner": {
+    "message": "Local achievement translations are linked to another Steam Buff account. Use a different browser profile for each account."
+  },
+  "settings_cloud_resetMessageDav": {
+    "message": "This removes the active WebDAV backup and turns off sync on this device. Local data and downloaded backups are kept."
+  },
+  "settings_cloud_fileMismatch": {
+    "message": "This recovery file cannot open the selected backup. Use the file created for that backup."
+  },
+  "settings_cloud_recoverySaved": {
+    "message": "I saved the recovery file"
+  },
+  "settings_cloud_rateLimited": {
+    "message": "Too many backup requests. Try again shortly."
+  },
+  "settings_cloud_objectsMissing": {
+    "message": "The Steam Buff cloud backup is missing encrypted parts. Restore it from the independent archive."
+  },
+  "settings_cloud_consentOfficial": {
+    "message": "API keys, settings and achievement translations are encrypted on this device before upload to Steam Buff. An authorized device or your recovery file can decrypt them."
+  },
+  "settings_cloud_consentDav": {
+    "message": "API keys, settings and achievement translations are encrypted on this device before upload to WebDAV. An authorized device or your recovery file can decrypt them."
+  },
+  "settings_cloud_enableConfirm": {
+    "message": "Enable sync"
+  },
+  "settings_cloud_webdavTitle": {
+    "message": "WebDAV connection"
+  },
+  "settings_cloud_webdavDirectory": {
+    "message": "HTTPS folder URL"
+  },
+  "settings_cloud_webdavUser": {
+    "message": "Username"
+  },
+  "settings_cloud_webdavPassword": {
+    "message": "Password or app password"
+  },
+  "settings_cloud_webdavPasswordSaved": {
+    "message": "Saved"
+  },
+  "settings_cloud_webdavTestSave": {
+    "message": "Test connection and save"
+  },
+  "settings_cloud_webdavTesting": {
+    "message": "Testing WebDAV connection…"
+  },
+  "settings_cloud_webdavMissing": {
+    "message": "Test and save your WebDAV connection first."
+  },
+  "settings_cloud_webdavSaved": {
+    "message": "Connection saved. You can now enable cloud sync."
+  },
+  "settings_cloud_remoteDeleted": {
+    "message": "The remote backup is gone. Turn sync off and back on to create a new backup."
+  },
+  "settings_cloud_conflictChanged": {
+    "message": "Settings changed during sync. Reopen Settings to resolve the conflict."
+  },
+  "settings_cloud_restoreConfirm": {
+    "message": "Use the remote version for conflicting settings or translations?"
+  },
+  "settings_cloud_dirty": {
+    "message": "This device has changes waiting to upload."
+  },
+  "settings_cloud_conflictPending": {
+    "message": "Local and remote settings differ. Select Sync now to choose which copy to keep."
+  },
+  "settings_cloud_conflictMessage": {
+    "message": "Local and remote settings or achievement translations conflict. Choose which version to keep for the conflicts. Other translations will be merged."
+  },
+  "settings_cloud_conflictNotice": {
+    "message": "Local settings and the remote backup differ."
+  },
+  "settings_cloud_useCloud": {
+    "message": "Use remote"
+  },
+  "settings_cloud_overwriteConfirmMessage": {
+    "message": "Use this device’s version for conflicting settings or translations?"
+  },
+  "settings_cloud_reset": {
+    "message": "Delete remote backup"
+  },
+  "settings_cloud_resetTitle": {
+    "message": "Delete remote backup?"
+  },
+  "settings_cloud_resetMessage": {
+    "message": "This removes the active cloud backup and turns off sync on this device. Local data and separate archives are kept."
   },
   "settings_category_extension_settings_name": {
     "message": "Extension Settings"
@@ -8501,17 +8714,11 @@
   "settings_translate_wholePage": {
     "message": "Full-page translation"
   },
-  "settings_cloud_syncDone": {
-    "message": "Sync complete"
-  },
   "settings_cloud_syncDoneBody": {
     "message": "Your settings have been synced."
   },
-  "settings_cloud_resetDone": {
-    "message": "Reset complete"
-  },
   "settings_cloud_resetDoneBody": {
-    "message": "Cloud settings cleared."
+    "message": "Remote backup deleted."
   },
   "playerStats_hours": {
     "message": "$hours$ h",

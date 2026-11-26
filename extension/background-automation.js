@@ -3145,14 +3145,17 @@
         for (const key of expiredKeys) delete credentials[key];
       }
     }
-    // 工具定义与失效密钥在同一次设置写入中提交
+    const restored = diagnostics.cloudCredentials === undefined ? null
+      : root.STSettingsCloudData.credentialsFor(workflow, diagnostics.cloudCredentials, next);
+    // 工具定义与有效密钥在同一次设置写入中提交
     await storage.writeAiSettings({
       ai: patch.ai ? ai : undefined,
       translate: translate !== oldTranslate ? translate : undefined,
       workflow: next !== current ? next : undefined,
       familyFeature: patch.familyFeature,
       familySettings: patch.familySettings,
-      toolCredentials: credentials,
+      toolCredentials: restored?.tools ?? credentials,
+      aiSearch: restored ? restored.search : undefined,
     }, diagnostics);
 
     if (next !== current) {

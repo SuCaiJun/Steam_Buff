@@ -81,6 +81,7 @@
     gmCharts: origin(HOSTS.gmCharts),
   });
   const STEAM_BUFF_BASE = join(ORIGINS.site, "/wp-json/steam-buff/v1");
+  const STEAM_BUFF_SETTINGS_BASE = join(ORIGINS.site, "/wp-json/steam-buff/v3/user/settings");
   const STEAM_FESTIVALS_BASE = join(ORIGINS.site, "/wp-json/steam-festivals/v1");
   const SUPPORTER_BASE = join(ORIGINS.site, "/wp-json/supporter/v1");
   const LOGIN_AUTH_BASE = join(ORIGINS.site, "/wp-json/login-auth/v1");
@@ -92,6 +93,7 @@
   });
   const OWNED_WORDPRESS_API_PATHS = Object.freeze([
     "/wp-json/steam-buff/v1",
+    "/wp-json/steam-buff/v2/user/settings",
     "/wp-json/steam-festivals/v1",
     "/wp-json/supporter/v1",
     "/wp-json/login-auth/v1",
@@ -359,8 +361,10 @@
     // 待移除: 旧最新日志地址别名，新代码不得引用
     updateLogs: join(STEAM_BUFF_BASE, "/update-logs/latest"),
     updateLog: (version) => join(STEAM_BUFF_BASE, `/update-logs/${encoded(version)}`),
-    userSettings: join(STEAM_BUFF_BASE, "/user/settings"),
-    userSettingsMeta: join(STEAM_BUFF_BASE, "/user/settings/meta"),
+    userSettings: STEAM_BUFF_SETTINGS_BASE,
+    userSettingsMeta: join(STEAM_BUFF_SETTINGS_BASE, "/meta"),
+    userSettingsAccess: join(STEAM_BUFF_SETTINGS_BASE, "/access"),
+    userSettingsObject: digest => join(STEAM_BUFF_SETTINGS_BASE, "/objects/" + encoded(digest)),
     steamFestivals: (anchorDate, beforeMonths = 36, afterMonths = 12) => `${join(STEAM_FESTIVALS_BASE, "/festivals")}?anchor_date=${encoded(anchorDate)}&before_months=${encoded(beforeMonths)}&after_months=${encoded(afterMonths)}`,
     homepage: join(ORIGINS.site, "/25.html"),
     updatePage: join(ORIGINS.site, "/25.html"),

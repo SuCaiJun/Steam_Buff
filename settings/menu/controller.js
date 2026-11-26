@@ -260,7 +260,7 @@
     }
 
     function openFilteredDialog() {
-      setOpen(false);
+      close();
       openFilteredReviews(shadow);
       log.info("settings-panel-filtered-reviews-open", "打开已过滤评论弹窗", actionMeta());
     }
