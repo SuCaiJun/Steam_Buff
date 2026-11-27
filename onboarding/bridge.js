@@ -98,15 +98,16 @@
     void sync(contract.MESSAGES.getLocale);
   }
 
-  function reportFailure(error) {
+  function reportFailure(error, focus) {
     globalThis.STLoggerFactory.reportError(error, { domain: "onboarding", feature: "bridge", event: "handoff-failed", message: "打开扩展本地引导页失败" });
     const heading = progress.dataset.openFailed;
     const message = heading || error.message;
-    void globalThis.STFeedback.show(document.body, {
+    void globalThis.STOnboardingPrompt.show({
       message,
       title: progress.dataset.noticeTitle,
       closeLabel: progress.dataset.noticeClose,
       confirmLabel: progress.dataset.noticeConfirm,
+      focus,
     });
     note.replaceChildren(...noteContent.map(node => node.cloneNode(true)));
     note.classList.remove("is-pending", "error");
@@ -114,7 +115,7 @@
     publishBridgeState("ready");
   }
 
-  function sendLocal(page, index) {
+  function sendLocal(page, index, focus) {
     try {
       chrome.runtime.sendMessage({
         type: contract.MESSAGES.openLocalPage,
@@ -124,16 +125,16 @@
       }, (response) => {
         const error = chrome.runtime.lastError;
         if (error || !response?.success) {
-          reportFailure(new Error(error?.message || response?.error || progress.dataset.openFailed || "扩展本地引导页打开失败，请重试。"));
+          reportFailure(new Error(error?.message || response?.error || progress.dataset.openFailed || "扩展本地引导页打开失败，请重试。"), focus);
         }
       });
     } catch (error) {
-      reportFailure(error);
+      reportFailure(error, focus);
     }
   }
 
   // 云端页使用固定官方 URL，本地页只发送经过 contract 验证的索引
-  function routePage(page) {
+  function routePage(page, focus = handoff) {
     if (page <= pageCount) {
       window.location.assign(cfg.urls.onboardingPage(page));
       return;
@@ -141,7 +142,7 @@
     const index = contract.localIndexForPage(page, pageCount);
     if (index >= 0 && !canOpenSettings()
         && contract.readPage(current.href).page <= pageCount) return;
-    if (index >= 0) sendLocal(page, index);
+    if (index >= 0) sendLocal(page, index, focus);
   }
 
   function progressButton(page, activePage) {
@@ -158,7 +159,7 @@
     if (page === activePage) button.setAttribute("aria-current", "step");
     button.addEventListener("click", (event) => {
       if (!event.isTrusted || page === activePage) return;
-      routePage(page);
+      routePage(page, button);
     });
     return button;
   }

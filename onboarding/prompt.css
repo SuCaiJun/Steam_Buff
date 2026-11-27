@@ -1,0 +1,148 @@
+/*
+ * @Author        : 顾青离
+ * @Url           : sucaijun.com
+ * @Email         : Ricky@LiHai.La
+ * @Project       : Steam Buff
+ * @Description   : Steam 客户端增强小工具
+ * @File          : 安装引导浅色提示弹窗
+ * @Read me       : 感谢使用Steam Buff，源码注释齐全，支持二次开发。
+ * @Remind        : 二次开发请保留原版权信息，谢谢。
+ */
+
+dialog.onboarding-prompt {
+  box-sizing: border-box;
+  inline-size: min(420px, calc(100% - 32px));
+  max-inline-size: none;
+  max-block-size: calc(100dvh - 32px);
+  margin: auto;
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid var(--ob-line, var(--wizard-line));
+  border-radius: 8px;
+  background: var(--ob-surface, var(--wizard-surface));
+  color: var(--ob-text, var(--wizard-text));
+  color-scheme: light;
+  font: inherit;
+  box-shadow: 0 16px 40px rgba(7, 11, 16, 0.14);
+}
+
+dialog.onboarding-prompt[open] {
+  display: flex;
+  flex-direction: column;
+}
+
+dialog.onboarding-prompt::backdrop {
+  background: var(--wizard-overlay, rgba(7, 11, 16, 0.32));
+}
+
+.onboarding-prompt-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 18px 20px 8px;
+}
+
+.onboarding-prompt-head h2 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 680;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.onboarding-prompt-message {
+  min-block-size: 0;
+  margin: 0;
+  padding: 0 20px 18px;
+  overflow: auto;
+  overscroll-behavior: contain;
+  color: var(--ob-text-soft, var(--wizard-text-soft));
+  font-size: 14px;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.onboarding-prompt-actions {
+  display: flex;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 12px 20px;
+  border-top: 1px solid var(--ob-line, var(--wizard-line));
+}
+
+.onboarding-prompt-button,
+.onboarding-prompt-close {
+  box-sizing: border-box;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.onboarding-prompt-button {
+  min-block-size: 34px;
+  padding: 6px 14px;
+  border-color: var(--ob-line, var(--wizard-line));
+  font-size: 13px;
+  font-weight: 600;
+  text-align: center;
+  text-decoration: none;
+}
+
+.onboarding-prompt-button.is-primary {
+  background: var(--ob-primary, var(--wizard-primary));
+  border-color: transparent;
+  color: #fff;
+}
+
+.onboarding-prompt-button.is-danger {
+  background: var(--ob-danger, var(--wizard-danger));
+  border-color: transparent;
+  color: #fff;
+}
+
+.onboarding-prompt-button:not(.is-primary, .is-danger):hover,
+.onboarding-prompt-close:hover {
+  background: var(--ob-primary-soft, var(--wizard-primary-soft));
+}
+
+.onboarding-prompt-button:is(.is-primary, .is-danger):hover {
+  filter: brightness(0.92);
+}
+
+.onboarding-prompt-close {
+  position: relative;
+  flex: none;
+  inline-size: 36px;
+  block-size: 36px;
+  margin-block: -5px;
+  margin-inline-end: -12px;
+  padding: 0;
+}
+
+.onboarding-prompt-close::before,
+.onboarding-prompt-close::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  inline-size: 12px;
+  block-size: 1px;
+  background: currentColor;
+  transform: translate(-50%, -50%) rotate(45deg);
+}
+
+.onboarding-prompt-close::after {
+  transform: translate(-50%, -50%) rotate(-45deg);
+}
+
+.onboarding-prompt :is(.onboarding-prompt-button, .onboarding-prompt-close):focus-visible {
+  outline: 2px solid var(--ob-primary, var(--wizard-primary));
+  outline-offset: 2px;
+}

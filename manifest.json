@@ -66,15 +66,13 @@
       "matches": [
         "https://steam-buff.sucaijun.com/wizard/v2/*"
       ],
+      "css": ["onboarding/prompt.css"],
       "js": [
         "shared/config.js",
         "shared/logger-schema.js",
         "extension/runtime/logger.js",
         "shared/logger-factory.js",
-        "shared/styles/theme.js",
-        "shared/utils/dom.js",
-        "shared/styles/components.js",
-        "shared/ui-feedback.js",
+        "onboarding/prompt.js",
         "onboarding/contract.js",
         "onboarding/bridge.js"
       ],

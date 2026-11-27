@@ -126,13 +126,13 @@
 
   let catalogJob = null;
   let loginPollTimer = 0;
-  let loginCopyTimer = 0;
   let pollingDevice = null;
   let loginAttempt = 0;
   let celebration = null;
   let celebrationTimer = 0;
   let aiEditor, aiVerifiedKey, aiTest;
   let restartNotice = null;
+  let stepPromptLifetime = new AbortController();
 
   const icons = Object.freeze({
     login: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"></path><path d="M10 17l5-5-5-5"></path><path d="M15 12H3"></path></svg>',
@@ -744,7 +744,7 @@
     const requestId = `itad-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
     if (!key) {
       state.thirdParty.verified = false;
-      resultNotice(t("settings_thirdParty_keyRequired", "请先填写 ITAD API Key。"), "thirdParty");
+      resultNotice(t("settings_thirdParty_keyRequired", "请先填写 ITAD API Key。"), "thirdParty", $("#third-party-test"));
       state.thirdParty.messageError = true;
       log.warn("onboarding-itad-test-failed", "安装引导 ITAD 连接测试缺少 API Key", {
         operationId,
@@ -797,7 +797,7 @@
       if (status < 200 || status >= 300) {
         const failure = itadFailureFromStatus(status);
         state.thirdParty.verified = false;
-        resultNotice(failure.message, "thirdParty");
+        resultNotice(failure.message, "thirdParty", $("#third-party-test"));
         state.thirdParty.messageError = true;
         log.error("onboarding-itad-test-failed", "安装引导 ITAD 连接测试失败", {
           ...details,
@@ -817,7 +817,7 @@
       }
       state.thirdParty.verified = true;
       state.thirdParty.saved = false;
-      resultNotice(t("onboarding_connectionVerified", "测试通过，可进入下一步。"), "thirdParty");
+      state.thirdParty.message = t("onboarding_connectionVerified", "测试通过，可进入下一步。");
       state.thirdParty.messageError = false;
       log.info("onboarding-itad-test-success", "安装引导 ITAD 连接测试成功", {
         ...details,
@@ -827,7 +827,7 @@
       });
     } catch (error) {
       state.thirdParty.verified = false;
-      resultNotice(error?.message || String(error), "thirdParty");
+      resultNotice(error?.message || String(error), "thirdParty", $("#third-party-test"));
       state.thirdParty.messageError = true;
       log.error("onboarding-itad-test-failed", "安装引导 ITAD 连接测试异常", {
         ...details,
@@ -897,6 +897,7 @@
 
   async function ensureAiGatewayPermission(ai, operationId = "", signal) {
     if (ai?.enabled !== true || !ai?.host) return true;
+    const focus = aiTest ? $("#ai-test") : document.activeElement;
     const check = await runtimeSend({
       type: AI_GATEWAY_PERMISSION_CHECK,
       operationId,
@@ -914,12 +915,13 @@
       if (response?.granted !== true) throw aiPermissionError(response);
       return true;
     }
-    const ok = await window.STFeedback.confirm(document.body, {
+    const ok = await globalThis.STOnboardingPrompt.confirm(stepPromptOptions({
       title: t("settings_ai_permissionBrowserTitle", "需要浏览器授权"),
       message: t("settings_ai_permissionBrowserMessage", "该操作需要授权，需打开 Chromium 浏览器进行授权操作。是否继续？"),
       confirmLabel: t("common_continue", "继续"),
+      focus,
       signal,
-    });
+    }));
     signal?.throwIfAborted();
     if (!ok) {
       const error = new Error(t("onboarding_gatewayAuthCanceled", "已取消 AI 网关授权。"));
@@ -969,6 +971,7 @@
     const editor = currentAiEditor();
     const operationId = createOperationId();
     const controller = new AbortController();
+    let restoreTestFocus = false;
     aiTest = controller;
     state.serviceBusy = true;
     state.ai.verified = false;
@@ -988,17 +991,18 @@
       const detail = result.models.status === "fulfilled"
         ? t("settings.ai.modelsDetected", "找到 $count$ 个模型", { count: result.models.value.length })
         : aiPanel.catalogNotice(result.models.reason, t("settings.ai.modelsFailed", "模型检测失败"));
-      resultNotice(t("onboarding_connectionVerified", "测试通过，可进入下一步。") + "\n" + detail, "ai");
+      state.ai.message = t("onboarding_connectionVerified", "测试通过，可进入下一步。") + "\n" + detail;
       log.info("onboarding-ai-test-success", "安装引导 AI 连接测试成功", { operationId, durationMs: Date.now() - startedAt });
     } catch (error) {
       if (controller.signal.aborted) return;
       if (error.code === "AI_HOST_PERMISSION_CANCELLED") {
+        restoreTestFocus = true;
         state.ai.message = t("onboarding_authorizationCanceled", "已取消授权。");
         state.ai.messageError = true;
         log.info("onboarding-ai-test-permission-cancelled", "安装引导 AI 连接测试授权已取消", { operationId });
       } else {
         editor.revealGateway();
-        resultNotice(error.message, "ai");
+        resultNotice(error.message, "ai", $("#ai-test"));
         state.ai.messageError = true;
         log.error("onboarding-ai-test-failed", "安装引导 AI 连接测试失败", { operationId, error });
       }
@@ -1007,6 +1011,7 @@
       state.serviceBusy = false;
       state.ai.message = controller.signal.aborted ? "" : state.ai.message;
       render();
+      if (restoreTestFocus) $("#ai-test").focus({ preventScroll: true });
     }
   }
 
@@ -1052,11 +1057,11 @@
   }
 
   function clearLoginCopy() {
-    if (loginCopyTimer) {
-      clearTimeout(loginCopyTimer);
-      loginCopyTimer = 0;
-    }
     state.loginCopy = "";
+  }
+
+  function deviceStatus() {
+    return state.loginCopy || state.loginMessage || t("onboarding_waitingForAuthorization", "等待完成授权");
   }
 
   function formatUserCode(value) {
@@ -1094,17 +1099,22 @@
     }
   }
 
-  function copyText(value, success) {
+  function copyText(value, success, trigger) {
     const text = String(value || "");
     if (!text) return Promise.resolve(false);
+    const device = state.loginDevice;
+    const focus = () => $(`#account-content [data-action="${trigger.dataset.action}"]`);
     const done = (ok) => {
-      clearLoginCopy();
-      resultNotice(ok ? success : t("onboarding_copyFailed", "复制失败，请手动复制。"));
-      render();
+      if (state.loginDevice !== device || state.loginMode !== "device" || activeStep().id !== "account") return ok;
+      state.loginCopy = ok ? success : "";
+      const status = $("#account-content .auth-status");
+      status.textContent = deviceStatus();
+      status.classList.toggle("is-success", ok);
+      if (!ok) resultNotice(t("onboarding_copyFailed", "复制失败，请手动复制。"), undefined, focus);
       return ok;
     };
     if (navigator.clipboard?.writeText) {
-      return navigator.clipboard.writeText(text).then(() => done(true)).catch(error => {
+      return navigator.clipboard.writeText(text).then(() => done(true), error => {
         globalThis.STLoggerFactory.reportError(error, { domain: "onboarding", feature: "login", event: "clipboard-copy-failed", message: "复制登录内容失败", level: "warn" });
         return done(false);
       });
@@ -1124,6 +1134,7 @@
       ok = false;
     }
     input.remove();
+    if (trigger.isConnected) trigger.focus({ preventScroll: true });
     return Promise.resolve(done(ok));
   }
 
@@ -1276,7 +1287,7 @@
       if (loginAttempt !== attempt) return;
       state.loginMode = "error";
       state.loginBusy = false;
-      resultNotice(error?.message || String(error), "login");
+      resultNotice(error?.message || String(error), "login", () => $("#account-content [data-action='login-start']"));
       log.error("onboarding-device-login-failed", "安装引导设备登录启动失败", {
         operationId: state.loginOperationId,
         durationMs: Date.now() - startedAt,
@@ -1295,7 +1306,7 @@
       state.loginMode = "error";
       state.loginBusy = false;
       state.loginDevice = null;
-      resultNotice(t("onboarding_deviceCodeExpired", "授权码已过期，请重新获取。"), "login");
+      resultNotice(t("onboarding_deviceCodeExpired", "授权码已过期，请重新获取。"), "login", () => $("#account-content [data-action='login-start']"));
       log.warn("onboarding-device-login-failed", "安装引导设备授权码已过期", {
         operationId: state.loginOperationId || "",
         reason: "expired",
@@ -1304,6 +1315,7 @@
       return;
     }
     pollingDevice = device;
+    if (manual) clearLoginCopy();
     state.loginBusy = manual === true;
     state.loginMessage = manual ? t("onboarding_checkingDeviceAuthorization", "正在检查授权状态...") : t("onboarding_waitingForAuthorization", "等待完成授权");
     render();
@@ -1347,8 +1359,12 @@
       stopLoginPoll();
       if (state.returnToNameModeAfterLogin && activeStep().id === "account") {
         applyLocalPage(nameModePage());
+        if (accountSyncSucceeded) state.note = t("onboarding_signedInSuccessfully", "登录成功。");
       }
-      resultNotice(accountSyncSucceeded ? t("onboarding_signedInSuccessfully", "登录成功。") : t("onboarding_accountSyncFailedAfterSignIn", "登录成功，但账号资料同步失败。"), "login");
+      if (!accountSyncSucceeded) {
+        resultNotice(t("onboarding_accountSyncFailedAfterSignIn", "登录成功，但账号资料同步失败。"), "login",
+          () => $(`[data-step-panel="${activeStep().id}"] h1`));
+      }
       log.info("onboarding-device-login-success", "安装引导设备登录成功", {
         operationId: state.loginOperationId || "",
         accountSyncSucceeded,
@@ -1414,7 +1430,7 @@
     render();
   }
 
-  async function openTutorial(topic = "") {
+  async function openTutorial(topic = "", focus = document.activeElement) {
     try {
       const cfg = await sharedConfig();
       const key = String(topic || "").trim();
@@ -1425,7 +1441,7 @@
       cfg.externalNavigation.open(url);
     } catch (error) {
       globalThis.STLoggerFactory.reportError(error, { domain: "onboarding", feature: "script", event: "open-tutorial-failed", message: "打开引导教程失败", level: "error", phase: "openTutorial" });
-      setNote(error?.message || String(error), true);
+      setNote(error?.message || String(error), true, focus);
     }
   }
 
@@ -1457,29 +1473,42 @@
     return ok;
   }
 
-  function resultNotice(message, section) {
+  function stepPromptOptions(options) {
+    const stepSignal = stepPromptLifetime.signal;
+    const signal = options.signal ? AbortSignal.any([stepSignal, options.signal]) : stepSignal;
+    return { ...options, signal };
+  }
+
+  function closeStepPrompts() {
+    stepPromptLifetime.abort();
+    stepPromptLifetime = new AbortController();
+  }
+
+  function resultNotice(message, section, focus) {
     if (section === "login") state.loginMessage = "";
     else if (section) state[section].message = "";
-    void window.STFeedback.show(document.body, {
+    void globalThis.STOnboardingPrompt.show({
       message,
       title: t("common.notice", "提示"),
       closeLabel: t("common.close", "关闭"),
       confirmLabel: t("common.confirm", "确定"),
+      focus,
+      signal: stepPromptLifetime.signal,
     });
   }
 
-  function setNote(note = "", error = false) {
-    if (error && note) resultNotice(note);
+  function setNote(note = "", error = false, focus) {
+    if (error && note) resultNotice(note, undefined, focus);
     state.note = error ? "" : note;
     state.noteError = error;
     render();
   }
 
-  function setBusy(next, note = "", error = false) {
+  function setBusy(next, note = "", error = false, focus) {
     state.busy = next;
     state.note = error ? "" : note;
     state.noteError = error;
-    if (error && note) resultNotice(note);
+    if (error && note) resultNotice(note, undefined, focus);
     render();
   }
 
@@ -1500,7 +1529,7 @@
             durationMs: Date.now() - startedAt,
             error: failure,
           });
-          setBusy(false, failure.message || String(failure), true);
+          setBusy(false, failure.message || String(failure), true, $("#footer-finish"));
           return;
         }
         log.info("onboarding-finish-success", "安装引导完成并已打开设置中心", {
@@ -1515,7 +1544,7 @@
         durationMs: Date.now() - startedAt,
         error,
       });
-      setBusy(false, error?.message || String(error), true);
+      setBusy(false, error?.message || String(error), true, $("#footer-finish"));
     }
   }
 
@@ -1575,7 +1604,7 @@
     if (restartNotice) return;
     const controller = new AbortController();
     restartNotice = controller;
-    void window.STFeedback.confirm(document.body, {
+    void globalThis.STOnboardingPrompt.confirm({
       title: t("onboarding_restartSteam", "需要重启 Steam"),
       message: t("onboarding_restartNoticePrefix", "客户端增强需要你") +
         t("onboarding_restartNoticeAction", "完全退出并重新打开 Steam") +
@@ -1631,7 +1660,7 @@
         durationMs: Date.now() - startedAt,
         error,
       });
-      setBusy(false, t("setup_failed", "未能完成设置，请重试。"), true);
+      setBusy(false, t("setup_failed", "未能完成设置，请重试。"), true, $("#footer-finish"));
     }
   }
 
@@ -1691,6 +1720,7 @@
       render();
       return;
     }
+    if (index !== state.step) closeStepPrompts();
     const nameDialog = $("#name-mode-dialog");
     if (nameDialog.open) nameDialog.close();
     if (LOCAL_STEPS[index].id !== "ai") aiEditor?.cancelCatalog();
@@ -1713,13 +1743,13 @@
     focusHeading();
   }
 
-  async function advanceFromCurrent() {
+  async function advanceFromCurrent(focus = document.activeElement) {
     if (controlsBusy()) return;
     const stepId = activeStep().id;
     if (stepId === "third-party") syncThirdPartyStateFromForm();
     if (stepId === "ai") syncAiStateFromForm();
     if (!stepCanNext(stepId)) {
-      setNote(gateBlockNote(stepId), true);
+      setNote(gateBlockNote(stepId), true, focus);
       return;
     }
     const saveStep = {
@@ -1745,7 +1775,7 @@
         state.serviceBusy = false;
       }
       if (failure) {
-        setNote(failure, true);
+        setNote(failure, true, focus);
         return;
       }
     }
@@ -1770,22 +1800,23 @@
     if (!Number.isSafeInteger(page) || page < 1 || page > state.total) return;
     if (state.step === NAME_MODE_STEP && !canNavigateToPage(page)) return;
     if (page === state.page) return;
+    const focus = () => $(`#progress-track [data-page="${page}"]`);
     if (page < state.page) {
       applyLocalPage(page);
       return;
     }
     if (page <= state.lastCommittedPage) {
-      await navigateCommittedPage(page, "push");
+      await navigateCommittedPage(page, "push", focus);
       return;
     }
     if (page === state.page + 1) {
-      advanceFromCurrent();
+      await advanceFromCurrent(focus);
       return;
     }
-    setNote(t("onboarding_completeEarlierSteps", "请按顺序完成前面的配置步骤。"), true);
+    setNote(t("onboarding_completeEarlierSteps", "请按顺序完成前面的配置步骤。"), true, focus);
   }
 
-  async function navigateCommittedPage(page, historyMode) {
+  async function navigateCommittedPage(page, historyMode, focus) {
     if (state.step === NAME_MODE_STEP && page > state.page && page <= state.lastCommittedPage
       && state.clientNameMode === NAME_MODE_INDEPENDENT) {
       state.serviceBusy = true;
@@ -1801,7 +1832,7 @@
       }
       if (failed) {
         if (historyMode === "history") window.history.replaceState(null, "", localUrl(state.page));
-        setNote(t("onboarding_namePermissionCheckFailed", "暂时无法核验捐赠版权益，请重试。"), true);
+        setNote(t("onboarding_namePermissionCheckFailed", "暂时无法核验捐赠版权益，请重试。"), true, focus);
         return;
       }
     }
@@ -2039,7 +2070,8 @@
   function renderDeviceLogin(root) {
     const box = el("div", "auth-box");
     const head = el("div", "auth-box-header");
-    const status = el("span", "auth-status", state.loginCopy || state.loginMessage || t("onboarding_waitingForAuthorization", "等待完成授权"));
+    const status = el("span", "auth-status", deviceStatus());
+    status.classList.toggle("is-success", Boolean(state.loginCopy));
     head.append(el("strong", "", t("onboarding_authorizeYourDevice", "完成设备授权")), status);
     const fields = el("div", "auth-fields");
     fields.append(
@@ -2160,22 +2192,6 @@
   }
 
   function showNameModeDialog(action) {
-    const { css, ensureStyle } = globalThis.STComponents;
-    ensureStyle("name-mode-dialog-style", css.compose(
-      css.variables("#name-mode-dialog", globalThis.STTheme.flatDialogVariables),
-      css.dialog({
-        variant: "standard",
-        surfaceSelectors: "#name-mode-dialog",
-        surfacePadding: "0",
-        surfaceTransform: "none",
-        headerSelectors: ".name-mode-dialog-head",
-        titleSelectors: "#name-mode-dialog-title",
-        bodySelectors: "#name-mode-dialog-copy",
-        footerSelectors: ".name-mode-dialog-actions",
-      }),
-      css.button("#name-mode-dialog .btn-secondary", { variant: "secondary" }),
-      css.button("#name-mode-dialog .btn-primary", { variant: "primary" }),
-    ));
     const donate = action === "donate";
     const loginLink = $("#name-mode-login");
     const donateLink = $("#name-mode-donate");
@@ -2441,8 +2457,10 @@
     const editor = aiPanel.createEditor(registry, draft, {
       wizard: true,
       defaultName: state.ai.seedName ? t("seed.ai.default", "默认 AI 服务") : undefined,
-      ask: options => globalThis.STSettingsDialogs.dialog(document, { ...options, native: true, host: $("#ai-dialogs") }),
-      notice: options => globalThis.STFeedback.show(document.body, options),
+      ask: options => options.form === true
+        ? globalThis.STSettingsDialogs.dialog(document, { ...options, native: true, host: $("#ai-dialogs") })
+        : globalThis.STOnboardingPrompt.choose(stepPromptOptions(options)),
+      notice: options => globalThis.STOnboardingPrompt.show(stepPromptOptions(options)),
       authorize: ensureAiGatewayPermission,
       onChange: aiDraftChanged,
     });
@@ -2734,7 +2752,7 @@
       return;
     }
     if (action === "back") applyLocalPage(state.page - 1);
-    if (action === "next") await advanceFromCurrent();
+    if (action === "next") await advanceFromCurrent(control);
     if (action === "go-page") await goToPage(Number(control.dataset.page));
     if (action === "skip-step") skipCurrentStep();
     if (action === "third-party-enabled") {
@@ -2780,10 +2798,10 @@
     if (action === "login-start") startLogin();
     if (action === "login-check") pollLogin(true);
     if (action === "login-cancel") cancelLogin();
-    if (action === "login-copy-code") copyText(formatUserCode(state.loginDevice?.user_code), t("onboarding_authorizationCodeCopied", "授权码已复制。"));
-    if (action === "login-copy-url") copyText(loginFullUrl(), t("onboarding_authorizationLinkCopied", "授权链接已复制。"));
-    if (action === "open-tutorial") await openTutorial();
-    if (action === "open-step-tutorial") await openTutorial(control.dataset.tutorialKey || "");
+    if (action === "login-copy-code") copyText(formatUserCode(state.loginDevice?.user_code), t("onboarding_authorizationCodeCopied", "授权码已复制。"), control);
+    if (action === "login-copy-url") copyText(loginFullUrl(), t("onboarding_authorizationLinkCopied", "授权链接已复制。"), control);
+    if (action === "open-tutorial") await openTutorial("", control);
+    if (action === "open-step-tutorial") await openTutorial(control.dataset.tutorialKey || "", control);
     if (action === "finish-open") {
       if (inSteamClient() && state.setupFinished) {
         openRestartModal();
@@ -2819,6 +2837,7 @@
   });
 
   window.addEventListener("pagehide", event => {
+    closeStepPrompts();
     aiEditor?.cancelCatalog();
     aiTest?.abort();
     if (state.loginMode === "loading" || state.loginMode === "device") cancelLogin(event.persisted);

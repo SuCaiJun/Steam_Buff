@@ -505,6 +505,10 @@ a.step-tutorial:focus-visible {
   text-align: right;
 }
 
+.auth-status.is-success {
+  color: var(--ob-primary);
+}
+
 .auth-fields {
   display: grid;
   grid-template-columns: minmax(140px, 0.72fr) minmax(0, 1.28fr);
@@ -1288,6 +1292,7 @@ a.step-tutorial:focus-visible {
   color: var(--ob-text-muted);
   font-size: 12px;
   line-height: 1.5;
+  white-space: pre-line;
 }
 
 .setup-status.is-error {
@@ -1560,26 +1565,6 @@ a.step-tutorial:focus-visible {
 
 .footer-actions {
   flex: 0 0 auto;
-}
-
-#name-mode-dialog:modal {
-  overflow: auto;
-  overscroll-behavior: contain;
-}
-
-#name-mode-dialog::backdrop {
-  background: var(--st-dialog-overlay-bg);
-  overflow: hidden;
-  overscroll-behavior: contain;
-}
-
-#name-mode-dialog-copy {
-  margin: 0;
-  line-height: var(--st-line-height-body);
-}
-
-#name-mode-donate {
-  text-decoration: none;
 }
 
 @keyframes stepEnter {

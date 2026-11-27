@@ -16,6 +16,7 @@
   <title data-msg="onboarding_guideTitle">Steam Buff 使用指引</title>
   <script src="../shared/styles/theme.js"></script>
   <link rel="stylesheet" href="./style.css">
+  <link rel="stylesheet" href="./prompt.css">
 </head>
 <body data-step="status" hidden>
   <main class="onboarding-page">
@@ -250,15 +251,15 @@
   </main>
 
   <div id="ai-dialogs"></div>
-  <dialog id="name-mode-dialog" aria-labelledby="name-mode-dialog-title" aria-describedby="name-mode-dialog-copy">
-    <header class="name-mode-dialog-head">
+  <dialog id="name-mode-dialog" class="onboarding-prompt" aria-modal="true" aria-labelledby="name-mode-dialog-title" aria-describedby="name-mode-dialog-copy">
+    <header class="name-mode-dialog-head onboarding-prompt-head">
       <h2 id="name-mode-dialog-title"></h2>
     </header>
-    <p id="name-mode-dialog-copy"></p>
-    <div class="name-mode-dialog-actions">
-      <button class="btn btn-secondary" type="button" data-action="name-mode-dismiss" data-msg="onboarding_nameModeBackToOptions" autofocus>返回选择</button>
-      <button class="btn btn-primary" id="name-mode-login" type="button" data-action="name-mode-login" data-msg="settings_cloud_login" hidden>去登录</button>
-      <a class="btn btn-primary" id="name-mode-donate" target="_blank" rel="noopener noreferrer" data-action="name-mode-donate" data-msg="onboarding_nameModeDonateAction" hidden>去捐赠</a>
+    <p id="name-mode-dialog-copy" class="onboarding-prompt-message"></p>
+    <div class="name-mode-dialog-actions onboarding-prompt-actions">
+      <button class="onboarding-prompt-button" type="button" data-action="name-mode-dismiss" data-msg="onboarding_nameModeBackToOptions" autofocus>返回选择</button>
+      <button class="onboarding-prompt-button is-primary" id="name-mode-login" type="button" data-action="name-mode-login" data-msg="settings_cloud_login" hidden>去登录</button>
+      <a class="onboarding-prompt-button is-primary" id="name-mode-donate" target="_blank" rel="noopener noreferrer" data-action="name-mode-donate" data-msg="onboarding_nameModeDonateAction" hidden>去捐赠</a>
     </div>
   </dialog>
 
@@ -278,7 +279,7 @@
   <script src="../shared/utils/dom.js"></script>
   <script src="../shared/utils/html.js"></script>
   <script src="../shared/styles/components.js"></script>
-  <script src="../shared/ui-feedback.js"></script>
+  <script src="./prompt.js"></script>
   <script src="../settings/ui/assets.js"></script>
   <script src="../settings/ui/fields.js"></script>
   <script src="../settings/ui/dialogs.js"></script>
