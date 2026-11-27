@@ -6042,6 +6042,18 @@
   "steam_independentName_saved": {
     "message": "ローカルに保存済み"
   },
+  "steam_independentName_syncUploadPaused": {
+    "message": "名前はこの端末に保存されました。クラウド同期が停止しています。"
+  },
+  "steam_independentName_syncReadPaused": {
+    "message": "クラウドから名前を読み込めませんでした。"
+  },
+  "steam_independentName_retrySync": {
+    "message": "同期を再試行"
+  },
+  "steam_independentName_syncRetryFailed": {
+    "message": "同期を再試行しましたが完了しませんでした"
+  },
   "steam_independentName_waitingCloud": {
     "message": "クラウドの処理待ち"
   },

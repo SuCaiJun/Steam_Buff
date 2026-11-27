@@ -18,6 +18,7 @@
   const MENU_ENTRY_ATTR = "data-steam-buff-independent-name-entry";
   const REQ_ATTR = "data-steam-buff-user-names-request";
   const RES_ATTR = "data-steam-buff-user-names-response";
+  const SYNC_HOLD_ATTR = "data-steam-buff-user-names-sync-hold";
   const PINYIN_LIB = "vendor/pinyin-pro/index.js";
   const MNEMONIC_CORE = "steam/features/library-custom-name/mnemonic.js";
   const TABLE_LIB = "steam/shared/name-table.js";
@@ -128,7 +129,7 @@
 
   let bridgeTail = Promise.resolve();
   // 布局使用独立属性槽，只串行化布局读写，不阻塞原有名称查询或 AI 生成。
-  function request(type, extra = {}, timeoutMs = 20000, signal) {
+  function request(type, extra = {}, timeoutMs = type === "snapshot" ? 52_000 : 20_000, signal) {
     if (type !== "table-settings-get" && type !== "table-settings-save") return sendRequest(type, extra, timeoutMs, signal);
     const task = bridgeTail.then(() => sendRequest(type, extra, timeoutMs, signal));
     bridgeTail = Promise.allSettled([task]);
@@ -191,6 +192,7 @@
       filteredIds: new Set(),
       filteredSelected: 0,
       snapshot: { items: {}, count: 0, quota: -1 },
+      syncRetry: null,
       meta: { options: {}, capabilities: {} },
       drafts: new Map(),
       search: "",
@@ -254,6 +256,7 @@
       closedMenuBox: null,
     };
     let painted = null;
+    let syncHoldObserver = null;
     let libsTask = null;
     let tableTask = null, prefsQueued = null, prefsSaving = null;
 
@@ -568,6 +571,7 @@
       state.drafts = adoptDrafts(state.drafts, cloudOf);
       state.dirtyRows = new Set([...state.drafts.keys(), ...state.nativeDirty]);
       syncSelectedDrafts();
+      refreshSyncHold();
     }
 
     function css() {
@@ -583,6 +587,10 @@
     function finishBatchClose() {
       state.batchGeneration++;
       state.batchOpening=false;
+      syncHoldObserver?.disconnect();
+      syncHoldObserver = null;
+      state.syncRetry?.abort();
+      state.syncRetry = null;
       state.tableControl?.stop(); state.tableControl = null;
       for (const [appid, controller] of state.nativeReads) {
         controller.abort();
@@ -1688,6 +1696,47 @@
       closeBulkEditor("applied"); applySearch(); renderTable();
     }
 
+    function refreshSyncHold() {
+      const panel = state.batchElement?.querySelector("[data-lin-sync-hold]");
+      if (!panel) return;
+      const owner = state.snapshot.userId;
+      const hold = document.documentElement.getAttribute(SYNC_HOLD_ATTR);
+      const upload = owner && hold === `${owner}:upload`;
+      const read = owner && hold === `${owner}:read`;
+      panel.hidden = !upload && !read;
+      const message = panel.querySelector("[data-lin-sync-message]");
+      const text = upload ? i18n("steam.independentName.syncUploadPaused", "名称已保存在本机，云端同步受阻")
+        : read ? i18n("steam.independentName.syncReadPaused", "云端名称读取受阻") : "";
+      if (message.textContent !== text) message.textContent = text;
+      panel.querySelector("[data-lin-sync-retry]").disabled = state.busy || !!state.syncRetry;
+    }
+
+    async function retryNameSync() {
+      if (state.syncRetry || state.busy) return;
+      const ownerId = state.snapshot.userId;
+      const controller = new AbortController();
+      state.syncRetry = controller;
+      refreshSyncHold();
+      try {
+        const { data } = await request("retry-sync", { ownerId }, 122_000, controller.signal);
+        if (controller.signal.aborted || ownerId !== state.snapshot.userId) return;
+        adoptSnapshot(data);
+        state.message = "";
+        applySearch();
+        renderTable();
+      } catch (error) {
+        if (controller.signal.aborted) return;
+        state.message = i18n("steam.independentName.syncRetryFailed", "重试同步未完成");
+        log.warn("independent-name-retry-failed", "独立名称手动重试未完成", { error });
+        renderTable();
+      } finally {
+        if (state.syncRetry === controller) {
+          state.syncRetry = null;
+          refreshSyncHold();
+        }
+      }
+    }
+
     function refreshBatchSave() {
       const modal = state.batchElement;
       const button = modal?.querySelector("[data-lin-save-all]");
@@ -2114,6 +2163,10 @@
             <p class="st-lin-msg st-lin-filter-stats" data-lin-stats></p>
             ${window.SteamBuff.nameBatch.toolbarHtml({esc,i18n,saveAttr:"data-lin-save-all",saveDisabled:true,selectedAttr:"data-lin-selected-count",actionsAttr:"data-lin-actions-toggle",menuId:"st-lin-actions-menu",menuAttr:"data-lin-actions-menu",menuHtml:actionsMenuHtml(),searchAttr:"data-lin-search",searchValue:state.search,searchLabel:i18n("steam.independentName.search","搜索名称 / AppID / 别名"),fileAttr:"data-lin-file"})}
             <p class="st-lin-msg" data-lin-msg role="status" hidden></p>
+            <div data-lin-sync-hold hidden>
+              <p class="st-lin-msg" data-lin-sync-message role="status"></p>
+              <button class="st-lin-btn" type="button" data-lin-sync-retry>${esc(i18n("steam.independentName.retrySync", "重试同步"))}</button>
+            </div>
             <p class="st-lin-msg" data-lin-table-status role="status" hidden></p>
             <div data-lin-native-controls hidden><button class="st-lin-btn" type="button" data-lin-native-command="pause">${esc(tableText("pause", "暂停"))}</button><button class="st-lin-btn" type="button" data-lin-native-command="resume">${esc(tableText("resume", "继续"))}</button><button class="st-lin-btn" type="button" data-lin-native-command="cancel">${esc(tableText("cancel", "停止保存"))}</button></div>
           </div>
@@ -2265,6 +2318,9 @@
       setHtml(modal, batchModalHtml(), "library-independent-name-batch-modal");
       renderFilterChips();
       modal.hidden = false;
+      syncHoldObserver?.disconnect();
+      syncHoldObserver = new MutationObserver(refreshSyncHold);
+      syncHoldObserver.observe(document.documentElement, { attributes: true, attributeFilter: [SYNC_HOLD_ATTR] });
 
       const scroller = modal.querySelector("[data-lin-scroll]");
       scroller?.addEventListener("scroll", () => {
@@ -2301,9 +2357,11 @@
         applySearch();
         state.message = "";
         state.busy = false;
+        refreshSyncHold();
         renderTable();
       } catch (error) {
         state.busy = false;
+        refreshSyncHold();
         resultNotice(error?.message || String(error), false);
         log.warn("independent-name-open-failed", "独立版名称页打开失败", { error });
         renderTable();
@@ -2960,6 +3018,11 @@
       const save = event.target.closest("[data-lin-save-all]");
       if (save) {
         void saveAllDrafts();
+        return;
+      }
+      const retry = event.target.closest("[data-lin-sync-retry]");
+      if (retry) {
+        if (!retry.disabled && !retry.parentElement.hidden) void retryNameSync();
         return;
       }
       if (event.target.closest("[data-lin-export]")) {

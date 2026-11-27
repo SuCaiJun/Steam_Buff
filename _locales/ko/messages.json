@@ -6042,6 +6042,18 @@
   "steam_independentName_saved": {
     "message": "로컬에 저장됨"
   },
+  "steam_independentName_syncUploadPaused": {
+    "message": "이름은 이 기기에 저장되었으며 클라우드 동기화가 중단되었습니다."
+  },
+  "steam_independentName_syncReadPaused": {
+    "message": "클라우드에서 이름을 불러올 수 없습니다."
+  },
+  "steam_independentName_retrySync": {
+    "message": "동기화 다시 시도"
+  },
+  "steam_independentName_syncRetryFailed": {
+    "message": "동기화 재시도가 완료되지 않았습니다"
+  },
   "steam_independentName_waitingCloud": {
     "message": "클라우드 처리 대기"
   },

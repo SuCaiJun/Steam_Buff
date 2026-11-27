@@ -6042,6 +6042,18 @@
   "steam_independentName_saved": {
     "message": "本地已保存"
   },
+  "steam_independentName_syncUploadPaused": {
+    "message": "名称已保存在本机，云端同步受阻"
+  },
+  "steam_independentName_syncReadPaused": {
+    "message": "云端名称读取受阻"
+  },
+  "steam_independentName_retrySync": {
+    "message": "重试同步"
+  },
+  "steam_independentName_syncRetryFailed": {
+    "message": "重试同步未完成"
+  },
   "steam_independentName_waitingCloud": {
     "message": "等待云端处理"
   },

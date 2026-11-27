@@ -11,7 +11,7 @@
 
 // 两分钟上传当前登录用户还能提交的 pending，没有待上传、也没有额度拦截时不打网
 // 待上传全被额度拦住时仍拉一次云端状态，额度或确认集变化后同一轮再提交
-// 任务开始时记下 userId，发请求和写回前都再核对；对不上就停，不改其他账号的槽
+// 同步绑定本次登录会话。403 暂停云同步，账号中心才能确认独立名称权益失效
 // 独立名称或权益没开时只看登录和开关，不读名册
 // 批量 /submit 入队后，要等该账号的云端快照对上才清 pending
 // 响应里的 rejected 只停止入队时已确定、且仍与当前待上传一致的项；没有该字段或快照 unchanged 都不表示已处理
@@ -33,6 +33,7 @@
   const COMMIT_TYPE = "USER_NAMES_COMMIT";
   const PERIOD_MIN = 2;
   const FETCH_TIMEOUT_MS = 20_000;
+  const CENTER_TIMEOUT_MS = 8_000;
   const SNAPSHOT_KEY = "st.userNames.snapshot";
   const MODE_KEY = `st.settings.${root.STConfig.libraryNameMode.key}.value`;
   const MEMBERSHIP_KEY = "steam_buff_membership";
@@ -40,6 +41,7 @@
   const log = root.STLoggerFactory.createLogger("background", "library-independent-name");
   let inflight = null;
   let client = null;
+  const entitlementChecks = new Map();
   // 前一个写完才开始下一个，队列外先读到的旧快照不能直接写回
   let writeChain = Promise.resolve();
 
@@ -55,24 +57,6 @@
       }) || null;
     }
     return client;
-  }
-
-  // 失败和键不存在都是空对象。名称名册不能拿这个结果写回
-  function readLocal(keys) {
-    return new Promise((resolve) => {
-      try {
-        chrome.storage.local.get(keys, (data) => {
-          if (chrome.runtime.lastError) {
-            resolve({});
-            return;
-          }
-          resolve(data || {});
-        });
-      } catch (error) {
-        globalThis.STLoggerFactory.reportError(error, { domain: "extension", feature: "background-user-names-sync", event: "read-local-failed", message: "扩展后台或桥接处理失败", level: "warn", phase: "readLocal" });
-        resolve({});
-      }
-    });
   }
 
   function writeLocal(data) {
@@ -94,13 +78,34 @@
     return error;
   }
 
-  async function readOwner() {
-    const stored = await readLocal([MEMBERSHIP_KEY, AUTH_KEY]);
+  function ownerFrom(stored) {
+    const auth = stored[AUTH_KEY];
+    const membership = stored[MEMBERSHIP_KEY];
     return {
-      ownerId: store.signedInUserId(stored[MEMBERSHIP_KEY], stored[AUTH_KEY]),
-      auth: stored[AUTH_KEY],
-      membership: stored[MEMBERSHIP_KEY],
+      ownerId: store.signedInUserId(membership, auth),
+      sessionKey: root.STAuthSession.authKey(auth),
+      auth,
+      membership,
     };
+  }
+
+  async function readOwner() {
+    return ownerFrom(await readStorage([MEMBERSHIP_KEY, AUTH_KEY]));
+  }
+
+  function sameOwner(current, expected) {
+    return store.sameUser(current.ownerId, expected.ownerId) && current.sessionKey === expected.sessionKey;
+  }
+
+  function checkedOwner(current, owner) {
+    if (!sameOwner(current, owner)) {
+      throw Object.assign(new Error("账号已切换"), { code: "owner-changed" });
+    }
+    return current;
+  }
+
+  async function assertOwner(owner) {
+    return checkedOwner(await readOwner(), owner);
   }
 
   async function logOwnerChanged(ownerId, operationId, reason) {
@@ -113,23 +118,11 @@
     });
   }
 
-  async function denyCustomNames(operationId) {
-    const api = storageApi();
-    const current = await api?.getMembership?.();
-    if (!current || typeof current !== "object") {
-      return false;
-    }
-    const permissions = { ...(current.permissions || {}), customNames: false };
-    const features = { ...(current.features || {}), customNames: false };
-    const saved = await api.setMembership?.({ ...current, permissions, features }, { operationId });
-    return !!saved;
-  }
-
-  // 刷新、401 重发和登录态写回都走公共认证客户端，并绑定这次操作开始时的账号
-  async function requestFor(ownerId, method, url, body, operationId) {
+  // 名称请求的刷新与 401 重发走公共认证客户端，始终绑定发起时的会话
+  async function requestFor(owner, method, url, body, operationId, { retry = false, touchAuth = false } = {}) {
     const client = authClient();
-    const boundOwner = String(ownerId || "").trim();
-    if (!client || !boundOwner) {
+    const boundOwner = owner.ownerId;
+    if (!client || !boundOwner || !owner.sessionKey) {
       throw loginError("请先在设置中登录");
     }
     let result;
@@ -139,11 +132,23 @@
         body,
         operationId,
         ownerId: boundOwner,
-        timeoutMs: FETCH_TIMEOUT_MS,
+        sessionKey: owner.sessionKey,
+        timeoutMs: touchAuth ? 12_000 : FETCH_TIMEOUT_MS,
         throwOnMissingAuth: true,
         logFailures: false,
         lenientJson: true,
-        touchAuth: false,
+        touchAuth,
+        async beforeSend() {
+          if (retry) {
+            await assertOwner(owner);
+            return;
+          }
+          const stored = await readStorage([MEMBERSHIP_KEY, AUTH_KEY, SNAPSHOT_KEY]);
+          checkedOwner(ownerFrom(stored), owner);
+          if (store.syncHoldOf(stored[SNAPSHOT_KEY]?.byUser?.[boundOwner]?.syncHold)) {
+            throw Object.assign(new Error("名称云同步已暂停"), { code: "sync-paused" });
+          }
+        },
       });
     } catch (error) {
       if (error?.code === "owner-changed") {
@@ -154,26 +159,22 @@
       }
       throw error;
     }
-    if (result.code < 200 || result.code >= 300) {
+    await assertOwner(owner);
+    const status = result.response?.status;
+    const code = status >= 400 ? status : result.code;
+    if (code < 200 || code >= 300) {
       const error = new Error(String(result.body?.message || "名称同步失败"));
-      error.code = result.code;
+      error.code = code;
       throw error;
     }
     return result.body;
   }
 
-  function namesUrl(local) {
+  function sinceRevision(local) {
     const since = Number(local.revision) || 0;
     const proved = Number(local.confirmedRevision) === since && since > 0;
     // 额度拦住、又还没有这次 revision 的确认集时，不带 sinceRevision，才能拿到全量有名记录
-    if (since > 0 && (proved || !store.quotaBlocked(local))) {
-      return `${CFG.steamBuff("/user/names")}?sinceRevision=${encodeURIComponent(String(since))}`;
-    }
-    return CFG.steamBuff("/user/names");
-  }
-
-  async function pullBody(local, ownerId, operationId) {
-    return requestFor(ownerId, "GET", namesUrl(local), undefined, operationId);
+    return since > 0 && (proved || !store.quotaBlocked(local)) ? since : 0;
   }
 
   function enqueue(task) {
@@ -240,32 +241,13 @@
     if (kind === "apply") {
       return (snapshot) => store.applyLocal(snapshot, op.item);
     }
-    if (kind === "apply-many") {
-      if (!Array.isArray(op.items)) {
-        throw new TypeError("名称变更无效");
-      }
+    if (kind === "apply-many" && Array.isArray(op.items)) {
       return (snapshot) => store.applyLocalMany(snapshot, op.items);
     }
-    if (kind === "merge") {
-      if (!op.cloud || typeof op.cloud !== "object" || Array.isArray(op.cloud)) {
-        throw new TypeError("名称变更无效");
-      }
-      return (snapshot) => store.mergeCloud(snapshot, op.cloud);
-    }
-    if (kind === "set-allowed") {
-      if (op.allowed !== false) {
-        throw new TypeError("名称变更无效");
-      }
-      return (snapshot) => {
-        const next = store.normalize(snapshot);
-        next.allowed = false;
-        return next;
-      };
-    }
-    throw new TypeError("名称变更无效");
+    throw Object.assign(new TypeError("名称变更无效"), { code: "invalid" });
   }
 
-  async function applyOwner(ownerId, mutate, { requireCustomNames = false } = {}) {
+  async function applyOwner(ownerId, mutate, { requireCustomNames = false, sessionKey = "", confirmedDenied = false } = {}) {
     const id = store.userIdOf(ownerId);
     if (!id) {
       const error = new Error("缺少账号身份");
@@ -286,7 +268,7 @@
       return { ok: false, reason: "read-failed" };
     }
     const currentOwner = await readOwner();
-    if (!store.sameUser(currentOwner.ownerId, id)) {
+    if (!store.sameUser(currentOwner.ownerId, id) || (sessionKey && currentOwner.sessionKey !== sessionKey)) {
       return { ok: false, reason: "owner-changed" };
     }
     if (requireCustomNames && root.STSettingsMembership.normalize(currentOwner.membership, currentOwner.auth).permissions.customNames !== true) {
@@ -295,42 +277,145 @@
     // 当前账号没变化就不写回，其他账号的槽留到真正写入时再整理
     const index = indexOf(loaded);
     const current = store.readUser(index, id);
-    const nextSnap = mutate(current);
-    if (unchanged(current, nextSnap)) {
-      return { ok: true, snapshot: current };
+    const next = mutate(current);
+    const updates = {};
+    if (!unchanged(current, next)) {
+      updates[SNAPSHOT_KEY] = store.writeUser(index, id, next);
     }
-    const drafted = store.writeUser(index, id, nextSnap);
-    const ok = await writeBook(drafted);
-    if (!ok) {
+    if (confirmedDenied) {
+      const membership = currentOwner.membership;
+      if (membership.permissions?.customNames !== false || membership.features?.customNames !== false) {
+        // 从刚核对过身份的快照仅更新这一项，保留其他权益与会话凭据
+        updates[MEMBERSHIP_KEY] = {
+          ...membership,
+          permissions: { ...membership.permissions, customNames: false },
+          features: { ...membership.features, customNames: false },
+        };
+      }
+    }
+    if (Object.keys(updates).length && !await writeLocal(updates)) {
       return { ok: false, reason: "write-failed" };
     }
-    return { ok: true, snapshot: drafted.byUser[id] };
+    return { ok: true, snapshot: updates[SNAPSHOT_KEY]?.byUser[id] || current };
   }
 
   function commitOwner(ownerId, mutate, options) {
     return enqueue(() => applyOwner(ownerId, mutate, options));
   }
 
-  function writeBook(book) {
-    return writeLocal({ [SNAPSHOT_KEY]: book });
+  async function verifyCustomNames(owner, operationId) {
+    const current = await assertOwner(owner);
+    if (!current.auth?.access_token) {
+      throw loginError("缺少账号中心复核凭据");
+    }
+    // 复核只使用当前会话已持有的 access token。复核失败不能触发刷新或清理登录态。
+    const client = authClient();
+    const response = await client.fetchBg({
+      url: CFG.steamBuff("/user/center"),
+      method: "GET",
+      headers: { Accept: "application/json", Authorization: `Bearer ${current.auth.access_token}` },
+      allowHttpError: true,
+      timeoutMs: CENTER_TIMEOUT_MS,
+      operationId,
+    }, { logFailures: false });
+    if (!response.ok) {
+      throw Object.assign(new Error("账号中心复核请求失败"), { code: response.status });
+    }
+    const body = client.parseJson(response.data);
+    if (body?.code !== 200
+      || !store.sameUser(body?.user?.id, owner.ownerId)
+      || typeof body?.permissions?.customNames !== "boolean") {
+      throw new Error("账号中心未返回当前账号的明确名称权益");
+    }
+    if (body.permissions.customNames) return;
+
+    const result = await commitOwner(owner.ownerId, (snapshot) => ({ ...snapshot, allowed: false }), {
+      sessionKey: owner.sessionKey,
+      confirmedDenied: true,
+    });
+    if (!result.ok) {
+      throw Object.assign(new Error("独立名称权益复核未能写回"), { code: result.reason });
+    }
+    log.warn("user-names-entitlement-denied", "账号中心已确认独立名称权益失效", {
+      operationId,
+      ownerId: owner.ownerId,
+    });
+  }
+
+  function recheckCustomNames(owner, operationId) {
+    let check = entitlementChecks.get(owner.sessionKey);
+    if (!check) {
+      check = verifyCustomNames(owner, operationId).catch((error) => {
+        log.warn("user-names-entitlement-check-failed", "未能复核独立名称权益，保留本地权益", {
+          operationId,
+          ownerId: owner.ownerId,
+          error,
+        });
+      }).finally(() => entitlementChecks.delete(owner.sessionKey));
+      entitlementChecks.set(owner.sessionKey, check);
+    }
+    return check;
+  }
+
+  async function pauseSync(owner, stage, operationId, reason, { forbidden = false, retry = false } = {}) {
+    let newHold = false;
+    const result = await commitOwner(owner.ownerId, (snapshot) => {
+      if (snapshot.syncHold && !(forbidden && snapshot.syncHold === "read-pending")) return snapshot;
+      newHold = true;
+      return { ...snapshot, syncHold: forbidden ? stage : "read-pending" };
+    }, { sessionKey: owner.sessionKey });
+    if (!result.ok) return result;
+    if (newHold || (forbidden && retry)) {
+      log.warn("user-names-sync-paused", "独立名称云同步已暂停", {
+        operationId,
+        ownerId: owner.ownerId,
+        stage,
+        reason,
+        status: forbidden ? 403 : undefined,
+      });
+    }
+    if (forbidden && (newHold || retry)) await recheckCustomNames(owner, operationId);
+    return { ok: false, reason: "sync-paused", code: forbidden ? 403 : undefined, kept: true };
+  }
+
+  function syncMode(stored) {
+    return CFG.effectiveLibraryNameMode({
+      [CFG.libraryNameMode.key]: stored[MODE_KEY],
+      customNamesAllowed: CFG.customNamesAllowed(stored[MEMBERSHIP_KEY]),
+    });
+  }
+
+  async function handleOperation(request, operationId) {
+    const kind = request?.op?.op;
+    if (kind === "merge") {
+      // 旧内容脚本没有随云端响应附带会话标识。只回读当前账号的本地快照。
+      return commitOwner(request.ownerId, (snapshot) => snapshot);
+    }
+    if (kind !== "pull" && kind !== "retry") {
+      const mutate = mutationFor(request?.op);
+      return commitOwner(request?.ownerId, mutate);
+    }
+    const stored = await readStorage([MODE_KEY, MEMBERSHIP_KEY, AUTH_KEY]);
+    const owner = ownerFrom(stored);
+    if (!store.sameUser(owner.ownerId, request.ownerId) || !request.session
+      || request.session !== await root.STAuthSession.fingerprint(owner.auth)) {
+      return { ok: false, reason: "owner-changed" };
+    }
+    if (kind === "retry") return run("manual", owner, operationId);
+    if (syncMode(stored) !== CFG.libraryNameMode.values.INDEPENDENT) {
+      return { ok: false, reason: "entitlement-denied" };
+    }
+    const local = store.readUser(indexOf(await readBook()), owner.ownerId);
+    await assertOwner(owner);
+    if (local.syncHold) return { ok: true, snapshot: local };
+    const result = await takeCloud(owner, local, operationId, "page", { touchAuth: true });
+    return result.done ? result.result : { ok: true, snapshot: result.local };
   }
 
   function handleMessage(request, sendResponse) {
     const operationId = String(request?.operationId || "");
     const requestId = String(request?.requestId || "");
-    let mutate;
-    try {
-      mutate = mutationFor(request?.op);
-    } catch (error) {
-      log.warn("user-names-commit-rejected", "独立名称变更无法识别", {
-        operationId,
-        requestId,
-        error,
-      });
-      sendResponse({ success: false, error: "名称变更无效", code: "invalid" });
-      return;
-    }
-    commitOwner(request?.ownerId, mutate).then((result) => {
+    handleOperation(request, operationId).then((result) => {
       if (result?.reason === "owner-changed") {
         sendResponse({
           success: false,
@@ -341,17 +426,22 @@
         return;
       }
       if (!result?.ok || !result.snapshot) {
+        const reason = result?.reason || "write-failed";
+        const operation = request?.op?.op;
         sendResponse({
           success: false,
-          reason: result?.reason || "write-failed",
-          error: "名称本地保存失败",
-          code: result?.reason || "write-failed",
+          reason,
+          error: operation === "retry" || operation === "pull" ? "名称云同步未完成" : "名称本地保存失败",
+          code: result?.code || reason,
         });
         return;
       }
       sendResponse({ success: true, snapshot: result.snapshot });
     }).catch((error) => {
-      log.error("user-names-commit-failed", "独立名称写入失败", {
+      const invalid = error?.code === "invalid";
+      log[invalid ? "warn" : "error"](
+        invalid ? "user-names-commit-rejected" : "user-names-commit-failed",
+        invalid ? "独立名称变更无法识别" : "独立名称操作失败", {
         operationId,
         requestId,
         error,
@@ -364,14 +454,17 @@
     });
   }
 
-  async function run(reason = "alarm") {
+  async function run(reason = "alarm", retryOwner = null, operationId = "") {
     if (inflight) {
-      return inflight;
+      if (!retryOwner || (inflight.owner && sameOwner(retryOwner, inflight.owner))) return inflight.task;
+      await inflight.task;
+      return run(reason, retryOwner, operationId);
     }
-    inflight = runOnce(reason).finally(() => {
+    const task = runOnce(reason, retryOwner, operationId).finally(() => {
       inflight = null;
     });
-    return inflight;
+    inflight = { task, owner: retryOwner };
+    return task;
   }
 
   function rejectionMessage(value) {
@@ -404,12 +497,13 @@
     return out;
   }
 
-  async function uploadBatch(ownerId, batch, operationId, reason) {
+  async function uploadBatch(owner, batch, operationId, reason, retry) {
     if (!batch.length) {
       return { done: false };
     }
+    const { ownerId, sessionKey } = owner;
     try {
-      const body = await requestFor(ownerId, "POST", CFG.steamBuff("/submit"), { items: batch }, operationId);
+      const body = await requestFor(owner, "POST", CFG.steamBuff("/submit"), { items: batch }, operationId, { retry });
       const rejected = permanentRejections(body, batch);
       let stopped = 0;
       if (rejected.length) {
@@ -419,7 +513,7 @@
             next = store.blockPending(next, [item.payload], item.message);
           }
           return next;
-        });
+        }, { sessionKey });
         if (committed.reason === "owner-changed") {
           await logOwnerChanged(ownerId, operationId, reason);
           return { done: true, result: { ok: false, reason: "owner-changed", kept: true } };
@@ -459,7 +553,7 @@
           reason,
         });
       }
-      return { done: false };
+      return { done: false, accepted: queued > 0 };
     } catch (error) {
       if (error?.code === "owner-changed") {
         await logOwnerChanged(ownerId, operationId, reason);
@@ -467,43 +561,13 @@
       }
       const code = Number(error?.code) || 0;
       if (code === 403) {
-        const committed = await commitOwner(ownerId, (snapshot) => {
-          const next = store.normalize(snapshot);
-          next.allowed = false;
-          return next;
-        });
-        if (!committed.ok) {
-          if (committed.reason === "owner-changed") {
-            await logOwnerChanged(ownerId, operationId, reason);
-            return { done: true, result: { ok: false, reason: "owner-changed", kept: true } };
-          }
-          if (committed.reason === "read-failed") {
-            return { done: true, result: { ok: false, reason: "read-failed", kept: true } };
-          }
-          log.warn("user-names-upload-failed", "独立名称权益失效后的本地写回失败", {
-            operationId,
-            error,
-            ownerId,
-            reason,
-          });
-          return { done: true, result: { ok: false, code } };
-        }
-        const still = await readOwner();
-        if (!store.sameUser(still.ownerId, ownerId)) {
-          await logOwnerChanged(ownerId, operationId, reason);
-          return { done: true, result: { ok: false, reason: "owner-changed", kept: true } };
-        }
-        await denyCustomNames(operationId);
-        log.warn("user-names-entitlement-denied", "独立名称权益已失效，停止上传", {
-          operationId,
-          error,
-          ownerId,
-          reason,
-        });
-        return { done: true, result: { ok: false, code } };
+        return { done: true, result: await pauseSync(owner, "upload", operationId, reason, { forbidden: true, retry }) };
+      }
+      if (error?.code === "sync-paused") {
+        return { done: true, result: { ok: false, reason: "sync-paused", kept: true } };
       }
       if (code === 400) {
-        const blocked = await commitOwner(ownerId, (snapshot) => store.blockPending(snapshot, batch, error.message));
+        const blocked = await commitOwner(ownerId, (snapshot) => store.blockPending(snapshot, batch, error.message), { sessionKey });
         if (blocked.reason === "owner-changed") {
           await logOwnerChanged(ownerId, operationId, reason);
           return { done: true, result: { ok: false, reason: "owner-changed", kept: true } };
@@ -534,57 +598,41 @@
         count: batch.length,
         reason,
       });
-      return { done: false };
+      return retry ? { done: true, result: { ok: false, code } } : { done: false };
     }
   }
 
-  async function takeCloud(ownerId, local, operationId, reason) {
+  async function takeCloud(owner, local, operationId, reason, { retry = false, touchAuth = false, postAccepted = false } = {}) {
+    const { ownerId, sessionKey } = owner;
     try {
-      const body = await pullBody(local, ownerId, operationId);
-      if (body?.unchanged === true) {
-        const quota = Number(body.quota);
-        if (!Number.isInteger(quota)) {
-          const current = await readOwner();
-          if (!store.sameUser(current.ownerId, ownerId)) {
-            await logOwnerChanged(ownerId, operationId, reason);
-            return { done: true, result: { ok: false, reason: "owner-changed", kept: true } };
-          }
-          return { done: false, local };
-        }
-        const committed = await commitOwner(ownerId, (snapshot) => store.withQuota(snapshot, quota));
-        if (committed.reason === "owner-changed") {
-          await logOwnerChanged(ownerId, operationId, reason);
-          return { done: true, result: { ok: false, reason: "owner-changed", kept: true } };
-        }
-        if (committed.reason === "read-failed") {
-          return { done: true, result: { ok: false, reason: "read-failed", kept: true } };
-        }
-        if (!committed.ok) {
-          log.warn("user-names-upload-failed", "独立名称云端额度写回本地失败", {
-            operationId,
-            ownerId,
-            reason,
-          });
-          return { done: true, result: { ok: false } };
-        }
-        return { done: false, local: committed.snapshot };
+      const since = sinceRevision(local);
+      const url = CFG.steamBuff("/user/names") + (since ? `?sinceRevision=${encodeURIComponent(String(since))}` : "");
+      const body = await requestFor(owner, "GET", url, undefined, operationId, { retry, touchAuth });
+      const sameRevision = body?.unchanged === true;
+      if (!Number.isSafeInteger(body?.revision) || body.revision < 0
+        || !Number.isSafeInteger(body.quota) || body.quota < -1
+        || (sameRevision ? !since || body.revision !== since : !Array.isArray(body.data))) {
+        throw new TypeError("名称云端快照响应无效");
       }
-      const committed = await commitOwner(ownerId, (snapshot) => (
-        store.mergeCloud(snapshot, store.compactCloud(body))
-      ));
+      const cloud = sameRevision ? null : store.compactCloud(body);
+      const committed = await commitOwner(ownerId, (snapshot) => {
+        if (!retry && snapshot.syncHold) return snapshot;
+        let next = snapshot;
+        if (cloud) next = store.mergeCloud(snapshot, cloud);
+        else if (snapshot.revision === body.revision) next = store.withQuota(snapshot, body.quota);
+        return retry ? { ...next, syncHold: "" } : next;
+      }, { sessionKey, requireCustomNames: true });
       if (committed.reason === "owner-changed") {
         await logOwnerChanged(ownerId, operationId, reason);
         return { done: true, result: { ok: false, reason: "owner-changed", kept: true } };
       }
-      if (committed.reason === "read-failed") {
-        return { done: true, result: { ok: false, reason: "read-failed", kept: true } };
-      }
       if (!committed.ok) {
-        log.warn("user-names-upload-failed", "独立名称云端结果写回本地失败", {
+        log.warn("user-names-snapshot-failed", "独立名称云端结果写回本地失败", {
           operationId,
           reason,
+          failure: committed.reason,
         });
-        return { done: true, result: { ok: false } };
+        return { done: true, result: committed };
       }
       return { done: false, local: committed.snapshot };
     } catch (error) {
@@ -592,75 +640,94 @@
         await logOwnerChanged(ownerId, operationId, reason);
         return { done: true, result: { ok: false, reason: "owner-changed", kept: true } };
       }
+      if (Number(error?.code) === 403) {
+        return { done: true, result: await pauseSync(owner, "read", operationId, reason, { forbidden: true, retry }) };
+      }
+      if (error?.code === "sync-paused") {
+        return { done: true, result: { ok: false, reason: "sync-paused", kept: true } };
+      }
       log.warn("user-names-snapshot-failed", "独立名称云端快照读取失败", {
         operationId,
         error,
         reason,
       });
-      return { done: true, result: { ok: false, kept: true } };
+      if (postAccepted) {
+        return { done: true, result: await pauseSync(owner, "read", operationId, reason) };
+      }
+      return { done: true, result: { ok: false, reason: "pull-failed", kept: true } };
     }
   }
 
-  async function runOnce(reason) {
-    const operationId = root.STLoggerFactory?.createOperationId?.() || "";
-    const stored = await readLocal([MODE_KEY, MEMBERSHIP_KEY, AUTH_KEY]);
-    const ownerId = store.signedInUserId(stored[MEMBERSHIP_KEY], stored[AUTH_KEY]);
+  async function runOnce(reason, retryOwner, operationId) {
+    operationId ||= root.STLoggerFactory.createOperationId();
+    if (retryOwner) await entitlementChecks.get(retryOwner.sessionKey);
+    const stored = await readStorage([MODE_KEY, MEMBERSHIP_KEY, AUTH_KEY]);
+    const owner = ownerFrom(stored);
+    const { ownerId, sessionKey } = owner;
+    const retry = retryOwner !== null;
+    if (retry && !sameOwner(owner, retryOwner)) {
+      return { ok: false, reason: "owner-changed", kept: true };
+    }
     if (!ownerId) {
       return { skipped: true, reason: "signed-out" };
     }
-    const mode = root.STConfig.effectiveLibraryNameMode({
-      [root.STConfig.libraryNameMode.key]: stored[MODE_KEY],
-      customNamesAllowed: root.STConfig.customNamesAllowed(stored[MEMBERSHIP_KEY]),
-    });
-    if (mode !== root.STConfig.libraryNameMode.values.INDEPENDENT) {
+    if (syncMode(stored) !== CFG.libraryNameMode.values.INDEPENDENT) {
       return { skipped: true, reason: "independent-off" };
     }
-    const gated = await commitOwner(ownerId, (snapshot) => store.applyQuotaHold(snapshot));
+    const gated = await commitOwner(ownerId, (snapshot) => snapshot.syncHold && !retry ? snapshot : store.applyQuotaHold(snapshot), {
+      sessionKey,
+      requireCustomNames: true,
+    });
     if (gated.reason === "owner-changed") {
       await logOwnerChanged(ownerId, operationId, reason);
       return { ok: false, reason: "owner-changed", kept: true };
     }
-    if (gated.reason === "read-failed") {
-      return { ok: false, reason: "read-failed", kept: true };
+    if (!gated.ok) {
+      return { ...gated, kept: true };
     }
     let local = gated.snapshot;
-    if (!local) {
-      try {
-        local = store.readUser(indexOf(await readBook()), ownerId);
-      } catch (error) {
-        log.error("user-names-read-failed", "独立名称快照读取失败，已停止写入", {
-          ownerId,
-          error,
-        });
-        return { ok: false, reason: "read-failed", kept: true };
-      }
+    if (local.syncHold && !retry) {
+      return { skipped: true, reason: "sync-paused" };
     }
-    let batch = store.pendingBatch(local);
+    if (retry && !local.syncHold) {
+      return { ok: true, snapshot: local };
+    }
+    let batch = local.syncHold && local.syncHold !== "upload" ? [] : store.pendingBatch(local);
     const recover = !batch.length && store.quotaBlocked(local);
-    if (!batch.length && !recover) {
+    if (!retry && !batch.length && !recover) {
       return { skipped: true, reason: "empty" };
     }
-    let uploaded = false;
+    let sent = null;
     if (batch.length) {
-      const sent = await uploadBatch(ownerId, batch, operationId, reason);
+      sent = await uploadBatch(owner, batch, operationId, reason, retry);
       if (sent.done) {
         return sent.result;
       }
-      uploaded = true;
+      if (retry && sent.accepted) {
+        // 重新提交已入队。后续读不到快照时，下一次点击先继续读云端。
+        const waiting = await commitOwner(ownerId, (snapshot) => (
+          snapshot.syncHold === "upload" ? { ...snapshot, syncHold: "read-pending" } : snapshot
+        ), { sessionKey });
+        if (!waiting.ok) return waiting;
+        local = waiting.snapshot;
+      }
     }
-    const cloud = await takeCloud(ownerId, local, operationId, reason);
+    const cloud = await takeCloud(owner, local, operationId, reason, { retry, postAccepted: sent?.accepted });
     if (cloud.done) {
       return cloud.result;
     }
     local = cloud.local;
-    if (!uploaded) {
+    if (retry) {
+      return { ok: true, snapshot: local };
+    }
+    if (!sent) {
       batch = store.pendingBatch(local);
       if (batch.length) {
-        const sent = await uploadBatch(ownerId, batch, operationId, reason);
+        const sent = await uploadBatch(owner, batch, operationId, reason, false);
         if (sent.done) {
           return sent.result;
         }
-        const again = await takeCloud(ownerId, local, operationId, reason);
+        const again = await takeCloud(owner, local, operationId, reason, { postAccepted: sent.accepted });
         if (again.done) {
           return again.result;
         }

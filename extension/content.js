@@ -26,7 +26,7 @@
   const { cleanAuth } = authSession;
 
   const RUN_MARK = "steamBuffContentStarted";
-  const RUN_VERSION = "steam-buff-runtime-v79";
+  const RUN_VERSION = "steam-buff-runtime-v80";
   const RUN_PENDING = `${RUN_VERSION}:pending`;
   const EXCLUDED_STEAM_CLEANUP_SCRIPT = "steam/runtime/cleanup-stale.js";
   const SETTINGS_OPEN_MESSAGE = "STEAM_BUFF_OPEN_SETTINGS";
@@ -128,9 +128,9 @@
   const USER_NAMES_COMMIT = "USER_NAMES_COMMIT";
   const USER_NAMES_ATTR = "steamBuffUserNames";
   const USER_NAMES_SEARCH_ATTR = "steamBuffUserNameSearch";
+  const USER_NAMES_HOLD_ATTR = "data-steam-buff-user-names-sync-hold";
   const USER_NAMES_REQ_ATTR = "data-steam-buff-user-names-request";
   const USER_NAMES_RES_ATTR = "data-steam-buff-user-names-response";
-  const API_USER_NAMES = CFG.steamBuff("/user/names");
   const API_NAME_REFERENCE = `${CFG.steamBuff("/store/names")}?sources=community`;
   const API_FREE_NAME_REFERENCE = `${CFG.steamBuff("/names/resolve")}?sources=community`;
   const AI_SERVICE = "steam-buff.ai";
@@ -2143,10 +2143,6 @@
       === globalThis.STConfig.libraryNameMode.values.INDEPENDENT;
   }
 
-  function compactUserNames(body = {}) {
-    return userNamesStore.compactCloud(body);
-  }
-
   function displayUserNames(snapshot) {
     return userNamesStore.displayMap(snapshot);
   }
@@ -2164,6 +2160,13 @@
       el.dataset[USER_NAMES_ATTR] = "{}";
       el.dataset[USER_NAMES_SEARCH_ATTR] = "{}";
     }
+  }
+
+  function writeUserNamesHold(snapshot) {
+    const el = root();
+    const stage = snapshot?.syncHold === "read-pending" ? "read" : snapshot?.syncHold;
+    const hold = stage ? `${snapshot.userId}:${stage}` : "";
+    if (el && el.getAttribute(USER_NAMES_HOLD_ATTR) !== hold) el.setAttribute(USER_NAMES_HOLD_ATTR, hold);
   }
 
   function postUserNames(data) {
@@ -2191,13 +2194,15 @@
     const ownerId = userNamesStore.signedInUserId(rt[MEMBERSHIP_KEY], rt[AUTH_KEY]);
     return {
       ownerId,
+      auth: rt[AUTH_KEY],
       snapshot: userNamesStore.readUser(rt[USER_NAMES_KEY], ownerId),
     };
   }
 
   async function showSignedInNames() {
     const state = await readNameState();
-    writeUserNamesDataset(state.ownerId ? state.snapshot : { items: {} });
+    writeUserNamesDataset(state.snapshot);
+    writeUserNamesHold(state.snapshot);
     return state;
   }
 
@@ -2205,48 +2210,27 @@
     return userNamesStore.sameUser(await readSignedOwner(), ownerId);
   }
 
-  async function authedNamesGet(url, ownerId, diagnostics = {}) {
-    const boundOwner = String(ownerId || "").trim();
-    if (!boundOwner) {
-      throw authError("请先在设置中登录");
-    }
-    const result = await authedBridge(url, {
-      method: "GET",
-      ownerId: boundOwner,
-      touchAuth: true,
-    }, diagnostics);
-    const body = result.body || {};
-    const code = result.code;
-    if (code === 401 || code === 403) {
-      const error = new Error(body.message || "当前权益不包含自定义名称");
-      error.code = code;
-      throw error;
-    }
-    if (code < 200 || code >= 300) {
-      const error = new Error(body.message || "名称快照读取失败");
-      error.code = code;
-      throw error;
-    }
-    if (!(await namesOwnerStill(boundOwner))) {
-      throw ownerChangedError();
-    }
-    return body;
-  }
-
-  async function commitNameSnapshot(ownerId, op, diagnostics = {}) {
+  async function commitNameSnapshot(ownerId, op, diagnostics = {}, { boundAuth, timeoutMs } = {}) {
     const response = await globalThis.STMessageBus.request({
       type: USER_NAMES_COMMIT,
       ownerId,
       op,
+      session: boundAuth ? await authSession.fingerprint(boundAuth) : undefined,
       operationId: diagnostics.operationId || "",
       requestId: diagnostics.requestId || "",
-    });
+    }, { timeoutMs });
     if (response?.reason === "owner-changed") {
       return null;
     }
     if (response?.success === true && response.snapshot) {
-      writeUserNamesDataset(response.snapshot);
-      return response.snapshot;
+      const current = boundAuth ? await readNameState() : null;
+      if (current && (!userNamesStore.sameUser(current.ownerId, ownerId) || !authSession.sameLogin(current.auth, boundAuth))) {
+        return null;
+      }
+      const snapshot = current?.snapshot || response.snapshot;
+      writeUserNamesDataset(snapshot);
+      if (current) writeUserNamesHold(snapshot);
+      return snapshot;
     }
     const error = new Error(response?.error || "名称本地保存失败");
     error.code = response?.code || "write-failed";
@@ -2284,61 +2268,11 @@
     return { ok: false, reason: "owner-changed" };
   }
 
-  async function denyCustomNames() {
-    const rt = await storageGet([MEMBERSHIP_KEY]);
-    const raw = rt[MEMBERSHIP_KEY];
-    if (!raw || typeof raw !== "object") {
-      return false;
-    }
-    const permissions = { ...(raw.permissions || {}), customNames: false };
-    const features = { ...(raw.features || {}), customNames: false };
-    return storageSet({
-      [MEMBERSHIP_KEY]: {
-        ...raw,
-        permissions,
-        features,
-        updatedAt: Date.now(),
-      },
-    });
-  }
-
-  async function keepNamesAfterFailure(error, ownerId) {
-    const state = await readNameState();
-    if (!userNamesStore.sameUser(state.ownerId, ownerId)) {
-      await showSignedInNames();
-      return null;
-    }
-    const local = state.snapshot;
-    const code = Number(error?.code) || 0;
-    if (code === 403) {
-      const saved = await commitNameSnapshot(ownerId, {
-        op: "set-allowed",
-        allowed: false,
-      });
-      if (!saved) {
-        await showSignedInNames();
-        return null;
-      }
-      if (!(await namesOwnerStill(ownerId))) {
-        await showSignedInNames();
-        return null;
-      }
-      const denied = await denyCustomNames();
-      if (denied) {
-        await writeSteamSettings({ reason: "names-forbidden", notifyDisabled: true });
-      } else {
-        writeUserNamesDataset(saved);
-      }
-      return saved;
-    }
-    writeUserNamesDataset(local);
-    return local;
-  }
-
   async function syncUserNamesSnapshot(options = {}) {
     const settings = options.settings || steamSettingsFrom(await loadSettings(), await loadMembership());
     if (!independentModeOn(settings)) {
       writeUserNamesDataset({ items: {} });
+      writeUserNamesHold(null);
       return { skipped: true, reason: "independent-off" };
     }
     if (userNamesSyncing) {
@@ -2356,27 +2290,17 @@
       ownerId = state.ownerId;
       if (!ownerId) {
         writeUserNamesDataset({ items: {} });
+        writeUserNamesHold(null);
         return { skipped: true, reason: "signed-out" };
       }
       const local = state.snapshot;
       writeUserNamesDataset(local);
-      const since = Number(local.revision) || 0;
-      const url = since > 0
-        ? `${API_USER_NAMES}?sinceRevision=${encodeURIComponent(String(since))}`
-        : API_USER_NAMES;
-      const body = await authedNamesGet(url, ownerId, diagnostics);
-      if (body?.unchanged === true) {
-        const current = await readNameState();
-        if (!userNamesStore.sameUser(current.ownerId, ownerId)) {
-          return stopForOwner(ownerId, diagnostics, options.reason || "");
-        }
-        writeUserNamesDataset(current.snapshot);
-        return current.snapshot;
-      }
-      const saved = await commitNameSnapshot(ownerId, {
-        op: "merge",
-        cloud: compactUserNames(body),
-      }, diagnostics);
+      writeUserNamesHold(local);
+      if (local.syncHold) return local;
+      const saved = await commitNameSnapshot(ownerId, { op: "pull" }, diagnostics, {
+        boundAuth: state.auth,
+        timeoutMs: 50_000,
+      });
       if (!saved) {
         return stopForOwner(ownerId, diagnostics, options.reason || "");
       }
@@ -2385,9 +2309,9 @@
       if (error?.code === "owner-changed") {
         return stopForOwner(ownerId, diagnostics, options.reason || "");
       }
-      // 注: 读取失败不能写空快照，403 只关闭当前账号权益并改回 Steam 排序名显示
-      const kept = await keepNamesAfterFailure(error, ownerId);
-      if (!kept) {
+      // 失败时回读本地快照，保留已保存的名称及同步状态。
+      const current = await showSignedInNames();
+      if (!userNamesStore.sameUser(current.ownerId, ownerId)) {
         return stopForOwner(ownerId, diagnostics, options.reason || "");
       }
       log({
@@ -2632,6 +2556,17 @@
         postUserNames({ type: "snapshot-result", rid, ok: true, data: local });
         return;
       }
+      if (data.type === "retry-sync") {
+        const { ownerId, auth } = await readNameState();
+        if (!userNamesStore.sameUser(ownerId, data.ownerId)) throw ownerChangedError();
+        const saved = await commitNameSnapshot(ownerId, { op: "retry" }, diagnostics, {
+          boundAuth: auth,
+          timeoutMs: 120_000,
+        });
+        if (!saved) throw ownerChangedError();
+        postUserNames({ type: "retry-sync-result", rid, ok: true, data: saved });
+        return;
+      }
       if (data.type === "save") {
         const saved = await saveIndependentName(data.item || {}, diagnostics);
         postUserNames({ type: "save-result", rid, ok: true, data: saved });
@@ -2791,7 +2726,9 @@
           return;
         }
         const ownerId = userNamesStore.signedInUserId(membership, rt[AUTH_KEY]);
-        writeUserNamesDataset(userNamesStore.readUser(next, ownerId));
+        const snapshot = userNamesStore.readUser(next, ownerId);
+        writeUserNamesDataset(snapshot);
+        writeUserNamesHold(snapshot);
       }).catch((error) => {
         globalThis.STLoggerFactory.reportError(error, { domain: "extension", feature: "content", event: "watch-user-names-storage-failed", message: "扩展后台或桥接处理失败", level: "error", phase: "watchUserNamesStorage" });});
     });

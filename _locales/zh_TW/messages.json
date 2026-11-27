@@ -6042,6 +6042,18 @@
   "steam_independentName_saved": {
     "message": "已儲存在本機"
   },
+  "steam_independentName_syncUploadPaused": {
+    "message": "名稱已儲存在本機，雲端同步受阻"
+  },
+  "steam_independentName_syncReadPaused": {
+    "message": "雲端名稱讀取受阻"
+  },
+  "steam_independentName_retrySync": {
+    "message": "重試同步"
+  },
+  "steam_independentName_syncRetryFailed": {
+    "message": "重試同步未完成"
+  },
   "steam_independentName_waitingCloud": {
     "message": "等待雲端處理"
   },

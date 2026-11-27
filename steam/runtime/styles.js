@@ -698,6 +698,12 @@
         font-size: 12px;
       }
 
+      #${LIBRARY_INDEPENDENT_NAME_BATCH_MODAL} [data-lin-sync-hold]:not([hidden]) {
+        display: flex;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 8px;
+      }
 
         ${NAME_BATCH_SELECTOR} .st-lin-transfer-dialog {
         box-sizing: border-box;

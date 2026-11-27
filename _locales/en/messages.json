@@ -6042,6 +6042,18 @@
   "steam_independentName_saved": {
     "message": "Saved locally"
   },
+  "steam_independentName_syncUploadPaused": {
+    "message": "Names are saved on this device. Cloud sync is blocked."
+  },
+  "steam_independentName_syncReadPaused": {
+    "message": "Cloud names could not be retrieved."
+  },
+  "steam_independentName_retrySync": {
+    "message": "Retry sync"
+  },
+  "steam_independentName_syncRetryFailed": {
+    "message": "Sync retry did not complete"
+  },
   "steam_independentName_waitingCloud": {
     "message": "Waiting for cloud processing"
   },

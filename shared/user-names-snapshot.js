@@ -26,6 +26,11 @@
   const ALIAS_MAX = 10;
   const QUOTA_EXHAUSTED = "自定义名称额度已用完";
   const QUOTA_DENIED = "当前权益不包含自定义名称";
+  const SYNC_HOLDS = new Set(["upload", "read", "read-pending"]);
+
+  function syncHoldOf(value) {
+    return SYNC_HOLDS.has(value) ? value : "";
+  }
 
   function emptySnapshot() {
     return {
@@ -35,6 +40,7 @@
       count: 0,
       quota: -1,
       allowed: false,
+      syncHold: "",
       items: {},
       pending: {},
       syncErrors: {},
@@ -226,6 +232,7 @@
       count: Object.values(items).filter((row) => !!row.custom_name).length,
       quota: Number.isInteger(quota) ? quota : -1,
       allowed: raw.allowed !== false,
+      syncHold: syncHoldOf(raw.syncHold),
       items,
       pending,
       syncErrors: syncErrorsOf(raw, pending),
@@ -483,6 +490,7 @@
       count: Object.values(items).filter((row) => !!row.custom_name).length,
       quota: remote.quota,
       allowed: true,
+      syncHold: current.syncHold,
       items,
       pending: current.pending,
       syncErrors: current.syncErrors,
@@ -622,6 +630,7 @@
     emptySnapshot,
     emptyIndex,
     normalize,
+    syncHoldOf,
     normalizeIndex,
     readUser,
     writeUser,
