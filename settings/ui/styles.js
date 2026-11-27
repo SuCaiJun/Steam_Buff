@@ -1800,6 +1800,16 @@
           justify-content: flex-end;
         }
 
+        .steam-web-api-key-controls {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          width: min(280px, 100%);
+        }
+        .steam-web-api-key-controls .settings-control { flex: 1; min-width: 0; }
+        .steam-web-api-key-controls button { flex: none; }
+        .steam-web-api-key-controls [hidden] { display: none; }
+
         .translate-control,
         .settings-control {
           width: min(280px, 100%);

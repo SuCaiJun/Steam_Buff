@@ -1294,6 +1294,12 @@
   "settings_field_thirdPartyServices_isthereanydeal_key_placeholder": {
     "message": "輸入自己的 IsThereAnyDeal API Key"
   },
+  "settings_field_thirdPartyServices_steamWebApiKey_label": {
+    "message": "Steam Web API Key"
+  },
+  "settings_field_thirdPartyServices_steamWebApiKey_placeholder": {
+    "message": "輸入 Steam Web API Key"
+  },
   "settings_storePriceChart_seriesLimit_title": {
     "message": "最多 $max$ 條價格線",
     "placeholders": {
@@ -5103,7 +5109,22 @@
     "message": "未填寫 ITAD Key"
   },
   "settings_thirdParty_testConnection": {
-    "message": "測試連線"
+    "message": "測試 ITAD"
+  },
+  "settings_thirdParty_steamKeyOpen": {
+    "message": "設定 Steam 金鑰"
+  },
+  "settings_thirdParty_steamKeyClear": {
+    "message": "清除金鑰"
+  },
+  "settings_thirdParty_steamKeySaved": {
+    "message": "已儲存，留空保留"
+  },
+  "settings_thirdParty_steamKeyPendingClear": {
+    "message": "儲存後清除金鑰"
+  },
+  "settings_thirdParty_steamKeyStatusFailed": {
+    "message": "無法讀取金鑰狀態"
   },
   "store_dataDisplay_thirdPartyLoadFailed": {
     "message": "第三方價格資料載入失敗，請稍後重試。"

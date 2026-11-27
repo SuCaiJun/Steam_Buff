@@ -1294,6 +1294,12 @@
   "settings_field_thirdPartyServices_isthereanydeal_key_placeholder": {
     "message": "Enter your IsThereAnyDeal API key"
   },
+  "settings_field_thirdPartyServices_steamWebApiKey_label": {
+    "message": "Steam Web API Key"
+  },
+  "settings_field_thirdPartyServices_steamWebApiKey_placeholder": {
+    "message": "Enter a Steam Web API key"
+  },
   "settings_storePriceChart_seriesLimit_title": {
     "message": "Up to $max$ price lines",
     "placeholders": {
@@ -5103,7 +5109,22 @@
     "message": "ITAD Key not configured"
   },
   "settings_thirdParty_testConnection": {
-    "message": "Test connection"
+    "message": "Test ITAD"
+  },
+  "settings_thirdParty_steamKeyOpen": {
+    "message": "Configure Steam key"
+  },
+  "settings_thirdParty_steamKeyClear": {
+    "message": "Clear key"
+  },
+  "settings_thirdParty_steamKeySaved": {
+    "message": "Saved. Leave blank to keep"
+  },
+  "settings_thirdParty_steamKeyPendingClear": {
+    "message": "Key will be cleared on save"
+  },
+  "settings_thirdParty_steamKeyStatusFailed": {
+    "message": "Could not read key status"
   },
   "store_dataDisplay_thirdPartyLoadFailed": {
     "message": "Could not load third-party price data. Try again later."

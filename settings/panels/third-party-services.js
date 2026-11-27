@@ -13,6 +13,11 @@
 
   const TEST_TIMEOUT_MS = 12 * 1000;
   const log = root.STLoggerFactory.createLogger("settings", "third-party-services");
+  const privateSettings = root.location?.protocol === "chrome-extension:"
+    && root.location.pathname === "/settings/center.html";
+  const steamKeySelector = "[data-steam-web-api-key]";
+  const clearSteamKeySelector = "[data-steam-web-api-key-clear]";
+  const steamKeyPlaceholder = () => text("settings.field.thirdPartyServices.steamWebApiKey.placeholder", "输入 Steam Web API Key");
 
   function text(key, fallback, params) {
     return root.STI18n.text(key, fallback, params);
@@ -170,7 +175,22 @@
       return clone(conf);
     }
 
+    function steamKeyInput(field) {
+      if (!privateSettings) {
+        return `<button class="btn btn-secondary" type="button" data-steam-web-api-key-open>${
+          esc(text("settings.thirdParty.steamKeyOpen", "配置 Steam 密钥"))
+        }</button>`;
+      }
+      return `<span class="steam-web-api-key-controls">
+        ${fieldInput({ field, value: "", dataset: "data-steam-web-api-key" })}
+        <button class="btn btn-secondary" type="button" data-steam-web-api-key-clear hidden>${
+          esc(text("settings.thirdParty.steamKeyClear", "清除密钥"))
+        }</button>
+      </span>`;
+    }
+
     function input(field) {
+      if (field.key === "steamWebApiKey") return steamKeyInput(field);
       const value = getPath(conf, field.key, "");
       if (field.type === "checkbox") {
         return fieldInput({
@@ -212,9 +232,52 @@
     }
 
     function setInputsDisabled(shadow, disabled) {
-      shadow.querySelectorAll("[data-third-party-services]").forEach((node) => {
+      shadow.querySelectorAll(`[data-third-party-services], ${steamKeySelector}, ${clearSteamKeySelector}`).forEach((node) => {
         node.disabled = disabled;
       });
+    }
+
+    function showSteamKeyStatus(input, configured) {
+      input.dataset.configured = String(configured);
+      input.placeholder = configured
+        ? text("settings.thirdParty.steamKeySaved", "已保存，留空保留")
+        : steamKeyPlaceholder();
+      input.parentElement.querySelector(clearSteamKeySelector).hidden = !configured;
+    }
+
+    async function loadSteamKeyStatus(shadow) {
+      const input = shadow.querySelector(steamKeySelector);
+      if (!input) return;
+      input.autocomplete = "off";
+      try {
+        const configured = await storage.hasSteamWebApiKey();
+        if (input.isConnected && input.dataset.configured === undefined) showSteamKeyStatus(input, configured);
+      } catch (error) {
+        log.error("steam-web-api-key-status-failed", "Steam Web API Key 状态读取失败", { error });
+        if (input.isConnected && input.dataset.configured === undefined) {
+          input.placeholder = text("settings.thirdParty.steamKeyStatusFailed", "密钥状态读取失败");
+        }
+      }
+    }
+
+    async function openSteamKeySettings(shadow, button) {
+      button.disabled = true;
+      try {
+        const url = new URL(root.chrome.runtime.getURL("settings/center.html"));
+        url.searchParams.set("category", "third-party-services");
+        const response = await root.STMessageBus.request({ type: "CHROMIUM_WINDOW_OPEN", url: url.href }, { expectSuccess: true });
+        if (response?.opened !== true) throw new Error("扩展独立设置页打开结果无效");
+      } catch (error) {
+        log.error("steam-web-api-key-settings-open-failed", "打开 Steam Web API Key 设置失败", { error });
+        if (button.isConnected) {
+          void dialog(shadow, {
+            title: text("settings.thirdParty.steamKeyOpen", "配置 Steam 密钥"),
+            message: text("onboarding.openSettingsFailed", "设置中心打开失败，请稍后重试。"),
+          });
+        }
+      } finally {
+        button.disabled = false;
+      }
     }
 
     function showSavePrompt(shadow, operationId) {
@@ -231,8 +294,21 @@
     async function save(shadow, button, nextConfig, reason = "save") {
       const previous = clone(persistedConf);
       const next = nextConfig ? normalize(nextConfig) : read(shadow);
-      conf = next;
-      publishConfig();
+      const keyInput = privateSettings ? shadow.querySelector(steamKeySelector) : null;
+      const enteredKey = keyInput?.value.trim();
+      const keyUpdate = enteredKey || (keyInput?.dataset.clear === "true" ? "" : undefined);
+      // 独立设置页沿用打开时的 ITAD 草稿，未编辑时仅处理本机凭据
+      const keyOnly = keyInput !== null && JSON.stringify(next) === JSON.stringify(previous);
+      if (!keyOnly) {
+        conf = next;
+        publishConfig();
+      }
+      const restoreServiceInputs = () => {
+        if (keyOnly) return;
+        conf = previous;
+        publishConfig();
+        restoreInputs(shadow, conf);
+      };
       const startedAt = Date.now();
       const operationId = root.STLoggerFactory?.createOperationId?.() || "";
       log.info("third-party-services-save-start", "开始保存第三方服务配置", {
@@ -247,13 +323,17 @@
       }
       setInputsDisabled(shadow, true);
       try {
-        const saved = typeof storage.setThirdPartyServices === "function"
-          ? await storage.setThirdPartyServices(next, { operationId })
-          : false;
+        let saved;
+        if (keyOnly) {
+          const ok = keyUpdate === undefined || await storage.setSteamWebApiKey(keyUpdate, { operationId });
+          saved = ok === true ? next : false;
+        } else {
+          saved = typeof storage.setThirdPartyServices === "function"
+            ? await storage.setThirdPartyServices(keyUpdate === undefined ? next : { ...next, steamWebApiKey: keyUpdate }, { operationId })
+            : false;
+        }
         if (!saved || typeof saved !== "object") {
-          conf = previous;
-          publishConfig();
-          restoreInputs(shadow, conf);
+          restoreServiceInputs();
           log.warn("third-party-services-save-failed", "第三方服务配置保存失败", {
             operationId,
             enabled: next.enabled === true,
@@ -268,9 +348,17 @@
           });
           return false;
         }
-        conf = clone(saved);
-        persistedConf = clone(conf);
-        publishConfig();
+        if (!keyOnly) {
+          conf = clone(saved);
+          persistedConf = clone(conf);
+          publishConfig();
+        }
+        if (keyInput) {
+          keyInput.value = "";
+          delete keyInput.dataset.clear;
+          if (keyUpdate !== undefined) showSteamKeyStatus(keyInput, keyUpdate !== "");
+          root.STSettingsFields.acceptEdit(keyInput);
+        }
         log.info("third-party-services-save-success", "第三方服务配置保存成功", {
           operationId,
           enabled: conf.enabled === true,
@@ -281,9 +369,7 @@
         showSavePrompt(shadow, operationId);
         return true;
       } catch (error) {
-        conf = previous;
-        publishConfig();
-        restoreInputs(shadow, conf);
+        restoreServiceInputs();
         log.error("third-party-services-save-failed", "第三方服务配置保存异常", {
           operationId,
           enabled: next.enabled === true,
@@ -411,7 +497,7 @@
       const fields = getFields();
       const body = `
         <div class="settings-form">
-          <details class="settings-card section-card">
+          <details class="settings-card section-card"${privateSettings && new URLSearchParams(root.location.search).get("category") === "third-party-services" ? " open" : ""}>
             <summary class="section-header settings-fold-title">
               <div class="dot"></div>
               <div class="title">${esc(text("settings.feature.third-party-services.name", "第三方服务配置"))}</div>
@@ -428,7 +514,7 @@
               `).join("")}
             </div>
             <div class="settings-actions form-footer">
-              <button class="settings-save third-party-services-test btn btn-secondary" type="button">${text("settings.thirdParty.testConnection", "测试连接")}</button>
+              <button class="settings-save third-party-services-test btn btn-secondary" type="button">${text("settings.thirdParty.testConnection", "测试 ITAD")}</button>
               <button class="settings-save third-party-services-save btn btn-blue" type="button">${text("common.saveSettings", "保存设置")}</button>
             </div>
           </details>
@@ -444,6 +530,24 @@
     }
 
     function handleClick(event, shadow) {
+      const openKey = event.target.closest("[data-steam-web-api-key-open]");
+      if (openKey) {
+        if (!openKey.disabled) void openSteamKeySettings(shadow, openKey);
+        return true;
+      }
+      const clearKey = event.target.closest(clearSteamKeySelector);
+      if (clearKey) {
+        const input = shadow.querySelector(steamKeySelector);
+        if (privateSettings && input && !input.disabled) {
+          input.value = "";
+          input.dataset.clear = "true";
+          input.placeholder = text("settings.thirdParty.steamKeyPendingClear", "保存后清除密钥");
+          clearKey.hidden = true;
+          root.STSettingsFields.recordEdit(input);
+          input.focus();
+        }
+        return true;
+      }
       const test = event.target.closest(".third-party-services-test");
       if (test) {
         testConnection(shadow, test);
@@ -475,6 +579,7 @@
       handleChange,
       handleClick,
       html,
+      loadSteamKeyStatus,
       read,
       setConfig,
     });

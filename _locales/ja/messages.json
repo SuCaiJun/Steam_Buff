@@ -1294,6 +1294,12 @@
   "settings_field_thirdPartyServices_isthereanydeal_key_placeholder": {
     "message": "IsThereAnyDeal APIキーを入力"
   },
+  "settings_field_thirdPartyServices_steamWebApiKey_label": {
+    "message": "Steam Web API Key"
+  },
+  "settings_field_thirdPartyServices_steamWebApiKey_placeholder": {
+    "message": "Steam Web APIキーを入力"
+  },
   "settings_storePriceChart_seriesLimit_title": {
     "message": "価格ラインは最大$max$本",
     "placeholders": {
@@ -5103,7 +5109,22 @@
     "message": "ITADキーは設定されていません"
   },
   "settings_thirdParty_testConnection": {
-    "message": "接続をテスト"
+    "message": "ITADをテスト"
+  },
+  "settings_thirdParty_steamKeyOpen": {
+    "message": "Steamキーを設定"
+  },
+  "settings_thirdParty_steamKeyClear": {
+    "message": "キーを消去"
+  },
+  "settings_thirdParty_steamKeySaved": {
+    "message": "保存済み。空欄のまま保持"
+  },
+  "settings_thirdParty_steamKeyPendingClear": {
+    "message": "保存時にキーを消去"
+  },
+  "settings_thirdParty_steamKeyStatusFailed": {
+    "message": "キーの状態を読み取れませんでした"
   },
   "store_dataDisplay_thirdPartyLoadFailed": {
     "message": "第三者価格データを読み込めませんでした。後でもう一度お試しください。"

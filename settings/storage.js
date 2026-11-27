@@ -26,6 +26,7 @@
   const SEARCH_SUGGESTION_PREFIX = `${PREFIX}searchSuggestions.`;
   const AI_PREFIX = `${PREFIX}ai.`;
   const THIRD_PARTY_SERVICES_PREFIX = `${PREFIX}thirdPartyServices.`;
+  const STEAM_WEB_API_KEY = "st.credentials.steamWebApi.apiKey";
   const STORE_PRICE_CHART_KEY = `${PREFIX}storePriceChart`;
   const GAME_LINKS_KEY = "st.settings.gameLinks";
   const SETUP_KEY = "st.settings.setup.locale";
@@ -962,7 +963,31 @@
     return normalizeThirdPartyServices(out);
   }
 
+  /** 仅返回本机密钥的配置状态，读取失败由设置面板处理 */
+  async function hasSteamWebApiKey() {
+    const values = await get([STEAM_WEB_API_KEY], { strict: true });
+    const key = values[STEAM_WEB_API_KEY];
+    if (key === undefined) return false;
+    if (typeof key !== "string") throw new TypeError("Steam Web API Key 存储格式错误");
+    return key !== "";
+  }
+
+  function steamWebApiKeyData(value) {
+    if (typeof value !== "string") {
+      throw new TypeError("Steam Web API Key 必须是文本");
+    }
+    return { [STEAM_WEB_API_KEY]: value.trim() };
+  }
+
+  /** 仅写本机凭据。空串表示清除 */
+  function setSteamWebApiKey(value, diagnostics = {}) {
+    return put(steamWebApiKeyData(value), diagnostics);
+  }
+
+  /** 同时修改两类配置时，显式提供的 steamWebApiKey 随面板配置一并写入 */
   async function setThirdPartyServices(values, diagnostics = {}) {
+    const steamKey = values?.steamWebApiKey;
+    const keyData = steamKey === undefined ? {} : steamWebApiKeyData(steamKey);
     const currentChart = await getStorePriceChart({ strict: true });
     const normalized = normalizeStorePriceChartSettings({
       thirdPartyServices: values,
@@ -970,6 +995,7 @@
     });
     const { next, data } = thirdPartyServicesData(normalized.thirdPartyServices);
     data[STORE_PRICE_CHART_KEY] = normalized.storePriceChart;
+    Object.assign(data, keyData);
 
     const ok = await put(data, diagnostics);
     logSave("third-party-services", ok, {
@@ -1327,6 +1353,8 @@
     setAiSearch,
     writeAiSettings,
     getThirdPartyServices,
+    hasSteamWebApiKey,
+    setSteamWebApiKey,
     setThirdPartyServices,
     normalizeThirdPartyServices,
     STORE_PRICE_CHART_KEY,

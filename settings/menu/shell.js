@@ -348,6 +348,7 @@
       if (shadow.querySelector(".translate-form")) void panels.translate().loadBindings(shadow);
       if (shadow.querySelector("[data-ai-search-form]")) void panels.ai().loadSearchForm(shadow);
       if (shadow.querySelector("[data-ai-chat-form]")) void panels.ai().loadChatForm(shadow);
+      if (getActiveCat() === "third-party-services") void panels.thirdPartyServices().loadSteamKeyStatus(shadow);
       void refreshUpdateCheck(shadow);
       panels.review?.().renderDynamicLists?.(shadow);
       const cloudUi = root.STSettingsCloudUi;

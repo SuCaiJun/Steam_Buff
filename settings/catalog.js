@@ -345,6 +345,12 @@
       label: "ITAD API Key",
       placeholder: "输入自己的 IsThereAnyDeal API Key",
     },
+    {
+      type: "password",
+      key: "steamWebApiKey",
+      label: "Steam Web API Key",
+      placeholder: "输入 Steam Web API Key",
+    },
   ]);
 
   const STORE_PRICE_CHART_DEFAULTS = Object.freeze({

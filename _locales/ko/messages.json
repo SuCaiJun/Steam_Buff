@@ -1294,6 +1294,12 @@
   "settings_field_thirdPartyServices_isthereanydeal_key_placeholder": {
     "message": "IsThereAnyDeal API 키 입력"
   },
+  "settings_field_thirdPartyServices_steamWebApiKey_label": {
+    "message": "Steam Web API Key"
+  },
+  "settings_field_thirdPartyServices_steamWebApiKey_placeholder": {
+    "message": "Steam Web API 키 입력"
+  },
   "settings_storePriceChart_seriesLimit_title": {
     "message": "최대 $max$개의 가격 라인",
     "placeholders": {
@@ -5103,7 +5109,22 @@
     "message": "ITAD 키가 설정되지 않았습니다"
   },
   "settings_thirdParty_testConnection": {
-    "message": "연결 테스트"
+    "message": "ITAD 테스트"
+  },
+  "settings_thirdParty_steamKeyOpen": {
+    "message": "Steam 키 설정"
+  },
+  "settings_thirdParty_steamKeyClear": {
+    "message": "키 지우기"
+  },
+  "settings_thirdParty_steamKeySaved": {
+    "message": "저장됨. 비워 두면 유지"
+  },
+  "settings_thirdParty_steamKeyPendingClear": {
+    "message": "저장 시 키 지우기"
+  },
+  "settings_thirdParty_steamKeyStatusFailed": {
+    "message": "키 상태를 읽지 못했습니다"
   },
   "store_dataDisplay_thirdPartyLoadFailed": {
     "message": "타사 가격 데이터를 불러올 수 없습니다. 나중에 다시 시도하세요."

@@ -1294,6 +1294,12 @@
   "settings_field_thirdPartyServices_isthereanydeal_key_placeholder": {
     "message": "输入自己的 IsThereAnyDeal API Key"
   },
+  "settings_field_thirdPartyServices_steamWebApiKey_label": {
+    "message": "Steam Web API Key"
+  },
+  "settings_field_thirdPartyServices_steamWebApiKey_placeholder": {
+    "message": "输入 Steam Web API Key"
+  },
   "settings_storePriceChart_seriesLimit_title": {
     "message": "最多 $max$ 条价格线",
     "placeholders": {
@@ -5103,7 +5109,22 @@
     "message": "未填写 ITAD Key"
   },
   "settings_thirdParty_testConnection": {
-    "message": "测试连接"
+    "message": "测试 ITAD"
+  },
+  "settings_thirdParty_steamKeyOpen": {
+    "message": "配置 Steam 密钥"
+  },
+  "settings_thirdParty_steamKeyClear": {
+    "message": "清除密钥"
+  },
+  "settings_thirdParty_steamKeySaved": {
+    "message": "已保存，留空保留"
+  },
+  "settings_thirdParty_steamKeyPendingClear": {
+    "message": "保存后清除密钥"
+  },
+  "settings_thirdParty_steamKeyStatusFailed": {
+    "message": "密钥状态读取失败"
   },
   "store_dataDisplay_thirdPartyLoadFailed": {
     "message": "第三方价格数据加载失败，请稍后重试。"
