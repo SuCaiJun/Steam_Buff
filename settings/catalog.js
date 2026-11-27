@@ -721,7 +721,7 @@
         {
           id: "store-title-custom-name",
           name: "游戏商店自定义名称",
-          desc: "在 Steam 商店游戏标题旁显示用户自定义名称、社区名称或 AI 名称，并支持提交自己的名称。",
+          desc: "在商店详情、愿望单、社区和客服游戏页显示自定义、社区或 AI 名称。点击标题旁的「编辑」可修改自己的名称。",
           help: "游戏商店自定义名称",
           area: "store",
           enabled: true,
@@ -941,8 +941,8 @@
         },
         {
           id: "store-title-hide-custom-name",
-          name: "隐藏商店自定义名称",
-          desc: "在 Steam 商店详情页和愿望单隐藏自定义名称显示，但不删除已保存名称。",
+          name: "隐藏游戏页自定义名称",
+          desc: "隐藏商店详情、愿望单、社区和客服游戏页的自定义名称。",
           area: "steam",
           enabled: false,
         },

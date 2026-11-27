@@ -24,8 +24,7 @@
   const NOTE_MAX = 2000;
   const BATCH_SIZE = 80;
   const DETAIL_HOST_ID = "st-game-notes-detail";
-  const QUERY_URL = root.STConfig.steamBuff("/wishlist-notes/query");
-  const SAVE_URL = root.STConfig.steamBuff("/wishlist-notes");
+  const notesApi = root.STGameNotesApi;
   const AUTH_REFRESH = root.STConfig.loginAuth("/auth/refresh");
   const TITLE_SEL = ".apphub_AppName, .apphub_AppName_responsive, h1";
   const DETAIL_RETRY_LIMIT = 20;
@@ -127,6 +126,9 @@
     const { body: data, code } = await client.authedPost(url, body, {
       throwOnMissingAuth: true,
       operationId: diagnostics.operationId || "",
+      ownerId: diagnostics.ownerId,
+      sessionKey: diagnostics.sessionKey,
+      beforeSend: diagnostics.beforeSend,
     });
     if (code < 200 || code >= 300) throw new Error(data?.message || i18n("store.gameNotes.requestFailed", "请求失败：$code$", { code }));
     return data || {};
@@ -137,8 +139,9 @@
     if (!client) throw new Error(i18n("store.gameNotes.loginRequired", "请先在设置中登录"));
     const operationId = diagnostics.operationId || "";
     const requestId = root.STLoggerFactory?.createRequestId?.() || "";
-    const auth = await client.readyAuth({ operationId, requestId });
+    const auth = await client.readyAuth({ operationId, requestId, ownerId: diagnostics.ownerId, sessionKey: diagnostics.sessionKey });
     if (!auth?.access_token) throw new Error(i18n("store.gameNotes.loginRequired", "请先在设置中登录"));
+    if (diagnostics.beforeSend) await diagnostics.beforeSend();
     const response = await client.fetchBg({
       url,
       method: "DELETE",
@@ -176,20 +179,9 @@
     for (const part of chunk(ids, BATCH_SIZE)) {
       if (ticket !== loadSeq) return;
       const startedAt = Date.now();
-      const body = await authedPost(QUERY_URL, { appids: part });
+      const body = await authedPost(notesApi.queryUrl, { appids: part });
       if (ticket !== loadSeq) return;
-      if (!Array.isArray(body.data) || body.data.some(row => !part.includes(Number(row?.appid)) || typeof row.note !== "string")) {
-        throw new TypeError(i18n("store.gameNotes.invalidResponse", "游戏备注响应格式错误"));
-      }
-      const found = new Map(body.data.map(row => [Number(row.appid), row]));
-      const missing = new Set(body.missing_appids);
-      if (part.some(id => !found.has(id) && !missing.has(id))) {
-        throw new TypeError(i18n("store.gameNotes.invalidResponse", "游戏备注响应格式错误"));
-      }
-      for (const appid of part) {
-        const row = found.get(appid);
-        cache.set(appid, { note: row?.note || "", steamName: row?.steam_name || "", updatedAt: row?.updated_at || "" });
-      }
+      for (const [appid, note] of notesApi.read(part, body)) cache.set(appid, note);
       log.info("game-notes-query-success", "游戏备注查询完成", {
         count: part.length, durationMs: Date.now() - startedAt,
       });
@@ -481,17 +473,21 @@
 
   async function saveNote(appid, steamName, value, diagnostics = {}) {
     const noteText = String(value || "").trim();
+    const ticket = loadSeq;
     const startedAt = Date.now();
     const operationId = String(diagnostics.operationId || "");
-    const body = noteText
-      ? await authedPost(SAVE_URL, { appid, steam_name: steamName || "", note: noteText }, { operationId })
-      : await authedDelete(SAVE_URL, { appid }, { operationId });
-    cache.set(Number(appid), {
+    const change = notesApi.change(appid, steamName, noteText);
+    const request = change.method === "POST" ? authedPost : authedDelete;
+    const body = await request(notesApi.saveUrl, change.body, { ...diagnostics, operationId });
+    const saved = {
       note: String(body.data?.note || ""),
       steamName: String(body.data?.steam_name || steamName || ""),
       updatedAt: String(body.data?.updated_at || ""),
-    });
-    updateVisible(Number(appid));
+    };
+    if ((!diagnostics.canCommit || await diagnostics.canCommit()) && ticket === loadSeq) {
+      cache.set(Number(appid), saved);
+      updateVisible(Number(appid));
+    }
     log.info("game-notes-save-success", "游戏备注保存完成", {
       operationId,
       appid: Number(appid),
@@ -499,12 +495,17 @@
       durationMs: Date.now() - startedAt,
       status: noteText ? "saved" : "deleted",
     });
-    return cache.get(Number(appid));
+    return saved;
   }
 
-  async function getNote(appid) {
+  async function getNote(appid, diagnostics = {}) {
     const id = Number(appid) || 0;
     if (!id) throw new TypeError("游戏 ID 无效");
+    // 编辑器绑定登录会话，直接读取该账号的备注，避免复用商店列表的展示缓存
+    if (diagnostics.beforeSend) {
+      const body = await authedPost(notesApi.queryUrl, { appids: [id] }, diagnostics);
+      return notesApi.read([id], body).get(id);
+    }
     const ticket = loadSeq;
     if (!cache.has(id)) await fetchNotes([id]);
     if (ticket !== loadSeq) throw new DOMException("备注读取已取消", "AbortError");
@@ -525,6 +526,7 @@
 
   function stop() {
     loadSeq += 1;
+    cache = new Map();
     pending = new Map();
     wishlistSubscription?.dispose();
     wishlistSubscription = null;

@@ -532,7 +532,7 @@
     "message": "ストアゲーム中国語タイトル"
   },
   "settings_feature_store_title_custom_name_desc": {
-    "message": "Steamストアのゲームタイトルの横にSteam Buffの中国語タイトルを表示し、自分で中国語タイトルを投稿できるようにします。"
+    "message": "ストアのゲーム詳細、ウィッシュリスト、Steam コミュニティとサポートのゲームページにカスタム名、コミュニティ名、または AI 名を表示します。タイトル横の編集ボタンで自分のカスタム名を変更できます。"
   },
   "settings_feature_store_title_custom_name_badge": {
     "message": "スポンサー"
@@ -5814,10 +5814,10 @@
     "message": "コミュニティ名がない場合に AI 翻訳名をフォールバック表示します。"
   },
   "settings_feature_store_title_hide_custom_name_name": {
-    "message": "ストアのカスタム名を非表示"
+    "message": "ゲームページのカスタム名を非表示"
   },
   "settings_feature_store_title_hide_custom_name_desc": {
-    "message": "保存済みの名前を削除せず、Steam ストア詳細とウィッシュリストで非表示にします。"
+    "message": "ストアのゲーム詳細、ウィッシュリスト、Steam コミュニティとサポートのゲームページでカスタム名を非表示にします。"
   },
   "store_titleCustomName_aliasHint": {
     "message": "Enter またはスペースで追加。ゲームごとに最大 10 件"

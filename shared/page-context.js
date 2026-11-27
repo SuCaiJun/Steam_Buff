@@ -11,7 +11,7 @@
 ((root) => {
   "use strict";
 
-  const VERSION = "steam-buff-page-context-v4";
+  const VERSION = "steam-buff-page-context-v5";
   const CFG = root.STConfig || {};
   const MATCH = CFG.matchers || {};
   const PAGES = CFG.pages || {};
@@ -352,6 +352,23 @@
 
   function isCommunityTargetPage() {
     return list(PAGES.community?.targetPages).includes(communityPage());
+  }
+
+  function communityGuideTitle() {
+    const detail = doc().querySelector(".sharedfiles_item_page_header");
+    const header = detail?.querySelector(".apphub_HeaderTop");
+    const title = header?.querySelector(".apphub_AppDetails > .apphub_AppName");
+    if (!title) return null;
+
+    // 指南 ID 不对应 AppID。面包屑和同一页头的商店链接必须指向同一款游戏。
+    const breadcrumb = detail.querySelector(":scope > .breadcrumbs a[href*='/guides']");
+    const guide = breadcrumb && MATCH.communityTitlePage(breadcrumb.href);
+    if (guide?.section !== "guides") return null;
+    const store = header.querySelector(".apphub_OtherSiteInfo a[href*='/app/']");
+    const appid = /^\/app\/([1-9]\d*)(?:\/|$)/.exec(store?.pathname)?.[1];
+    return store?.origin === CFG.vendors.steamStore.origin && appid === String(guide.appid)
+      ? { title, appid: guide.appid }
+      : null;
   }
 
   function isSteamTranslatePage(targetHost = host()) {
@@ -758,6 +775,7 @@
     storeEntity,
     communityPageType: communityType,
     isCommunityTargetPage,
+    communityGuideTitle,
     steamTitlePage,
     translateAllowed,
     settingsPage,

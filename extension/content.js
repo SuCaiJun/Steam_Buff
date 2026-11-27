@@ -26,7 +26,7 @@
   const { cleanAuth } = authSession;
 
   const RUN_MARK = "steamBuffContentStarted";
-  const RUN_VERSION = "steam-buff-runtime-v80";
+  const RUN_VERSION = "steam-buff-runtime-v81";
   const RUN_PENDING = `${RUN_VERSION}:pending`;
   const EXCLUDED_STEAM_CLEANUP_SCRIPT = "steam/runtime/cleanup-stale.js";
   const SETTINGS_OPEN_MESSAGE = "STEAM_BUFF_OPEN_SETTINGS";
@@ -41,6 +41,9 @@
     settingsUi: "settings-ui",
     settingsRail: "settings-rail",
     storeRuntime: "store-runtime",
+    communityTitleName: "community-title-name",
+    helpTitleName: "help-title-name",
+    pageTitleEditor: "page-title-editor",
   });
   const STEAM_TITLE_WAIT_MS = 100;
   const STEAM_TITLE_WAIT_MAX = 80;
@@ -710,11 +713,36 @@
     activateLightRuntime("settings", {
       loadStrategy: "content-script-light-boot",
     });
-    if (globalThis.STPageContext?.snapshot?.().domain === "store") {
+    const domain = globalThis.STPageContext?.snapshot?.().domain;
+    if (domain === "store") {
       const store = globalThis.STStore = globalThis.STStore || {};
       store.loadChunk = loadStoreRuntime;
       loadStoreRuntime().catch(() => {});
+    } else if (domain === "community") {
+      const page = MATCH.communityTitlePage(location.href);
+      if (page && (page.section !== "guide-detail" || globalThis.STPageContext.communityGuideTitle())) {
+        void loadPageTitleName(CONTENT_BUNDLES.communityTitleName, () => globalThis.STCommunityTitleName, "community", "title-custom-name");
+      }
+    } else if (MATCH.helpWizardPage(location.href) && document.getElementById("wizard_contents")) {
+      void loadPageTitleName(CONTENT_BUNDLES.helpTitleName, () => globalThis.STHelpTitleName, "web", "help-title-custom-name");
     }
+  }
+
+  async function loadPageTitleName(bundle, getFeature, domain, feature) {
+    try {
+      await injectContentBundle(bundle);
+      getFeature().start(nameAuthClient, loadPageTitleEditor);
+    } catch (error) {
+      globalThis.STLoggerFactory.reportError(error, {
+        domain, feature, event: `${bundle}-start-failed`,
+        message: "网页游戏自定义名称启动失败", level: "error", phase: "start",
+      });
+    }
+  }
+
+  async function loadPageTitleEditor() {
+    if (!globalThis.STGameInfoEditor) await injectContentBundle(CONTENT_BUNDLES.pageTitleEditor);
+    return globalThis.STGameInfoEditor;
   }
 
   function storePageType() {

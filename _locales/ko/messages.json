@@ -532,7 +532,7 @@
     "message": "상점 게임 중국어 제목"
   },
   "settings_feature_store_title_custom_name_desc": {
-    "message": "Steam 상점 게임 제목 옆에 Steam Buff 중국어 제목을 표시하고 직접 중국어 제목을 제출할 수 있게 합니다."
+    "message": "상점 상세, 위시리스트, Steam 커뮤니티 및 고객지원 게임 페이지에 사용자 지정 이름, 커뮤니티 이름 또는 AI 이름을 표시합니다. 게임 제목 옆의 편집을 선택해 나만의 이름을 변경할 수 있습니다."
   },
   "settings_feature_store_title_custom_name_badge": {
     "message": "후원자"
@@ -5814,10 +5814,10 @@
     "message": "커뮤니티 이름이 없을 때 AI 번역 이름을 대체 표시합니다."
   },
   "settings_feature_store_title_hide_custom_name_name": {
-    "message": "스토어 사용자 지정 이름 숨기기"
+    "message": "게임 페이지의 사용자 지정 이름 숨기기"
   },
   "settings_feature_store_title_hide_custom_name_desc": {
-    "message": "저장된 이름은 삭제하지 않고 Steam 스토어 상세와 위시리스트에서 숨깁니다."
+    "message": "상점 상세, 위시리스트, Steam 커뮤니티 및 고객지원 게임 페이지에서 사용자 지정 이름을 숨깁니다."
   },
   "store_titleCustomName_aliasHint": {
     "message": "Enter 또는 스페이스로 추가, 게임당 최대 10개"

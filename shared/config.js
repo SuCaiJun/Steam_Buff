@@ -70,6 +70,7 @@
     steampy: origin(HOSTS.steampy),
     steamDb: origin(HOSTS.steamDb),
     steamStore: origin(HOSTS.steamStore),
+    steamHelp: origin(HOSTS.steamHelp),
     steamApi: origin(HOSTS.steamApi),
     steamCommunity: origin(HOSTS.steamCommunity),
     steamCommunityCdn: origin(HOSTS.steamCommunityCdn),
@@ -224,6 +225,53 @@
     }
   }
 
+  const COMMUNITY_TITLE_SECTIONS = new Set([
+    "", "discussions", "screenshots", "images", "broadcasts", "videos", "workshop",
+    "news", "allnews", "guides", "reviews", "tradingforum", "eventcomments",
+  ]);
+  const COMMUNITY_FORUM_SECTIONS = new Set(["discussions", "tradingforum", "eventcomments"]);
+
+  /** 解析社区名称的候选页面。分享详情须由内容脚本按指南面包屑确认所属游戏 */
+  function communityTitlePage(value) {
+    let url;
+    try {
+      url = new URL(value);
+    } catch {
+      return null;
+    }
+    if (url.origin !== ORIGINS.steamCommunity) return null;
+
+    const [app, id, section = "", ...rest] = url.pathname.replace(/\/$/, "").slice(1).split("/");
+    if (app === "app" && /^[1-9]\d*$/.test(id) && Number.isSafeInteger(Number(id))
+      && COMMUNITY_TITLE_SECTIONS.has(section) && (!rest.length || COMMUNITY_FORUM_SECTIONS.has(section))) {
+      return { appid: Number(id), section };
+    }
+    if ((url.pathname === "/sharedfiles/filedetails/" || url.pathname === "/sharedfiles/filedetails")
+      && /^[1-9]\d*$/.test(url.searchParams.get("id") || "")) {
+      return { section: "guide-detail" };
+    }
+    return null;
+  }
+
+  /** 客服首页和具备向导入口的页面，只有合法 AppID 才能进入游戏卡片判断 */
+  function helpWizardPage(value) {
+    let url;
+    try {
+      url = new URL(value);
+    } catch {
+      return null;
+    }
+    if (url.origin !== ORIGINS.steamHelp) return null;
+
+    const path = /^\/(?:[a-z]{2}(?:-[a-z0-9]{2,5})?\/)?(?:wizard\/([a-zA-Z]+)\/?)?$/.exec(url.pathname);
+    if (!path) return null;
+    const ids = url.searchParams.getAll("appid");
+    // Steam 自己生成的部分 DLC 链接会给 appid 参数带尾斜杠
+    const id = ids.length === 1 ? /^([1-9]\d*)\/?$/.exec(ids[0])?.[1] : undefined;
+    const appid = Number(id);
+    return { section: path[1] || "", appid: Number.isSafeInteger(appid) ? appid : null };
+  }
+
   const matchers = Object.freeze({
     host,
     isHost,
@@ -233,6 +281,8 @@
     isSteamCheckoutHost: (value) => isHost(value, HOSTS.steamCheckout),
     isSteamHelpHost: (value) => isHost(value, HOSTS.steamHelp),
     isSteamCommunityHost: (value) => isHost(value, HOSTS.steamCommunity),
+    communityTitlePage,
+    helpWizardPage,
     isSteamCommunityLikeHost: (value) => isSubHost(value, HOSTS.steamCommunity),
     isSteamPoweredLikeHost: (value) => isSubHost(value, HOSTS.steamPowered),
     isTrustedNameHost: (value) => isHost(value, HOSTS.steamLoopback) || isHost(value, HOSTS.steamStore),

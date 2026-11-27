@@ -532,7 +532,7 @@
     "message": "遊戲商店自訂名稱"
   },
   "settings_feature_store_title_custom_name_desc": {
-    "message": "在 Steam 商店遊戲標題旁顯示使用者自訂名稱、社群名稱或 AI 名稱，並支援提交自己的名稱。"
+    "message": "在商店詳情、願望清單、社群和客服遊戲頁顯示自訂、社群或 AI 名稱。點擊標題旁的「編輯」可修改自己的名稱。"
   },
   "settings_feature_store_title_custom_name_badge": {
     "message": "贊助者"
@@ -5814,10 +5814,10 @@
     "message": "沒有社群名稱時，允許使用 AI 翻譯名稱作為兜底顯示。"
   },
   "settings_feature_store_title_hide_custom_name_name": {
-    "message": "隱藏商店自訂名稱"
+    "message": "隱藏遊戲頁自訂名稱"
   },
   "settings_feature_store_title_hide_custom_name_desc": {
-    "message": "在 Steam 商店詳情頁和願望清單隱藏自訂名稱顯示，但不刪除已儲存名稱。"
+    "message": "隱藏商店詳情、願望清單、社群和客服遊戲頁的自訂名稱。"
   },
   "store_titleCustomName_aliasHint": {
     "message": "Enter 或空白鍵新增，每款遊戲最多 10 個"

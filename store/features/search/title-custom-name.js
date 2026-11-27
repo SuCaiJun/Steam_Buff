@@ -11,8 +11,10 @@
 ((root, factory) => {
   "use strict";
 
-  const core = factory();
-  if (typeof module === "object" && module.exports) {
+  const commonJs = typeof module === "object" && module.exports;
+  const titleNames = commonJs ? require("../../../shared/app-title-names.js") : root.STAppTitleNames;
+  const core = factory(titleNames);
+  if (commonJs) {
     module.exports = core;
     return;
   }
@@ -20,17 +22,10 @@
   const api = root.STStore;
   if (!api) return;
 
-  const FEATURE_ID = "store-title-custom-name";
-  const API_GET = root.STConfig.steamBuff("/store/names");
-  const API_SUBMIT = root.STConfig.steamBuff("/submit");
-  const ALIAS_QUERY = root.STConfig.steamBuff("/aliases/query");
-  const ALIAS_SAVE = root.STConfig.steamBuff("/aliases");
+  const { FEATURE: FEATURE_ID, HIDE, decorateName } = titleNames;
   const AUTH_REFRESH = root.STConfig.loginAuth("/auth/refresh");
-  const NOTE_MAX = 2000;
   const NAME_BATCH_SIZE = 80;
-  const ALIAS_MAX = 10;
   const HOST_ID = "st-title-custom-name";
-  const MODAL_ID = "st-title-custom-name-modal";
   const TITLE_SEL = ".apphub_AppName, .apphub_AppName_responsive, h1";
   const RETRY_MS = 300;
   const RETRY_MAX = 30;
@@ -41,9 +36,8 @@
     return root.STI18n.text(key, fallback, params);
   }
 
-  const { text, shouldShowName, nameEqual, officialByTitle, splitAliasDraft, keepAliases } = core;
+  const { text, shouldShowName } = core;
   const wishlistDom = api.wishlistDom;
-  const dom = root.STDomUtils || {};
   let state = null;
   let observer = null;
   let wishlistSubscription = null;
@@ -53,7 +47,8 @@
   let tries = 0;
   let refreshSeq = 0;
   let detailRefresh = null;
-  let modalSeq = 0;
+  let editor = null;
+  let editorSeq = 0;
   let lastDetailTargetMissing = false;
   let lastWishlistTargetMissing = false;
   const nameCache = new Map();
@@ -81,35 +76,8 @@
   }
   const log = root.STLoggerFactory.createLogger("store", "title-custom-name");
 
-  function storeSources(editor = false) {
-    if (editor) return "mine";
-    const settings = api.settings?.all?.() || {};
-    const out = ["mine"];
-    if (settings["store-title-community-fallback"] !== false) {
-      out.push("community");
-      if (settings["store-title-community-fallback-ai"] === true) out.push("ai");
-    }
-    return out.join(",");
-  }
-
   function namesUrl(editor = false) {
-    return `${API_GET}?sources=${encodeURIComponent(storeSources(editor))}`;
-  }
-
-  function decorateName(item, steamTitle = "") {
-    if (!item || typeof item !== "object") {
-      return item;
-    }
-    const picked = {
-      name: text(item.name || item.mine),
-      name_source: text(item.source || item.name_source) || "none",
-    };
-    return {
-      ...item,
-      name: picked.name,
-      name_source: picked.name_source,
-      mine: picked.name_source === "mine" ? picked.name : "",
-    };
+    return titleNames.url(titleNames.sources(api.settings?.all?.() || {}, editor));
   }
 
   async function authedPost(url, body, diagnostics = {}) {
@@ -118,6 +86,9 @@
     const { body: data, code } = await client.authedPost(url, body, {
       throwOnMissingAuth: true,
       operationId: diagnostics.operationId || "",
+      ownerId: diagnostics.ownerId,
+      sessionKey: diagnostics.sessionKey,
+      beforeSend: diagnostics.beforeSend,
     });
     if (code < 200 || code >= 300) throw new Error(data?.message || i18n("common.requestFailedCode", "请求失败：$code$", { code }));
     return data || {};
@@ -155,17 +126,6 @@
       .find(visibleTitleElement);
   }
 
-  function esc(value) {
-    return String(value ?? "")
-      .replace(/&/g, "&amp;")
-      .replace(/</g, "&lt;")
-      .replace(/>/g, "&gt;")
-      .replace(/"/g, "&quot;");
-  }
-
-  function attr(value) {
-    return esc(value).replace(/'/g, "&#39;");
-  }
 
   function steamName() {
     return text(state?.item?.steam_name) || state?.steamTitle || "";
@@ -173,6 +133,7 @@
 
   function addStyle() {
     api.styles?.ensureFeatureStyle?.("store-title-custom-name");
+    root.STComponents.ensureStyle("st-title-custom-name-button-style", titleNames.buttonCss);
   }
 
   function ensureHost(title) {
@@ -226,13 +187,13 @@
     lastDetailTargetMissing = false;
     const host = ensureHost(title);
     const steamTitle = state.steamTitle || text(title.childNodes[0] || title);
-    renderNameHost(host, state.appid, decorateName(state.item, steamTitle), steamTitle, "detail", state.loading === true);
+    renderNameHost(host, state.appid, decorateName(state.item), steamTitle, "detail", state.loading === true);
     publishName(state.appid);
     return true;
   }
 
   function renderNameHost(host, appid, item, steamTitle, mode, loading = false) {
-    const hidden = api.settings?.all?.()?.["store-title-hide-custom-name"] === true;
+    const hidden = api.settings?.all?.()?.[HIDE] === true;
     const visibleName = !loading && !hidden && shouldShowName(item, steamTitle) ? text(item?.name) : "";
     const label = visibleName ? `[${visibleName}]` : "";
     const idText = String(appid || "");
@@ -285,531 +246,110 @@
         steamTitle,
         item: item || null,
         mode,
+        trigger: button,
       });
     });
   }
 
-  function setTrustedTemplate(element, html, reason) {
-    dom.setTrustedHTML(element, dom.trustedHTML(html, reason));
+  async function editorIdentity() {
+    const { auth, userId } = await storage().getAuthIdentity({ strict: true });
+    return { ownerId: userId, sessionKey: root.STAuthSession.authKey(auth) };
   }
 
-  function setMsg(message) {
-    const el = document.querySelector(`#${MODAL_ID} .st-title-custom-name-msg`);
-    if (el) el.textContent = message || "";
+  async function sameEditorIdentity(ctx) {
+    const current = await editorIdentity();
+    return ctx.routeSeq === refreshSeq && ctx.ownerId === current.ownerId && ctx.sessionKey === current.sessionKey;
   }
 
-  function toast(message) {
-    setMsg("");
-    return root.STFeedback.show(document.body, { message });
+  async function guardEditor(ctx) {
+    if (await sameEditorIdentity(ctx) && ctx.editorSeq === editorSeq) return;
+    throw Object.assign(new Error("游戏或登录状态已变化"), { code: "request-obsolete" });
   }
 
-  async function modalNote(appid) {
-    if (typeof api.features.gameNotes?.getNote !== "function") {
-      const error = new Error(i18n("store.titleCustomName.notesUnavailable", "游戏备注模块未加载"));
-      error.code = "GAME_NOTES_API_UNAVAILABLE";
-      throw error;
-    }
-    return api.features.gameNotes.getNote(appid);
-  }
-
-  function setTab(modal, tab) {
-    modal.querySelectorAll("[data-title-custom-name-tab]").forEach(btn => {
-      btn.classList.toggle("active", btn.dataset.titleCustomNameTab === tab);
-    });
-    modal.querySelectorAll("[data-title-custom-name-panel]").forEach(panel => {
-      panel.hidden = panel.dataset.titleCustomNamePanel !== tab;
-    });
-    modal.dataset.activeTab = tab;
-    modal.querySelector("[data-title-custom-name-save]").disabled = tab === "note" && modal.querySelector("[data-title-custom-name-note]").disabled;
-    setMsg("");
-  }
-
-  // 已保存别名按完整字符串保留，不再按空格或逗号重新拆开
-  function aliasList(modal) {
-    return keepAliases(modal?._stAliases, [], ALIAS_MAX);
-  }
-
-  function setAliasList(modal, aliases) {
-    if (!modal) {
-      return;
-    }
-    modal._stAliases = keepAliases(aliases, [], ALIAS_MAX);
-    renderAliasTags(modal);
-  }
-
-  function renderAliasTags(modal) {
-    const host = modal?.querySelector("[data-title-custom-name-alias-host]");
-    const input = modal?.querySelector("[data-title-custom-name-alias-input]");
-    if (!host) {
-      return;
-    }
-    host.textContent = "";
-    const aliases = aliasList(modal);
-    for (const alias of aliases) {
-      const chip = document.createElement("span");
-      chip.className = "st-title-custom-name-alias-chip";
-      const label = document.createElement("span");
-      label.textContent = alias;
-      const del = document.createElement("button");
-      del.type = "button";
-      del.className = "st-title-custom-name-alias-del";
-      del.dataset.titleCustomNameAliasDel = alias;
-      del.setAttribute("aria-label", i18n("common.delete", "删除"));
-      del.textContent = "×";
-      chip.append(label, del);
-      host.appendChild(chip);
-    }
-    if (input) {
-      input.disabled = aliases.length >= ALIAS_MAX;
-    }
-  }
-
-  function updateCount(modal) {
-    const textarea = modal.querySelector("[data-title-custom-name-note]");
-    const count = modal.querySelector("[data-title-custom-name-count]");
-    if (textarea && count) {
-      count.textContent = i18n("store.titleCustomName.remaining", "剩余 $remaining$ / $limit$", {
-        remaining: Math.max(0, NOTE_MAX - textarea.value.length),
-        limit: NOTE_MAX,
-      });
-    }
-  }
-
-  function currentModalContext(modal) {
-    const appid = Number(modal?.dataset.appid) || 0;
-    return {
-      appid,
-      steamTitle: modal?.dataset.steamTitle || "",
-      mode: modal?.dataset.mode || "detail",
-    };
-  }
-
-  function modalLoadCurrent(modal, appid, loadSeq) {
-    return !!modal
-      && !modal.hidden
-      && modal.dataset.loadSeq === loadSeq
-      && Number(modal.dataset.appid) === Number(appid);
-  }
-
-  function baseFields(ctx, currentName, currentAlias = "") {
-    return [
-      { id: "appid", label: "APPID", type: "text", value: String(ctx.appid || ""), readonly: true },
-      { id: "steamName", label: i18n("store.titleCustomName.steamName", "Steam 原名"), type: "text", value: ctx.steamTitle || "", readonly: true },
-      { id: "customName", label: i18n("store.titleCustomName.customName", "自定义名称"), type: "text", value: currentName || "", attr: "data-title-custom-name-input" },
-      {
-        id: "alias",
-        label: i18n("store.titleCustomName.customAlias", "自定义别名"),
-        type: "alias-tags",
-        value: currentAlias || "",
-        attr: "data-title-custom-name-alias",
-        desc: i18n("store.titleCustomName.aliasDescription", "别名功能只针对steam商店页面搜索生效，添加别名后，可在steam商店搜索框中使用别名查找该游戏。"),
-      },
-    ];
-  }
-
-  function baseFieldHtml(field) {
-    const common = `${field.attr || ""} data-title-custom-name-field="${attr(field.id)}"`;
-    if (field.readonly) {
-      return `<div class="st-title-custom-name-meta-item" data-title-custom-name-meta="${attr(field.id)}"><span id="st-title-custom-name-label-${attr(field.id)}">${esc(field.label)}</span><output ${common} aria-labelledby="st-title-custom-name-label-${attr(field.id)}">${esc(field.value)}</output></div>`;
-    }
-    if (field.type === "alias-tags") {
-      return `
-        <label>
-          <span class="st-title-custom-name-field">${esc(field.label)}</span>
-          <span class="st-title-custom-name-control">
-            <span class="st-title-custom-name-alias-box">
-              <span class="st-title-custom-name-alias-tags" data-title-custom-name-alias-host></span>
-              <input type="text" data-title-custom-name-alias-input maxlength="40" placeholder="${attr(i18n("store.titleCustomName.aliasHint", "回车或空格添加，每游戏最多 10 个"))}">
-              <input type="hidden" value="${attr(field.value)}" ${common}>
-            </span>
-            ${field.desc ? `<span class="st-title-custom-name-desc">${esc(field.desc)}</span>` : ""}
-          </span>
-        </label>
-      `;
-    }
-    if (field.type === "switch") {
-      const disabled = field.disabled ? "disabled" : "";
-      return `
-        <label>
-          <span class="st-title-custom-name-field">${esc(field.label)}</span>
-          <span class="st-title-custom-name-control">
-            <span class="st-title-custom-name-switch">
-              <input type="checkbox" ${common} ${field.checked ? "checked" : ""} ${disabled} role="switch" aria-checked="${field.checked ? "true" : "false"}" aria-disabled="${field.disabled ? "true" : "false"}">
-              <span aria-hidden="true"></span>
-            </span>
-            ${field.desc ? `<span class="st-title-custom-name-desc">${esc(field.desc)}</span>` : ""}
-          </span>
-        </label>
-      `;
-    }
-    return `
-      <label>
-        <span class="st-title-custom-name-field">${esc(field.label)}</span>
-        <span class="st-title-custom-name-control">
-          <input type="text" value="${attr(field.value)}" ${field.placeholder ? `placeholder="${attr(field.placeholder)}"` : ""} ${common}>
-          ${field.desc ? `<span class="st-title-custom-name-desc">${esc(field.desc)}</span>` : ""}
-        </span>
-      </label>
-    `;
-  }
-
-  function modalTemplate(ctx, currentName, currentAlias = "") {
-    const fields = baseFields(ctx, currentName, currentAlias);
-    const remaining = i18n("store.titleCustomName.remaining", "剩余 $remaining$ / $limit$", {
-      remaining: NOTE_MAX,
-      limit: NOTE_MAX,
-    });
-    return `
-      <div class="st-title-custom-name-panel">
-        <div class="st-title-custom-name-head">
-          <h3>${esc(i18n("store.titleCustomName.dialogTitle", "编辑游戏信息"))}</h3>
-          <div class="st-title-custom-name-tabs">
-            <button type="button" class="active" data-title-custom-name-tab="base">${esc(i18n("store.titleCustomName.baseTab", "基础"))}</button>
-            <button type="button" data-title-custom-name-tab="note">${esc(i18n("store.titleCustomName.noteTab", "备注"))}</button>
-          </div>
-          <button type="button" class="st-title-custom-name-close" data-title-custom-name-close title="${attr(i18n("common.close", "关闭"))}">×</button>
-        </div>
-        <div class="st-title-custom-name-body">
-          <div class="st-title-custom-name-meta">
-            ${fields.filter((field) => field.readonly).map(baseFieldHtml).join("")}
-          </div>
-          <div class="st-title-custom-name-card" data-title-custom-name-panel="base">
-            ${fields.filter((field) => !field.readonly).map(baseFieldHtml).join("")}
-          </div>
-          <div class="st-title-custom-name-card" data-title-custom-name-panel="note" hidden>
-            <label>
-              <span class="st-title-custom-name-field">${esc(i18n("store.titleCustomName.gameNote", "游戏备注"))}</span>
-              <span class="st-title-custom-name-control">
-                <span class="st-title-custom-name-note-wrap">
-                  <textarea disabled maxlength="${NOTE_MAX}" data-title-custom-name-note placeholder="${attr(i18n("store.titleCustomName.notePlaceholder", "支持 BBCode，例如 [b]粗体[/b]、[url=https://example.com]链接[/url]"))}"></textarea>
-                  <span class="st-title-custom-name-note-meta">
-                    <button type="button" disabled class="st-title-custom-name-clear-note" data-title-custom-name-clear-note title="${attr(i18n("store.titleCustomName.clearNote", "清空备注"))}">${esc(i18n("common.clear", "清空"))}</button>
-                    <span role="status" data-note-load-status>${esc(i18n("common.loading", "加载中..."))}</span>
-                    <span class="st-title-custom-name-count" data-title-custom-name-count>${esc(remaining)}</span>
-                  </span>
-                </span>
-              </span>
-            </label>
-          </div>
-          <div class="st-title-custom-name-msg"></div>
-        </div>
-        <div class="st-title-custom-name-actions">
-          <button type="button" data-title-custom-name-close>${esc(i18n("common.cancel", "取消"))}</button>
-          <button type="button" class="primary" data-title-custom-name-save>${esc(i18n("common.save", "保存"))}</button>
-        </div>
-      </div>
-    `;
-  }
-
-  function populateModalValues(modal, ctx, currentName, currentAlias = "") {
-    const values = {
-      appid: String(ctx.appid || ""),
-      steamName: ctx.steamTitle || "",
-      customName: currentName || "",
-      alias: currentAlias || "",
-    };
-    Object.entries(values).forEach(([id, value]) => {
-      const input = modal.querySelector(`[data-title-custom-name-field="${id}"]`);
-      if (input) {
-        input.value = String(value || "");
-      }
-    });
+  function editorOptions(ctx, diagnostics = {}) {
+    return { ...diagnostics, ownerId: ctx.ownerId, sessionKey: ctx.sessionKey, beforeSend: () => guardEditor(ctx) };
   }
 
   async function openModal(ctx = null, initialTab = "base") {
     const source = ctx || state;
     if (!source?.appid) return;
-    const activeTab = initialTab === "note" ? "note" : "base";
-    const openSeq = ++modalSeq;
-    const errors = new Set();
-    addStyle();
-    let item = source.item || nameCache.get(Number(source.appid)) || null;
-    if (!item) {
-      try {
-        item = await loadName(source.appid);
-        if (openSeq !== modalSeq) return;
-        nameCache.set(Number(source.appid), item);
-      } catch (error) {
-        globalThis.STLoggerFactory.reportError(error, { domain: "store", feature: "search", event: "open-modal-failed", message: "打开名称编辑窗口失败", level: "warn", phase: "openModal" });
-        if (openSeq !== modalSeq) return;
-        item = null;
-        errors.add(error?.message || String(error));
-      }
-    }
-    let modal = document.getElementById(MODAL_ID);
-    if (!modal) {
-      modal = document.createElement("section");
-      modal.id = MODAL_ID;
-    modal.addEventListener("click", onModalClick);
-    modal.addEventListener("input", onModalInput);
-    modal.addEventListener("keydown", onModalKey);
-    document.body.appendChild(modal);
-    }
-    const steamTitle = text(item?.steam_name) || source.steamTitle || "";
-    const current = text(item?.mine);
-    modal.dataset.appid = String(source.appid);
-    modal.dataset.steamTitle = steamTitle;
-    modal.dataset.mode = source.mode || "detail";
-    modal.dataset.loadSeq = `${Date.now()}-${Math.random()}`;
-    modal._stAliases = [];
-    const loadSeq = modal.dataset.loadSeq;
-    setTrustedTemplate(modal, modalTemplate({ ...source, steamTitle }, current, ""), "title-custom-name-modal-static-template");
-    populateModalValues(modal, { ...source, steamTitle }, current, "");
-    renderAliasTags(modal);
-    modal.hidden = false;
-    setTab(modal, activeTab);
-    const focusSelector = activeTab === "note"
-      ? "[data-title-custom-name-note]"
-      : "[data-title-custom-name-input]";
-    const initialFocus = modal.querySelector(focusSelector);
-    (initialFocus?.disabled ? modal.querySelector('[data-title-custom-name-tab="note"]') : initialFocus)?.focus?.();
-    log.info("title-custom-name-modal-open-success", "商店标题自定义名弹窗已打开", {
-      appid: source.appid,
-      mode: source.mode || "detail",
-      activeTab,
-      hasCachedName: !!item?.name,
-      path: location.pathname,
-    });
-    // 同次打开的名称、别名和备注读取完成后，只展示一份错误汇总
-    await Promise.all([modalAlias(source.appid).then(item => {
-      if (!modalLoadCurrent(modal, source.appid, loadSeq)) return;
-      const input = modal.querySelector("[data-title-custom-name-alias]");
-      if (!input || input.hasAttribute("data-title-custom-name-user-touched")) return;
-      const aliases = Array.isArray(item?.aliases) ? item.aliases : (item?.alias ? [item.alias] : []);
-      setAliasList(modal, aliases);
-    }).catch(error => {
-      globalThis.STLoggerFactory.reportError(error, { domain: "store", feature: "search", event: "open-modal-failed", message: "打开名称编辑窗口失败", level: "error", phase: "openModal" });
-      errors.add(error?.message || String(error));
-    }), modalNote(source.appid).then(note => {
-      if (!modalLoadCurrent(modal, source.appid, loadSeq)) return;
-      const textarea = modal.querySelector("[data-title-custom-name-note]");
-      textarea.disabled = false;
-      modal.querySelector("[data-title-custom-name-clear-note]").disabled = false;
-      modal.querySelector("[data-note-load-status]").textContent = "";
-      if (modal.dataset.activeTab === "note") modal.querySelector("[data-title-custom-name-save]").disabled = false;
-      textarea.value = note.note;
-      updateCount(modal);
-    }).catch(error => {
-      globalThis.STLoggerFactory.reportError(error, { domain: "store", feature: "search", event: "open-modal-failed", message: "打开名称编辑窗口失败", level: "error", phase: "openModal" });
-      if (modalLoadCurrent(modal, source.appid, loadSeq)) {
-        modal.querySelector("[data-note-load-status]").textContent = error.message || String(error);
-      }
-      errors.add(error?.message || String(error));
-    })]);
-    if (errors.size && modalLoadCurrent(modal, source.appid, loadSeq)) void toast(Array.from(errors).join("\n"));
-  }
-
-  function closeModal() {
-    modalSeq += 1;
-    const modal = document.getElementById(MODAL_ID);
-    if (modal) {
-      modal.dataset.loadSeq = "";
-      modal.hidden = true;
-      log.info("title-custom-name-modal-close", "商店标题自定义名弹窗已关闭", {
-        appid: Number(modal.dataset.appid) || 0,
-        mode: modal.dataset.mode || "detail",
-      });
-    }
-  }
-
-  function onModalClick(event) {
-    const modal = document.getElementById(MODAL_ID);
-    if (!modal) return;
-    const tab = event.target.closest("[data-title-custom-name-tab]");
-    if (tab) {
-      log.info("title-custom-name-tab-change", "商店标题自定义名弹窗切换标签", {
-        appid: Number(modal.dataset.appid) || 0,
-        tab: tab.dataset.titleCustomNameTab || "base",
-      });
-      setTab(modal, tab.dataset.titleCustomNameTab || "base");
-      return;
-    }
-    if (event.target.closest("[data-title-custom-name-close]")) {
-      closeModal();
-      return;
-    }
-    if (event.target.closest("[data-title-custom-name-clear-note]")) {
-      const textarea = modal.querySelector("[data-title-custom-name-note]");
-      if (textarea) {
-        textarea.value = "";
-        textarea.setAttribute("data-title-custom-name-user-touched", "1");
-      }
-      updateCount(modal);
-      setMsg(i18n("store.titleCustomName.noteWillClear", "保存后将清空备注"));
-      log.info("title-custom-name-note-clear-click", "用户点击清空商店标题备注", {
-        appid: Number(modal.dataset.appid) || 0,
-      });
-      return;
-    }
-    const aliasDel = event.target.closest("[data-title-custom-name-alias-del]");
-    if (aliasDel) {
-      const next = aliasList(modal).filter((item) => item !== aliasDel.dataset.titleCustomNameAliasDel);
-      setAliasList(modal, next);
-      modal.querySelector("[data-title-custom-name-alias]")?.setAttribute("data-title-custom-name-user-touched", "1");
-      return;
-    }
-    if (event.target.closest("[data-title-custom-name-save]")) {
-      if (modal.dataset.activeTab === "note") {
-        saveNoteFromModal(false).catch(error => { globalThis.STLoggerFactory.reportError(error, { domain: "store", feature: "search", event: "on-modal-click-failed", message: "处理名称编辑操作失败", level: "error", phase: "onModalClick" }); return toast(error?.message || String(error)); });
-      } else {
-        submitName().catch(error => { globalThis.STLoggerFactory.reportError(error, { domain: "store", feature: "search", event: "on-modal-click-failed", message: "处理名称编辑操作失败", level: "error", phase: "onModalClick" }); return toast(error?.message || String(error)); });
-      }
-    }
-  }
-
-  function onModalInput(event) {
-    if (event.target.matches?.("input, textarea")) {
-      event.target.setAttribute("data-title-custom-name-user-touched", "1");
-    }
-    if (event.target.matches?.("[data-title-custom-name-note]")) {
-      updateCount(document.getElementById(MODAL_ID));
-    }
-  }
-
-  function onModalKey(event) {
-    if (!event.target.matches?.("[data-title-custom-name-alias-input]")) {
-      return;
-    }
-    if (event.key !== "Enter" && event.key !== " ") {
-      return;
-    }
-    event.preventDefault();
-    const modal = document.getElementById(MODAL_ID);
-    const draft = splitAliasDraft(event.target.value);
-    event.target.value = "";
-    const next = aliasList(modal);
-    const before = next.length;
-    for (const alias of draft) {
-      if (next.includes(alias) || next.length >= ALIAS_MAX) {
-        continue;
-      }
-      next.push(alias);
-    }
-    if (next.length === before) {
-      return;
-    }
-    event.target.setAttribute("data-title-custom-name-user-touched", "1");
-    modal.querySelector("[data-title-custom-name-alias]")?.setAttribute("data-title-custom-name-user-touched", "1");
-    setAliasList(modal, next);
-  }
-
-  async function saveNoteFromModal(clear) {
-    const modal = document.getElementById(MODAL_ID);
-    const ctx = currentModalContext(modal);
-    if (!ctx.appid) return;
-    const textarea = modal.querySelector("[data-title-custom-name-note]");
-    if (textarea.disabled) return;
-    const note = clear ? "" : textarea.value.trim();
-    if (note.length > NOTE_MAX) {
-      toast(i18n("store.titleCustomName.noteTooLong", "备注不能超过 $limit$ 个字符", { limit: NOTE_MAX }));
-      return;
-    }
-    setMsg(clear
-      ? i18n("store.titleCustomName.noteDeleting", "正在删除备注...")
-      : i18n("store.titleCustomName.noteSaving", "正在保存备注..."));
-    const startedAt = Date.now();
-    const operationId = root.STLoggerFactory?.createOperationId?.() || "";
-    log.info("title-custom-name-note-save-start", "开始保存游戏备注", {
-      operationId,
-      appid: ctx.appid,
-      noteLength: note.length,
-      status: clear ? "deleted" : "saved",
-    });
+    const seq = ++editorSeq;
+    const routeSeq = refreshSeq;
     try {
-      if (typeof api.features.gameNotes?.saveNote !== "function") {
-        const error = new Error(i18n("store.titleCustomName.notesUnavailable", "游戏备注模块未加载"));
-        error.code = "GAME_NOTES_API_UNAVAILABLE";
-        throw error;
-      }
-      await api.features.gameNotes.saveNote(ctx.appid, ctx.steamTitle, note, { operationId });
-      if (textarea) textarea.value = note;
-      updateCount(modal);
-      const successMessage = clear
-        ? i18n("store.titleCustomName.noteDeleted", "备注已删除")
-        : i18n("store.titleCustomName.noteSaved", "备注已保存");
-      toast(successMessage);
-    } catch (error) {
-      log.error("title-custom-name-note-save-failed", "游戏备注保存失败", {
-        operationId,
-        appid: ctx.appid,
-        noteLength: note.length,
-        durationMs: Date.now() - startedAt,
-        error,
+      const identity = await editorIdentity();
+      if (seq !== editorSeq || routeSeq !== refreshSeq) return;
+      editor ||= root.STGameInfoEditor.create({
+        domain: "store",
+        feature: "search",
+        log,
+        async post(url, body, diagnostics, edit) {
+          const data = await authedPost(url, body, editorOptions(edit, diagnostics));
+          if (url === root.STConfig.steamBuff("/aliases/query")) await guardEditor(edit);
+          return data;
+        },
+        loadName,
+        async getNote(appid, edit) {
+          await guardEditor(edit);
+          const note = await modalNote(appid, editorOptions(edit));
+          await guardEditor(edit);
+          return note;
+        },
+        async saveNote(appid, steamTitle, note, diagnostics, edit) {
+          if (typeof api.features.gameNotes?.saveNote !== "function") throw notesUnavailable();
+          await guardEditor(edit);
+          return api.features.gameNotes.saveNote(appid, steamTitle, note, {
+            ...editorOptions(edit, diagnostics),
+            canCommit: () => sameEditorIdentity(edit),
+          });
+        },
+        onNameSaved,
+        onClose() { editorSeq += 1; },
       });
-      throw error;
+      // 标题缓存供页面显示。编辑表单按打开时的会话读取个人名称
+      await editor.open({ ...source, ...identity, item: null, routeSeq, editorSeq: seq }, initialTab);
+    } catch (error) {
+      if (seq !== editorSeq || routeSeq !== refreshSeq || error?.code === "request-obsolete" || error?.code === "owner-changed") return;
+      log.warn("title-custom-name-modal-open-failed", "打开游戏信息编辑器失败", { error });
+      void root.STFeedback.show(document.body, { message: error.message });
     }
   }
 
-  async function modalAlias(appid) {
-    const body = await authedPost(ALIAS_QUERY, { appid });
-    const data = body?.data || { alias: "", aliases: [] };
-    const aliases = Array.isArray(data.aliases) ? data.aliases : (data.alias ? [data.alias] : []);
-    return { ...data, aliases, alias: aliases[0] || "" };
+  function notesUnavailable() {
+    const error = new Error(i18n("store.titleCustomName.notesUnavailable", "游戏备注模块未加载"));
+    error.code = "GAME_NOTES_API_UNAVAILABLE";
+    return error;
   }
 
-  async function submitName() {
-    const modal = document.getElementById(MODAL_ID);
-    const ctx = currentModalContext(modal);
-    const input = modal?.querySelector("[data-title-custom-name-input]");
-    const custom = String(input?.value || "").trim();
-    const aliases = aliasList(modal);
-    setMsg(i18n("store.titleCustomName.baseSaving", "正在保存基础信息..."));
-    const startedAt = Date.now();
-    const operationId = root.STLoggerFactory?.createOperationId?.() || "";
-    log.info("title-custom-name-submit-start", "开始提交商店标题中文名", {
-      operationId,
+  async function modalNote(appid, diagnostics) {
+    if (typeof api.features.gameNotes?.getNote !== "function") throw notesUnavailable();
+    return api.features.gameNotes.getNote(appid, diagnostics);
+  }
+
+  async function onNameSaved(ctx, { custom, aliases }) {
+    if (!await sameEditorIdentity(ctx)) return;
+    const item = decorateName({
+      ...(nameCache.get(ctx.appid) || {}),
       appid: ctx.appid,
-      customNameLength: custom.length,
-      steamNameLength: ctx.steamTitle.length,
+      name: custom,
+      source: custom ? "mine" : "none",
+      mine: custom,
+      steam_name: ctx.steamTitle,
+      ...(aliases ? { aliases } : {}),
     });
-    try {
-      await authedPost(API_SUBMIT, {
-        type: "Game",
-        appid: ctx.appid,
-        steam_name: ctx.steamTitle,
-        custom_name: custom,
-        aliases,
-      }, { operationId });
-      const item = custom
-        ? decorateName({
-          ...(nameCache.get(ctx.appid) || {}),
-          appid: ctx.appid,
-          name: custom,
-          source: "mine",
-          mine: custom,
-          steam_name: ctx.steamTitle,
-          aliases,
-        }, ctx.steamTitle)
-        : await loadName(ctx.appid).catch(() => null);
-      nameCache.set(ctx.appid, item);
-      if (item && state?.appid === ctx.appid) {
-        state.item = item;
-        renderTitle();
-      }
-      renderWishlistName(ctx.appid);
-      const successMessage = i18n("store.titleCustomName.baseSaved", "基础信息已保存");
-      toast(successMessage);
-      log.info("title-custom-name-submit-success", "商店标题中文名提交完成", {
-        operationId,
-        appid: ctx.appid,
-        durationMs: Date.now() - startedAt,
-      });
-    } catch (error) {
-      log.error("title-custom-name-submit-failed", "商店标题中文名提交失败", {
-        operationId,
-        appid: ctx.appid,
-        durationMs: Date.now() - startedAt,
-        error,
-      });
-      throw error;
+    nameCache.set(ctx.appid, item);
+    if (state?.appid === ctx.appid) {
+      state.item = item;
+      renderTitle();
     }
+    renderWishlistName(ctx.appid);
   }
 
-  async function loadName(appid) {
+  async function loadName(appid, edit) {
     const startedAt = Date.now();
     log.info("title-custom-name-load-start", "开始读取商店标题中文名", { appid });
     try {
-      const body = await authedPost(namesUrl(true), { appids: [appid] });
+      const body = await authedPost(namesUrl(true), { appids: [appid] }, edit ? editorOptions(edit) : {});
+      if (edit) await guardEditor(edit);
       const data = decorateName(Array.isArray(body?.data) ? body.data[0] : null);
       log.info("title-custom-name-load-success", "商店标题中文名读取完成", {
         appid,
@@ -941,7 +481,7 @@
     const steamTitle = steamTitleFromRow(row);
     const loading = !completed && !nameCache.has(appid)
       && (!host._stTitleCustomNameKey || host.dataset.stAppid !== String(appid) || !!host.querySelector(".st-store-skeleton"));
-    renderNameHost(host, appid, decorateName(nameCache.get(appid) || null, steamTitle), steamTitle, "wishlist", loading);
+    renderNameHost(host, appid, decorateName(nameCache.get(appid) || null), steamTitle, "wishlist", loading);
     return loading ? appid : 0;
   }
 
@@ -1081,7 +621,7 @@
       }
     }
     if (state?.appid) {
-      state.item = decorateName(state.item, state.steamTitle);
+      state.item = decorateName(state.item);
       renderTitle();
     }
   }
@@ -1175,6 +715,7 @@
   function stop() {
     const previousAppId = state?.appid;
     refreshSeq += 1;
+    editorSeq += 1;
     detailRefresh = null;
     started = false;
     tries = 0;
@@ -1198,7 +739,7 @@
     document.querySelectorAll(".st-title-custom-name-wishlist-title").forEach(node => {
       node.classList.remove("st-title-custom-name-wishlist-title");
     });
-    closeModal();
+    editor?.close();
     lastDetailTargetMissing = false;
     lastWishlistTargetMissing = false;
     log.info("title-custom-name-stop-success", "商店标题自定义名已停止并清理资源", {
@@ -1221,54 +762,16 @@
       return { dispose: () => nameListeners.delete(listener) };
     },
   });
-})(typeof globalThis !== "undefined" ? globalThis : window, () => {
+})(typeof globalThis !== "undefined" ? globalThis : window, titleNames => {
   "use strict";
 
+  const { text, nameEqual, shouldShowName, splitAliasDraft, keepAliases } = titleNames;
   const CJK_RE = /[\u3400-\u9fff\uf900-\ufaff\u3040-\u30ff]/;
-
-  function text(value) {
-    return String(value?.textContent ?? value ?? "").replace(/\s+/g, " ").trim();
-  }
 
   function officialByTitle(value) {
     return CJK_RE.test(String(value || ""));
   }
 
-  function nameEqual(a, b) {
-    return String(a || "").trim().toLowerCase() === String(b || "").trim().toLowerCase();
-  }
-
-  function shouldShowName(item, steamTitle) {
-    if (!item || item.name_source === "none") return false;
-    const name = text(item.name);
-    if (!name || nameEqual(name, steamTitle)) return false;
-    return true;
-  }
-
-  function splitAliasDraft(value) {
-    return String(value || "")
-      .split(/[\s,，]+/)
-      .map((item) => item.trim())
-      .filter(Boolean);
-  }
-
-  function keepAliases(aliases, extra, max) {
-    const out = [];
-    const push = (name) => {
-      const textValue = String(name || "").trim();
-      if (!textValue || out.includes(textValue) || out.length >= max) {
-        return;
-      }
-      out.push(textValue);
-    };
-    for (const item of aliases || []) {
-      push(item);
-    }
-    for (const item of extra || []) {
-      push(item);
-    }
-    return out;
-  }
 
   return {
     text,

@@ -532,7 +532,7 @@
     "message": "Store Custom Game Name"
   },
   "settings_feature_store_title_custom_name_desc": {
-    "message": "Show your custom, community, or AI game name next to Steam store titles and allow submitting your own name."
+    "message": "Show custom, community, or AI names on store details, wishlists, and Steam Community and Support game pages. Select Edit next to a game title to change your name for it."
   },
   "settings_feature_store_title_custom_name_badge": {
     "message": "Sponsor"
@@ -5814,10 +5814,10 @@
     "message": "Allow the AI translation name as a fallback when no community name exists."
   },
   "settings_feature_store_title_hide_custom_name_name": {
-    "message": "Hide Store Custom Name"
+    "message": "Hide Custom Names on Game Pages"
   },
   "settings_feature_store_title_hide_custom_name_desc": {
-    "message": "Hide custom names on Steam store details and wishlist pages without deleting saved names."
+    "message": "Hide custom names on store details, wishlists, and Steam Community and Support game pages."
   },
   "store_titleCustomName_aliasHint": {
     "message": "Press Enter or Space to add, up to 10 per game"

@@ -373,7 +373,10 @@
       "store/features/review/review-filter.js",
       "store/features/search/search-suggestions.js",
       "store/features/price/wishlist-dom.js",
+      "shared/app-title-names.js",
+      "shared/game-info-editor.js",
       "store/features/search/title-custom-name.js",
+      "shared/game-notes-api.js",
       "store/features/notes/game-notes.js",
     ]),
     wishlist: Object.freeze([
@@ -390,7 +393,10 @@
       "store/features/reminders/subscription-info.js",
       "store/features/reminders/family-library-owned-marker.js",
       "store/features/price/wishlist-dom.js",
+      "shared/app-title-names.js",
+      "shared/game-info-editor.js",
       "store/features/search/title-custom-name.js",
+      "shared/game-notes-api.js",
       "store/features/notes/game-notes.js",
     ]),
     search: Object.freeze([
@@ -401,6 +407,7 @@
       "store/features/search/search-suggestions.js",
       "store/features/reminders/subscription-info.js",
       "store/features/reminders/family-library-owned-marker.js",
+      "shared/game-notes-api.js",
       "store/features/notes/game-notes.js",
     ]),
     cart: Object.freeze([
@@ -423,6 +430,7 @@
       "store/features/search/search-suggestions.js",
       "store/features/reminders/subscription-info.js",
       "store/features/reminders/family-library-owned-marker.js",
+      "shared/game-notes-api.js",
       "store/features/notes/game-notes.js",
       "store/features/funds/custom-wallet-amount.js",
     ]),
@@ -474,12 +482,13 @@
     "store/features/reminders/subscription-info.js": ["store/api/subscription-info.js"],
     "store/features/dlc/dlc-checkboxes.js": ["store/features/dlc/dlc-bridge.js", "store/features/dlc/dlc-scan.js"],
     "store/features/review/review-filter.js": ["store/features/review/review-filter-core.js"],
-    "store/features/search/title-custom-name.js": ["store/features/price/wishlist-dom.js"],
-    "store/features/notes/game-notes.js": ["store/features/price/wishlist-dom.js"],
+    "shared/game-info-editor.js": ["shared/app-title-names.js", "shared/ui-feedback.js"],
+    "store/features/search/title-custom-name.js": ["store/features/price/wishlist-dom.js", "shared/app-title-names.js", "shared/game-info-editor.js"],
+    "store/features/notes/game-notes.js": ["store/features/price/wishlist-dom.js", "shared/game-notes-api.js"],
     "store/main.js": ["store/features/features.js"],
   });
   const CONTENT_MARK = "steamBuffContentStarted";
-  const CONTENT_MARK_VERSION = "steam-buff-runtime-v80";
+  const CONTENT_MARK_VERSION = "steam-buff-runtime-v81";
   const RUNTIME_READY_ATTR = "steamBuffRuntimeReady";
   const RUNTIME_READY_OPERATION_ATTR = "steamBuffRuntimeReadyOperationId";
   const STEAM_RUNTIME_READY_WAIT_MS = 6000;
@@ -3461,6 +3470,11 @@
     });
   }
 
+  const PAGE_TITLE_NAME_SCRIPTS = Object.freeze(["settings/membership.js", "shared/styles/theme.js", "shared/app-title-names.js", "shared/game-title-display.js"]);
+  const PAGE_TITLE_EDITOR_SCRIPTS = Object.freeze([
+    "shared/utils/dom.js", "shared/styles/components.js", "shared/ui-feedback.js", "shared/game-notes-api.js", "shared/game-info-editor.js",
+  ]);
+
   function contentBundle(request, sender) {
     const bundle = String(request?.bundle || "").trim();
     switch (bundle) {
@@ -3478,6 +3492,19 @@
         return isSettingsSender(sender) ? { files: SETTINGS_RAIL_SCRIPTS } : null;
       case "store-runtime":
         return isStoreSender(sender) ? storeFiles(request.meta, sender) : null;
+      case "community-title-name":
+        return sender.id === chrome.runtime.id && sender.frameId === 0 && MATCH.communityTitlePage(senderUrl(sender))
+          ? { files: [...PAGE_TITLE_NAME_SCRIPTS, "community/features/title-custom-name.js"] }
+          : null;
+      case "help-title-name":
+        return sender.id === chrome.runtime.id && sender.frameId === 0 && MATCH.helpWizardPage(senderUrl(sender))
+          ? { files: [...PAGE_TITLE_NAME_SCRIPTS, "help/features/title-custom-name.js"] }
+          : null;
+      case "page-title-editor":
+        return sender.id === chrome.runtime.id && sender.frameId === 0
+          && (MATCH.communityTitlePage(senderUrl(sender)) || MATCH.helpWizardPage(senderUrl(sender)))
+          ? { files: PAGE_TITLE_EDITOR_SCRIPTS }
+          : null;
       default:
         return null;
     }
@@ -3669,7 +3696,9 @@
 
   async function injectContentFiles(request, sender, sendResponse) {
     const incremental = request.bundle === "store-runtime" && request.meta?.incremental === true;
-    const target = incremental
+    const documentScoped = incremental || request.bundle === "community-title-name" || request.bundle === "help-title-name"
+      || request.bundle === "page-title-editor";
+    const target = documentScoped
       ? (typeof sender?.tab?.id === "number" && typeof sender.documentId === "string"
         ? { tabId: sender.tab.id, documentIds: [sender.documentId] } : null)
       : senderTarget(sender);
