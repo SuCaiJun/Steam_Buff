@@ -30,20 +30,6 @@
       },
     })),
     {
-      id: "friends-list-custom-name",
-      name: "好友列表游戏自定义名称",
-      settingsKey: nameModeConfig.key,
-      loadStrategy: "on-demand-entry",
-      modes: ["ui"],
-      pageScope: ["main-ui"],
-      cost: "event-driven",
-      entries: { ui: "steam/features/friends-list/ui.js" },
-      shouldRun(api, context, snapshot) {
-        return context === "ui" && api.ctx.isMainUi()
-          && effectiveNameMode(snapshot.settingsSnapshot) === nameModeConfig.values.INDEPENDENT;
-      },
-    },
-    {
       id: "automation",
       name: "自动化原生数据入口",
       settingsKey: "automation",
@@ -122,6 +108,21 @@
           return true;
         }
         return context === "ui" && api.ctx?.isMainUi?.() === true;
+      },
+    },
+    {
+      // 免费方案先建立库名称通知，再读取好友行的首批 AppOverview
+      id: "friends-list-custom-name",
+      name: "好友列表游戏自定义名称",
+      settingsKey: nameModeConfig.key,
+      loadStrategy: "on-demand-entry",
+      modes: ["ui"],
+      pageScope: ["main-ui"],
+      cost: "event-driven",
+      entries: { ui: "steam/features/friends-list/ui.js" },
+      shouldRun(api, context, snapshot) {
+        return context === "ui" && api.ctx.isMainUi()
+          && !!window.STConfig.friendsListNameMode(snapshot.settingsSnapshot);
       },
     },
     {

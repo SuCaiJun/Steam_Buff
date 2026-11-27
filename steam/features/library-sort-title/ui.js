@@ -17,6 +17,7 @@
   const ID = "library-sort-title";
   const CHANNEL = "__steam_library_display_model_Ricky";
   const TASK = "library-sort-title-ui";
+  const COLLECTION_INVALIDATIONS = new Set(["collection-membership", "collection-cloud", "settings-index"]);
   const DISPLAY_ATTR = "data-steam-buff-library-display";
   const ORIGINAL_TEXT_ATTR = "data-steam-buff-original-text";
   const ORIGINAL_DISPLAY_ATTR = "data-steam-buff-original-display";
@@ -902,6 +903,7 @@
       if (data.script !== ID || data.side !== "backend") return;
       if (!state.started) return;
       if (data.type === "backend-ready") {
+        api.friendsList?.refreshSteamSortNames?.();
         // 就绪公告使旧属性回执失效，但本轮仍须收到快照，超时不能重新恢复
         if (state.backendRecovery) {
           state.backendRecovery.waitingSnapshot = true;
@@ -920,6 +922,10 @@
         const invalidated = targeted
           ? Array.from(new Set(data.appids.map((appid) => Number(appid) || 0).filter(Boolean)))
           : [];
+        // 收藏标签变更只涉及库列表的显示模型
+        if (!COLLECTION_INVALIDATIONS.has(data.reason)) {
+          api.friendsList?.refreshSteamSortNames?.(targeted ? new Set(invalidated) : null);
+        }
         if (targeted) {
           for (const appid of invalidated) {
             if (!state.rows.has(appid)) state.entries.delete(appid);

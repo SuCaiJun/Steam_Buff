@@ -13,6 +13,8 @@
   "use strict";
 
   const api = window.SteamBuff;
+  const config = window.STConfig;
+  const { INDEPENDENT, STEAM_SORT } = config.libraryNameMode.values;
   const NAME_ID = "friends-list-custom-name";
   const entry = "steam/features/friends-list/ui.js";
   const registerFeature = () => api.reg.addEntry(NAME_ID, entry, () => api.friendsList.startNames());
@@ -162,6 +164,7 @@
       reconcile: ready, detach,
       remove(id) { unmount(id); ready(); },
       refreshNames() { updateNames(names => names.refresh()); },
+      refreshSteamSortNames(appids) { updateNames(names => names.refreshSteamSortNames(appids)); },
     });
     win.addEventListener("pagehide", detach, { once: true });
     doc.addEventListener("visibilitychange", visibility);
@@ -232,13 +235,20 @@
 
   function mountNames({ doc, content }) {
     const labels = new Map();
-    const rows = new Set();
+    const rows = new Map();
+    let mode = "";
     let names = EMPTY_NAMES;
 
-    function readNames() {
-      const config = window.STConfig;
-      const independent = config.effectiveLibraryNameMode(api.ctx.settings()) === config.libraryNameMode.values.INDEPENDENT;
-      return independent ? api.ctx.userNames() : EMPTY_NAMES;
+    function readName(appid, batch) {
+      if (mode !== STEAM_SORT) return names[appid];
+      if (!batch.has(appid)) {
+        const app = window.opener?.appStore?.GetAppOverviewByAppID?.(appid);
+        const name = app?.appid === appid
+          ? window.STSteamAppNames.selectedName(app, { nameMode: mode, customSortEnabled: true }).visibleName
+          : "";
+        batch.set(appid, name);
+      }
+      return batch.get(appid);
     }
 
     function remove(row) {
@@ -250,15 +260,15 @@
       return row.matches(PLAYING) && !!row.closest(GAME_GROUP) && content.contains(row);
     }
 
-    function render(row) {
+    function render(row, batch) {
       if (!isPlaying(row)) {
         rows.delete(row);
         remove(row);
         return;
       }
-      rows.add(row);
       const game = gameTitle(row);
-      const saved = game && names[game.appid];
+      rows.set(row, game?.appid);
+      const saved = game && readName(game.appid, batch);
       const name = typeof saved === "string" ? saved.trim() : "";
       if (!game || !name || name.toLowerCase() === game.original.trim().toLowerCase()) return remove(row);
 
@@ -275,9 +285,21 @@
       if (suffix.textContent !== text) suffix.textContent = text;
     }
 
+    function renderRows(candidates, appids = null) {
+      const batch = new Map();
+      for (const row of candidates) {
+        if (!appids || appids.has(rows.get(row))) render(row, batch);
+      }
+    }
+
     function refresh() {
-      names = readNames();
-      for (const row of rows) render(row);
+      mode = config.friendsListNameMode(api.ctx.settings());
+      names = mode === INDEPENDENT ? api.ctx.userNames() : EMPTY_NAMES;
+      renderRows(rows.keys());
+    }
+
+    function refreshSteamSortNames(appids) {
+      if (mode === STEAM_SORT) renderRows(rows.keys(), appids);
     }
 
     function changed(records) {
@@ -301,35 +323,41 @@
           continue;
         }
         if (row) {
-          if (record.type === "childList" && !record.removedNodes.length
-            && record.addedNodes.length === 1 && record.addedNodes[0].classList?.contains(SUFFIX)) continue;
+          if (record.type === "childList") {
+            if (!record.removedNodes.length && record.addedNodes.length === 1
+              && record.addedNodes[0].classList?.contains(SUFFIX)) continue;
+            const removed = record.removedNodes[0];
+            if (!record.addedNodes.length && record.removedNodes.length === 1
+              && removed.classList?.contains(SUFFIX) && labels.get(row) !== removed) continue;
+          }
           track(row);
         } else {
           for (const node of record.addedNodes) collect(node);
           for (const node of record.removedNodes) collect(node);
         }
       }
-      for (const row of touched) render(row);
+      if (touched.size) renderRows(touched);
     }
 
     function stop() {
       for (const row of labels.keys()) remove(row);
       rows.clear();
+      mode = "";
       names = EMPTY_NAMES;
     }
 
-    for (const row of content.querySelectorAll(GAME_GROUP + " " + PLAYING)) rows.add(row);
+    for (const row of content.querySelectorAll(GAME_GROUP + " " + PLAYING)) rows.set(row, undefined);
     try {
       refresh();
     } catch (error) {
       stop();
       throw error;
     }
-    return { changed, refresh, stop };
+    return { changed, refresh, refreshSteamSortNames, stop };
   }
 
   function startNames() {
-    const event = window.STConfig.libraryNameMode.snapshotChangedEvent;
+    const event = config.libraryNameMode.snapshotChangedEvent;
     const stop = register(NAME_ID, mountNames);
     const refresh = () => {
       for (const windowEntry of windows.values()) windowEntry.refreshNames();
@@ -341,6 +369,12 @@
     } };
   }
 
-  api.friendsList = Object.freeze({ register, startNames });
+  /** 应用库已有的排序名称更新通知，未指定 AppID 时只刷新当前已挂载的好友行 */
+  function refreshSteamSortNames(appids) {
+    if (!entries.has(NAME_ID)) return;
+    for (const windowEntry of windows.values()) windowEntry.refreshSteamSortNames(appids);
+  }
+
+  api.friendsList = Object.freeze({ register, startNames, refreshSteamSortNames });
   registerFeature();
 })();

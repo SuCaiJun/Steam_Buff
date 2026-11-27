@@ -26,7 +26,7 @@
   const { cleanAuth } = authSession;
 
   const RUN_MARK = "steamBuffContentStarted";
-  const RUN_VERSION = "steam-buff-runtime-v82";
+  const RUN_VERSION = "steam-buff-runtime-v83";
   const RUN_PENDING = `${RUN_VERSION}:pending`;
   const EXCLUDED_STEAM_CLEANUP_SCRIPT = "steam/runtime/cleanup-stale.js";
   const SETTINGS_OPEN_MESSAGE = "STEAM_BUFF_OPEN_SETTINGS";
@@ -1960,8 +1960,11 @@
         return wasActive && !isActive;
       }
       // 独立版与 Steam 云版互斥；方案值是字符串，不能用布尔 false 判断热停
-      if (featureId === INDEPENDENT_NAME_ID || featureId === FRIENDS_NAME_ID) {
+      if (featureId === INDEPENDENT_NAME_ID) {
         return independentModeOn(prev) && !independentModeOn(next);
+      }
+      if (featureId === FRIENDS_NAME_ID) {
+        return !!CFG.friendsListNameMode(prev) && !CFG.friendsListNameMode(next);
       }
       if (featureId === NAME_ID) {
         const wasOn = prev[SORT_TITLE_ID] !== false && !independentModeOn(prev);
@@ -1987,7 +1990,10 @@
     const wasIndependent = independentModeOn(prev);
     const isIndependent = independentModeOn(next);
     if (!wasIndependent && isIndependent) {
-      out.push(INDEPENDENT_NAME_ID, FRIENDS_NAME_ID);
+      out.push(INDEPENDENT_NAME_ID);
+    }
+    if (!CFG.friendsListNameMode(prev) && CFG.friendsListNameMode(next)) {
+      out.push(FRIENDS_NAME_ID);
     }
     const wasSteamName = prev[SORT_TITLE_ID] !== false && !wasIndependent;
     const isSteamName = next[SORT_TITLE_ID] !== false && !isIndependent;
@@ -2795,6 +2801,9 @@
       const disabled = disabledSteamFeatureIds(prev, settings);
       const enabled = enabledSteamFeatureIds(prev, settings);
       notifySteamFeaturesChanged(disabled, enabled);
+      if (CFG.friendsListNameMode(prev) !== CFG.friendsListNameMode(settings)) {
+        document.dispatchEvent(new Event(CFG.libraryNameMode.snapshotChangedEvent));
+      }
     }
     onPhase("locale-load");
     await writeUiLocale();

@@ -209,6 +209,12 @@
       : LIBRARY_NAME_MODES.STEAM_SORT;
   }
 
+  /** 好友列表的有效名称来源，空字符串表示关闭名称后缀 */
+  function friendsListNameMode(settings) {
+    const mode = effectiveLibraryNameMode(settings);
+    return mode === LIBRARY_NAME_MODES.STEAM_SORT && settings?.["library-sort-title"] === false ? "" : mode;
+  }
+
   const client = Object.freeze({
     versionHeader: CLIENT_VERSION_HEADER,
     version: runtimeVersion,
@@ -680,6 +686,7 @@
       snapshotChangedEvent: "steam-buff-user-names-changed",
     }),
     effectiveLibraryNameMode,
+    friendsListNameMode,
     customNamesAllowed,
     site: (path = "") => join(ORIGINS.site, path),
     api: (path = "") => join(ORIGINS.api, path),
