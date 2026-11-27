@@ -13,13 +13,11 @@
   const api = window.SteamBuff;
   const entryPath = "steam/shared/ai-chat.js";
   function register() {
-    for (const variant of ["main", "friends"]) api.reg.addEntry("ai-chat-" + variant, entryPath, async () => {
-      await api.reg.loadScript("ai/chat-launcher.js");
-      if (api.ctx.settingValue("ai-chat-" + variant, false) !== true) return { started: false, reason: "settings-disabled" };
-      return api.aiChat.start(variant);
-    });
+    for (const variant of ["main", "friends"]) {
+      api.reg.addEntry("ai-chat-" + variant, entryPath, () => api.aiChat.enable(variant));
+    }
   }
-  if (api.aiChat) { register(); return; }
+  if (api.aiChat?.enable) { register(); return; }
   const log = window.STLoggerFactory.createLogger("steam", "ai-chat");
   const name = window.STConfig.aiChatName;
   const layout = window.STConfig.aiChatWindowLayout;
@@ -202,91 +200,14 @@
     };
   }
 
-  function mountFriends() {
-    const manager = window.opener?.g_PopupManager;
-    if (typeof manager?.GetPopups !== "function" || typeof manager.AddPopupCreatedCallback !== "function")
-      throw new Error("Steam 好友窗口管理器不可用");
-    const windows = new Map();
-    function inspect(item) {
-      if (!/^friendslist_uid\d+$/.test(item.GetName()) || windows.has(item.window)) return;
-      const win = item.window;
-      if (!win || win.closed || win.opener !== window.opener || win.location.origin !== window.location.origin) return;
-      const doc = win.document;
-      let entry = null, observer = null, timer = null;
-      const stopWaiting = () => {
-        observer?.disconnect();
-        if (timer !== null) clearTimeout(timer);
-        observer = timer = null;
-      };
-      const detach = () => {
-        stopWaiting();
-        entry?.dispose();
-        win.removeEventListener("DOMContentLoaded", ready);
-        win.removeEventListener("pagehide", detach);
-        windows.delete(win);
-      };
-      function failed(error) {
-        detach();
-        log.error("chat-friends-mount-failed", "好友列表 AI 入口挂载失败", { error });
-      }
-      function mount(root) {
-        if (!root.classList.contains("popup_chat_frame")) return false;
-        const title = root.querySelector(".friendListHeaderContainer.titleBarContainer");
-        const wrapper = title?.nextElementSibling;
-        if (!wrapper?.matches(".FriendsListContent")) return false;
-        const list = wrapper.querySelector(":scope > .friendlistListContainer");
-        const content = list?.querySelector(":scope > .listContentContainer");
-        if (!content) return false;
-        // 与会重绘的原生分组保持并列，同用一个滚动容器。
-        entry = launch(doc, list, "friends", content);
-        stopWaiting();
-        return true;
-      }
-      function begin() {
-        const root = doc.getElementById("popup_target");
-        if (!root) return;
-        if (mount(root)) return;
-        observer = new win.MutationObserver(() => {
-          try { mount(root); }
-          catch (error) { failed(error); }
-        });
-        // PopupManager 先登记窗口，Steam 随后才给根节点补 class 并挂载 React 内容
-        observer.observe(root, { attributes: true, attributeFilter: ["class"], childList: true });
-        timer = setTimeout(() => {
-          stopWaiting();
-          log.warn("chat-friends-position-unavailable", "好友列表 AI 入口挂载位置不可用", { phase: "friends-root" });
-        }, 3000);
-      }
-      function ready() {
-        try { begin(); }
-        catch (error) { failed(error); }
-      }
-      windows.set(win, detach);
-      win.addEventListener("pagehide", detach, { once: true });
-      if (doc.getElementById("popup_target")) ready();
-      else win.addEventListener("DOMContentLoaded", ready, { once: true });
-    }
-    const subscription = manager.AddPopupCreatedCallback(item => {
-      try { inspect(item); }
-      catch (error) { log.error("chat-friends-window-failed", "无法识别 Steam 好友窗口", { error }); }
-    });
-    try {
-      for (const item of manager.GetPopups()) inspect(item);
-    } catch (error) {
-      subscription.Unregister();
-      for (const dispose of windows.values()) dispose();
-      throw error;
-    }
-    return () => {
-      subscription.Unregister();
-      for (const dispose of windows.values()) dispose();
-    };
-  }
-
   /** 由 Steam registry 按开关启动，最后一个入口关闭时释放共享窗口 */
   function start(variant) {
     if (variant === "main" && !document.getElementById("popup_target")) throw new Error("Steam 主窗口挂载点不可用");
-    const dispose = variant === "friends" ? mountFriends() : launch(document, document.body, "main").dispose;
+    const dispose = variant === "friends"
+      ? api.friendsList.register("ai-chat-friends", ({ doc, list, content }) => ({
+        stop: launch(doc, list, "friends", content).dispose,
+      }))
+      : launch(document, document.body, "main").dispose;
     users.add(variant);
     return { started: true, stop() {
       dispose();
@@ -298,6 +219,38 @@
     } };
   }
 
-  api.aiChat = Object.freeze({ start });
+  function enable(variant) {
+    const id = "ai-chat-" + variant;
+    const meta = { domain: "steam", id, entry: entryPath, mode: "ui" };
+    let stopped = false, mounted = null;
+    function stop() {
+      if (stopped) return;
+      stopped = true;
+      mounted?.stop();
+      mounted = null;
+    }
+
+    // 注册器同步取得 stop。异步任务只持有自己的入口，旧任务不会释放新一轮资源
+    const ready = Promise.resolve().then(async () => {
+      if (stopped) return false;
+      api.runtimeKernel?.markFeature({ ...meta, status: "waiting", reason: "loading-dependencies" });
+      await api.reg.loadScript("ai/chat-launcher.js");
+      if (!stopped && variant === "friends") await api.reg.loadScript("steam/features/friends-list/ui.js");
+      if (stopped || api.ctx.settingValue(id, false) !== true) return false;
+      mounted = start(variant);
+      api.runtimeKernel?.markFeature({ ...meta, status: "started" });
+      return true;
+    }).catch(error => {
+      if (!stopped) {
+        stop();
+        api.runtimeKernel?.markFeature({ ...meta, status: "failed", reason: "entry-start-failed", error });
+        log.error("chat-entry-start-failed", "Steam AI 入口启动失败", { featureId: id, error });
+      }
+      return false;
+    });
+    return { started: true, stop, ready };
+  }
+
+  api.aiChat = Object.freeze({ start, enable });
   register();
 })();

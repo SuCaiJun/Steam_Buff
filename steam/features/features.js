@@ -21,13 +21,28 @@
       loadStrategy: "on-demand-entry",
       modes: ["ui"],
       pageScope: ["main-ui"],
-      dependencies: ["steam/shared/ai-chat.js", "steam/shared/native-window.js"],
+      dependencies: ["steam/shared/ai-chat.js", "steam/shared/native-window.js",
+        ...(id === "ai-chat-friends" ? ["steam/features/friends-list/ui.js"] : [])],
       cost: "event-driven",
       entries: { ui: "steam/shared/ai-chat.js" },
       shouldRun(api, context, snapshot) {
         return context === "ui" && api.ctx.isMainUi() && snapshot.settingsSnapshot[id] === true;
       },
     })),
+    {
+      id: "friends-list-custom-name",
+      name: "好友列表游戏自定义名称",
+      settingsKey: nameModeConfig.key,
+      loadStrategy: "on-demand-entry",
+      modes: ["ui"],
+      pageScope: ["main-ui"],
+      cost: "event-driven",
+      entries: { ui: "steam/features/friends-list/ui.js" },
+      shouldRun(api, context, snapshot) {
+        return context === "ui" && api.ctx.isMainUi()
+          && effectiveNameMode(snapshot.settingsSnapshot) === nameModeConfig.values.INDEPENDENT;
+      },
+    },
     {
       id: "automation",
       name: "自动化原生数据入口",

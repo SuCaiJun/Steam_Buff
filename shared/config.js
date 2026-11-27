@@ -677,6 +677,7 @@
     libraryNameMode: Object.freeze({
       key: LIBRARY_NAME_MODE_KEY,
       values: LIBRARY_NAME_MODES,
+      snapshotChangedEvent: "steam-buff-user-names-changed",
     }),
     effectiveLibraryNameMode,
     customNamesAllowed,

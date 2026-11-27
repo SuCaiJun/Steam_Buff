@@ -26,7 +26,7 @@
   const { cleanAuth } = authSession;
 
   const RUN_MARK = "steamBuffContentStarted";
-  const RUN_VERSION = "steam-buff-runtime-v81";
+  const RUN_VERSION = "steam-buff-runtime-v82";
   const RUN_PENDING = `${RUN_VERSION}:pending`;
   const EXCLUDED_STEAM_CLEANUP_SCRIPT = "steam/runtime/cleanup-stale.js";
   const SETTINGS_OPEN_MESSAGE = "STEAM_BUFF_OPEN_SETTINGS";
@@ -94,6 +94,7 @@
   const SORT_TITLE_ID = "library-sort-title";
   const NAME_ID = "library-custom-name";
   const INDEPENDENT_NAME_ID = "library-independent-name";
+  const FRIENDS_NAME_ID = "friends-list-custom-name";
   const NATIVE_CUSTOM_SORT_EVENTS_ID = "native-custom-sort-events";
   const NEWS_TRANSLATE_ID = "steam-news-translate";
   const ORIGINAL_NAME_SEARCH_ID = "library-sort-title-original-search";
@@ -188,6 +189,7 @@
     NAME_ID,
     NATIVE_CUSTOM_SORT_EVENTS_ID,
     INDEPENDENT_NAME_ID,
+    FRIENDS_NAME_ID,
     DOWNLOAD_SHUTDOWN,
     "download-batch-actions",
     DOWNLOAD_ENHANCEMENT,
@@ -1958,7 +1960,7 @@
         return wasActive && !isActive;
       }
       // 独立版与 Steam 云版互斥；方案值是字符串，不能用布尔 false 判断热停
-      if (featureId === INDEPENDENT_NAME_ID) {
+      if (featureId === INDEPENDENT_NAME_ID || featureId === FRIENDS_NAME_ID) {
         return independentModeOn(prev) && !independentModeOn(next);
       }
       if (featureId === NAME_ID) {
@@ -1985,7 +1987,7 @@
     const wasIndependent = independentModeOn(prev);
     const isIndependent = independentModeOn(next);
     if (!wasIndependent && isIndependent) {
-      out.push(INDEPENDENT_NAME_ID);
+      out.push(INDEPENDENT_NAME_ID, FRIENDS_NAME_ID);
     }
     const wasSteamName = prev[SORT_TITLE_ID] !== false && !wasIndependent;
     const isSteamName = next[SORT_TITLE_ID] !== false && !isIndependent;
@@ -2180,6 +2182,7 @@
     if (!el) {
       return;
     }
+    const previous = el.dataset[USER_NAMES_ATTR];
     try {
       el.dataset[USER_NAMES_ATTR] = JSON.stringify(displayUserNames(snapshot));
       el.dataset[USER_NAMES_SEARCH_ATTR] = JSON.stringify(userNamesStore.searchMap(snapshot));
@@ -2187,6 +2190,9 @@
       globalThis.STLoggerFactory.reportError(error, { domain: "extension", feature: "content", event: "write-user-names-dataset-failed", message: "传递名称快照失败", level: "error", phase: "writeUserNamesDataset" });
       el.dataset[USER_NAMES_ATTR] = "{}";
       el.dataset[USER_NAMES_SEARCH_ATTR] = "{}";
+    }
+    if (previous !== el.dataset[USER_NAMES_ATTR]) {
+      document.dispatchEvent(new Event(CFG.libraryNameMode.snapshotChangedEvent));
     }
   }
 
