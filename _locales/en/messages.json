@@ -13573,12 +13573,6 @@
   "nameFilter_option_tags_701": {
     "message": "Sports"
   },
-  "store_familyLibrary_expiredConfirm": {
-    "message": "Your family library cache has expired. Update it now?"
-  },
-  "store_familyLibrary_firstConfirm": {
-    "message": "Your family library has not been scanned. Scan it now?"
-  },
   "workflow_ui_achievement_source_language": {
     "message": "Achievement source language"
   },

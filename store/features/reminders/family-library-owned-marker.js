@@ -44,7 +44,6 @@
   let detailActive = false;
   let detailSeq = 0;
   let detailTask = null;
-  let browserRefreshAttempted = false;
   const activeBadgeScopes = new Set();
   const badgeTokens = new Map();
   let cacheWatching = false;
@@ -456,7 +455,6 @@
       refreshWithUi({
         appId,
         container,
-        source: "card-button",
         defaultLabel,
         hasPreviousData: !!cache,
       }).catch(error => {
@@ -559,13 +557,11 @@
     return { close };
   }
 
-  async function showAlert(title, message, confirmLabel) {
+  async function showAlert(title, message) {
     const controller = new AbortController();
     const dispose = trackDisposer(dialogDisposers, () => controller.abort());
-    const options = { title, message, confirmLabel, signal: controller.signal };
     try {
-      if (confirmLabel) return await window.STFeedback.confirm(document.body, options);
-      await window.STFeedback.show(document.body, options);
+      await window.STFeedback.show(document.body, { title, message, signal: controller.signal });
     } finally {
       dispose();
     }
@@ -601,7 +597,7 @@
     const client = window.STClientEnvironment.isSteamClientPage();
     const wait = client ? { close() {} } : showBlockingWait();
     try {
-      const cache = await refreshFamilyLibrary(options.source || "manual");
+      const cache = await refreshFamilyLibrary();
       session.lastRefreshAt = Date.now();
       wait.close();
       if (!detailActive || String(options.appId || "") !== detailAppId) {
@@ -610,12 +606,10 @@
       if (detailActive && !removeDetailForUnsupportedSharing(options.appId, "refresh-success")) {
         mountCard(options.appId, cache);
       }
-      if (client || options.successAlert !== false) {
-        await showAlert(
-          i18n("store.familyLibrary.sharingCheck", "Steam Buff共享检查"),
-          i18n("store.familyLibrary.cachedCount", "已将 $count$ 个家庭库游戏记录到本地缓存。", { count: cache.stats.appCount }),
-        );
-      }
+      await showAlert(
+        i18n("store.familyLibrary.sharingCheck", "Steam Buff共享检查"),
+        i18n("store.familyLibrary.cachedCount", "已将 $count$ 个家庭库游戏记录到本地缓存。", { count: cache.stats.appCount }),
+      );
     } catch (error) {
       wait.close();
       if (!detailActive || String(options.appId || "") !== detailAppId) {
@@ -782,24 +776,6 @@
     return task;
   }
 
-  async function refreshBrowserCache(id, container, cache, record) {
-    if (browserRefreshAttempted || window.STClientEnvironment.isSteamClientPage()) return;
-    const model = window.STFamilyLibrary;
-    const prefs = model.releasedSettings(await chrome.storage.local.get(Object.values(model.SETTINGS_KEYS)));
-    if (!detailActive || detailAppId !== String(id) || !container.isConnected || !prefs) return;
-    const seconds = model.INTERVALS[prefs.refreshInterval];
-    const last = Math.max(cache?.updatedAt ?? 0, record.refreshState.skippedAt);
-    if (!seconds || record.unavailable || Date.now() < (last + seconds) * 1000) return;
-    browserRefreshAttempted = true;
-    if (!prefs.autoRefresh) {
-      const confirmed = await showAlert(i18n("store.familyLibrary.title", "家庭库检查"),
-        cache ? i18n("store.familyLibrary.expiredConfirm", "家庭库缓存已过期，是否立即更新？") : i18n("store.familyLibrary.firstConfirm", "还没有家庭库数据，是否立即扫描？"),
-        i18n("common.update", "更新"));
-      if (!confirmed || !detailActive || detailAppId !== String(id) || !container.isConnected) return;
-    }
-    await refreshWithUi({ appId: id, container, successAlert: false, hasPreviousData: !!cache });
-  }
-
   async function loadDetailCard(id) {
     const startedAt = Date.now();
     const seq = detailSeq + 1;
@@ -835,9 +811,7 @@
       if (!valid()) return;
       api.dom.detailLoading.clear(placeholder);
       placeholder.remove();
-      const container = mountCard(id, cache);
-      if (!container) return;
-      await refreshBrowserCache(id, container, cache, record);
+      if (!mountCard(id, cache)) return;
       const entry = api.familyLibraryCache?.appEntry?.(cache, id);
       if (entry) {
         log?.info?.("family-library-cache-hit", "当前游戏命中家庭组游戏库缓存", pageMeta({
@@ -926,7 +900,6 @@
     detailTask = null;
     detailAppId = "";
     lastFamilySharingHideLogKey = "";
-    browserRefreshAttempted = false;
     clearDisposers(familySharingWaitDisposers);
     clearDisposers(dialogDisposers);
     clearDisposers(blockingWaitClosers);

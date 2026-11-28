@@ -13573,12 +13573,6 @@
   "nameFilter_option_tags_701": {
     "message": "スポーツ"
   },
-  "store_familyLibrary_expiredConfirm": {
-    "message": "ファミリーライブラリのキャッシュが期限切れです。今すぐ更新しますか？"
-  },
-  "store_familyLibrary_firstConfirm": {
-    "message": "ファミリーライブラリのデータがありません。今すぐスキャンしますか？"
-  },
   "workflow_ui_achievement_source_language": {
     "message": "実績の原文言語"
   },

@@ -13573,12 +13573,6 @@
   "nameFilter_option_tags_701": {
     "message": "스포츠"
   },
-  "store_familyLibrary_expiredConfirm": {
-    "message": "가족 라이브러리 캐시가 오래되었습니다. 지금 갱신할까요?"
-  },
-  "store_familyLibrary_firstConfirm": {
-    "message": "가족 라이브러리 데이터가 없습니다. 지금 스캔할까요?"
-  },
   "workflow_ui_achievement_source_language": {
     "message": "도전 과제 원문 언어"
   },

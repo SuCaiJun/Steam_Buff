@@ -3097,7 +3097,7 @@
         ? (await model.loadDefaults(await storage.getUiLocale({ strict: true }))).workflows.find(item => item.id === "wf-4")
         : undefined;
       workflow = model.restoreFamilySchedule(base, patch.familySettings,
-        patch.familyFeature !== false && root.STClientEnvironment.isSteamClientRuntime(), initial, family);
+        patch.familyFeature !== false, initial, family);
     }
     const ai = patch.ai ? reviseServices(patch.ai, oldAi, diagnostics.replace) : oldAi;
     if (diagnostics.onboardingOnly) {
@@ -3153,7 +3153,6 @@
       translate: translate !== oldTranslate ? translate : undefined,
       workflow: next !== current ? next : undefined,
       familyFeature: patch.familyFeature,
-      familySettings: patch.familySettings,
       toolCredentials: restored?.tools ?? credentials,
       aiSearch: restored ? restored.search : undefined,
     }, diagnostics);

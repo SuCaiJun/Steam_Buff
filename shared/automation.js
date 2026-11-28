@@ -753,7 +753,7 @@
   }
 
   /** 正式版没有工作流，只转换全局家庭库配置。现有新版流程用独立的保留 ID 承接旧配置 */
-  function restoreFamilySchedule(bundle, settings, enabled, initial, defaultFamily) {
+  function restoreFamilySchedule(bundle, settings, featureEnabled, initial, defaultFamily) {
     const next = clone(bundle);
     let trigger = next.triggers.find(item => item.id === "trigger-0");
     if (!trigger) {
@@ -775,7 +775,8 @@
     }
     const interval = root.STFamilyLibrary.INTERVALS[settings.refreshInterval];
     trigger.event = interval ? { type: "schedule", timing: { mode: "minute", every: interval / 60 } } : { type: "manual" };
-    trigger.enabled = Boolean(interval && enabled);
+    // 旧浏览器的询问模式需要用户发起刷新，Steam 客户端周期原本由后台执行
+    trigger.enabled = Boolean(interval && featureEnabled && (settings.autoRefresh || root.STClientEnvironment.isSteamClientRuntime()));
     return next;
   }
   function normalize(value, { structureOnly = false } = {}) {

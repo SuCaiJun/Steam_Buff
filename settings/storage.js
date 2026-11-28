@@ -909,7 +909,7 @@
   }
 
   /** 三处关联配置在后台串行校验后一次写入，避免迁移或导入留下悬空引用 */
-  async function writeAiSettings({ ai, translate, workflow, familyFeature, familySettings, setupLocale, gameLinks, finishPendingConnection, toolCredentials, chatPromptId, aiSearch }, diagnostics = {}) {
+  async function writeAiSettings({ ai, translate, workflow, familyFeature, setupLocale, gameLinks, finishPendingConnection, toolCredentials, chatPromptId, aiSearch }, diagnostics = {}) {
     const data = translate ? translatePatch(translate) : {};
     if (ai) {
       const model = globalThis.STAI;
@@ -939,10 +939,6 @@
     if (setupLocale) data[SETUP_KEY] = setupLocale;
     if (gameLinks) data[GAME_LINKS_KEY] = gameLinks;
     if (typeof familyFeature === "boolean") data[key("family-library-owned-marker")] = familyFeature;
-    if (familySettings) {
-      const keys = globalThis.STFamilyLibrary.SETTINGS_KEYS;
-      for (const [field, value] of Object.entries(familySettings)) data[keys[field]] = value;
-    }
     if (!Object.keys(data).length || !(await put(data, diagnostics))) throw new Error("AI、翻译与自动化配置写入失败");
   }
 
@@ -1268,7 +1264,7 @@
       workflow = await model.loadDefaults(locale);
       workflow.presetImportVersion = chrome.runtime.getManifest().version;
       if (familySettings) workflow = model.restoreFamilySchedule(workflow, familySettings,
-        stored[familyFeatureKey] !== false && globalThis.STClientEnvironment.isSteamClientRuntime(), true);
+        stored[familyFeatureKey] !== false, true);
     }
     const ai = hasRegistry ? undefined : aiConfig.serviceSettings(legacy ?? aiConfig.servicesFromStorage(stored));
     if (ai && (pending?.schemaVersion !== 2 || pending.seedName === true)) {
@@ -1280,7 +1276,7 @@
       : undefined;
     if (complete && workflow && !alreadyInstalled && !legacy && !familySettings && !Object.hasOwn(stored, transKey("to")) && !Object.hasOwn(stored, transKey("aiTarget")))
       translate.aiTarget = "display";
-    await writeAiSettings({ workflow, ai, translate, familySettings, gameLinks, setupLocale: locale, finishPendingConnection: pendingConnection }, { reason: "initialize-workflow" });
+    await writeAiSettings({ workflow, ai, translate, gameLinks, setupLocale: locale, finishPendingConnection: pendingConnection }, { reason: "initialize-workflow" });
     if (legacy) log.info("ai-v222-config-migrated", "2.2.2 AI 连接已迁移到默认服务");
     return true;
   }

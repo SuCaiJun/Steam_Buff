@@ -13573,12 +13573,6 @@
   "nameFilter_option_tags_701": {
     "message": "體育"
   },
-  "store_familyLibrary_expiredConfirm": {
-    "message": "家庭庫快取已過期，是否立即更新？"
-  },
-  "store_familyLibrary_firstConfirm": {
-    "message": "還沒有家庭庫資料，是否立即掃描？"
-  },
   "workflow_ui_achievement_source_language": {
     "message": "成就原文語言"
   },
