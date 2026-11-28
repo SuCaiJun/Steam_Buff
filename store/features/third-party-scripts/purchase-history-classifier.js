@@ -14,7 +14,7 @@
   const api = window.STStore;
   if (!api) return;
 
-  const VERSION = "2.1.21";
+  const VERSION = "2.2.2";
   const HISTORY_PATH = "/account/history";
   const ENV_SCRIPT = "store/page/purchase-history-classifier-env.js";
   const VENDOR_SCRIPT = "vendor/SmallFork/purchase-history-classifier.js";
@@ -37,7 +37,7 @@
     if (typeof inject !== "function") {
       return Promise.reject(new Error("第三方脚本注入工具不可用"));
     }
-    // 第三方 userscript 不在扩展侧改写；开关允许后再注入主世界，由原脚本按自身生命周期启动。
+    // 临时接入 SmallFork 原脚本，Steam Buff 自有消费分类功能完成后替换此适配层
     return inject([ENV_SCRIPT, VENDOR_SCRIPT]);
   }
 

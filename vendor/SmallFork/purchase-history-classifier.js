@@ -1,14 +1,16 @@
 // ==UserScript==
 // @name         Steam 消费历史分类器
 // @namespace    http://tampermonkey.net/
-// @version      2.1.24
-// @description  对Steam消费历史记录进行分类：直购、送礼、退款、内购、充值、买入、卖出；自动识别主货币；新增转区CD查询功能
+// @version      2.2.2
+// @description  对Steam消费历史记录进行分类：直购、送礼、退款、内购、充值、买入、卖出；自动识别主货币；八大分析功能合并为统一窗口顶部标签页
 // @author       SmallFork
 // @match        https://store.steampowered.com/account/history*
 // @grant        GM_info
+// @grant        GM_xmlhttpRequest
+// @connect      cdn.jsdelivr.net
+// @connect      latest.currency-api.pages.dev
 // @license      MIT
 // @tag          Steam
-// @tag          games
 // @homepageURL  https://keylol.com/t1035599-1-1
 // @icon         data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><circle cx='50' cy='50' r='48' fill='%23171a21'/><path d='M50 20 A30 30 0 0 1 80 50 L50 50 Z' fill='%2366c0f4'/><path d='M80 50 A30 30 0 0 1 50 80 L50 50 Z' fill='%234caf50'/><path d='M50 80 A30 30 0 0 1 20 50 L50 50 Z' fill='%23ff9800'/><path d='M20 50 A30 30 0 0 1 50 20 L50 50 Z' fill='%23e91e63'/><circle cx='50' cy='50' r='12' fill='%23171a21'/><text x='50' y='56' text-anchor='middle' font-size='14' font-weight='700' fill='%2366c0f4'>$</text></svg>
 // @downloadURL https://update.greasyfork.org/scripts/574770/Steam%20%E6%B6%88%E8%B4%B9%E5%8E%86%E5%8F%B2%E5%88%86%E7%B1%BB%E5%99%A8.user.js
@@ -167,12 +169,13 @@
         all: '全部', store: '直购', ingame: '内购', gift: '送礼', refund: '退款', convert: '充值', market_buy: '买入', market_sell: '卖出',
         searchPlaceholder: '搜索物品名称...', showAll: '显示全部', pagedView: '分页显示', prev: '上一页', next: '下一页',
         exportFail: '导出失败', exportNoData: '导出失败: 没有数据', noChartData: '没有消费数据可显示', noData: '暂无数据',
-        donutTitle: '商店消费分类占比', barTitle: '收支柱状图', regionCdTitle: '转区 CD 查询', giftTitle: '送礼额度计算',
+        donutTitle: '分类占比', donutNote: '各货币独立统计、互不折算；主货币卡片在最前，其余按消费金额降序。', barTitle: '收支柱状图', regionCdTitle: '转区 CD 查询', giftTitle: '送礼额度计算',
         countLabel: '笔数占比', amountLabel: '金额占比', totalLabel: '总计', expendLabel: '商店消费(包含市场)', incomeLabel: '钱包收入',
         currencyNote: '金额均以主货币（{currency}）统计，其他货币不计入。',
         giftStore: '商店直购', giftRefund: '退款', giftAllowance: '送礼额度', giftSent: '已送礼(全部)', giftRemaining: '剩余额度', giftOverdraft: '已经超额',
-        giftStoreDesc: '用户在商店的直接购买金额', giftRefundDesc: '用户申请的退款金额', giftAllowanceDesc: '可用于送礼的总额度', giftSentDesc: '已赠送给其他用户的金额', giftRemainingDesc: '当前可用的送礼余额', giftOverdraftDesc: '已超出可用送礼额度',
-        giftDistribution: '额度分布', giftAdjustSent: '调整已送礼(30天内)金额', giftSentLegend: '已送礼(30天内)', giftTipText: '以上数据仅供参考，实际金额以系统记录为准。',
+        giftStoreDesc: '用户在商店的直接购买金额', giftRefundDesc: '用户申请的退款金额', giftAllowanceDesc: '可用于送礼的总额度', giftSentDesc: '已赠送给其他用户的金额', giftSent30Desc: '拖动下方滑块自定义此金额', giftRemainingDesc: '当前可用的送礼余额', giftOverdraftDesc: '已超出可用送礼额度',
+        giftDistribution: '额度分布', giftAdjustSent: '调整已送礼金额', giftSentLegend: '已送礼(30天内)', giftTipText: '以上数据仅供参考，实际金额以系统记录为准。',
+        giftShowAll: '显示全部', giftShowAllTitle: '全部货币数据', giftShowAllTip: '各货币的商店直购、退款和已送礼金额汇总。', giftAllCurrency: '货币', giftAllSent: '已送礼', giftAllAllowance: '额度', giftAllSummary: '汇总', giftAllSummaryTip: '汇总行按实时汇率折算为当前面板货币。', giftAllLoading: '正在获取汇率…', giftAllRateError: '汇率获取失败', giftAllPartial: '部分货币不支持',
         csvDate: '日期', csvItem: '物品', csvAction: '操作类型', csvCategory: '分类', csvTotal: '总金额', csvWalletChange: '钱包变更',
         csvPm1: '支付方式1', csvPa1: '支付金额1', csvPm2: '支付方式2', csvPa2: '支付金额2', csvPm3: '支付方式3', csvPa3: '支付金额3',
         cdCurrentCurrency: '当前货币', cdPrevCurrency: '转区前货币', cdChangeDate: '最近货币变更日', cdExpireDate: '转区CD到期日',
@@ -182,8 +185,11 @@
         cdNote: '转区冷却期为 {days} 天，冷却期间无法再次更改商店地区。点击历史记录可跳转到对应消费记录。',
         pageTitle: '{nickname} 的消费历史记录', breadcrumbLicenses: '许可和产品序列号激活', expandToggle: '展开/折叠次要货币统计',
         primaryCurrencyHint: '当前主货币：', switchCurrencyHint: '点击切换主货币', subFilterClick: '点击筛选', countUnit: '笔',
-        btnDonut: '消费分类占比 (D)', btnBar: '收支柱状图 (B)', btnRegionCD: '转区 CD 查询 (R)', btnGift: '送礼额度计算 (G)', btnDiscount: '商店折扣统计 (K)', btnIngame: '内购分析 (I)',
+        analysisBtn: '消费分析', tabDonut: '分类占比', tabBar: '收支柱状图', tabRegionCD: '转区CD', tabGift: '送礼额度', tabDiscount: '折扣统计', tabIngame: '内购分析',
         ingameTitle: '内购分析', ingameNoData: '暂无内购记录', ingameItemName: '物品名称', ingameCount: '购买次数', ingameTotalSpent: '总花费', ingameAvgPrice: '均价', ingameNote: '仅统计主货币的内购记录', ingameTotalItems: '物品种类', ingameTotalCount: '购买总次数', ingameTotalSpentAmount: '内购总花费',
+        tabMonthly: '月度趋势', tabWallet: '钱包曲线',
+        monthlyTitle: '月度消费趋势', monthlyAvg: '月均消费', monthlyPeak: '峰值月份', monthlyActive: '消费月数', monthlySpend: '月度支出', monthlyIncome: '月度收入', monthlyNote: '按自然月汇总已加载记录的支出与收入，切换标题货币可查看不同币种。',
+        walletTitle: '钱包余额曲线', walletCurrent: '最新余额', walletPeak: '最高余额', walletLow: '最低余额', walletRecords: '余额记录', walletBalanceLabel: '余额', walletNote: '基于已加载记录的钱包余额列绘制，仅反映当前货币的钱包；完整历史请加载全部记录。',
         discountTitle: '商店折扣统计',
         discountCount: '直购', discountAvgOff: '平均折扣', discountSaved: '节省金额汇总', discountStorePaid: '商店直购', discountFullPrice: '原价购买', discountFullPriceTitle: '原价购买明细', discountFullPriceName: '名称', discountFullPricePrice: '价格', discountFullPriceDate: '日期', fpRefunded: '已退款', fpRefundCount: '退款笔数', fpRefundAmt: '退款金额',
         discountOff: 'off', discountScaleOriginal: '原价', discountScaleHalf: '半价', discountScaleFree: '免费',
@@ -198,12 +204,13 @@
         'zh-tw': { ...BASE, store: '直購', ingame: '內購', gift: '送禮', market_buy: '買入', market_sell: '賣出',
             searchPlaceholder: '搜尋物品名稱...', showAll: '顯示全部', pagedView: '分頁顯示', prev: '上一頁', next: '下一頁',
             exportFail: '匯出失敗', exportNoData: '匯出失敗: 沒有資料', noChartData: '沒有消費資料可顯示', noData: '暫無資料',
-            donutTitle: '商店消費分類佔比', barTitle: '收支柱狀圖', regionCdTitle: '轉區 CD 查詢', giftTitle: '送禮額度計算',
+            donutTitle: '分類佔比', donutNote: '各貨幣獨立統計、互不折算；主貨幣卡片在最前，其餘按消費金額降序。', barTitle: '收支柱狀圖', regionCdTitle: '轉區 CD 查詢', giftTitle: '送禮額度計算',
             countLabel: '筆數佔比', amountLabel: '金額佔比', totalLabel: '總計', expendLabel: '商店消費(包含市場)', incomeLabel: '錢包收入',
             currencyNote: '金額均以主貨幣（{currency}）統計，其他貨幣不計入。',
             giftStore: '商店直購', giftAllowance: '送禮額度', giftSent: '已送禮(全部)', giftRemaining: '剩餘額度', giftOverdraft: '已經超額',
-            giftStoreDesc: '用戶在商店的直接購買金額', giftRefundDesc: '用戶申請的退款金額', giftAllowanceDesc: '可用於送禮的總額度', giftSentDesc: '已贈送給其他用戶的金額', giftRemainingDesc: '當前可用的送禮餘額', giftOverdraftDesc: '已超出可用送禮額度',
-            giftDistribution: '額度分佈', giftAdjustSent: '調整已送禮(30天內)金額', giftSentLegend: '已送禮(30天內)', giftTipText: '以上數據僅供參考，實際金額以系統記錄為準。',
+            giftStoreDesc: '用戶在商店的直接購買金額', giftRefundDesc: '用戶申請的退款金額', giftAllowanceDesc: '可用於送禮的總額度', giftSentDesc: '已贈送給其他用戶的金額', giftSent30Desc: '拖動下方滑塊自定義此金額', giftRemainingDesc: '當前可用的送禮餘額', giftOverdraftDesc: '已超出可用送禮額度',
+            giftDistribution: '額度分佈', giftAdjustSent: '調整已送禮金額', giftSentLegend: '已送禮(30天內)', giftTipText: '以上數據僅供參考，實際金額以系統記錄為準。',
+            giftShowAll: '顯示全部', giftShowAllTitle: '全部貨幣數據', giftShowAllTip: '各貨幣的商店直購、退款和已送禮金額匯總。', giftAllCurrency: '貨幣', giftAllSent: '已送禮', giftAllAllowance: '額度', giftAllSummary: '匯總', giftAllSummaryTip: '匯總行按即時匯率折算為當前面板貨幣。', giftAllLoading: '正在取得匯率…', giftAllRateError: '匯率取得失敗', giftAllPartial: '部分貨幣不支援',
             csvAction: '操作類型', csvCategory: '分類', csvTotal: '總金額', csvWalletChange: '錢包變更',
             csvPa1: '支付金額1', csvPa2: '支付金額2', csvPa3: '支付金額3',
             cdCurrentCurrency: '當前貨幣', cdPrevCurrency: '轉區前貨幣', cdChangeDate: '最近貨幣變更日', cdExpireDate: '轉區CD到期日',
@@ -213,8 +220,11 @@
             cdNote: '轉區冷卻期為 {days} 天，冷卻期間無法再次更改商店地區。點擊歷史記錄可跳轉到對應消費記錄。',
             pageTitle: '{nickname} 的消費歷史記錄', breadcrumbLicenses: '許可和產品序號啟動', expandToggle: '展開/摺疊次要貨幣統計',
             primaryCurrencyHint: '當前主貨幣：', switchCurrencyHint: '點擊切換主貨幣', subFilterClick: '點擊篩選', countUnit: '筆',
-            btnDonut: '消費分類佔比 (D)', btnBar: '收支柱狀圖 (B)', btnRegionCD: '轉區 CD 查詢 (R)', btnGift: '送禮額度計算 (G)', btnDiscount: '商店折扣統計 (K)', btnIngame: '內購分析 (I)',
+            analysisBtn: '消費分析', tabDonut: '分類佔比', tabBar: '收支柱狀圖', tabRegionCD: '轉區CD', tabGift: '送禮額度', tabDiscount: '折扣統計', tabIngame: '內購分析',
             ingameTitle: '內購分析', ingameNoData: '暫無內購記錄', ingameItemName: '物品名稱', ingameCount: '購買次數', ingameTotalSpent: '總花費', ingameAvgPrice: '均價', ingameNote: '僅統計主貨幣的內購記錄', ingameTotalItems: '物品種類', ingameTotalCount: '購買總次數', ingameTotalSpentAmount: '內購總花費',
+            tabMonthly: '月度趨勢', tabWallet: '錢包曲線',
+            monthlyTitle: '月度消費趨勢', monthlyAvg: '月均消費', monthlyPeak: '峰值月份', monthlyActive: '消費月數', monthlySpend: '月度支出', monthlyIncome: '月度收入', monthlyNote: '按自然月匯總已載入記錄的支出與收入，切換標題貨幣可查看不同幣別。',
+            walletTitle: '錢包餘額曲線', walletCurrent: '最新餘額', walletPeak: '最高餘額', walletLow: '最低餘額', walletRecords: '餘額記錄', walletBalanceLabel: '餘額', walletNote: '基於已載入記錄的錢包餘額列繪製，僅反映當前貨幣的錢包；完整歷史請載入全部記錄。',
             discountTitle: '商店折扣統計',
             discountCount: '直購', discountSaved: '節省金額彙總', discountStorePaid: '商店直購', discountFullPrice: '原價購買', discountFullPriceTitle: '原價購買明細', discountFullPriceName: '名稱', discountFullPricePrice: '價格', discountFullPriceDate: '日期', fpRefunded: '已退款', fpRefundCount: '退款筆數', fpRefundAmt: '退款金額',
             discountOff: 'off', discountScaleOriginal: '原價', discountScaleHalf: '半價', discountScaleFree: '免費',
@@ -226,12 +236,13 @@
         'en': { ...BASE, all: 'All', store: 'Purchase', ingame: 'In-Game', gift: 'Gift', refund: 'Refund', convert: 'Top-up', market_buy: 'Buy', market_sell: 'Sell',
             searchPlaceholder: 'Search item name...', showAll: 'Show All', pagedView: 'Paged', prev: 'Prev', next: 'Next',
             exportFail: 'Export failed', exportNoData: 'Export failed: No data', noChartData: 'No data to display', noData: 'No data',
-            donutTitle: 'Spending Breakdown', barTitle: 'Income & Expense', regionCdTitle: 'Region CD Check', giftTitle: 'Gift Allowance',
+            donutTitle: 'Category Breakdown', donutNote: 'Each currency is counted independently with no conversion. Primary currency first, others by spending amount.', barTitle: 'Income & Expense', regionCdTitle: 'Region CD Check', giftTitle: 'Gift Allowance',
             countLabel: 'Count', amountLabel: 'Amount', totalLabel: 'Total', expendLabel: 'Store Spending (incl. Market)', incomeLabel: 'Wallet Income',
             currencyNote: 'Amounts are in primary currency ({currency}) only.',
             giftStore: 'Store Purchase', giftRefund: 'Refund', giftAllowance: 'Gift Allowance', giftSent: 'Gifts Sent (All)', giftRemaining: 'Remaining', giftOverdraft: 'Overdraft',
-            giftStoreDesc: 'Direct store purchase amount', giftRefundDesc: 'Refunded amount', giftAllowanceDesc: 'Total allowance for gifting', giftSentDesc: 'Amount gifted to others', giftRemainingDesc: 'Current available gift balance', giftOverdraftDesc: 'Amount exceeded gift allowance',
-            giftDistribution: 'Distribution', giftAdjustSent: 'Adjust Gift Sent (30 days)', giftSentLegend: 'Gifts Sent (30 days)', giftTipText: 'Data is for reference only. Actual amounts are subject to system records.',
+            giftStoreDesc: 'Direct store purchase amount', giftRefundDesc: 'Refunded amount', giftAllowanceDesc: 'Total allowance for gifting', giftSentDesc: 'Amount gifted to others', giftSent30Desc: 'Customize via the slider below', giftRemainingDesc: 'Current available gift balance', giftOverdraftDesc: 'Amount exceeded gift allowance',
+            giftDistribution: 'Distribution', giftAdjustSent: 'Adjust Gifts Sent', giftSentLegend: 'Gifts Sent (30 days)', giftTipText: 'Data is for reference only. Actual amounts are subject to system records.',
+            giftShowAll: 'Show All', giftShowAllTitle: 'All Currency Data', giftShowAllTip: 'Summary of store purchases, refunds, and gifts sent for each currency.', giftAllCurrency: 'Currency', giftAllSent: 'Gifts Sent', giftAllAllowance: 'Allowance', giftAllSummary: 'Total', giftAllSummaryTip: 'Summary row converts all currencies to the panel currency at latest exchange rates.', giftAllLoading: 'Fetching rates…', giftAllRateError: 'Failed to fetch rates', giftAllPartial: 'Some currencies unsupported',
             csvDate: 'Date', csvItem: 'Item', csvAction: 'Action', csvCategory: 'Category', csvTotal: 'Total', csvWalletChange: 'Wallet Change',
             csvPm1: 'Payment Method 1', csvPa1: 'Payment Amount 1', csvPm2: 'Payment Method 2', csvPa2: 'Payment Amount 2', csvPm3: 'Payment Method 3', csvPa3: 'Payment Amount 3',
             cdCurrentCurrency: 'Current Currency', cdPrevCurrency: 'Previous Currency', cdChangeDate: 'Last Currency Change', cdExpireDate: 'CD Expiry Date',
@@ -241,8 +252,11 @@
             cdNote: 'Region change cooldown is {days} days. You cannot change your store region during cooldown. Click a history row to jump to the corresponding purchase record.',
             pageTitle: "{nickname}'s Purchase History", breadcrumbLicenses: 'Licenses and Product Key Activations',
             expandToggle: 'Expand/collapse secondary currency stats', primaryCurrencyHint: 'Primary currency: ', switchCurrencyHint: 'Click to switch', subFilterClick: 'Click to filter', countUnit: '',
-            btnDonut: 'Spending Breakdown (D)', btnBar: 'Income & Expense (B)', btnRegionCD: 'Region CD Check (R)', btnGift: 'Gift Allowance (G)', btnDiscount: 'Store Discount (K)', btnIngame: 'In-Game Purchase (I)',
+            analysisBtn: 'Spending Analysis', tabDonut: 'Breakdown', tabBar: 'Income & Expense', tabRegionCD: 'Region CD', tabGift: 'Gift', tabDiscount: 'Discount', tabIngame: 'In-Game',
             ingameTitle: 'In-Game Purchase Analysis', ingameNoData: 'No in-game purchase records', ingameItemName: 'Item Name', ingameCount: 'Purchases', ingameTotalSpent: 'Total Spent', ingameAvgPrice: 'Avg Price', ingameNote: 'Only primary currency in-game purchases are counted', ingameTotalItems: 'Unique Items', ingameTotalCount: 'Total Purchases', ingameTotalSpentAmount: 'Total Spent',
+            tabMonthly: 'Monthly', tabWallet: 'Wallet Curve',
+            monthlyTitle: 'Monthly Spending Trend', monthlyAvg: 'Monthly Avg', monthlyPeak: 'Peak Month', monthlyActive: 'Active Months', monthlySpend: 'Monthly Spending', monthlyIncome: 'Monthly Income', monthlyNote: 'Aggregates spending and income of loaded records by calendar month. Switch currency via the title badge.',
+            walletTitle: 'Wallet Balance Curve', walletCurrent: 'Latest Balance', walletPeak: 'Peak Balance', walletLow: 'Lowest Balance', walletRecords: 'Records', walletBalanceLabel: 'Balance', walletNote: 'Drawn from the wallet balance column of loaded records for the current currency. Load full history for a complete curve.',
             discountTitle: 'Store Discount',
             discountCount: 'Purchases', discountAvgOff: 'Avg. Discount', discountSaved: 'Total Saved', discountStorePaid: 'Store Purchase', discountFullPrice: 'Full Price', discountFullPriceTitle: 'Full Price Details', discountFullPriceName: 'Name', discountFullPricePrice: 'Price', discountFullPriceDate: 'Date', fpRefunded: 'Refunded', fpRefundCount: 'Refunds', fpRefundAmt: 'Refund Amount',
             discountOff: 'off', discountScaleOriginal: 'Original', discountScaleHalf: 'Half', discountScaleFree: 'Free',
@@ -261,8 +275,6 @@
     const normText = text => (text || '').replace(/\u00a0/g, ' ').trim();
     const fmtDate = d => d ? `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}` : '';
     const MS_PER_DAY = 864e5;
-    const fmtAmt = v => v < 0 ? `-${primaryCurrency.symbol}${Math.abs(v).toFixed(2)}` : `${primaryCurrency.symbol}${v.toFixed(2)}`;
-    const fmtAmtHtml = v => { const neg = v < 0; const abs = Math.abs(v).toFixed(2); return `${neg ? '-' : ''}<span class="shc-amt-symbol">${primaryCurrency.symbol}</span><span class="shc-amt-num">${abs}</span>`; };
     const startOfDay = d => new Date(d.getFullYear(), d.getMonth(), d.getDate());
     const curFlagHtml = (id, w = 18, h = 13, mr = 4) => FLAGS[id] ? `<span class="shc-currency-flag" style="display:inline-block;width:${w}px;height:${h}px;vertical-align:middle;flex-shrink:0${mr ? `;margin-right:${mr}px` : ''}">${FLAGS[id]}</span>` : '';
     const primaryCurHintHtml = () => `${t('primaryCurrencyHint')}${curFlagHtml(primaryCurrency.id)}${primaryCurrency.symbol}${primaryCurrency.id}(${primaryCurrency.label})`;
@@ -485,6 +497,7 @@
         containerEl: null, searchInputEl: null,
         prevBtnEl: null, nextBtnEl: null, showAllBtnEl: null, pageInputEl: null, pageTotalEl: null,
         donutRefs: null, barRefs: null, regionCdRefs: null, giftAllowanceRefs: null, discountRefs: null, ingameRefs: null,
+        panelCurrency: {}, // 各分析面板（送礼额度/折扣统计/内购分析）当前选择的货币，缺省为主货币
     };
 
     // ==================== 核心处理 ====================
@@ -761,7 +774,9 @@
 
     function getRowPayments(row) {
         const pm = row.dataset.payment; if (!pm) return [];
-        const mk = (p, a) => ({ method: PM_LABELS[p]?.() ?? p, amount: fmtAmt(a) });
+        // 金额按该行自身货币格式化，避免非主货币行被标上主货币符号
+        const sym = CURRENCY_MAP.get(row.dataset.currency)?.symbol || primaryCurrency.symbol;
+        const mk = (p, a) => ({ method: PM_LABELS[p]?.() ?? p, amount: a < 0 ? `-${sym}${Math.abs(a).toFixed(2)}` : `${sym}${a.toFixed(2)}` });
         if (pm === 'mixed') { try { return JSON.parse(row.dataset.paymentParts || '[]').map(p => mk(p.pm, p.amt)); } catch { return []; } }
         return [mk(pm, parseFloat(row.dataset.amount) || 0)];
     }
@@ -826,7 +841,7 @@
     const _s = `<svg ${_svgA}>`;
     const _se = '</svg>';
     const ICONS = {
-        barChart: `${_s}<line x1="12" y1="20" x2="12" y2="10"/><line x1="18" y1="20" x2="18" y2="4"/><line x1="6" y1="20" x2="6" y2="16"/>${_se}`,
+        barChart: `${_s}<path d="M3 3v18h18"/><path d="M7 14l4-4 4 4 5-5"/><circle cx="18" cy="5" r="2"/>${_se}`,
         regionCD: `${_s}<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>${_se}`,
         gift: `${_s}<polyline points="20 12 20 22 4 22 4 12"/><rect x="2" y="7" width="20" height="5"/><line x1="12" y1="22" x2="12" y2="7"/><path d="M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7z"/><path d="M12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z"/>${_se}`,
         discount: `${_s}<path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/>${_se}`,
@@ -848,6 +863,7 @@
         mWallet: `${_s}<path d="M21 12V7H5a2 2 0 0 1 0-4h14v4"/><path d="M3 5v14a2 2 0 0 0 2 2h16v-5"/><path d="M18 12a2 2 0 0 0 0 4h4v-4h-4z"/>${_se}`,
         mStorefront: `${_s}<path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/>${_se}`,
         game: `${_s}<rect x="2" y="6" width="20" height="12" rx="2"/><path d="M6 12h4"/><path d="M8 10v4"/><circle cx="18" cy="12" r="2"/>${_se}`,
+        mTrend: `${_s}<polyline points="3 17 9 11 13 15 21 7"/><polyline points="15 7 21 7 21 13"/>${_se}`,
     };
     ICONS.donut = ICONS.pie;
     ICONS.mRemaining = ICONS.mCheck;
@@ -856,98 +872,116 @@
     ICONS.mClock = ICONS.regionCD;
 
     // ==================== 模态框通用 ====================
-    function createIconButton(icon, title, onClick) {
-        const btn = document.createElement('button'); btn.innerHTML = icon; btn.title = title; btn.className = 'icon-btn';
+    function createIconButton(icon, title, onClick, opts = {}) {
+        const btn = document.createElement('button');
+        btn.innerHTML = `<span class="icon-btn-icon">${icon}</span>${opts.showText ? `<span class="icon-btn-text">${escapeHtml(title)}</span>` : ''}`;
+        btn.title = title; btn.className = 'icon-btn' + (opts.showText ? ' has-text' : '');
         btn.addEventListener('click', e => { e.stopPropagation(); e.preventDefault(); onClick(); }); return btn;
     }
 
-    function createChartModal(prefix) {
-        const modal = document.createElement('div'); modal.className = `shc-modal shc-${prefix}-modal`;
-        modal.innerHTML = `<div class="shc-modal-content shc-${prefix}-content"><button class="shc-modal-close">&times;</button><div class="shc-${prefix}-chart"></div></div>`;
+    // 窗口导航配置：八大分析功能作为标签页（fullprice 为折扣统计的下钻面板，不显示标签）
+    const MODAL_NAV = [
+        { key: 'donutRefs', prefix: 'donut', icon: ICONS.donut, titleKey: 'donutTitle', tabKey: 'tabDonut', showFn: showDonutChart, color: '#3b82f6' },
+        { key: 'barRefs', prefix: 'barchart', icon: ICONS.barChart, titleKey: 'barTitle', tabKey: 'tabBar', showFn: showBarChart, color: '#8b5cf6' },
+        { key: 'regionCdRefs', prefix: 'regioncd', icon: ICONS.regionCD, titleKey: 'regionCdTitle', tabKey: 'tabRegionCD', showFn: showRegionCD, color: '#06cfbe' },
+        { key: 'giftAllowanceRefs', prefix: 'gift-allowance', icon: ICONS.gift, titleKey: 'giftTitle', tabKey: 'tabGift', showFn: showGiftAllowance, color: '#22c55e' },
+        { key: 'discountRefs', prefix: 'discount', icon: ICONS.discount, titleKey: 'discountTitle', tabKey: 'tabDiscount', showFn: showDiscount, color: '#f59e0b' },
+        { key: 'ingameRefs', prefix: 'ingame', icon: ICONS.ingame, titleKey: 'ingameTitle', tabKey: 'tabIngame', showFn: showIngameAnalysis, color: '#06b6d4' },
+        { key: 'monthlyRefs', prefix: 'monthly', icon: ICONS.mTrend, titleKey: 'monthlyTitle', tabKey: 'tabMonthly', showFn: showMonthlyTrend, color: '#f472b6' },
+        { key: 'walletRefs', prefix: 'wallet', icon: ICONS.mWallet, titleKey: 'walletTitle', tabKey: 'tabWallet', showFn: showWalletCurve, color: '#eab308' }
+    ];
+
+    // 惰性创建统一分析窗口（窗口标题栏 + 标签栏 + 面板容器，样式与许可分类器统一）
+    function ensureAnalysisShell() {
+        if (state.analysisShell) return state.analysisShell;
+        const modal = document.createElement('div');
+        modal.className = 'shc-modal shc-analysis-modal';
+        const tabsHtml = MODAL_NAV.map(nav =>
+            `<button class="shc-tab" data-prefix="${nav.prefix}" title="${escapeHtml(t(nav.titleKey))}" style="--c:${nav.color};--cb:${nav.color}26">${nav.icon}<span>${escapeHtml(t(nav.tabKey))}</span></button>`).join('');
+        modal.innerHTML = `<div id="shc-analysis-c" class="shc-mc shc-win"><div class="shc-win-header" id="shc-analysis-header"><div class="shc-win-title"><span class="shc-win-ico" id="shc-analysis-hi"></span><span id="shc-analysis-ht"></span><span class="shc-win-sub">${escapeHtml(t('analysisBtn'))}</span></div><div class="shc-win-actions"><button class="shc-win-close" id="shc-analysis-close"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></div></div><div class="shc-win-body"><div class="shc-tabs">${tabsHtml}</div><div class="shc-panels" id="shc-analysis-panels"></div></div></div>`;
         document.body.appendChild(modal);
         const hide = () => modal.classList.remove('visible');
         modal.addEventListener('click', e => { if (e.target === modal) hide(); });
-        modal.querySelector('.shc-modal-close').addEventListener('click', hide);
-        modal.addEventListener('wheel', e => e.stopPropagation(), { passive: true });
+        modal.querySelector('#shc-analysis-close').addEventListener('click', hide);
+        modal.querySelector('.shc-mc').addEventListener('wheel', e => e.stopPropagation(), { passive: true });
+        modal.querySelectorAll('.shc-tab').forEach(btn => {
+            btn.addEventListener('click', e => { e.stopPropagation(); MODAL_NAV.find(n => n.prefix === btn.dataset.prefix)?.showFn(); });
+        });
         state.disposers.push(() => modal.remove());
-        return { modal, hide, chartEl: modal.querySelector(`.shc-${prefix}-chart`) };
+        state.analysisShell = {
+            modal, hide,
+            headerEl: modal.querySelector('#shc-analysis-header'),
+            iconEl: modal.querySelector('#shc-analysis-hi'),
+            titleEl: modal.querySelector('#shc-analysis-ht'),
+            tabsEl: modal.querySelector('.shc-tabs'),
+            panelsEl: modal.querySelector('#shc-analysis-panels'),
+            meta: {}
+        };
+        return state.analysisShell;
     }
 
-    const MODAL_KEYS = ['donutRefs', 'barRefs', 'regionCdRefs', 'giftAllowanceRefs', 'discountRefs', 'ingameRefs', 'fullPriceRefs'];
-    const hideModal = key => state[key]?.modal.classList.remove('visible');
-    const hideAllModals = () => MODAL_KEYS.forEach(hideModal);
-
-    // 窗口导航配置
-    const MODAL_NAV = [
-        { key: 'donutRefs', prefix: 'donut', icon: ICONS.donut, titleKey: 'donutTitle', showFn: showDonutChart, color: 'var(--stroke-blue)' },
-        { key: 'barRefs', prefix: 'barchart', icon: ICONS.barChart, titleKey: 'barTitle', showFn: showBarChart, color: 'var(--stroke-purple)' },
-        { key: 'regionCdRefs', prefix: 'regioncd', icon: ICONS.regionCD, titleKey: 'regionCdTitle', showFn: showRegionCD, color: 'var(--stroke-blue)' },
-        { key: 'giftAllowanceRefs', prefix: 'gift-allowance', icon: ICONS.gift, titleKey: 'giftTitle', showFn: showGiftAllowance, color: 'var(--stroke-green)' },
-        { key: 'discountRefs', prefix: 'discount', icon: ICONS.discount, titleKey: 'discountTitle', showFn: showDiscount, color: 'var(--stroke-green)' },
-        { key: 'ingameRefs', prefix: 'ingame', icon: ICONS.ingame, titleKey: 'ingameTitle', showFn: showIngameAnalysis, color: 'var(--stroke-cyan)' }
-    ];
-
-    // 切换到指定窗口（无动画）
-    function switchToModal(targetKey) {
-        const targetNav = MODAL_NAV.find(n => n.key === targetKey);
-        if (!targetNav) return;
-        // 直接隐藏所有窗口（不触发过渡动画）
-        MODAL_KEYS.forEach(key => {
-            const ref = state[key];
-            if (ref) {
-                ref.modal.style.transition = 'none';
-                ref.modal.classList.remove('visible');
-            }
-        });
-        // 立即显示目标窗口
-        targetNav.showFn();
-        // 恢复过渡动画
-        requestAnimationFrame(() => {
-            MODAL_KEYS.forEach(key => {
-                const ref = state[key];
-                if (ref) ref.modal.style.transition = '';
-            });
-        });
+    // 激活面板：切换可见性、标签高亮（fullprice 归属折扣标签）与标题栏主题色
+    function activatePanel(prefix) {
+        const shell = state.analysisShell;
+        if (!shell) return;
+        // fullprice 不在 MODAL_NAV 中，重开窗口时回退到其上级"折扣统计"标签
+        state._lastPanel = prefix === 'fullprice' ? 'discount' : prefix;
+        shell.panelsEl.querySelectorAll('.shc-panel').forEach(p => p.classList.toggle('active', p.dataset.panel === prefix));
+        const tabPrefix = prefix === 'fullprice' ? 'discount' : prefix;
+        shell.tabsEl.querySelectorAll('.shc-tab').forEach(b => b.classList.toggle('active', b.dataset.prefix === tabPrefix));
+        const meta = shell.meta[prefix];
+        const nav = MODAL_NAV.find(n => n.prefix === tabPrefix);
+        const color = nav?.color || '#3b82f6';
+        shell.headerEl.style.background = `linear-gradient(135deg,${color}26,rgba(15,23,42,.8))`;
+        shell.headerEl.style.borderBottomColor = `${color}40`;
+        shell.iconEl.style.color = color;
+        if (meta) {
+            shell.iconEl.innerHTML = meta.icon;
+            shell.titleEl.innerHTML = meta.title;
+        }
+        syncHeaderCurBtn(prefix);
     }
 
-    // 生成导航栏 HTML
-    function buildNavSidebar(currentPrefix) {
-        const buttons = MODAL_NAV.map(nav => {
-            const isActive = nav.prefix === currentPrefix;
-            const style = isActive ? `background:${nav.color};border-color:transparent;box-shadow:0 2px 8px ${nav.color}40` : '';
-            return `<button class="shc-nav-btn${isActive ? ' active' : ''}" data-nav-key="${nav.key}" title="${escapeHtml(t(nav.titleKey))}" style="${style}">${nav.icon}</button>`;
-        }).join('');
-        return `<div class="shc-nav-sidebar">${buttons}</div>`;
+    const hideAllModals = () => {
+        const giftPopup = document.getElementById('shc-gift-all-popup');
+        if (giftPopup) { giftPopup.remove(); return; }
+        state.analysisShell?.hide();
+    };
+
+    // 打开分析窗口（记忆上次标签）
+    function openAnalysis() {
+        const nav = MODAL_NAV.find(n => n.prefix === state._lastPanel) || MODAL_NAV[0];
+        nav.showFn();
     }
 
-    // 通用模态框渲染器：惰性创建 → 构建 HTML → 插入 DOM → postRender → 显示
+    // 通用面板渲染器：注册元信息 → 构建 HTML → 写入面板 → postRender → 显示并激活
     function renderModal(key, prefix, iconSvg, title, buildFn, postRender) {
-        if (!state[key]) state[key] = createChartModal(prefix);
-        const { modal, chartEl } = state[key];
+        const shell = ensureAnalysisShell();
+        shell.meta[prefix] = { icon: iconSvg, title };
+        let panel = shell.panelsEl.querySelector(`.shc-${prefix}-panel`);
+        if (!panel) {
+            panel = document.createElement('div');
+            panel.className = `shc-panel shc-${prefix}-panel`; panel.dataset.panel = prefix;
+            const bodyEl = document.createElement('div'); bodyEl.className = 'shc-pbody';
+            panel.appendChild(bodyEl);
+            shell.panelsEl.appendChild(panel);
+        }
+        const bodyEl = panel.querySelector('.shc-pbody');
+        state[key] = { modal: shell.modal, chartEl: bodyEl };
         let h;
-        try { h = buildNavSidebar(prefix) + modalHeader(prefix, iconSvg, title) + buildFn(); }
-        catch (err) { console.error(`[${prefix}]`, err); h = buildNavSidebar(prefix) + modalHeader(prefix, iconSvg, title) + errorHtml(err.message); }
-        chartEl.innerHTML = h;
-        // 绑定导航按钮点击事件
-        chartEl.querySelectorAll('.shc-nav-btn').forEach(btn => {
-            btn.addEventListener('click', e => {
-                e.stopPropagation();
-                switchToModal(btn.dataset.navKey);
-            });
-        });
-        if (postRender) postRender(chartEl);
-        modal.classList.add('visible');
+        try { h = buildFn(); }
+        catch (err) { console.error(`[${prefix}]`, err); h = errorHtml(err.message); }
+        bodyEl.innerHTML = h;
+        if (postRender) postRender(bodyEl);
+        shell.modal.classList.add('visible');
+        activatePanel(prefix);
         return state[key];
     }
 
     const DONUT_CATS = CATEGORIES.filter(c => SPENDING_CATS.has(c.id));
 
-    // 模态框 header 生成器
-    const modalHeader = (pfx, icon, title) => `<div class="shc-${pfx}-header shc-mh"><div class="shc-${pfx}-header-icon shc-mhi">${icon}</div><div class="shc-${pfx}-header-title shc-mht">${title}</div></div>`;
     // 模态框脚注生成器
     const modalNote = (pfx, text) => `<div class="shc-mn shc-${pfx}-footer">${ICONS.info}<span class="shc-mnt shc-${pfx}-footer-text">${escapeHtml(text)}</span></div>`;
-    // 模态框标题（含货币标注）
-    const modalTitle = key => `${t(key)} (${curFlagHtml(primaryCurrency.id, 24, 18, 4)}${primaryCurrency.symbol}${primaryCurrency.id})`;
 
     const buildDonutData = (cats, getter) => {
         const data = cats.map(c => ({ ...c, val: getter(c.id) || 0 }));
@@ -965,41 +999,53 @@
         return `<svg class="shc-donut-svg" viewBox="0 0 ${S} ${S}">${segs}<text x="50%" y="45%" text-anchor="middle" fill="#f8fafc" font-size="28" font-weight="bold">${escapeHtml(total)}</text><text x="50%" y="58%" text-anchor="middle" fill="#94a3b8" font-size="12">${escapeHtml(centerLabel)}</text></svg>`;
     }
 
-    // ==================== 环形图 ====================
+    // ==================== 环形图（全货币分类占比） ====================
+    // 分类颜色图例内嵌到窗口标题栏
+    const donutTitleHtml = () => `${escapeHtml(t('donutTitle'))}<span class="shc-title-legend">${DONUT_CATS.map(d => `<span class="shc-title-legend-item"><i style="background:${d.color}"></i>${escapeHtml(t(d.id))}</span>`).join('')}</span>`;
+
     function showDonutChart() {
-        const cnt = buildDonutData(DONUT_CATS, id => state.counts.get(id));
-        const amt = buildDonutData(DONUT_CATS, id => state.amounts.get(id));
-        const sym = primaryCurrency.symbol;
-        renderModal('donutRefs', 'donut', ICONS.pie, modalTitle('donutTitle'), () => {
-            let h = `<div class="shc-donut-pair-cards">
-                <div class="shc-donut-pair-card shc-card">
+        renderModal('donutRefs', 'donut', ICONS.pie, donutTitleHtml(), () => {
+            // 收集有消费分类数据的货币：主货币（全局统计）排最前，其余按消费金额降序
+            const spendSum = m => DONUT_CATS.reduce((s, c) => s + ((m && m.get(c.id)) || 0), 0);
+            const curList = [];
+            if (spendSum(state.counts) > 0 || spendSum(state.amounts) > 0) curList.push(primaryCurrency);
+            const otherIds = new Set([...state.countsByCurrency.keys(), ...state.amountsByCurrency.keys()]);
+            curList.push(...[...otherIds].filter(id => id !== primaryCurrency.id)
+                .map(id => CURRENCY_MAP.get(id)).filter(Boolean)
+                .filter(cur => spendSum(state.countsByCurrency.get(cur.id)) > 0 || spendSum(state.amountsByCurrency.get(cur.id)) > 0)
+                .sort((a, b) => spendSum(state.amountsByCurrency.get(b.id)) - spendSum(state.amountsByCurrency.get(a.id))));
+
+            if (!curList.length) return noDataPanel();
+
+            const cardsHtml = curList.map(cur => {
+                const isPrimary = cur === primaryCurrency;
+                const cntMap = isPrimary ? state.counts : state.countsByCurrency.get(cur.id);
+                const amtMap = isPrimary ? state.amounts : state.amountsByCurrency.get(cur.id);
+                const cnt = buildDonutData(DONUT_CATS, id => cntMap.get(id));
+                const amt = buildDonutData(DONUT_CATS, id => amtMap.get(id));
+                return `<div class="shc-donut-currency-card">
+                    <div class="shc-donut-currency-head">${curFlagHtml(cur.id, 22, 16, 6)}<span class="shc-donut-currency-name">${escapeHtml(cur.label)}</span><span class="shc-donut-currency-code">${escapeHtml(cur.id)}</span></div>
                     <div class="shc-donut-subtitle">${escapeHtml(t('countLabel'))}</div>
-                    ${buildDonutSvg(cnt.pdata, cnt.total, t('totalLabel'))}
-                </div>
-                <div class="shc-donut-pair-card shc-card">
-                    <div class="shc-donut-subtitle">${escapeHtml(t('amountLabel'))}（${escapeHtml(sym)}）</div>
-                    ${buildDonutSvg(amt.pdata, `${sym}${amt.total.toFixed(0)}`, t('totalLabel'))}
-                </div>
-            </div>`;
-            const legendData = DONUT_CATS.filter(c => state.counts.get(c.id) > 0 || state.amounts.get(c.id) > 0);
-            const legendHtml = legendData.map(d => `<div class="legend-item"><div class="legend-color" style="background:${d.color}"></div><div class="legend-label">${escapeHtml(t(d.id))}</div><div class="legend-value">${state.counts.get(d.id) || 0}${t('countUnit')}  ${escapeHtml(fmtAmt(state.amounts.get(d.id) || 0))}</div></div>`).join('');
-            h += `<div class="shc-donut-legend-card shc-card"><div class="shc-legend">${legendHtml}</div></div>`;
-            h += modalNote('donut', t('currencyNote').replace('{currency}', primaryCurrency.label));
-            return h;
+                    ${buildDonutSvg(cnt.pdata, String(cnt.total), t('totalLabel'))}
+                    <div class="shc-donut-subtitle">${escapeHtml(t('amountLabel'))}（${escapeHtml(cur.symbol)}）</div>
+                    ${buildDonutSvg(amt.pdata, `${cur.symbol}${amt.total.toFixed(0)}`, t('totalLabel'))}
+                </div>`;
+            }).join('');
+            return `<div class="shc-currency-panel"><div class="shc-donut-currency-grid">${cardsHtml}</div>${modalNote('donut', t('donutNote'))}</div>`;
         });
     }
 
     // ==================== 柱状图 ====================
-    function buildBarSvg(data, title, maxVal) {
+    function buildBarSvg(data, title, maxVal, symbol) {
         const W = 400, H = 380, P = { t: 30, r: 20, b: 40, l: 70 };
         const aw = W - P.l - P.r, ah = H - P.t - P.b;
         const bw = Math.min(50, aw / data.length * 0.6), gap = aw / data.length - bw;
         const max = maxVal || Math.max(...data.map(d => d.amount), 1);
+        const sym = symbol || primaryCurrency.symbol;
         const bars = data.map((d, i) => {
             const bh = (d.amount / max) * ah, x = P.l + i * (bw + gap) + gap / 2, y = P.t + ah - bh;
-            return `<rect x="${x}" y="${y}" width="${bw}" height="${bh}" fill="${d.color}" rx="4" ry="4" style="transition:all .3s ease"/><text x="${x + bw/2}" y="${y - 8}" text-anchor="middle" fill="#f8fafc" font-size="11" font-weight="bold">${escapeHtml(fmtAmt(d.amount))}</text><text x="${x + bw/2}" y="${P.t + ah + 18}" text-anchor="middle" fill="#94a3b8" font-size="12">${escapeHtml(t(d.id))}</text>`;
+            return `<rect x="${x}" y="${y}" width="${bw}" height="${bh}" fill="${d.color}" rx="4" ry="4" style="transition:all .3s ease"/><text x="${x + bw/2}" y="${y - 8}" text-anchor="middle" fill="#f8fafc" font-size="11" font-weight="bold">${escapeHtml(sym + d.amount.toFixed(2))}</text><text x="${x + bw/2}" y="${P.t + ah + 18}" text-anchor="middle" fill="#94a3b8" font-size="12">${escapeHtml(t(d.id))}</text>`;
         }).join('');
-        const sym = primaryCurrency.symbol;
         const yAxis = Array.from({ length: 6 }, (_, i) => {
             const v = (max / 5) * i, y = P.t + ah - (ah / 5) * i;
             return `<text x="${P.l - 8}" y="${y + 4}" text-anchor="end" fill="#64748b" font-size="10">${escapeHtml(sym)}${v.toFixed(0)}</text>${i > 0 && i < 5 ? `<line x1="${P.l}" y1="${y}" x2="${W - P.r}" y2="${y}" stroke="#334155" stroke-width="1" stroke-dasharray="4,4"/>` : ''}`;
@@ -1007,21 +1053,150 @@
         return `<div class="shc-donut-subtitle">${escapeHtml(title)}</div><svg class="shc-barchart-svg" viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet">${yAxis}${bars}</svg>`;
     }
 
+    // ==================== 柱状图（单货币收支，标题货币徽章切换） ====================
     function showBarChart() {
+        const cur = panelCurrency('barchart');
         const EXPEND_IDS = ['store', 'ingame', 'gift', 'market_buy'], INCOME_IDS = ['market_sell', 'convert', 'refund'];
-        const catAmounts = ids => ids.map(id => { const c = CATEGORIES.find(x => x.id === id); return { ...c, amount: state.amounts.get(id) || 0 }; }).filter(d => d.amount > 0);
-        const expendData = catAmounts(EXPEND_IDS), incomeData = catAmounts(INCOME_IDS);
-        const allMax = Math.max(...[...expendData, ...incomeData].map(d => d.amount), 1);
-        renderModal('barRefs', 'barchart', ICONS.mBarChart, modalTitle('barTitle'), () => {
-            const barPair = (data, title) => data.length ? buildBarSvg(data, title, allMax) : '';
-            let h = `<div class="shc-barchart-pair-cards">
-                <div class="shc-barchart-pair-card">${barPair(expendData, t('expendLabel'))}</div>
-                <div class="shc-barchart-pair-card">${barPair(incomeData, t('incomeLabel'))}</div>
+        renderModal('barRefs', 'barchart', ICONS.mBarChart, `${t('barTitle')} ${titleCurChip(cur)}`, () => {
+            const amtMap = panelAmounts(cur);
+            const catAmounts = ids => ids.map(id => { const c = CATEGORIES.find(x => x.id === id); return { ...c, amount: amtMap.get(id) || 0 }; }).filter(d => d.amount > 0);
+            const expendData = catAmounts(EXPEND_IDS), incomeData = catAmounts(INCOME_IDS);
+            if (!expendData.length && !incomeData.length) return noDataPanel();
+            const allMax = Math.max(...[...expendData, ...incomeData].map(d => d.amount), 1);
+            const sideCard = (data, title) => `<div class="shc-card shc-barchart-side"><div class="shc-barchart-side-body">${data.length
+                ? buildBarSvg(data, title, allMax, cur.symbol)
+                : `<div class="shc-donut-subtitle">${escapeHtml(title)}</div><div class="shc-barchart-empty">${escapeHtml(t('noChartData'))}</div>`}</div></div>`;
+            return `<div class="shc-currency-panel shc-barchart-fill"><div class="shc-barchart-two-cards">
+                ${sideCard(expendData, t('expendLabel'))}
+                ${sideCard(incomeData, t('incomeLabel'))}
+            </div>${modalNote('barchart', t('donutNote'))}</div>`;
+        });
+    }
+
+    // ==================== 月度消费趋势 / 钱包余额曲线 ====================
+    const MONTH_EXPEND = new Set(['store', 'ingame', 'gift', 'market_buy']), MONTH_INCOME = new Set(['market_sell', 'convert', 'refund']);
+    const ALL_CATS = ['store', 'ingame', 'gift', 'market_buy', 'market_sell', 'convert', 'refund'];
+
+    const statCard = (iconCls, icon, label, value, accent = false) =>
+        `<div class="shc-ingame-summary-card shc-card"><div class="shc-ingame-summary-icon ${iconCls}">${icon}</div><div class="shc-ingame-summary-text"><span class="shc-ingame-summary-label">${escapeHtml(label)}</span><span class="shc-ingame-summary-value${accent ? ' accent' : ''}">${escapeHtml(value)}</span></div></div>`;
+
+    const noDataPanel = () => `<div style="display:flex;align-items:center;justify-content:center;min-height:300px;color:#64748b;font-size:14px">${escapeHtml(t('noChartData'))}</div>`;
+
+    // 折线图构建器：series = [{ name, color, values, fill }]；minVal 用于支持负值（如钱包透支）
+    function buildLineSvg(series, labels, maxVal, symbol, minVal = 0) {
+        const W = 920, H = 330, P = { t: 26, r: 24, b: 46, l: 86 };
+        const aw = W - P.l - P.r, ah = H - P.t - P.b;
+        const n = labels.length;
+        const lo = Math.min(0, minVal), hi = Math.max(maxVal || 1, lo + 1), span = hi - lo;
+        const x = i => n > 1 ? P.l + aw * i / (n - 1) : P.l + aw / 2;
+        const y = v => P.t + ah - ((v - lo) / span) * ah;
+        let g = '';
+        for (let i = 0; i <= 5; i++) {
+            const v = lo + span / 5 * i, yy = P.t + ah - (ah / 5) * i;
+            g += `<text x="${P.l - 8}" y="${yy + 4}" text-anchor="end" fill="#64748b" font-size="10">${escapeHtml(symbol)}${v.toFixed(0)}</text>`;
+            if (i > 0) g += `<line x1="${P.l}" y1="${yy}" x2="${W - P.r}" y2="${yy}" stroke="#334155" stroke-width="1" stroke-dasharray="4,4"/>`;
+        }
+        const step = Math.ceil(n / 12);
+        labels.forEach((lb, i) => { if (i % step === 0 || i === n - 1) g += `<text x="${x(i).toFixed(1)}" y="${P.t + ah + 18}" text-anchor="middle" fill="#64748b" font-size="10">${escapeHtml(lb)}</text>`; });
+        for (const s of series) {
+            const pts = s.values.map((v, i) => `${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(' ');
+            if (s.fill) g += `<polygon points="${P.l},${P.t + ah} ${pts} ${x(n - 1).toFixed(1)},${P.t + ah}" fill="${s.color}" opacity=".12"/>`;
+            g += `<polyline points="${pts}" fill="none" stroke="${s.color}" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>`;
+        }
+        return `<svg class="shc-line-svg" viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet">${g}</svg>`;
+    }
+
+    // 月度消费趋势：按自然月汇总支出/收入，双折线
+    function showMonthlyTrend() {
+        const cur = panelCurrency('monthly');
+        const fmtAmt = v => v < 0 ? `-${cur.symbol}${Math.abs(v).toFixed(2)}` : `${cur.symbol}${v.toFixed(2)}`;
+        const monthMap = new Map();
+        for (const row of getDataRows()) {
+            if (row.dataset.currency !== cur.id) continue;
+            const isExp = MONTH_EXPEND.has(row.dataset.category), isInc = MONTH_INCOME.has(row.dataset.category);
+            if (!isExp && !isInc) continue;
+            const d = parseDateStr($dateText(row)); if (!d) continue;
+            const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+            let m = monthMap.get(key); if (!m) { m = { spend: 0, income: 0 }; monthMap.set(key, m); }
+            if (isExp) m.spend += parseFloat(row.dataset.amount) || 0; else m.income += parseFloat(row.dataset.amount) || 0;
+        }
+        // 补齐中间空缺月份，避免折线跳过空月产生误导
+        let months = [...monthMap.keys()].sort();
+        if (months.length > 1) {
+            let [y, m] = months[0].split('-').map(Number);
+            const [ey, em] = months[months.length - 1].split('-').map(Number);
+            const filled = [];
+            while (y < ey || (y === ey && m <= em)) {
+                const key = `${y}-${String(m).padStart(2, '0')}`;
+                filled.push(key); if (!monthMap.has(key)) monthMap.set(key, { spend: 0, income: 0 });
+                if (++m > 12) { m = 1; y++; }
+            }
+            months = filled;
+        }
+        renderModal('monthlyRefs', 'monthly', ICONS.mTrend, `${t('monthlyTitle')} ${titleCurChip(cur)}`, () => {
+            if (!months.length) return noDataPanel();
+            const spends = months.map(k => monthMap.get(k).spend), incomes = months.map(k => monthMap.get(k).income);
+            const totalSpend = spends.reduce((s, v) => s + v, 0), totalIncome = incomes.reduce((s, v) => s + v, 0);
+            const peakIdx = spends.indexOf(Math.max(...spends));
+            const activeMonths = spends.filter(v => v > 0).length;
+            const svg = buildLineSvg([
+                { name: t('monthlySpend'), color: '#f87171', values: spends },
+                { name: t('monthlyIncome'), color: '#22c55e', values: incomes }
+            ], months, Math.max(...spends, ...incomes, 1), cur.symbol);
+            return `<div class="shc-currency-panel shc-stat-fill">
+                <div class="shc-ingame-summary">
+                    ${statCard('blue', ICONS.mTrend, t('monthlyAvg'), fmtAmt(totalSpend / months.length))}
+                    ${statCard('purple', ICONS.mCalendar, t('monthlyPeak'), `${months[peakIdx]} · ${fmtAmt(spends[peakIdx])}`)}
+                    ${statCard('cyan', ICONS.mCheck, t('monthlyActive'), `${activeMonths} / ${months.length}`)}
+                </div>
+                <div class="shc-card shc-chart-card">
+                    <div class="shc-line-legend">
+                        <span class="shc-line-legend-item"><i style="background:#f87171"></i>${escapeHtml(t('monthlySpend'))} ${escapeHtml(fmtAmt(totalSpend))}</span>
+                        <span class="shc-line-legend-item"><i style="background:#22c55e"></i>${escapeHtml(t('monthlyIncome'))} ${escapeHtml(fmtAmt(totalIncome))}</span>
+                    </div>
+                    ${svg}
+                </div>
+                ${modalNote('monthly', t('monthlyNote'))}
             </div>`;
-            h += modalNote('barchart', t('currencyNote').replace('{currency}', primaryCurrency.label));
-            return h;
-        }, chartEl => {
-            chartEl.querySelector('[data-action="fullprice"]')?.addEventListener('click', () => showFullPriceDetail());
+        });
+    }
+
+    // 钱包余额曲线：按已加载记录的钱包余额列绘制
+    function showWalletCurve() {
+        const cur = panelCurrency('wallet');
+        const fmtAmt = v => v < 0 ? `-${cur.symbol}${Math.abs(v).toFixed(2)}` : `${cur.symbol}${v.toFixed(2)}`;
+        const pts = [];
+        for (const row of getDataRows()) {
+            if (row.dataset.currency !== cur.id) continue;
+            const balText = row.querySelector('td.wht_wallet_balance')?.textContent?.trim();
+            if (!balText || balText === '--') continue;
+            const d = parseDateStr($dateText(row)); if (!d) continue;
+            pts.push({ t: d.getTime(), label: fmtDate(d), bal: parseNumber(balText, cur.dc) });
+        }
+        // 页面行序为新→旧，先反转为时间正序再做稳定排序
+        pts.reverse(); pts.sort((a, b) => a.t - b.t);
+        renderModal('walletRefs', 'wallet', ICONS.mWallet, `${t('walletTitle')} ${titleCurChip(cur)}`, () => {
+            if (!pts.length) return noDataPanel();
+            const bals = pts.map(p => p.bal);
+            // 循环求极值，避免 Math.max(...arr) 在数万条记录时超出参数展开上限
+            let maxBal = -Infinity, minBal = Infinity;
+            for (const b of bals) { if (b > maxBal) maxBal = b; if (b < minBal) minBal = b; }
+            const svg = buildLineSvg([{ name: t('walletBalanceLabel'), color: '#3b82f6', values: bals, fill: true }], pts.map(p => p.label), Math.max(maxBal, 1), cur.symbol, minBal);
+            return `<div class="shc-currency-panel shc-stat-fill">
+                <div class="shc-ingame-summary">
+                    ${statCard('blue', ICONS.mWallet, t('walletCurrent'), fmtAmt(bals[bals.length - 1]))}
+                    ${statCard('green', ICONS.mCheck, t('walletPeak'), fmtAmt(maxBal))}
+                    ${statCard('red', ICONS.mCoins, t('walletLow'), fmtAmt(minBal))}
+                    ${statCard('cyan', ICONS.mDocList, t('walletRecords'), String(pts.length))}
+                </div>
+                <div class="shc-card shc-chart-card">
+                    <div class="shc-line-legend">
+                        <span class="shc-line-legend-item"><i style="background:#3b82f6"></i>${escapeHtml(t('walletBalanceLabel'))} ${escapeHtml(fmtAmt(bals[bals.length - 1]))}</span>
+                    </div>
+                    ${svg}
+                </div>
+                ${modalNote('wallet', t('walletNote'))}
+            </div>`;
         });
     }
 
@@ -1232,7 +1407,7 @@
                 const tr = chartEl.querySelector(`tr[data-cd-group="${gi}"]`);
                 if (tr) tr.addEventListener('click', () => {
                     const targetRow = cdGroups[gi].items[0].row; if (!targetRow?.scrollIntoView) return;
-                    hideModal('regionCdRefs');
+                    hideAllModals();
                     if (!state.showAllMode) { state.showAllMode = true; state.currentPage = 1; }
                     state.subFilter = null; state.currentFilter = 'all'; state.searchQuery = ''; applyView();
                     requestAnimationFrame(() => requestAnimationFrame(() => {
@@ -1273,9 +1448,12 @@
         `<div class="shc-gift-row"><div class="shc-gift-row-icon ${colorCls}">${iconSvg}</div><div class="shc-gift-row-info"><div class="shc-gift-row-label">${escapeHtml(label)}</div><div class="shc-gift-row-desc">${escapeHtml(desc)}</div></div><div class="shc-gift-row-amount ${amountCls}">${escapeHtml(amount)}</div></div>`;
 
     function showGiftAllowance() {
+        const cur = panelCurrency('gift-allowance');
+        const amtMap = panelAmounts(cur);
+        const fmtAmt = v => v < 0 ? `-${cur.symbol}${Math.abs(v).toFixed(2)}` : `${cur.symbol}${v.toFixed(2)}`;
         const giftLegendRow = (color, label, value, pct, dotId = '', labelId = '', valueId = '') =>
             `<div class="shc-gift-legend-row"><i class="shc-gift-legend-dot"${dotId ? ` id="${dotId}"` : ''} style="background:${color}"></i><span class="shc-gift-legend-label"${labelId ? ` id="${labelId}"` : ''}>${escapeHtml(label)}</span><span class="shc-gift-legend-value"${valueId ? ` id="${valueId}"` : ''}>${escapeHtml(value)} (${escapeHtml(pct)}%)</span></div>`;
-        const storeAmt = state.amounts.get('store') || 0, refundAmt = state.amounts.get('refund') || 0, giftAmt = state.amounts.get('gift') || 0, remaining = storeAmt - refundAmt - giftAmt;
+        const storeAmt = amtMap.get('store') || 0, refundAmt = amtMap.get('refund') || 0, giftAmt = amtMap.get('gift') || 0, remaining = storeAmt - refundAmt - giftAmt;
         const allowAmt = storeAmt - refundAmt;
         const total = storeAmt || 1;
         const pct = v => (v / total * 100).toFixed(1);
@@ -1292,13 +1470,14 @@
         const thresholdPct = giftAmt > 0 ? (thresholdAmt / giftAmt * 100) : 0;
         const hasNegZone = allowAmt < giftAmt; // 是否存在负值区域
 
-        renderModal('giftAllowanceRefs', 'gift-allowance', ICONS.mGiftSent, modalTitle('giftTitle'), () => {
+        renderModal('giftAllowanceRefs', 'gift-allowance', ICONS.mGiftSent, `${t('giftTitle')} ${titleCurChip(cur)}`, () => {
             let h = `<div class="shc-gift-body"><div class="shc-gift-left"><div class="shc-gift-rows-card shc-card">
-                <div class="shc-gift-rows-card-header">${ICONS.mDocListDot}<span class="shc-gift-rows-card-header-title">${escapeHtml(t('giftAllowance'))}</span></div>`;
+                <div class="shc-gift-rows-card-header">${ICONS.mDocListDot}<span class="shc-gift-rows-card-header-title">${escapeHtml(t('giftAllowance'))}</span><button class="shc-gift-show-all-btn" id="gift-show-all-btn">${ICONS.mDocList}<span>${escapeHtml(t('giftShowAll'))}</span></button></div>`;
             h += giftRow(ICONS.mShopping, 'blue', t('giftStore'), t('giftStoreDesc'), fmtAmt(storeAmt), '');
             h += giftRow(ICONS.mRefund, 'red', t('giftRefund'), t('giftRefundDesc'), fmtNeg(-refundAmt), 'red');
             h += giftRow(ICONS.mAllowance, 'purple', t('giftAllowance'), t('giftAllowanceDesc'), fmtAmt(allowAmt), '');
-            h += giftRow(ICONS.mGiftSent, 'orange', t('giftSent'), t('giftSentDesc'), fmtNeg(-giftAmt), 'orange');
+            h += giftRow(ICONS.mGiftSent, 'pink', t('giftSent'), t('giftSentDesc'), fmtNeg(-giftAmt), 'pink');
+            h += `<div class="shc-gift-row"><div class="shc-gift-row-icon purple">${ICONS.mClock}</div><div class="shc-gift-row-info"><div class="shc-gift-row-label">${escapeHtml(t('giftSentLegend'))}</div><div class="shc-gift-row-desc">${escapeHtml(t('giftSent30Desc'))}</div></div><div class="shc-gift-row-amount purple" id="gift-sent30-amount">${escapeHtml(fmtNeg(-giftAmt))}</div></div>`;
             h += `<div class="shc-gift-row-highlight" id="gift-remaining-row" style="background:${isNeg ? 'rgba(239,68,68,.08)' : 'rgba(34,197,94,.08)'};border-left-color:${remainColor}"><div class="shc-gift-row" style="border:none;padding:0"><div class="shc-gift-row-icon ${remainCls}">${ICONS.mRemaining}</div><div class="shc-gift-row-info"><div class="shc-gift-row-label" id="gift-remaining-label">${escapeHtml(t(isNeg ? 'giftOverdraft' : 'giftRemaining'))}</div><div class="shc-gift-row-desc" id="gift-remaining-desc">${escapeHtml(t(isNeg ? 'giftOverdraftDesc' : 'giftRemainingDesc'))}</div></div><div class="shc-gift-row-amount ${remainCls}" id="gift-remaining-amount">${escapeHtml(fmtAmt(remaining))}</div></div></div>`;
             h += `</div></div>`;
             h += `<div class="shc-gift-right"><div class="shc-gift-donut-card shc-card">
@@ -1306,7 +1485,7 @@
                 <div class="shc-gift-donut-wrap">${donutSvg}<div class="shc-gift-donut-center"><div class="shc-gift-donut-center-label" id="gift-donut-label">${escapeHtml(t(isNeg ? 'giftOverdraft' : 'giftRemaining'))}</div><div class="shc-gift-donut-center-amount" id="gift-donut-remaining" style="color:${remainColor}">${escapeHtml(fmtAmt(remaining))}</div><div class="shc-gift-donut-center-pct" id="gift-donut-pct">${escapeHtml(remainPct)}%</div></div></div>
                 <div class="shc-gift-legend-list">
                     ${giftLegendRow(remainColor, t(isNeg ? 'giftOverdraft' : 'giftRemaining'), fmtAmt(remaining), remainPct, 'gift-legend-dot', 'gift-legend-label', 'gift-legend-remaining')}
-                    ${giftLegendRow('#8b5cf6', t('giftSentLegend'), fmtAmt(giftAmt), giftPct, '', '', 'gift-legend-sent')}
+                    ${giftLegendRow('#8b5cf6', t('giftSentLegend'), fmtAmt(giftAmt), giftPct, '', '', 'gift-legend-sent30')}
                     ${giftLegendRow('#ef4444', t('giftRefund'), fmtAmt(refundAmt), refundPct)}
                 </div>
                 <div class="shc-gift-slider-wrap">
@@ -1320,15 +1499,18 @@
             return h;
         }, chartEl => {
             const $ = id => chartEl.querySelector('#' + id);
+            const showAllBtn = $('gift-show-all-btn');
+            if (showAllBtn) showAllBtn.addEventListener('click', e => { e.stopPropagation(); showAllCurrenciesGiftPopup(); });
             const slider = $('gift-slider'), sliderVal = $('gift-slider-val');
             const donutSvgEl = $('gift-donut-svg'), donutRemaining = $('gift-donut-remaining'), donutPct = $('gift-donut-pct');
-            const legendRemaining = $('gift-legend-remaining'), legendSent = $('gift-legend-sent'), remainingAmount = $('gift-remaining-amount');
+            const legendRemaining = $('gift-legend-remaining'), legendSent30 = $('gift-legend-sent30'), remainingAmount = $('gift-remaining-amount'), sent30Amount = $('gift-sent30-amount');
             const legendDot = $('gift-legend-dot'), highlightRow = $('gift-remaining-row');
             const remainIcon = highlightRow?.querySelector('.shc-gift-row-icon');
             const remainLabel = $('gift-remaining-label'), remainDesc = $('gift-remaining-desc');
             const donutLabel = $('gift-donut-label'), legendLabel = $('gift-legend-label');
             // 设置滑块初始位置到分界点（如果存在负值区域）
-            const thresholdPct = parseFloat(slider.dataset.threshold) || 100;
+            const rawThreshold = parseFloat(slider.dataset.threshold);
+            const thresholdPct = Number.isFinite(rawThreshold) ? rawThreshold : 100; // 0 是合法分界点（额度恰好为0），不能被 || 100 吞掉
             const initPct = hasNegZone ? thresholdPct : 100;
             const updateGradient = curPct => {
                 const t = thresholdPct;
@@ -1345,7 +1527,8 @@
                 donutRemaining.textContent = fmtAmt(rAmt);
                 donutPct.textContent = rPct + '%';
                 legendRemaining.textContent = fmtAmt(rAmt) + ' (' + rPct + '%)';
-                legendSent.textContent = fmtAmt(gAmt) + ' (' + gPct + '%)';
+                if (legendSent30) legendSent30.textContent = fmtAmt(gAmt) + ' (' + gPct + '%)';
+                if (sent30Amount) sent30Amount.textContent = fmtNeg(-gAmt);
                 remainingAmount.textContent = fmtAmt(rAmt);
                 donutSvgEl.innerHTML = buildGiftDonutPaths(rPct, gPct, refundPct);
                 updateColors(rAmt < 0);
@@ -1380,13 +1563,174 @@
         });
     }
 
+    // ==================== 全部货币送礼额度弹窗 ====================
+    function showAllCurrenciesGiftPopup() {
+        // 移除已有弹窗
+        document.getElementById('shc-gift-all-popup')?.remove();
+        // 收集所有货币数据
+        const rows = [];
+        // 主货币
+        const pStore = state.amounts.get('store') || 0;
+        const pRefund = state.amounts.get('refund') || 0;
+        const pGift = state.amounts.get('gift') || 0;
+        if (pStore > 0 || pRefund > 0 || pGift > 0) {
+            rows.push({ id: primaryCurrency.id, symbol: primaryCurrency.symbol, label: primaryCurrency.label, store: pStore, refund: pRefund, gift: pGift, isPrimary: true });
+        }
+        // 其他货币
+        for (const [curId, amtMap] of state.amountsByCurrency) {
+            const cur = CURRENCY_MAP.get(curId); if (!cur) continue;
+            const store = amtMap.get('store') || 0;
+            const refund = amtMap.get('refund') || 0;
+            const gift = amtMap.get('gift') || 0;
+            if (store > 0 || refund > 0 || gift > 0) {
+                rows.push({ id: curId, symbol: cur.symbol, label: cur.label, store, refund, gift, isPrimary: false });
+            }
+        }
+        // 按商店直购金额降序排列
+        rows.sort((a, b) => b.store - a.store);
+        // 格式化金额（使用各自货币符号）
+        const fmtCur = (v, sym) => v < 0 ? `-${sym}${Math.abs(v).toFixed(2)}` : `${sym}${v.toFixed(2)}`;
+        // 构建表格行
+        const tableRows = rows.map(r => {
+            const allowance = r.store - r.refund - r.gift;
+            const allowCls = allowance < 0 ? 'red' : 'green';
+            return `<tr>
+            <td class="shc-gift-all-cur">${curFlagHtml(r.id, 22, 16, 6)}<span class="shc-gift-all-cur-id">${escapeHtml(r.id)}</span><span class="shc-gift-all-cur-label">${escapeHtml(r.label)}</span></td>
+            <td class="shc-gift-all-amt">${escapeHtml(fmtCur(r.store, r.symbol))}</td>
+            <td class="shc-gift-all-amt red">${escapeHtml(fmtCur(r.refund, r.symbol))}</td>
+            <td class="shc-gift-all-amt orange">${escapeHtml(fmtCur(r.gift, r.symbol))}</td>
+            <td class="shc-gift-all-amt ${allowCls}">${escapeHtml(fmtCur(allowance, r.symbol))}</td>
+        </tr>`;
+        }).join('');
+        // 创建弹窗
+        const popup = document.createElement('div');
+        popup.id = 'shc-gift-all-popup';
+        popup.className = 'shc-gift-all-overlay';
+        popup.innerHTML = `<div class="shc-gift-all-content">
+            <button class="shc-modal-close" id="shc-gift-all-close">&times;</button>
+            <div class="shc-gift-all-header">${ICONS.mDocList}<span class="shc-gift-all-title">${escapeHtml(t('giftShowAllTitle'))}</span></div>
+            <div class="shc-gift-all-table-wrap">
+                <table class="shc-gift-all-table">
+                    <thead><tr>
+                        <th>${escapeHtml(t('giftAllCurrency'))}</th>
+                        <th>${escapeHtml(t('giftStore'))}</th>
+                        <th>${escapeHtml(t('giftRefund'))}</th>
+                        <th>${escapeHtml(t('giftAllSent'))}</th>
+                        <th>${escapeHtml(t('giftAllAllowance'))}</th>
+                    </tr></thead>
+                    <tbody>${tableRows || `<tr><td colspan="5" class="shc-gift-all-empty">${escapeHtml(t('noData'))}</td></tr>`}${tableRows ? `<tr class="shc-gift-all-summary-row" id="shc-gift-all-summary"><td colspan="5" class="shc-gift-all-loading">${escapeHtml(t('giftAllLoading'))}</td></tr>` : ''}</tbody>
+                </table>
+            </div>
+            <div class="shc-gift-all-bar-card" id="shc-gift-all-progress"></div>
+            <div class="shc-mn shc-gift-all-footer">${ICONS.info}<span class="shc-mnt">${escapeHtml(t('giftShowAllTip'))} ${escapeHtml(t('giftAllSummaryTip'))}</span></div>
+        </div>`;
+        document.body.appendChild(popup);
+        // 绑定关闭事件（不关闭送礼额度窗口）
+        const escHandler = e => { if (e.key === 'Escape') { e.stopPropagation(); close(); } };
+        const close = () => { popup.remove(); document.removeEventListener('keydown', escHandler, true); };
+        popup.querySelector('#shc-gift-all-close').addEventListener('click', close);
+        popup.addEventListener('click', e => { if (e.target === popup) close(); });
+        popup.addEventListener('wheel', e => e.stopPropagation(), { passive: true });
+        document.addEventListener('keydown', escHandler, true);
+        // 显示动画
+        requestAnimationFrame(() => popup.classList.add('visible'));
+        // 异步获取汇率并填充汇总行（汇总货币跟随本面板标题处选择的货币）
+        if (tableRows) fetchRatesAndFillSummary(rows, popup, panelCurrency('gift-allowance'));
+    }
+
+    // Steam货币代码 → 汇率API货币代码映射（小写）
+    const CUR_API_MAP = { MexP: 'mxn', COL: 'cop' };
+
+    async function fetchRatesAndFillSummary(rows, popup, sumCur) {
+        const summaryRow = popup.querySelector('#shc-gift-all-summary');
+        if (!summaryRow) return;
+        try {
+            // fawazahmed0/currency-api 免费免密钥，支持170+货币，每日更新
+            // 使用 GM_xmlhttpRequest 绕过 Steam 页面 CSP 限制
+            // jsdelivr @latest 别名偶发 502，依次尝试：@latest → 昨日日期固定版 → pages.dev 官方备用源
+            const yesterday = new Date(Date.now() - MS_PER_DAY).toISOString().slice(0, 10);
+            const RATE_URLS = [
+                'https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@latest/v1/currencies/usd.json',
+                `https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@${yesterday}/v1/currencies/usd.json`,
+                'https://latest.currency-api.pages.dev/v1/currencies/usd.json'
+            ];
+            const fetchJson = url => new Promise((resolve, reject) => {
+                GM_xmlhttpRequest({
+                    method: 'GET',
+                    url,
+                    timeout: 10000,
+                    onload: r => { try { resolve(JSON.parse(r.responseText)); } catch (e) { reject(e); } },
+                    onerror: () => reject(new Error('Network error')),
+                    ontimeout: () => reject(new Error('Timeout'))
+                });
+            });
+            let data = null, lastErr = null;
+            for (const url of RATE_URLS) {
+                try { data = await fetchJson(url); break; } catch (err) { lastErr = err; }
+            }
+            if (!data) throw lastErr || new Error('Network error');
+            const rates = data.usd || {};
+            // 汇总货币的 USD 汇率（跟随送礼额度面板标题处选择的货币）
+            const apiSum = CUR_API_MAP[sumCur.id] || sumCur.id.toLowerCase();
+            const sumPerUsd = rates[apiSum];
+            if (!sumPerUsd) throw new Error('Currency not supported: ' + sumCur.id);
+            // 逐币折算为汇总货币
+            let totalStore = 0, totalRefund = 0, totalGift = 0, totalAllow = 0;
+            let hasUnsupported = false;
+            for (const r of rows) {
+                const apiId = CUR_API_MAP[r.id] || r.id.toLowerCase();
+                const rPerUsd = rates[apiId];
+                if (!rPerUsd) { hasUnsupported = true; continue; }
+                // 折算：amount_sum = amount_other × (sumPerUsd / rPerUsd)
+                const conv = sumPerUsd / rPerUsd;
+                totalStore += r.store * conv;
+                totalRefund += r.refund * conv;
+                totalGift += r.gift * conv;
+                totalAllow += (r.store - r.refund - r.gift) * conv;
+            }
+            const sym = sumCur.symbol;
+            const fmtS = v => v < 0 ? `-${sym}${Math.abs(v).toFixed(2)}` : `${sym}${v.toFixed(2)}`;
+            summaryRow.innerHTML = `<td class="shc-gift-all-cur">
+                ${curFlagHtml(sumCur.id, 22, 16, 6)}<span class="shc-gift-all-cur-id">${escapeHtml(sumCur.id)}</span><span class="shc-gift-all-cur-label">${escapeHtml(sumCur.label)}</span><span class="shc-gift-all-star">★</span>
+                ${hasUnsupported ? '<span class="shc-gift-all-unsupported" title="' + escapeHtml(t('giftAllPartial')) + '">⚠</span>' : ''}
+            </td>
+            <td class="shc-gift-all-amt">${escapeHtml(fmtS(totalStore))}</td>
+            <td class="shc-gift-all-amt red">${escapeHtml(fmtS(totalRefund))}</td>
+            <td class="shc-gift-all-amt orange">${escapeHtml(fmtS(totalGift))}</td>
+            <td class="shc-gift-all-amt ${totalAllow < 0 ? 'red' : 'green'}">${escapeHtml(fmtS(totalAllow))}</td>`;
+            // 填充进度条卡片
+            const progressCard = popup.querySelector('#shc-gift-all-progress');
+            if (progressCard) {
+                const allowFlex = Math.max(0, totalAllow) || 0.001;
+                const refundFlex = totalRefund || 0.001;
+                const giftFlex = totalGift || 0.001;
+                const allowCls = totalAllow < 0 ? 'red' : 'green';
+                progressCard.innerHTML = `<div class="shc-gift-all-bar">
+                    <div class="shc-gift-all-bar-seg ${allowCls}" style="flex:${allowFlex}" title="${escapeHtml(t('giftAllAllowance'))}: ${escapeHtml(fmtS(totalAllow))}"></div>
+                    <div class="shc-gift-all-bar-seg red" style="flex:${refundFlex}" title="${escapeHtml(t('giftRefund'))}: ${escapeHtml(fmtS(totalRefund))}"></div>
+                    <div class="shc-gift-all-bar-seg orange" style="flex:${giftFlex}" title="${escapeHtml(t('giftAllSent'))}: ${escapeHtml(fmtS(totalGift))}"></div>
+                </div>
+                <div class="shc-gift-all-bar-legend">
+                    <span class="shc-gift-all-bar-leg"><i class="shc-gift-all-bar-dot blue"></i>${escapeHtml(t('giftStore'))} ${escapeHtml(fmtS(totalStore))}</span>
+                    <span class="shc-gift-all-bar-leg"><i class="shc-gift-all-bar-dot ${allowCls}"></i>${escapeHtml(t('giftAllAllowance'))} ${escapeHtml(fmtS(totalAllow))}</span>
+                    <span class="shc-gift-all-bar-leg"><i class="shc-gift-all-bar-dot red"></i>${escapeHtml(t('giftRefund'))} ${escapeHtml(fmtS(totalRefund))}</span>
+                    <span class="shc-gift-all-bar-leg"><i class="shc-gift-all-bar-dot orange"></i>${escapeHtml(t('giftAllSent'))} ${escapeHtml(fmtS(totalGift))}</span>
+                </div>`;
+            }
+        } catch (err) {
+            summaryRow.innerHTML = `<td colspan="5" class="shc-gift-all-empty">${escapeHtml(t('giftAllRateError'))}</td>`;
+        }
+    }
+
     // ==================== 内购分析 ====================
     function showIngameAnalysis() {
+        const cur = panelCurrency('ingame');
+        const fmtAmt = v => v < 0 ? `-${cur.symbol}${Math.abs(v).toFixed(2)}` : `${cur.symbol}${v.toFixed(2)}`;
         const rows = getDataRows();
         const gameMap = new Map();
         const gameAppidMap = new Map(); // 游戏名 → appid 映射
         for (const row of rows) {
-            if (row.dataset.category !== 'ingame' || row.dataset.currency !== primaryCurrency.id) continue;
+            if (row.dataset.category !== 'ingame' || row.dataset.currency !== cur.id) continue;
             const itemsTd = $items(row); if (!itemsTd) continue;
             const { game: gameName, raw: rawItemName } = $itemNameFull(row);
             if (!gameName) continue;
@@ -1416,7 +1760,7 @@
         const totalSpent = gameStats.reduce((s, g) => s + g.totalSpent, 0);
         const maxGameSpent = gameStats[0]?.totalSpent || 0;
 
-        renderModal('ingameRefs', 'ingame', ICONS.ingame, modalTitle('ingameTitle'), () => {
+        renderModal('ingameRefs', 'ingame', ICONS.ingame, `${t('ingameTitle')} ${titleCurChip(cur)}`, () => {
             const summaryCard = (iconCls, icon, label, value, unit = '', accent = false) =>
                 `<div class="shc-ingame-summary-card shc-card"><div class="shc-ingame-summary-icon ${iconCls}">${icon}</div><div class="shc-ingame-summary-text"><span class="shc-ingame-summary-label">${escapeHtml(label)}</span><span class="shc-ingame-summary-value${accent ? ' accent' : ''}">${value}${unit ? `<span class="shc-ingame-summary-unit">${unit}</span>` : ''}</span></div></div>`;
             const summaryHtml = `<div class="shc-ingame-summary">
@@ -1512,11 +1856,14 @@
     const BUCKET_COLORS = ['#bbf7d0','#a7f3d0','#86efac','#6ee7b7','#4ade80','#34d399','#22c55e','#16a34a','#15803d','#166534'];
 
     function showDiscount() {
+        const cur = panelCurrency('discount');
+        const fmtAmt = v => v < 0 ? `-${cur.symbol}${Math.abs(v).toFixed(2)}` : `${cur.symbol}${v.toFixed(2)}`;
+        const fmtAmtHtml = v => { const neg = v < 0; const abs = Math.abs(v).toFixed(2); return `${neg ? '-' : ''}<span class="shc-amt-symbol">${cur.symbol}</span><span class="shc-amt-num">${abs}</span>`; };
         const rows = getDataRows();
         // 收集退款商品名集合（同货币）
         const refundedNames = new Set();
         for (const row of rows) {
-            if (row.dataset.category !== 'refund' || row.dataset.currency !== primaryCurrency.id) continue;
+            if (row.dataset.category !== 'refund' || row.dataset.currency !== cur.id) continue;
             const itemsTd = $items(row);
             const name = $itemName(row);
             if (name) refundedNames.add(name);
@@ -1525,7 +1872,7 @@
         const bucketCounts = new Array(10).fill(0);
         const fullPriceItems = [];
         for (const row of rows) {
-            if (row.dataset.category !== 'store' || row.dataset.currency !== primaryCurrency.id) continue;
+            if (row.dataset.category !== 'store' || row.dataset.currency !== cur.id) continue;
             if (RE.ingame.test($typeText(row))) continue;
             totalCount++;
             const baseTd = $basePrice(row);
@@ -1535,8 +1882,8 @@
                 const origEl = discounted.querySelector('.wht_original_price');
                 const discEl = discounted.querySelector('.wht_discounted_price');
                 if (origEl && discEl) {
-                    const origVal = parseNumber(origEl.textContent, primaryCurrency.dc);
-                    const discVal = parseNumber(discEl.textContent, primaryCurrency.dc);
+                    const origVal = parseNumber(origEl.textContent, cur.dc);
+                    const discVal = parseNumber(discEl.textContent, cur.dc);
                     if (origVal > 0) {
                         totalOriginal += origVal; totalPaid += discVal;
                         // 折扣百分比 → 区间索引
@@ -1546,12 +1893,13 @@
                     }
                 }
             } else {
-                const fullPrice = parseNumber(baseTd.textContent, primaryCurrency.dc);
-                if (fullPrice > 0) { totalOriginal += fullPrice; totalPaid += fullPrice; fullPriceCount++; }
-                const itemsTd = $items(row);
-                const gameName = $itemName(row) || '—';
-                const rawDate = $dateText(row);
-                fullPriceItems.push({ name: gameName, price: fullPrice, date: rawDate, refunded: refundedNames.has(gameName) });
+                const fullPrice = parseNumber(baseTd.textContent, cur.dc);
+                // 0元购买不计入原价明细，保证明细表行数与统计卡片数量一致
+                if (fullPrice > 0) {
+                    totalOriginal += fullPrice; totalPaid += fullPrice; fullPriceCount++;
+                    const gameName = $itemName(row) || '—';
+                    fullPriceItems.push({ name: gameName, price: fullPrice, date: $dateText(row), refunded: refundedNames.has(gameName) });
+                }
             }
         }
         const totalSaved = totalOriginal - totalPaid;
@@ -1569,7 +1917,7 @@
             return `<div class="shc-discount-bar-col"><div class="shc-discount-bar-value">${count || ''}</div><div class="shc-discount-bar-track"><div class="shc-discount-bar-fill" style="height:${barH}%;background:${BUCKET_COLORS[i]}"></div></div><div class="shc-discount-bar-label">${label}</div><div class="shc-discount-bar-pct">${pct}%</div></div>`;
         }).join('');
 
-        renderModal('discountRefs', 'discount', ICONS.discount, modalTitle('discountTitle'), () => [
+        renderModal('discountRefs', 'discount', ICONS.discount, `${t('discountTitle')} ${titleCurChip(cur)}`, () => [
             `<div class="shc-discount-body">
                 <div class="shc-discount-left">
                     ${discountCard(ICONS.mShoppingBag, 'blue', t('discountCount'), totalCount, '', t('countUnit'))}
@@ -1600,6 +1948,9 @@
 
     // ==================== 原价购买明细 ====================
     function showFullPriceDetail() {
+        const cur = panelCurrency('fullprice');
+        const fmtAmt = v => v < 0 ? `-${cur.symbol}${Math.abs(v).toFixed(2)}` : `${cur.symbol}${v.toFixed(2)}`;
+        const fmtAmtHtml = v => { const neg = v < 0; const abs = Math.abs(v).toFixed(2); return `${neg ? '-' : ''}<span class="shc-amt-symbol">${cur.symbol}</span><span class="shc-amt-num">${abs}</span>`; };
         const items = cachedFullPriceItems;
         const totalAmt = items.reduce((s, i) => s + i.price, 0);
         let refundCount = 0, refundAmt = 0;
@@ -1607,7 +1958,7 @@
         const rowsHtml = items.map((item, idx) =>
             `<tr class="shc-fp-row${idx & 1 ? ' shc-fp-row-alt' : ''}${item.refunded ? ' shc-fp-refunded' : ''}"><td class="shc-fp-idx">${idx + 1}</td><td class="shc-fp-name">${escapeHtml(item.name)}${item.refunded ? '<span class="shc-fp-refund-tag">' + escapeHtml(t('fpRefunded')) + '</span>' : ''}</td><td class="shc-fp-price">${fmtAmt(item.price)}</td><td class="shc-fp-date">${escapeHtml(item.date)}</td></tr>`
         ).join('');
-        renderModal('fullPriceRefs', 'fullprice', ICONS.discount, `${t('discountFullPriceTitle')} (${curFlagHtml(primaryCurrency.id, 24, 18, 4)}${primaryCurrency.symbol}${primaryCurrency.id})`, () => {
+        renderModal('fullPriceRefs', 'fullprice', ICONS.discount, `${t('discountFullPriceTitle')} ${titleCurChip(cur)}`, () => {
             return `<div class="shc-fp-summary"><div class="shc-discount-stat-card shc-discount-clickable shc-card shc-fp-filter-active-blue" data-action="fp-fullprice-filter"><div class="shc-discount-stat-icon blue">${ICONS.mShoppingBag}</div><div class="shc-discount-stat-text"><div class="shc-discount-stat-label">${escapeHtml(t('discountFullPrice'))}</div><div class="shc-discount-stat-value">${items.length}<span class="unit">${escapeHtml(t('countUnit'))}</span></div></div></div><div class="shc-discount-stat-card shc-discount-clickable shc-card" data-action="fp-refund-filter"><div class="shc-discount-stat-icon orange">${ICONS.mRefund}</div><div class="shc-discount-stat-text"><div class="shc-discount-stat-label">${escapeHtml(t('fpRefundCount'))}</div><div class="shc-discount-stat-value">${refundCount}<span class="unit">${escapeHtml(t('countUnit'))}</span></div></div></div>${discountCard(ICONS.mWallet, 'green', t('discountStorePaid'), fmtAmtHtml(totalAmt), 'green', '', true)}${discountCard(ICONS.mRefund, 'red', t('fpRefundAmt'), fmtAmtHtml(refundAmt), 'red', '', true)}</div>` +
                 `<div class="shc-fp-table-wrap"><table class="shc-fp-table"><thead><tr><th class="shc-fp-idx">#</th><th class="shc-fp-name">${escapeHtml(t('discountFullPriceName'))}</th><th class="shc-fp-price">${escapeHtml(t('discountFullPricePrice'))}</th><th class="shc-fp-date">${escapeHtml(t('discountFullPriceDate'))}</th></tr></thead><tbody>${rowsHtml}</tbody></table></div>` +
                 modalNote('fullprice', t('discountFooter'));
@@ -1632,24 +1983,21 @@
         });
     }
 
-    // ==================== 主货币切换下拉（向下弹出） ====================
-    function showCurrencyDropdown(anchorEl) {
+    // ==================== 货币下拉（向下弹出，主货币切换与面板切换共用） ====================
+    function buildCurrencyDropdown(anchorEl, curList, activeId, onPick) {
         document.querySelectorAll('.shc-currency-dropdown').forEach(el => el.remove());
         const dd = document.createElement('div');
         dd.className = 'shc-currency-dropdown';
         dd.style.cssText = `position:fixed;z-index:2147483646;background:#1e293b;border:1px solid #334155;border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.5);padding:6px;min-width:200px;max-height:300px;overflow-y:auto`;
-        const activeCurIds = new Set([...state.amountsByCurrency.keys()].filter(id => hasNonZero(state.amountsByCurrency, id) || hasNonZero(state.countsByCurrency, id)));
-        const curList = [...activeCurIds];
         if (!curList.length) {
             dd.innerHTML = `<div style="padding:10px;color:#64748b;font-size:12px;text-align:center">${t('noData') || '暂无数据'}</div>`;
         } else {
-            for (const curId of curList) {
-                const cur = CURRENCY_MAP.get(curId); if (!cur) continue;
+            for (const cur of curList) {
                 const item = document.createElement('div');
-                const isActive = curId === primaryCurrency.id;
+                const isActive = cur.id === activeId;
                 item.className = isActive ? 'shc-currency-item active' : 'shc-currency-item';
                 item.innerHTML = `${curFlagHtml(cur.id, 20, 15, 0)}<span style="font-weight:600;min-width:40px">${escapeHtml(cur.symbol)}</span><span>${escapeHtml(cur.id)}</span><span style="color:#64748b;font-size:11px">${escapeHtml(cur.label)}</span>${isActive ? '<span style="margin-left:auto;font-size:11px;color:#f59e0b">✓</span>' : ''}`;
-                item.addEventListener('click', e => { e.stopPropagation(); dd.remove(); if (curId !== primaryCurrency.id) switchPrimaryCurrency(curId); });
+                item.addEventListener('click', e => { e.stopPropagation(); dd.remove(); if (cur.id !== activeId) onPick(cur.id); });
                 dd.appendChild(item);
             }
         }
@@ -1676,6 +2024,70 @@
         setTimeout(() => { document.addEventListener('click', close); window.addEventListener('scroll', onScroll, true); window.addEventListener('resize', onScroll); }, 0);
     }
 
+    // 主界面：切换全局主货币
+    function showCurrencyDropdown(anchorEl) {
+        const curList = [...state.amountsByCurrency.keys()]
+            .filter(id => hasNonZero(state.amountsByCurrency, id) || hasNonZero(state.countsByCurrency, id))
+            .map(id => CURRENCY_MAP.get(id)).filter(Boolean);
+        buildCurrencyDropdown(anchorEl, curList, primaryCurrency.id, switchPrimaryCurrency);
+    }
+
+    // ==================== 分析面板货币切换（收支柱状图 / 送礼额度 / 折扣统计 / 内购分析，默认主货币） ====================
+    const CUR_SWITCH_PANELS = {
+        'barchart': { key: 'barchart', cats: ['store', 'ingame', 'gift', 'market_buy', 'market_sell', 'convert', 'refund'], rerender: () => showBarChart() },
+        'gift-allowance': { key: 'gift', cats: ['store', 'refund', 'gift'], rerender: () => showGiftAllowance() },
+        'discount': { key: 'discount', cats: ['store'], rerender: () => showDiscount() },
+        'fullprice': { key: 'discount', cats: ['store'], rerender: () => { showDiscount(); showFullPriceDetail(); } },
+        'ingame': { key: 'ingame', cats: ['ingame'], rerender: () => showIngameAnalysis() },
+        'monthly': { key: 'monthly', cats: ALL_CATS, rerender: () => showMonthlyTrend() },
+        'wallet': { key: 'wallet', cats: ALL_CATS, rerender: () => showWalletCurve() }
+    };
+
+    // 按分类集合收集有数据的货币：主货币最前，其余按相关消费金额降序
+    function currenciesForCats(cats) {
+        const has = m => m && cats.some(c => (m.get(c) || 0) !== 0);
+        const list = has(state.amounts) ? [primaryCurrency] : [];
+        const others = [];
+        for (const [id, m] of state.amountsByCurrency) {
+            if (!has(m)) continue;
+            const cur = CURRENCY_MAP.get(id);
+            if (cur) others.push({ cur, sum: cats.reduce((s, c) => s + Math.abs(m.get(c) || 0), 0) });
+        }
+        others.sort((a, b) => b.sum - a.sum);
+        return list.concat(others.map(o => o.cur));
+    }
+
+    // 面板当前货币：优先取用户选择（该货币在本面板分类下仍有数据时），否则回退默认
+    function panelCurrency(prefix) {
+        const cfg = CUR_SWITCH_PANELS[prefix];
+        const list = currenciesForCats(cfg.cats);
+        const saved = state.panelCurrency[cfg.key];
+        if (saved) {
+            const cur = list.find(c => c.id === saved);
+            if (cur) return cur;
+        }
+        return list[0] || primaryCurrency;
+    }
+
+    // 面板货币金额表：主货币用全局统计，其余用分货币统计
+    const panelAmounts = cur => cur === primaryCurrency ? state.amounts : state.amountsByCurrency.get(cur.id);
+
+    // 标题栏货币徽章：内嵌到面板标题，点击弹出货币切换下拉
+    const titleCurChip = cur => `<button class="shc-title-cur-btn" id="shc-title-cur-btn" title="${escapeHtml(t('switchCurrencyHint'))}">${curFlagHtml(cur.id, 20, 15, 4)}<span class="shc-title-cur-code">${escapeHtml(cur.symbol)}${escapeHtml(cur.id)}</span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></button>`;
+
+    // 标题货币徽章绑定：面板标题中的货币可直接点击切换（标题每次渲染都会重建徽章，无重复监听问题）
+    function syncHeaderCurBtn(prefix) {
+        const shell = state.analysisShell; if (!shell) return;
+        const legacy = shell.headerEl.querySelector('#shc-cur-btn'); if (legacy) legacy.remove();
+        const cfg = CUR_SWITCH_PANELS[prefix];
+        const chip = shell.titleEl.querySelector('#shc-title-cur-btn');
+        if (!cfg || !chip) return;
+        chip.addEventListener('click', e => {
+            e.stopPropagation();
+            buildCurrencyDropdown(chip, currenciesForCats(cfg.cats), panelCurrency(prefix).id, curId => { state.panelCurrency[cfg.key] = curId; cfg.rerender(); });
+        });
+    }
+
     function switchPrimaryCurrency(curId) {
         const newCur = CURRENCY_MAP.get(curId); if (!newCur) return;
         primaryCurrency = newCur;
@@ -1698,28 +2110,31 @@
         const F = '#steam-wallet-history-filter';
         const hover = CATEGORIES.map(c => `table.wallet_history_table tbody tr[data-category="${c.id}"]{background-color:${rgba(c.color, .12)}}` + `table.wallet_history_table tbody tr[data-category="${c.id}"]:hover{background-color:${rgba(c.color, .22)}}`).join('');
         const filter = CATEGORIES.map(c => `tbody.filter-${c.id} tr[data-category]:not([data-category="${c.id}"]){display:none!important}`).join('');
-        return `:root{--panel:#2a475e;--border:#4a6a7a;--text:#c7d5e0;--muted:#8a9ba8;--accent:#66c0f4;--bg-dark:#1b2838;--card-bg:#1e293b;--card-border:#334155;--card-radius:12px;--icon-blue:rgba(59,130,246,.15);--icon-purple:rgba(139,92,246,.15);--icon-green:rgba(34,197,94,.15);--icon-orange:rgba(245,158,11,.15);--icon-cyan:rgba(6,182,212,.15);--icon-red:rgba(239,68,68,.15);--stroke-blue:#3b82f6;--stroke-purple:#8b5cf6;--stroke-green:#22c55e;--stroke-orange:#f59e0b;--stroke-cyan:#06b6d4;--stroke-red:#ef4444}
-${F}{margin:0 0 3px;padding:14px 18px;background:linear-gradient(to right,var(--bg-dark),var(--panel));border-radius:8px;display:flex;flex-direction:column;gap:12px;box-shadow:0 4px 6px rgba(0,0,0,.3);position:sticky;top:0;z-index:200}
+        return `:root{--panel:#2a475e;--border:#4a6a7a;--text:#c7d5e0;--muted:#8a9ba8;--accent:#66c0f4;--bg-dark:#1b2838;--card-bg:#1e293b;--card-border:#334155;--card-radius:12px;--icon-blue:rgba(59,130,246,.15);--icon-purple:rgba(139,92,246,.15);--icon-green:rgba(34,197,94,.15);--icon-orange:rgba(245,158,11,.15);--icon-cyan:rgba(6,182,212,.15);--icon-red:rgba(239,68,68,.15);--stroke-blue:#3b82f6;--stroke-purple:#8b5cf6;--stroke-green:#22c55e;--stroke-orange:#f59e0b;--stroke-cyan:#06b6d4;--stroke-red:#ef4444;--stroke-pink:#ec4899}
+${F}{margin:0 0 3px;padding:14px 18px;background:linear-gradient(to right,rgba(15,23,42,.92),rgba(30,41,59,.86));backdrop-filter:blur(8px);border:1px solid rgba(255,255,255,.08);border-radius:8px;display:flex;flex-direction:column;gap:12px;box-shadow:0 4px 6px rgba(0,0,0,.3);position:sticky;top:0;z-index:200}
 ${F} .filter-row{display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap}
 ${F} .flex-group{display:flex;align-items:center;flex-wrap:wrap}
-${F} button,.load-more-btn{border:2px solid transparent;border-radius:6px;background:var(--panel);color:var(--text);cursor:pointer;font-weight:500;transition:all .2s ease;outline:none}
+${F} button,.load-more-btn{border:1px solid rgba(255,255,255,.08);border-radius:6px;background:rgba(15,23,42,.8);backdrop-filter:blur(8px);color:#c7d5e0;cursor:pointer;font-weight:500;transition:all .2s ease;outline:none}
+#load_more_button.load-more-btn{background:rgba(15,23,42,.97)!important}
+#load_more_button.load-more-btn *{background:transparent!important;color:inherit!important;box-shadow:none!important;border:none!important;text-shadow:none!important;font-size:14px}
 ${F} button.filter-btn,${F} button.pager-btn{font-size:14px;height:36px;box-sizing:border-box}
 ${F} button.filter-btn{width:80px;padding:0}
 ${F} button.pager-btn{padding:0 16px}
-${F} button.active{background:var(--btn-color,var(--panel));color:#fff;border-color:var(--btn-color,var(--panel))}
-${F} button:hover:not(:disabled),.load-more-btn:hover{transform:translateY(-2px);box-shadow:0 4px 12px rgba(0,0,0,.4)}
+${F} button.active{background:rgba(102,192,244,.15);color:#66c0f4;border-color:rgba(102,192,244,.4)}
+${F} button:hover:not(:disabled),.load-more-btn:hover{background:rgba(30,41,59,.9);border-color:rgba(102,192,244,.3);color:#fff;transform:translateY(-2px);box-shadow:0 4px 12px rgba(0,0,0,.4)}
+#load_more_button.load-more-btn:hover{background:rgba(30,41,59,.99)!important}
 ${F} button:active:not(:disabled){transform:translateY(0)}
 ${F} button[data-action]:disabled{opacity:.4;cursor:not-allowed}
-${F} button[data-action].active-mode{background:var(--accent);color:#fff;border-color:var(--accent)}
+${F} button[data-action].active-mode{background:rgba(102,192,244,.2);color:#66c0f4;border-color:rgba(102,192,244,.4)}
 ${F} .sub-stat-row{display:none;opacity:.8;border-top:1px dashed var(--border);padding-top:6px;margin-top:4px}
 ${hover}${filter}
 tbody.paginated tr[data-category]:not(.page-visible){display:none!important}
 tbody.search-filtered tr[data-category]:not(.search-match){display:none!important}
 tbody.show-all tr[data-category]{content-visibility:auto;contain-intrinsic-size:auto 48px}
 h2.pageheader{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;cursor:pointer}
-h2 .search-box{background:rgba(0,0,0,.2);border:1px solid var(--border);border-radius:6px;padding:8px 14px;color:var(--text);font-size:14px;outline:none;transition:all .2s ease}
+h2 .search-box{background:rgba(15,23,42,.8);border:1px solid rgba(255,255,255,.08);border-radius:6px;padding:8px 14px;color:var(--text);font-size:14px;outline:none;transition:all .2s ease}
 h2 .search-box::placeholder{color:var(--muted)}
-h2 .search-box:focus{border-color:var(--accent);background:rgba(0,0,0,.3);box-shadow:0 0 0 2px rgba(102,192,244,.2)}
+h2 .search-box:focus{border-color:rgba(102,192,244,.5);background:rgba(30,41,59,.9);box-shadow:0 0 0 2px rgba(102,192,244,.2)}
 ${F} .stat-row{display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:0 2px}
 ${F} .stat-item{display:flex;align-items:center;justify-content:center;font-size:13px;color:var(--text);white-space:nowrap;height:28px;width:80px;cursor:pointer}
 ${F} .stat-sep{width:1px;height:16px;background:var(--border);margin:0 2px;flex-shrink:0}
@@ -1736,66 +2151,97 @@ td.wht_type div:first-child{display:inline}
 td.wht_total,td.wht_base_price{min-width:100px}
 td.wht_base_price .wht_discounted_price{display:block;margin-top:2px}
 .wallet_history_click_hint{padding:0 0 12px 0}
-#wallet_history_loading{position:absolute;right:0;width:350px;height:36px;text-align:center;line-height:36px;border:2px solid transparent;border-radius:6px;box-sizing:border-box;background:var(--panel);z-index:99999!important}
+#wallet_history_loading{position:absolute;right:0;width:350px;height:36px;text-align:center;line-height:36px;border:1px solid rgba(255,255,255,.08);border-radius:6px;box-sizing:border-box;background:rgba(15,23,42,.85);z-index:99999!important}
 #wallet_history_loading img{height:24px;vertical-align:middle}
 /* ===== 模态框基础 ===== */
 .shc-modal{position:fixed;top:0;left:0;width:100%;height:100%;z-index:${MODAL_Z_INDEX};display:flex;align-items:center;justify-content:center;opacity:0;visibility:hidden;transition:all .3s ease;background:rgba(11,17,32,.85)}
 .shc-modal.visible{opacity:1;visibility:visible}
-.shc-modal-content{background:var(--card-bg);border:1px solid rgba(255,255,255,.06);border-radius:16px;padding:28px;box-shadow:0 8px 32px rgba(0,0,0,.5);width:90%;position:relative}
-.shc-modal-content .shc-modal-close{color:#64748b;font-size:22px}
-.shc-modal-content .shc-modal-close:hover{color:#94a3b8;background:rgba(255,255,255,.06)}
-.shc-modal-close{position:absolute;top:12px;right:12px;background:none;border:none;color:var(--muted);font-size:24px;cursor:pointer;padding:4px 8px;border-radius:4px;transition:all .2s}
+.shc-modal-close{position:absolute;top:12px;right:12px;background:none;border:none;color:var(--muted);font-size:24px;cursor:pointer;padding:4px 8px;border-radius:4px;transition:all .2s;z-index:2}
 .shc-modal-close:hover{background:rgba(255,255,255,.1);color:var(--text)}
-/* ===== 窗口导航栏 ===== */
-.shc-nav-sidebar{position:absolute;left:-52px;top:50%;transform:translateY(-50%);display:flex;flex-direction:column;gap:6px;z-index:1}
-.shc-nav-btn{width:42px;height:42px;border-radius:10px;border:1px solid rgba(255,255,255,.08);background:rgba(30,41,59,.9);color:#94a3b8;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .2s ease;backdrop-filter:blur(8px)}
-.shc-nav-btn svg{width:20px;height:20px;stroke:currentColor;fill:none}
-.shc-nav-btn:hover{background:rgba(51,65,85,.9);color:#f8fafc;border-color:rgba(255,255,255,.15);transform:scale(1.05)}
-.shc-nav-btn.active{color:#fff}
+/* ===== 统一分析窗口（样式与许可分类器一致） ===== */
+.shc-mc{background:rgba(30,41,59,.95);backdrop-filter:blur(12px);border:1px solid rgba(255,255,255,.1);border-radius:16px;box-shadow:0 8px 32px rgba(0,0,0,.5);width:90%;position:relative;transform:scale(.95);opacity:0;transition:transform .3s ease,opacity .3s ease}
+.shc-modal.visible .shc-mc{transform:scale(1);opacity:1}
+#shc-analysis-c{width:1100px;max-width:96vw;height:720px;max-height:92vh;contain:layout}
+.shc-win{padding:0!important;display:flex;flex-direction:column;overflow:hidden}
+.shc-win-header{display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid rgba(255,255,255,.1);flex-shrink:0;user-select:none;padding:10px 16px;border-radius:15px 15px 0 0}
+.shc-win-title{margin:0;color:#fff;font-weight:700;font-size:14px;display:flex;align-items:center;gap:8px;min-width:0;overflow:hidden;white-space:nowrap}
+.shc-win-title .shc-win-ico{display:inline-flex;flex-shrink:0}
+.shc-win-title .shc-win-ico svg{width:18px;height:18px;stroke:currentColor;fill:none}
+.shc-win-title .shc-currency-flag{vertical-align:middle}
+.shc-win-sub{font-size:12px;font-weight:400;color:#8a9ba8;flex-shrink:0}
+.shc-win-actions{display:flex;align-items:center;gap:6px;flex-shrink:0;margin-left:12px}
+.shc-title-cur-btn{display:inline-flex;align-items:center;gap:5px;padding:3px 9px;margin-left:4px;border-radius:6px;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.06);color:#c7d5e0;font-size:12px;font-weight:600;cursor:pointer;transition:all .2s;white-space:nowrap;flex-shrink:0}
+.shc-title-cur-btn:hover{background:rgba(255,255,255,.14);border-color:rgba(255,255,255,.35);color:#fff}
+.shc-title-cur-btn svg{width:11px;height:11px;stroke:#94a3b8;fill:none;flex-shrink:0}
+.shc-title-cur-btn .shc-title-cur-code{letter-spacing:.5px}
+.shc-win-close{background:rgba(255,255,255,.06);border:none;color:#94a3b8;cursor:pointer;width:28px;height:28px;border-radius:6px;display:flex;align-items:center;justify-content:center;transition:all .2s}
+.shc-win-close:hover{background:rgba(244,63,94,.2);color:#fb7185}
+.shc-win-close svg{width:14px;height:14px}
+.shc-win-body{flex:1;min-height:0;display:flex;flex-direction:column;padding:14px 20px 16px}
+.shc-tabs{display:flex;flex-wrap:wrap;gap:2px;background:rgba(15,23,42,.6);padding:3px;border-radius:8px;border:1px solid rgba(255,255,255,.08);margin-bottom:14px;flex-shrink:0}
+.shc-tab{flex:1 1 76px;min-width:76px;border:none;background:transparent;color:#8a9ba8;padding:7px 4px;font-size:12px;font-weight:600;border-radius:6px;cursor:pointer;transition:all .2s;display:flex;align-items:center;justify-content:center;gap:5px;white-space:nowrap;overflow:hidden}
+.shc-tab svg{width:14px;height:14px;stroke:currentColor;fill:none;flex-shrink:0}
+.shc-tab:hover{color:#fff}
+.shc-tab.active{color:var(--c,#66c0f4);background:var(--cb,rgba(102,192,244,.15))}
+.shc-panels{flex:1;min-height:0;display:flex;flex-direction:column}
+.shc-panel{display:none;flex:1;min-height:0;flex-direction:column;overflow:hidden}
+.shc-panel.active{display:flex}
+.shc-pbody{flex:1;min-height:0;overflow-y:auto}
+.shc-pbody::-webkit-scrollbar{width:8px}
+.shc-pbody::-webkit-scrollbar-track{background:#0f172a;border-radius:4px}
+.shc-pbody::-webkit-scrollbar-thumb{background:#334155;border-radius:4px}
+.shc-pbody::-webkit-scrollbar-thumb:hover{background:#475569}
 /* ===== 模态框共享组件 ===== */
-.shc-mh{display:flex;align-items:center;gap:14px;margin-bottom:20px}
-.shc-mhi{width:40px;height:40px;border-radius:10px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
-.shc-mhi svg,.shc-ingame-summary-icon svg,.shc-gift-row-icon svg{width:22px;height:22px;stroke:#fff;fill:none}
-.shc-mht{font-size:20px;font-weight:700;color:#f8fafc;flex:1}
+.shc-ingame-summary-icon svg,.shc-gift-row-icon svg{width:22px;height:22px;stroke:#fff;fill:none}
 .shc-mn{margin-top:20px;padding-top:16px;border-top:1px solid #334155;display:flex;align-items:flex-start;gap:10px}
 .shc-mn svg{width:16px;height:16px;stroke:#64748b;fill:none;flex-shrink:0;margin-top:1px}
 .shc-mnt{font-size:13px;color:#64748b;line-height:1.5}
-/* ===== 各模态框尺寸 ===== */
-.shc-donut-content,.shc-barchart-content,.shc-regioncd-content,.shc-ingame-content,.shc-gift-allowance-content,.shc-discount-content,.shc-fullprice-content{max-width:${MODAL_WIDTH}px}
-.shc-ingame-content{height:650px}
-.shc-gift-allowance-content{padding:24px}
-/* ===== 各模态框 header icon 颜色 ===== */
-.shc-donut-header-icon,.shc-regioncd-header-icon{background:var(--stroke-blue)}
-.shc-barchart-header-icon{background:var(--stroke-purple)}
-.shc-discount-header-icon,.shc-gift-allowance-header-icon{background:var(--stroke-green)}
-.shc-fullprice-header-icon{background:var(--stroke-orange)}
-.shc-ingame-header-icon{background:var(--stroke-cyan)}
-.shc-gift-allowance-header-icon{border-radius:12px}
-.shc-legend .legend-item{display:flex;align-items:center;gap:8px;padding:6px 12px;background:rgba(0,0,0,.2);border-radius:8px;transition:all .2s}
-.shc-legend .legend-item:hover{background:rgba(0,0,0,.3)}
-.shc-legend .legend-color{width:16px;height:16px;border-radius:4px;flex-shrink:0}
-.shc-legend .legend-label{color:var(--text);font-size:13px}
-.shc-legend .legend-value{color:var(--muted);font-size:12px}
-.shc-donut-pair-cards,.shc-barchart-pair-cards{display:flex;gap:16px}
-.shc-card,.shc-donut-pair-card,.shc-barchart-pair-card,.shc-ingame-table,.shc-regioncd-history-wrap{background:var(--card-bg);border:1px solid var(--card-border);border-radius:var(--card-radius)}
-.shc-donut-pair-card,.shc-barchart-pair-card{padding:20px;flex:1;min-width:0;display:flex;flex-direction:column;align-items:center}
-.shc-donut-pair-card{justify-content:center}
-.shc-donut-pair-card .shc-donut-svg{width:75%;height:auto;max-width:calc(100% - 40px);flex-shrink:1;min-height:0}
-.shc-donut-pair-card .shc-donut-subtitle{flex-shrink:0}
+/* 全货币面板：卡片区滚动，脚注固定底部（注意不能命名为 shc-donut-panel，会与面板容器类冲突） */
+.shc-currency-panel{display:flex;flex-direction:column;height:100%;min-height:0}
+.shc-currency-panel .shc-donut-currency-grid{flex:1;min-height:0;overflow-y:auto;align-content:start;padding:2px 2px 6px}
+.shc-currency-panel .shc-mn{flex-shrink:0}
+/* 标题栏内嵌图例（分类占比） */
+.shc-title-legend{display:inline-flex;align-items:center;gap:12px;margin-left:12px;flex:1;min-width:0;overflow:hidden}
+.shc-title-legend-item{display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:500;color:#c7d5e0;white-space:nowrap}
+.shc-title-legend-item i{width:10px;height:10px;border-radius:3px;display:inline-block;flex-shrink:0;opacity:.85}
+.shc-donut-currency-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+/* 货币卡片骨架（分类占比共用） */
+.shc-donut-currency-card{padding:16px 20px 20px;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;background:var(--card-bg);border:1px solid var(--card-border);border-radius:var(--card-radius)}
+.shc-donut-currency-head{display:flex;align-items:center;gap:8px;align-self:flex-start;margin-bottom:2px}
+.shc-donut-currency-name{font-size:14px;font-weight:700;color:#f8fafc}
+.shc-donut-currency-code{font-size:12px;color:#8a9ba8;font-weight:400}
+.shc-donut-currency-card .shc-donut-svg{width:170px;height:auto;max-width:none;flex-shrink:0}
+.shc-donut-currency-card .shc-donut-subtitle:not(:first-of-type){margin-top:10px}
+/* 收支柱状图：左右两张卡片铺满面板，不出现滚动条 */
+.shc-barchart-fill .shc-barchart-two-cards{display:grid;grid-template-columns:1fr 1fr;gap:14px;flex:1;min-height:0;padding:2px 2px 6px}
+.shc-barchart-side{display:flex;flex-direction:column;min-height:0;overflow:hidden}
+.shc-barchart-side .shc-barchart-side-body{flex:1;min-height:0;display:flex;flex-direction:column;align-items:center}
+.shc-barchart-side .shc-donut-subtitle{flex-shrink:0;margin:0 0 10px}
+.shc-barchart-side .shc-barchart-svg{flex:1;min-height:0;width:100%;height:auto}
+.shc-barchart-empty{flex:1;min-height:120px;display:flex;align-items:center;justify-content:center;color:#64748b;font-size:13px}
+/* 月度趋势 / 钱包曲线：统计卡 + 主卡片 + 底部提示 */
+.shc-stat-fill .shc-ingame-summary{flex-shrink:0;grid-template-columns:repeat(auto-fit,minmax(170px,1fr))}
+.shc-stat-fill .shc-chart-card{flex:1;min-height:0;padding:14px 16px;display:flex;flex-direction:column}
+.shc-stat-fill .shc-chart-card .shc-line-svg{flex:1;min-height:0;width:100%;height:auto}
+.shc-line-legend{display:flex;justify-content:center;gap:20px;margin-bottom:8px;flex-shrink:0}
+.shc-line-legend-item{display:flex;align-items:center;gap:6px;font-size:12px;color:#94a3b8}
+.shc-line-legend-item i{width:14px;height:3px;border-radius:2px;flex-shrink:0}
+.shc-line-svg{filter:drop-shadow(0 4px 12px rgba(0,0,0,.3))}
+.shc-card,.shc-ingame-table,.shc-regioncd-history-wrap{background:var(--card-bg);border:1px solid var(--card-border);border-radius:var(--card-radius)}
 .shc-donut-svg{filter:drop-shadow(0 4px 12px rgba(0,0,0,.3))}
 .shc-donut-subtitle{text-align:center;color:#94a3b8;font-size:14px;font-weight:600;margin-bottom:12px}
-.shc-donut-legend-card{padding:20px;margin-top:16px}
-.shc-donut-legend-card .shc-legend{margin-top:0;display:flex;flex-wrap:wrap;gap:8px;justify-content:center}
-.shc-donut-legend-card .legend-item{background:rgba(0,0,0,.15);border-radius:8px;padding:8px 14px}
 /* 柱状图 */
 .shc-barchart-svg{width:100%;height:auto;filter:drop-shadow(0 4px 12px rgba(0,0,0,.3))}
-@media(max-width:640px){.shc-gift-body{flex-direction:column}.shc-gift-left,.shc-gift-right{flex:none;width:100%}.shc-donut-pair-cards,.shc-barchart-pair-cards{flex-direction:column}}
+@media(max-width:960px){.shc-donut-currency-grid{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:640px){.shc-gift-body{flex-direction:column}.shc-gift-left,.shc-gift-right{flex:none;width:100%}.shc-donut-currency-grid{grid-template-columns:1fr}.shc-barchart-fill .shc-barchart-two-cards{grid-template-columns:1fr}}
 /* 导出按钮 */
-.action-group button.icon-btn{border:2px solid transparent;border-radius:6px;background:var(--panel);color:var(--text);cursor:pointer;font-weight:500;transition:all .2s ease;outline:none;padding:0 10px;font-size:13px;height:36px;box-sizing:border-box;display:flex;align-items:center;justify-content:center}
-.action-group button.icon-btn:hover{background:rgba(102,192,244,.8);color:#fff;border-color:rgba(102,192,244,.8);transform:translateY(-2px);box-shadow:0 4px 12px rgba(0,0,0,.4)}
+.action-group button.icon-btn{border:1px solid rgba(255,255,255,.08);border-radius:6px;background:rgba(15,23,42,.8);backdrop-filter:blur(8px);color:#c7d5e0;cursor:pointer;font-weight:500;transition:all .2s ease;outline:none;padding:0 14px;font-size:13px;height:36px;box-sizing:border-box;display:flex;align-items:center;justify-content:center;gap:6px}
+.action-group button.icon-btn:hover{background:rgba(30,41,59,.9);border-color:rgba(102,192,244,.3);color:#fff;transform:translateY(-2px);box-shadow:0 4px 12px rgba(0,0,0,.4)}
 .action-group button.icon-btn:active{transform:translateY(0)}
 .action-group{display:flex;gap:6px;align-items:center}
 button.icon-btn svg{width:18px;height:18px}
+button.icon-btn .icon-btn-icon{display:inline-flex;align-items:center;justify-content:center}
+button.icon-btn .icon-btn-text{font-size:13px;font-weight:600;white-space:nowrap}
 .shc-export-dropdown{position:relative;display:inline-flex}
 .shc-export-dropdown .export-menu{display:none;position:absolute;top:100%;right:0;margin-top:4px;background:var(--panel);border:1px solid var(--border);border-radius:8px;overflow:hidden;z-index:99999;box-shadow:0 4px 12px rgba(0,0,0,.4);min-width:100px}
 .shc-export-dropdown.open .export-menu{display:block}
@@ -1843,9 +2289,11 @@ ${iconColorCSS('.shc-discount-stat-icon', ['blue','purple','green','orange','red
 .shc-fp-filter-active-blue{border-color:rgba(59,130,246,.6)!important;box-shadow:0 0 12px rgba(59,130,246,.2)!important;background:rgba(59,130,246,.08)!important}
 .shc-fp-filter-active{border-color:rgba(249,115,22,.6)!important;box-shadow:0 0 12px rgba(249,115,22,.2)!important;background:rgba(249,115,22,.08)!important}
 .shc-fp-filter-refund .shc-fp-row:not(.shc-fp-refunded){display:none}
-/* 原价购买明细 */
-.shc-fp-summary{display:flex;gap:12px;margin-bottom:16px}
-.shc-fp-table-wrap{height:45vh;overflow-y:auto;border-radius:8px;border:1px solid var(--card-border)}
+/* 原价购买明细：底部提示在滚动条外 */
+.shc-fullprice-panel>.shc-pbody{display:flex;flex-direction:column;overflow:hidden}
+.shc-fp-summary{display:flex;gap:12px;margin-bottom:16px;flex-shrink:0}
+.shc-fp-table-wrap{flex:1;min-height:0;overflow-y:auto;border-radius:8px;border:1px solid var(--card-border)}
+.shc-fullprice-footer{flex-shrink:0}
 .shc-fp-table{width:100%;border-collapse:collapse;font-size:13px}
 .shc-fp-table thead{position:sticky;top:0;z-index:1}
 .shc-fp-table th{background:#1e293b;color:#94a3b8;font-weight:600;padding:10px 14px;text-align:left;border-bottom:1px solid #334155;white-space:nowrap}
@@ -1864,7 +2312,7 @@ ${iconColorCSS('.shc-discount-stat-icon', ['blue','purple','green','orange','red
 .shc-ingame-summary{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:20px;flex-shrink:0}
 .shc-ingame-summary-card{padding:16px;display:flex;align-items:center;gap:14px}
 .shc-ingame-summary-icon{width:44px;height:44px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0}
-${iconColorCSS('.shc-ingame-summary-icon', ['blue','purple','cyan'])}
+${iconColorCSS('.shc-ingame-summary-icon', ['blue','purple','cyan','red','green','orange'])}
 .shc-ingame-summary-text{display:flex;flex-direction:column;gap:2px;min-width:0}
 .shc-ingame-summary-label{font-size:12px;color:#64748b;text-transform:uppercase;letter-spacing:.3px}
 .shc-ingame-summary-value{font-size:22px;font-weight:700;color:#f8fafc}
@@ -1886,8 +2334,10 @@ ${iconColorCSS('.shc-ingame-summary-icon', ['blue','purple','cyan'])}
 .shc-ingame-summary{flex-shrink:0}
 .ingame-list-header{flex-shrink:0}
 .shc-ingame-footer{flex-shrink:0}
+/* 内购分析面板：底部提示在滚动条外 */
+.shc-ingame-panel>.shc-pbody{display:flex;flex-direction:column;overflow:hidden}
 /* 内购列表容器（滚动） */
-.ingame-list-container{height:400px;overflow-y:auto;border:1px solid var(--card-border);border-radius:var(--card-radius);background:var(--card-bg)}
+.ingame-list-container{flex:1;min-height:0;overflow-y:auto;border:1px solid var(--card-border);border-radius:var(--card-radius);background:var(--card-bg)}
 .ingame-list-container::-webkit-scrollbar{width:8px}
 .ingame-list-container::-webkit-scrollbar-track{background:#0f172a;border-radius:4px}
 .ingame-list-container::-webkit-scrollbar-thumb{background:#334155;border-radius:4px}
@@ -1921,11 +2371,16 @@ ${iconColorCSS('.shc-ingame-summary-icon', ['blue','purple','cyan'])}
 .ingame-items-table th{background:rgba(0,0,0,.2)}
 .ingame-item-row td{color:#94a3b8}
 .ingame-item-spent{color:var(--stroke-cyan)!important;font-weight:600}
-.shc-regioncd-main{display:flex;gap:12px;overflow:hidden}
-.shc-regioncd-left-col{flex:0.6;min-width:0;display:flex;flex-direction:column;gap:12px}
-.shc-regioncd-left{padding:16px;display:flex;flex-direction:column;gap:4px}
-.shc-regioncd-right{padding:16px;display:flex;flex-direction:column;align-items:center;justify-content:center}
-.shc-regioncd-history-wrap{flex:1;min-width:0;padding:16px;display:flex;flex-direction:column}
+/* 转区CD：面板纵向铺满，历史表格区域内滚动 */
+.shc-regioncd-panel>.shc-pbody{display:flex;flex-direction:column;overflow:hidden}
+.shc-regioncd-main{flex:1;min-height:0;display:flex;gap:12px;overflow:hidden}
+.shc-regioncd-left-col{flex:0.62;min-width:0;display:flex;flex-direction:column;gap:12px}
+.shc-regioncd-left{flex:1;padding:16px;display:flex;flex-direction:column;justify-content:space-evenly;gap:4px}
+.shc-regioncd-right{flex:1.15;min-height:0;padding:16px;display:flex;flex-direction:column;align-items:center;justify-content:center}
+.shc-regioncd-history-wrap{flex:1;min-width:0;min-height:0;padding:16px;display:flex;flex-direction:column;overflow-y:auto}
+.shc-regioncd-history-wrap::-webkit-scrollbar{width:8px}
+.shc-regioncd-history-wrap::-webkit-scrollbar-track{background:#0f172a;border-radius:4px}
+.shc-regioncd-history-wrap::-webkit-scrollbar-thumb{background:#334155;border-radius:4px}
 .shc-regioncd-row{display:flex;align-items:center;gap:10px;padding:8px 12px;background:rgba(0,0,0,.2);border-radius:8px;border-left:3px solid transparent}
 .shc-regioncd-row.blue{border-left-color:var(--stroke-blue)}
 .shc-regioncd-row.cyan{border-left-color:var(--stroke-cyan)}
@@ -1945,7 +2400,7 @@ ${iconColorCSS('.shc-regioncd-row-icon', ['blue','cyan','purple','orange'])}
 .shc-regioncd-ring-days{font-size:48px;font-weight:700;color:#f8fafc;line-height:1}
 .shc-regioncd-ring-unit{font-size:16px;color:#94a3b8}
 .shc-regioncd-ring-sub{font-size:13px;color:#64748b}
-.shc-regioncd-ring-svg{width:140px;height:140px;flex-shrink:0}
+.shc-regioncd-ring-svg{width:172px;height:172px;flex-shrink:0}
 .shc-regioncd-ring-chart{display:flex;flex-direction:column;align-items:center;flex-shrink:0}
 .shc-regioncd-ring-svg circle{transition:stroke-dasharray .6s ease}
 .shc-regioncd-bar-track{width:100%;height:6px;background:rgba(255,255,255,.08);border-radius:3px;margin-top:16px;overflow:hidden}
@@ -1958,7 +2413,7 @@ ${iconColorCSS('.shc-regioncd-row-icon', ['blue','cyan','purple','orange'])}
 .shc-regioncd-history-header svg{width:16px;height:16px;stroke:var(--stroke-blue);fill:none}
 .shc-regioncd-history-title{font-size:15px;font-weight:700;color:#f8fafc}
 .shc-regioncd-history-table{width:100%;border-collapse:collapse;font-size:14px}
-.shc-regioncd-history-table thead th{text-align:left;padding:8px 8px;color:#f8fafc!important;font-weight:700;font-size:14px;background:var(--card-bg);border-bottom:2px solid var(--stroke-blue)}
+.shc-regioncd-history-table thead th{text-align:left;padding:8px 8px;color:#f8fafc!important;font-weight:700;font-size:14px;background:var(--card-bg);border-bottom:2px solid var(--stroke-blue);position:sticky;top:0;z-index:2}
 .shc-regioncd-history-table tbody td{padding:6px 6px;color:#c7d5e0;border-bottom:1px solid rgba(255,255,255,.06)}
 .shc-regioncd-history-table tbody tr{transition:background .15s;cursor:pointer}
 .shc-regioncd-history-table tbody tr:hover{background:rgba(59,130,246,.08)}
@@ -1966,46 +2421,55 @@ ${iconColorCSS('.shc-regioncd-row-icon', ['blue','cyan','purple','orange'])}
 .shc-regioncd-history-table .shc-col-arrow{width:10px;text-align:center;color:var(--stroke-blue);font-size:13px;white-space:nowrap}
 .shc-regioncd-history-table tbody .shc-col-currency{white-space:nowrap;background:#0f172a;border:1px solid var(--card-border);border-radius:8px;padding:4px 10px}
 .shc-regioncd-history-table th:nth-child(n+2),.shc-regioncd-history-table td:nth-child(n+2){text-align:center}
-.shc-gift-body{display:flex;gap:20px;align-items:stretch}
+/* 送礼额度面板：纵向铺满窗口 */
+.shc-gift-allowance-panel>.shc-pbody{display:flex;flex-direction:column;overflow:hidden}
+.shc-gift-body{display:flex;gap:20px;align-items:stretch;flex:1;min-height:0}
 .shc-gift-left{flex:1;min-width:0;display:flex;flex-direction:column}
-.shc-gift-right{flex:1;min-width:0;display:flex;flex-direction:column}
-.shc-gift-rows-card{padding:20px;display:flex;flex-direction:column;flex:1}
-.shc-gift-rows-card-header{display:flex;align-items:center;gap:8px;margin-bottom:12px}
+.shc-gift-right{flex:1;min-width:0;min-height:0;display:flex;flex-direction:column}
+.shc-gift-footer{flex-shrink:0}
+.shc-gift-rows-card{padding:14px 20px 16px;display:flex;flex-direction:column;flex:1;min-height:0}
+.shc-gift-rows-card>.shc-gift-row{flex:1;min-height:0}
+.shc-gift-rows-card>.shc-gift-row-highlight{flex:1;min-height:0;display:flex;flex-direction:column;justify-content:center}
+.shc-gift-rows-card-header{display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-shrink:0}
 .shc-gift-rows-card-header svg{width:18px;height:18px;stroke:var(--stroke-green);fill:none}
 .shc-gift-rows-card-header-title{font-size:14px;font-weight:700;color:#f8fafc}
-.shc-gift-row{display:flex;align-items:center;gap:12px;padding:16px 0;border-bottom:1px solid var(--card-border)}
+.shc-gift-row{display:flex;align-items:center;gap:12px;padding:8px 0;border-bottom:1px solid var(--card-border)}
 .shc-gift-row:first-child{padding-top:0}
 .shc-gift-row:last-child{border-bottom:none}
-.shc-gift-row-icon{width:48px;height:48px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.shc-gift-row-icon{width:42px;height:42px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.shc-gift-row-icon svg{width:20px;height:20px}
 .shc-gift-row-icon.blue{background:var(--stroke-blue)}
 .shc-gift-row-icon.red{background:var(--stroke-red)}
 .shc-gift-row-icon.purple{background:var(--stroke-purple)}
 .shc-gift-row-icon.orange{background:var(--stroke-orange)}
 .shc-gift-row-icon.green{background:var(--stroke-green)}
+.shc-gift-row-icon.pink{background:var(--stroke-pink)}
 .shc-gift-row-info{flex:1;min-width:0}
-.shc-gift-row-label{font-size:15px;font-weight:600;color:#f8fafc}
-.shc-gift-row-desc{font-size:12px;color:#64748b;margin-top:2px}
-.shc-gift-row-amount{font-size:18px;font-weight:700;color:#f8fafc;white-space:nowrap}
+.shc-gift-row-label{font-size:14px;font-weight:600;color:#f8fafc}
+.shc-gift-row-desc{font-size:11px;color:#64748b;margin-top:1px}
+.shc-gift-row-amount{font-size:16px;font-weight:700;color:#f8fafc;white-space:nowrap}
 .shc-gift-row-amount.red{color:var(--stroke-red)}
 .shc-gift-row-amount.orange{color:var(--stroke-orange)}
 .shc-gift-row-amount.green{color:var(--stroke-green)}
-.shc-gift-row-highlight{background:rgba(34,197,94,.08);margin:0 -20px;padding:12px 20px;border-radius:8px;border-left:3px solid var(--stroke-green)}
-.shc-gift-donut-card{padding:20px;flex:1;display:flex;flex-direction:column}
+.shc-gift-row-amount.pink{color:var(--stroke-pink)}
+.shc-gift-row-amount.purple{color:var(--stroke-purple)}
+.shc-gift-row-highlight{background:rgba(34,197,94,.08);margin:0 -20px;padding:8px 20px;border-radius:8px;border-left:3px solid var(--stroke-green)}
+.shc-gift-donut-card{padding:20px;flex:1;min-height:0;display:flex;flex-direction:column;overflow:hidden}
 .shc-gift-donut-header{display:flex;align-items:center;gap:8px;margin-bottom:16px}
 .shc-gift-donut-header svg{width:18px;height:18px;stroke:var(--stroke-green);fill:none}
 .shc-gift-donut-header-title{font-size:14px;font-weight:700;color:#f8fafc}
-.shc-gift-donut-wrap{position:relative;width:230px;height:230px;margin:0 auto}
-.shc-gift-donut-svg{width:230px;height:230px}
+.shc-gift-donut-wrap{position:relative;flex:1;min-height:0;display:flex;align-items:center;justify-content:center;width:100%}
+.shc-gift-donut-svg{max-width:320px;max-height:320px;width:auto;height:auto}
 .shc-gift-donut-center{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);text-align:center;pointer-events:none}
 .shc-gift-donut-center-label{font-size:12px;color:#94a3b8}
 .shc-gift-donut-center-amount{font-size:22px;font-weight:700;color:var(--stroke-green);margin:2px 0}
 .shc-gift-donut-center-pct{font-size:12px;color:#94a3b8}
-.shc-gift-legend-list{margin-top:16px;display:flex;flex-direction:column;gap:8px}
+.shc-gift-legend-list{margin-top:16px;display:flex;flex-direction:column;gap:8px;flex-shrink:0}
 .shc-gift-legend-row{display:flex;align-items:center;gap:8px;font-size:13px}
 .shc-gift-legend-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
 .shc-gift-legend-label{color:#f8fafc;flex:1;min-width:0}
 .shc-gift-legend-value{color:#94a3b8;text-align:right;white-space:nowrap}
-.shc-gift-slider-wrap{margin-top:12px;padding:12px;background:#0f172a;border:1px solid var(--card-border);border-radius:8px}
+.shc-gift-slider-wrap{margin-top:12px;padding:12px;background:#0f172a;border:1px solid var(--card-border);border-radius:8px;flex-shrink:0}
 .shc-gift-slider-label{display:flex;justify-content:space-between;font-size:13px;color:#94a3b8;margin-bottom:8px}
 .shc-gift-slider{width:100%;height:6px;background:#334155;border-radius:3px;outline:none;-webkit-appearance:none;appearance:none}
 .shc-gift-slider-track-wrap{position:relative;width:100%;height:20px;display:flex;align-items:center;padding:0 8px;box-sizing:border-box}
@@ -2013,6 +2477,54 @@ ${iconColorCSS('.shc-regioncd-row-icon', ['blue','cyan','purple','orange'])}
 .shc-gift-slider::-moz-range-track{height:6px;border-radius:3px;background:#334155}
 .shc-gift-slider::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:16px;height:16px;background:#8b5cf6;border-radius:50%;cursor:pointer;margin-top:-5px;position:relative;z-index:2}
 .shc-gift-slider::-moz-range-thumb{width:16px;height:16px;background:#8b5cf6;border-radius:50%;cursor:pointer;border:none;position:relative;z-index:2}
+.shc-gift-show-all-btn{margin-left:auto;display:flex;align-items:center;gap:4px;padding:4px 10px;border-radius:6px;border:1px solid rgba(102,192,244,.3);background:rgba(102,192,244,.08);color:#66c0f4;font-size:12px;cursor:pointer;transition:all .2s}
+.shc-gift-show-all-btn:hover{background:rgba(102,192,244,.18);border-color:rgba(102,192,244,.5)}
+.shc-gift-show-all-btn svg{width:14px;height:14px;stroke:#66c0f4;fill:none}
+/* ===== 全部货币弹窗 ===== */
+.shc-gift-all-overlay{position:fixed;top:0;left:0;width:100%;height:100%;z-index:${MODAL_Z_INDEX + 10};display:flex;align-items:center;justify-content:center;opacity:0;visibility:hidden;transition:all .3s ease;background:rgba(11,17,32,.75)}
+.shc-gift-all-overlay.visible{opacity:1;visibility:visible}
+.shc-gift-all-content{background:var(--card-bg);border:1px solid rgba(255,255,255,.06);border-radius:16px;padding:24px;box-shadow:0 8px 32px rgba(0,0,0,.5);width:640px;max-width:90%;max-height:80vh;position:relative;display:flex;flex-direction:column}
+.shc-gift-all-header{display:flex;align-items:center;gap:8px;margin-bottom:16px}
+.shc-gift-all-header svg{width:20px;height:20px;stroke:var(--stroke-green);fill:none}
+.shc-gift-all-title{font-size:16px;font-weight:700;color:#f8fafc}
+.shc-gift-all-table-wrap{flex:1;overflow-y:auto;min-height:0}
+.shc-gift-all-table{width:100%;border-collapse:collapse;font-size:13px}
+.shc-gift-all-table thead th{position:sticky;top:0;background:#1e293b;color:#94a3b8;font-weight:600;text-align:left;padding:10px 12px;border-bottom:1px solid var(--card-border);font-size:12px}
+.shc-gift-all-table thead th:first-child{border-top-left-radius:8px}
+.shc-gift-all-table thead th:last-child{border-top-right-radius:8px;text-align:right}
+.shc-gift-all-table thead th:nth-child(2),.shc-gift-all-table thead th:nth-child(3),.shc-gift-all-table thead th:nth-child(4),.shc-gift-all-table thead th:nth-child(5){text-align:right}
+.shc-gift-all-table tbody tr{transition:background .15s}
+.shc-gift-all-table tbody tr:hover{background:rgba(255,255,255,.04)}
+.shc-gift-all-table tbody td{padding:10px 12px;border-bottom:1px solid rgba(255,255,255,.04)}
+.shc-gift-all-table tbody tr:last-child td{border-bottom:none}
+.shc-gift-all-cur{display:flex;align-items:center;gap:2px;white-space:nowrap}
+.shc-gift-all-cur-id{font-weight:600;color:#f8fafc;min-width:36px}
+.shc-gift-all-cur-label{color:#64748b;font-size:11px;margin-left:4px}
+.shc-gift-all-star{color:#f59e0b;font-size:12px;margin-left:2px}
+.shc-gift-all-amt{text-align:right;font-variant-numeric:tabular-nums;color:#e2e8f0;white-space:nowrap}
+.shc-gift-all-amt.red{color:var(--stroke-red)}
+.shc-gift-all-amt.orange{color:var(--stroke-orange)}
+.shc-gift-all-amt.green{color:var(--stroke-green)}
+.shc-gift-all-empty{text-align:center;color:#64748b;padding:24px 0!important}
+.shc-gift-all-loading{text-align:center;color:#64748b;padding:12px 0!important;font-size:12px}
+.shc-gift-all-summary-row{border-top:2px solid rgba(102,192,244,.5)!important;background:rgba(102,192,244,.1)!important}
+.shc-gift-all-summary-row td{font-weight:700;padding-top:16px!important;padding-bottom:16px!important;font-size:15px}
+.shc-gift-all-summary-row .shc-gift-all-amt{font-size:15px}
+.shc-gift-all-bar-card{margin-top:12px;padding:12px 14px;background:rgba(102,192,244,.06);border:1px solid rgba(102,192,244,.15);border-radius:8px;flex-shrink:0}
+.shc-gift-all-bar{display:flex;height:10px;border-radius:5px;overflow:hidden;background:rgba(0,0,0,.3)}
+.shc-gift-all-bar-seg{height:100%;min-width:2px;transition:flex .3s}
+.shc-gift-all-bar-seg.green{background:rgba(16,185,129,.8)}
+.shc-gift-all-bar-seg.red{background:rgba(239,68,68,.8)}
+.shc-gift-all-bar-seg.orange{background:rgba(245,158,11,.8)}
+.shc-gift-all-bar-legend{display:flex;flex-wrap:wrap;gap:4px 12px;margin-top:6px;font-size:11px;color:#8a9ba8}
+.shc-gift-all-bar-leg{display:inline-flex;align-items:center;gap:4px;white-space:nowrap}
+.shc-gift-all-bar-dot{display:inline-block;width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.shc-gift-all-bar-dot.blue{background:#3b82f6}
+.shc-gift-all-bar-dot.green{background:#10b981}
+.shc-gift-all-bar-dot.red{background:#ef4444}
+.shc-gift-all-bar-dot.orange{background:#f59e0b}
+.shc-gift-all-unsupported{color:#f59e0b;font-size:12px;margin-left:4px;cursor:help}
+.shc-gift-all-footer{margin-top:12px;flex-shrink:0}
 .page-input{width:36px;text-align:center;background:rgba(0,0,0,.3);border:1px solid var(--border);border-radius:4px;color:var(--text);font-size:13px;padding:2px 4px;outline:none;-moz-appearance:textfield}
 .page-input::-webkit-outer-spin-button,.page-input::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
 .page-input:focus{border-color:var(--accent)}
@@ -2073,7 +2585,7 @@ ${iconColorCSS('.shc-regioncd-row-icon', ['blue','cyan','purple','orange'])}
         state.secToggleBtn.textContent = '▸'; state.secToggleBtn.title = t('expandToggle'); state.secToggleBtn.style.display = 'none';
         state.secToggleBtn.addEventListener('click', e => { e.stopPropagation(); state.showSecondaryRow = !state.showSecondaryRow; applyView(); });
         statRow.appendChild(state.secToggleBtn);
-        const collapseSecondary = e => { if (state.showSecondaryRow && !e.target.closest('.stat-row') && !e.target.closest('.sub-stat-row') && !e.target.closest('.sec-toggle-btn') && !e.target.closest('.shc-primary-currency-hint') && !e.target.closest('.shc-currency-dropdown')) { state.showSecondaryRow = false; applyView(); } };
+        const collapseSecondary = e => { if (state.showSecondaryRow && !container.contains(e.target) && !e.target.closest('.stat-row') && !e.target.closest('.sub-stat-row') && !e.target.closest('.sec-toggle-btn') && !e.target.closest('.shc-primary-currency-hint') && !e.target.closest('.shc-currency-dropdown')) { state.showSecondaryRow = false; applyView(); } };
         state.secCollapseHandler = collapseSecondary;
         statRow.addEventListener('click', () => { state.showAmounts = !state.showAmounts; state.subFilter = null; applyView(); });
 
@@ -2082,12 +2594,7 @@ ${iconColorCSS('.shc-regioncd-row-icon', ['blue','cyan','purple','orange'])}
         const loadingEl = document.querySelector('#wallet_history_loading'); if (loadingEl) statRow.appendChild(loadingEl);
 
         const actionGrp = document.createElement('div'); actionGrp.className = 'action-group';
-        actionGrp.appendChild(createIconButton(ICONS.donut, t('btnDonut'), showDonutChart));
-        actionGrp.appendChild(createIconButton(ICONS.barChart, t('btnBar'), showBarChart));
-        actionGrp.appendChild(createIconButton(ICONS.regionCD, t('btnRegionCD'), showRegionCD));
-        actionGrp.appendChild(createIconButton(ICONS.gift, t('btnGift'), showGiftAllowance));
-        actionGrp.appendChild(createIconButton(ICONS.discount, t('btnDiscount'), showDiscount));
-        actionGrp.appendChild(createIconButton(ICONS.ingame, t('btnIngame'), showIngameAnalysis));
+        actionGrp.appendChild(createIconButton(ICONS.barChart, t('analysisBtn'), openAnalysis, { showText: true }));
         const exportDropdown = document.createElement('div'); exportDropdown.className = 'shc-export-dropdown';
         const exportBtn = createIconButton(ICONS.download, t('exportFormat').replace('{format}', ''), () => {});
         exportBtn.addEventListener('click', e => { e.stopPropagation(); e.preventDefault(); exportDropdown.classList.toggle('open'); });
@@ -2135,7 +2642,7 @@ ${iconColorCSS('.shc-regioncd-row-icon', ['blue','cyan','purple','orange'])}
     }
 
     function makeFilterBtn(type) {
-        const btn = document.createElement('button'); btn.textContent = t(type.id); btn.dataset.filter = type.id; btn.className = 'filter-btn'; btn.style.setProperty('--btn-color', type.color); return btn;
+        const btn = document.createElement('button'); btn.textContent = t(type.id); btn.dataset.filter = type.id; btn.className = 'filter-btn'; return btn;
     }
 
     function buildPager() {
@@ -2187,10 +2694,14 @@ ${iconColorCSS('.shc-regioncd-row-icon', ['blue','cyan','purple','orange'])}
             p: () => { if (!state.showAllMode) { state.currentPage = Math.max(1, state.currentPage - 1); applyView(); } },
         };
         const onKey = e => {
+            if (e.ctrlKey || e.metaKey || e.altKey) return; // 不劫持 Ctrl/Win/Alt 组合键（收藏、保存、打印等）
             if (e.target.matches('input, select, textarea')) { if (e.key === 'Escape') e.target.blur(); return; }
             const action = KEY_ACTIONS[e.key.toLowerCase()]; if (action) { e.preventDefault(); action(); } else if (e.key === 'Escape') hideAllModals();
         };
-        document.addEventListener('keydown', onKey); state.disposers.push(() => document.removeEventListener('keydown', onKey));
+        // bfcache 恢复会重新执行 init，先移除上一次的监听器，避免重复叠加导致按 n/p 一次跳多页
+        if (state.keyHandler) document.removeEventListener('keydown', state.keyHandler);
+        state.keyHandler = onKey;
+        document.addEventListener('keydown', onKey); state.disposers.push(() => { document.removeEventListener('keydown', onKey); if (state.keyHandler === onKey) state.keyHandler = null; });
 
         const tableEl = document.querySelector('table.wallet_history_table');
         if (tableEl) {
