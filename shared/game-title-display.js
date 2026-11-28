@@ -17,7 +17,7 @@
   const auth = root.STAuthSession;
   const membership = root.STSettingsMembership;
   const AUTH_KEY = "steam_buff_auth";
-  const settingsKeys = [names.FEATURE, names.HIDE, names.COMMUNITY, names.AI];
+  const settingsKeys = [names.FEATURE, names.COMMUNITY, names.AI];
   const settingKey = id => `st.settings.${id}.enabled`;
   const keys = [...settingsKeys.map(settingKey), AUTH_KEY, membership.KEY];
 
@@ -29,7 +29,7 @@
     const sessionKey = auth.authKey(stored[AUTH_KEY]);
     if (!sessionKey || !account.userId) return { reason: "signed-out" };
     if (!membership.permission("customNames", account)) return { reason: "entitlement-denied" };
-    return { appid, sessionKey, ownerId: account.userId, sources: names.sources(settings), hidden: settings[names.HIDE] === true };
+    return { appid, sessionKey, ownerId: account.userId, sources: names.sources(settings) };
   }
 
   function sameAccount(current, pending) {
@@ -38,7 +38,7 @@
   }
 
   function sameBinding(current, pending) {
-    return sameAccount(current, pending) && !current.hidden && current.sources === pending.sources;
+    return sameAccount(current, pending) && current.sources === pending.sources;
   }
 
   async function readName(client, bound, beforeSend) {
@@ -153,7 +153,7 @@
           else host.append(button);
         }
         displayed = { page, identity };
-        if (identity.hidden || !names.shouldShowName(item, steamTitle(title))) {
+        if (!names.shouldShowName(item, steamTitle(title))) {
           label?.remove();
           label = null;
           return;
@@ -284,13 +284,6 @@
           mark("skipped", identity.reason);
           return;
         }
-        if (identity.hidden) {
-          request = null;
-          render(page, identity, null);
-          mark("skipped", "name-hidden");
-          return;
-        }
-
         // 单文档的同一 AppID、来源和会话共享一次读取，卡片替换时可以直接复用
         if (!request || !sameBinding(identity, request)) {
           render(page, identity, null);

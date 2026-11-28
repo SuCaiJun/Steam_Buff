@@ -22,7 +22,7 @@
   const api = root.STStore;
   if (!api) return;
 
-  const { FEATURE: FEATURE_ID, HIDE, decorateName } = titleNames;
+  const { FEATURE: FEATURE_ID, decorateName } = titleNames;
   const AUTH_REFRESH = root.STConfig.loginAuth("/auth/refresh");
   const NAME_BATCH_SIZE = 80;
   const HOST_ID = "st-title-custom-name";
@@ -193,15 +193,14 @@
   }
 
   function renderNameHost(host, appid, item, steamTitle, mode, loading = false) {
-    const hidden = api.settings?.all?.()?.[HIDE] === true;
-    const visibleName = !loading && !hidden && shouldShowName(item, steamTitle) ? text(item?.name) : "";
+    const visibleName = !loading && shouldShowName(item, steamTitle) ? text(item?.name) : "";
     const label = visibleName ? `[${visibleName}]` : "";
     const idText = String(appid || "");
-    const key = JSON.stringify([appid, text(item?.name), text(item?.name_source), steamTitle, mode, loading, hidden]);
+    const key = JSON.stringify([appid, text(item?.name), text(item?.name_source), steamTitle, mode, loading]);
     const labelReady = (host.dataset.label || "") === label;
     const idReady = (host.dataset.stAppid || "") === idText;
     const contentReady = loading
-      ? hidden ? host.childElementCount === 0 : !!host.querySelector(".st-store-skeleton")
+      ? !!host.querySelector(".st-store-skeleton")
       : !!host.querySelector(".st-title-custom-name-btn");
     if (host._stTitleCustomNameKey === key && contentReady && labelReady && idReady) {
       return;
@@ -215,7 +214,7 @@
     host.replaceChildren();
     // 名称和编辑入口作为一个加载区域，结果结束前不暴露可点击按钮
     if (loading) {
-      if (!hidden) host.appendChild(api.dom.loading.create("line"));
+      host.appendChild(api.dom.loading.create("line"));
       api.dom.loading.activate(host);
       return;
     }

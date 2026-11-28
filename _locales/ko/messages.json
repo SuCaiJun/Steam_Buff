@@ -5978,12 +5978,6 @@
   "settings_feature_store_title_community_fallback_ai_desc": {
     "message": "커뮤니티 이름이 없을 때 AI 번역 이름을 대체 표시합니다."
   },
-  "settings_feature_store_title_hide_custom_name_name": {
-    "message": "게임 페이지의 사용자 지정 이름 숨기기"
-  },
-  "settings_feature_store_title_hide_custom_name_desc": {
-    "message": "상점 상세, 위시리스트, Steam 커뮤니티 및 고객지원 게임 페이지에서 사용자 지정 이름을 숨깁니다."
-  },
   "store_titleCustomName_aliasHint": {
     "message": "Enter 또는 스페이스로 추가, 게임당 최대 10개"
   },

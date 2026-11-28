@@ -5978,12 +5978,6 @@
   "settings_feature_store_title_community_fallback_ai_desc": {
     "message": "沒有社群名稱時，允許使用 AI 翻譯名稱作為兜底顯示。"
   },
-  "settings_feature_store_title_hide_custom_name_name": {
-    "message": "隱藏遊戲頁自訂名稱"
-  },
-  "settings_feature_store_title_hide_custom_name_desc": {
-    "message": "隱藏商店詳情、願望清單、社群和客服遊戲頁的自訂名稱。"
-  },
   "store_titleCustomName_aliasHint": {
     "message": "Enter 或空白鍵新增，每款遊戲最多 10 個"
   },

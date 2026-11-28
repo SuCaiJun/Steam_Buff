@@ -940,13 +940,6 @@
           ]),
         },
         {
-          id: "store-title-hide-custom-name",
-          name: "隐藏游戏页自定义名称",
-          desc: "隐藏商店详情、愿望单、社区和客服游戏页的自定义名称。",
-          area: "steam",
-          enabled: false,
-        },
-        {
           id: "library-group-labels",
           name: "分组显示在名称后面",
           desc: "在 Steam 库列表中隐藏收藏分组名称末尾的 []，并在库项目名称后追加所属分组标签",

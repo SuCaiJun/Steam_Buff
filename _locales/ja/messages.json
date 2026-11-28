@@ -5978,12 +5978,6 @@
   "settings_feature_store_title_community_fallback_ai_desc": {
     "message": "コミュニティ名がない場合に AI 翻訳名をフォールバック表示します。"
   },
-  "settings_feature_store_title_hide_custom_name_name": {
-    "message": "ゲームページのカスタム名を非表示"
-  },
-  "settings_feature_store_title_hide_custom_name_desc": {
-    "message": "ストアのゲーム詳細、ウィッシュリスト、Steam コミュニティとサポートのゲームページでカスタム名を非表示にします。"
-  },
   "store_titleCustomName_aliasHint": {
     "message": "Enter またはスペースで追加。ゲームごとに最大 10 件"
   },

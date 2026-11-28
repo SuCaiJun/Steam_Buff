@@ -13,7 +13,6 @@
   "use strict";
 
   const FEATURE = "store-title-custom-name";
-  const HIDE = "store-title-hide-custom-name";
   const COMMUNITY = "store-title-community-fallback";
   const AI = "store-title-community-fallback-ai";
 
@@ -86,7 +85,7 @@
   `;
 
   const api = Object.freeze({
-    FEATURE, HIDE, COMMUNITY, AI, text, nameEqual, shouldShowName, decorateName, sources, url,
+    FEATURE, COMMUNITY, AI, text, nameEqual, shouldShowName, decorateName, sources, url,
     splitAliasDraft, keepAliases, buttonCss,
   });
   if (typeof module === "object" && module.exports) module.exports = api;

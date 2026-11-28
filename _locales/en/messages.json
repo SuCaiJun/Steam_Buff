@@ -5978,12 +5978,6 @@
   "settings_feature_store_title_community_fallback_ai_desc": {
     "message": "Allow the AI translation name as a fallback when no community name exists."
   },
-  "settings_feature_store_title_hide_custom_name_name": {
-    "message": "Hide Custom Names on Game Pages"
-  },
-  "settings_feature_store_title_hide_custom_name_desc": {
-    "message": "Hide custom names on store details, wishlists, and Steam Community and Support game pages."
-  },
   "store_titleCustomName_aliasHint": {
     "message": "Press Enter or Space to add, up to 10 per game"
   },

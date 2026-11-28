@@ -112,7 +112,7 @@
       ],
     }),
     moduleFeature("store-title-custom-name", "titleCustomName", undefined, {
-      settingsIds: ["store-title-community-fallback", "store-title-community-fallback-ai", "store-title-hide-custom-name"],
+      settingsIds: ["store-title-community-fallback", "store-title-community-fallback-ai"],
     }),
     moduleFeature("game-notes", "gameNotes"),
     moduleFeature("purchase-history-classifier", "purchaseHistoryClassifier"),
