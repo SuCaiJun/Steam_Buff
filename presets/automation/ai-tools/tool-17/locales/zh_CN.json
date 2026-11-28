@@ -1,0 +1,10 @@
+{
+  ".name": "查询 Steam 好友",
+  ".note": "分页读取 Steam 好友及可见状态，也可按 Steam 显示昵称搜索。",
+  ".description": "读取 Steam 好友列表。要按昵称找人，请传 nickname。在完整名单中按 Steam 显示昵称查找，返回 SteamID64 和可见状态。有多个匹配时请用户确认。unavailableNames 是 Steam 未提供昵称的好友数。用 nextStart 继续翻页。",
+  ".parameters.nickname": "按 Steam 显示昵称做不区分大小写的部分匹配。省略时列出好友。",
+  ".variables.result": "查询结果",
+  ".parameters.steamId": "SteamID64 字符串，省略时使用当前登录的 Steam 账号。",
+  ".parameters.start": "从 0 开始。继续查询时传上次返回的 nextStart。",
+  ".parameters.limit": "每页返回 1 到 100 条，默认 25 条。"
+}

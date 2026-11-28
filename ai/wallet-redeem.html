@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>兑换 Steam 钱包充值码</title>
+  <link rel="stylesheet" href="wallet-redeem.css">
+  <script defer src="../shared/config.js"></script>
+  <script defer src="../shared/client-environment.js"></script>
+  <script defer src="../shared/logger-schema.js"></script>
+  <script defer src="../shared/logger-factory.js"></script>
+  <script defer src="../shared/settings-bus.js"></script>
+  <script defer src="../shared/i18n.js"></script>
+  <script defer src="../shared/styles/theme.js"></script>
+  <script defer src="../shared/styles/components.js"></script>
+  <script defer src="wallet-redeem.js"></script>
+</head>
+<body>
+  <main aria-labelledby="title">
+    <h1 id="title" data-text="ai_wallet_title">兑换 Steam 钱包充值码</h1>
+    <dl id="wallet-account" hidden>
+      <div><dt data-text="ai_chat_approval_steam_account_id">当前 SteamID64</dt><dd id="steam-id"></dd></div>
+      <div><dt data-text="ai_chat_approval_store_region">商店地区</dt><dd id="wallet-country"></dd></div>
+      <div><dt data-text="ai_chat_wallet_currency">钱包币种</dt><dd id="wallet-currency"></dd></div>
+      <div id="wallet-before" hidden><dt data-text="ai_chat_wallet_balance">Steam 钱包余额</dt><dd id="wallet-balance"></dd></div>
+    </dl>
+    <form id="enter-code" method="post" hidden>
+      <label for="wallet-code" data-text="ai_chat_wallet_code">Steam 钱包充值码</label>
+      <input id="wallet-code" type="password" autocomplete="off" autocorrect="off" autocapitalize="none"
+        spellcheck="false" enterkeyhint="next" maxlength="256" required disabled>
+      <div class="actions">
+        <button type="button" data-cancel data-text="common_cancel">取消</button>
+        <button type="submit" class="primary" data-text="ai_chat_wallet_review">核对兑换</button>
+      </div>
+    </form>
+    <section id="review-code" aria-labelledby="review-title" hidden>
+      <h2 id="review-title" tabindex="-1" data-text="ai_chat_wallet_review">核对兑换</h2>
+      <dl>
+        <div><dt data-text="ai_chat_wallet_code_ending">充值码尾号</dt><dd id="code-ending"></dd></div>
+      </dl>
+      <p data-text="ai_chat_wallet_amount_notice">此操作会把充值码充入上述账号。实际到账金额由 Steam 确认。</p>
+      <div class="actions">
+        <button type="button" id="wallet-back" data-text="ai_chat_wallet_edit">返回修改</button>
+        <button type="button" data-cancel data-text="common_cancel">取消</button>
+        <button type="button" id="wallet-confirm" class="danger" data-text="ai_chat_wallet_confirm">确认兑换</button>
+      </div>
+    </section>
+    <p id="wallet-status" role="status" tabindex="-1" data-text="ai_chat_wallet_waiting">正在核对 Steam 钱包…</p>
+    <div id="wallet-external" class="actions" hidden>
+      <a id="wallet-native" data-text="ai_chat_wallet_open_steam">打开 Steam 兑换页</a>
+      <a id="wallet-history" data-text="ai_chat_wallet_open_history">查看 Steam 购买记录</a>
+    </div>
+  </main>
+</body>
+</html>

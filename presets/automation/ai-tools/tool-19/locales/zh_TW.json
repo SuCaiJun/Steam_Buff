@@ -1,0 +1,8 @@
+{
+  ".name": "查詢我的授權記錄",
+  ".note": "讀取目前 Steam 商店帳號的授權日期、名稱與取得方式。使用 nextStart 翻頁。",
+  ".description": "讀取目前 Steam 商店帳號的授權日期、名稱與取得方式。使用 nextStart 翻頁。",
+  ".variables.result": "查詢結果",
+  ".parameters.start": "從 0 開始。繼續查詢時傳入上次回傳的 nextStart。",
+  ".parameters.limit": "每頁 1 到 100 筆，預設 25 筆。"
+}

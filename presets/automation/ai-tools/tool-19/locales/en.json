@@ -1,0 +1,8 @@
+{
+  ".name": "Look up my Steam licenses",
+  ".note": "Read the date, name, and acquisition method of licenses on the signed-in Steam Store account. Continue with nextStart.",
+  ".description": "Read the date, name, and acquisition method of licenses on the signed-in Steam Store account. Continue with nextStart.",
+  ".variables.result": "Query result",
+  ".parameters.start": "Zero-based offset. Continue with the previous result's nextStart.",
+  ".parameters.limit": "1 to 100 entries per page. The default is 25."
+}

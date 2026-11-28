@@ -114,24 +114,88 @@
     { ...data.field("direction", "排序方向", "text", ""), optional: true, choices: [["asc", "升序"], ["desc", "降序"]] },
     { ...data.field("limit", "取前几项", "number", ""), optional: true },
   ];
+  const optionalField = (key, label, type) => ({ ...data.field(key, label, type, ""), optional: true });
+  const targetSteamId = data.field("steamId", "SteamID64", "text", "");
+  const steamIdInput = { ...targetSteamId, optional: true };
+  // 第一阶段保存的好友查询没有昵称字段，直接兼容缺省
+  const nicknameInput = { ...optionalField("nickname", "好友昵称", "text"), labelKey: "ai_chat_approval_friend_nickname", allowMissing: true };
+  const accountPageInputs = [optionalField("start", "分页起点", "number"), optionalField("limit", "每页条数", "number")];
+  const freeOfferInputs = [optionalField("appId", "AppID", "number"), optionalField("url", "Steam 商品链接", "text"),
+    optionalField("packageId", "套餐 ID", "number")];
   const providerDefinitions = [
     ["steam-game-details", "game", "Steam 游戏资料", "按 AppID 查询 Steam 商店的公开游戏资料", "商店与价格", { order: 10, argument: "appId" }],
     ["steam-current-players", "players", "Steam 在线人数", "按 AppID 查询 Steam 当前在线人数", "应用与状态", { order: 10, argument: "appId" }],
     ["itad-price-history", "prices", "ITAD 价格与史低", "按 AppID 查询配置地区的当前报价和历史最低价", "商店与价格", { order: 20, argument: "appId" }],
     ["steam-store-search", "search", "Steam 商店搜索", "按条件搜索 Steam 国区商店", "商店与价格", { order: 30, fields: storeFields, replaced: "filters" }],
+    ["steam-store-game-batch", "game_batch", "批量查询 Steam 游戏资料", "按 AppID 列表读取 Steam 商店公开资料", "商店与价格", {
+      order: 40, fields: [data.field("appIds", "AppID 列表", "list", [])],
+    }],
+    ["steam-store-reviews", "reviews", "查询 Steam 游戏评测", "读取指定游戏的最新评测", "商店与价格", {
+      order: 50, fields: [data.field("appId", "AppID", "number", 0), {
+        ...optionalField("reviewType", "评测类型", "text"), choices: [["all", "全部"], ["positive", "好评"], ["negative", "差评"]],
+      }, optionalField("language", "语言", "text"), optionalField("cursor", "评测游标", "text"), optionalField("limit", "每页条数", "number")],
+    }],
+    ["steam-store-news", "news", "查询 Steam 游戏新闻", "读取指定游戏的近期新闻", "商店与价格", {
+      order: 60, fields: [data.field("appId", "AppID", "number", 0), optionalField("limit", "新闻条数", "number")],
+    }],
+    ["steam-cart-read", "cart_read", "查询 Steam 购物车", "读取 Steam 购物车和暂存状态", "商店与价格", { order: 70, fields: [] }],
+    ["steam-cart-change", "cart_change", "修改 Steam 购物车", "确认后加购、移除或清空购物车", "商店与价格", {
+      order: 80, write: true, fields: [{
+        ...data.field("operation", "操作", "text", ""), choices: [["", "请选择"], ["add", "加购"], ["remove", "移除"], ["clear", "清空"]],
+      }, optionalField("appId", "AppID", "number"), optionalField("packageId", "套餐 ID", "number"),
+      optionalField("bundleId", "捆绑包 ID", "number"), optionalField("lineId", "购物车行 ID", "text")],
+    }],
+    ["steam-free-eligibility", "free_eligibility", "查询 Steam 免费领取资格", "核对当前 Steam 账号的免费领取资格", "商店与价格", {
+      order: 90, fields: freeOfferInputs,
+    }],
+    ["steam-free-claim", "free_claim", "领取 Steam 免费许可证", "确认后提交可核实的免费许可证并回读", "商店与价格", {
+      order: 100, write: true, fields: freeOfferInputs,
+    }],
+    ["steam-checkout-preview", "checkout_preview", "预览 Steam 结账", "读取购物车小计和钱包余额", "商店与价格", {
+      order: 110, fields: [],
+    }],
+    ["steam-wallet-checkout", "wallet_checkout", "使用 Steam 钱包结账", "核对购物车后前往 Steam 原生结账", "商店与价格", {
+      order: 120, write: true, fields: [],
+    }],
+    ["steam-wallet-redeem", "wallet_redeem", "兑换 Steam 钱包充值码", "在独立界面核对收款账号并兑换", "商店与价格", {
+      order: 130, write: true, fields: [],
+    }],
+    ["steam-wishlist-change", "wishlist_change", "修改 Steam 愿望单", "在 AI 对话确认后添加或移出愿望单", "游戏库与愿望单", {
+      order: 50, write: true, fields: [data.field("appIds", "AppID 列表", "list", []), {
+        ...data.field("operation", "操作", "text", ""), choices: [["", "请选择"], ["add", "添加到愿望单"], ["remove", "移出愿望单"]],
+      }],
+    }],
     ["steam-account-library", "library", "筛选我的 Steam 游戏库", "按条件筛选整个 Steam 库并返回 AppID 列表", "游戏库与愿望单", { order: 10, account: true, filter: "library", replaced: "taskArgs" }],
     ["steam-account-game", "library_game", "查询我的游戏详情", "按一个 AppID 读取库内详情和成就进度", "游戏库与愿望单", { order: 20, account: true, argument: "appId", replaced: "taskArgs" }],
-    ["steam-account-wishlist", "wishlist", "筛选我的 Steam 愿望单", "按条件筛选整个愿望单并返回 AppID 列表", "游戏库与愿望单", { order: 30, account: true, filter: "wishlist", replaced: "taskArgs" }],
+    ["steam-account-wishlist", "wishlist", "筛选 Steam 愿望单", "按条件筛选当前账号愿望单并返回 AppID 列表", "游戏库与愿望单", { order: 30, account: true, filter: "wishlist", replaced: "taskArgs" }],
     ["steam-account-wishlist-game", "wishlist_game", "查询我的 Steam 愿望单", "按一个 AppID 读取愿望单条目和报价", "游戏库与愿望单", { order: 40, account: true, argument: "appId" }],
+    ["steam-player-profile", "profile", "查询 Steam 档案", "读取档案可见字段", "Steam 账号", { order: 10, fields: [steamIdInput] }],
+    ["steam-player-friends", "friends", "查询 Steam 好友", "读取好友及可见在线状态，可按昵称搜索", "Steam 账号", {
+      order: 20, fields: [steamIdInput, nicknameInput, ...accountPageInputs],
+    }],
+    ["steam-player-badges", "badges", "查询徽章与卡牌进度", "读取徽章、等级和本人的卡牌进度", "Steam 账号", {
+      order: 30, fields: [steamIdInput, ...accountPageInputs, optionalField("cardPage", "卡牌页码", "number")],
+    }],
+    ["steam-account-licenses", "licenses", "查询我的许可证记录", "读取当前账号的许可证取得记录", "Steam 账号", {
+      order: 40, fields: accountPageInputs,
+    }],
+    ["steam-friend-library", "friend_library", "查询好友游戏库", "按 SteamID64 查询好友可见的游戏及游玩时长", "Steam 账号", {
+      order: 50, fields: [targetSteamId, { ...optionalField("term", "搜索词", "text"), labelKey: "ai_chat_approval_keyword" }, {
+        ...optionalField("sortBy", "游玩时长", "text"), labelKey: "promptToken_game_playtime_minutes", choices: [["playtime", "降序"]],
+      }, ...accountPageInputs],
+    }],
+    ["steam-friend-achievements", "friend_achievements", "查询好友单款游戏成就", "按 SteamID64 和 AppID 读取好友的成就进度", "Steam 账号", {
+      order: 60, fields: [targetSteamId, data.field("appId", "AppID", "number", 0), ...accountPageInputs],
+    }],
     // 2.2.65 已保存的旧节点仍可打开。新建步骤使用单 AppID 的 Steam 指令
     ["steam-batch-sort-name", "rename", "批量游戏名汉化", "为 Steam 库内指定游戏生成中文排序名称", "游戏名称", { legacy: true }],
     ["steam-batch-collections", "collections", "批量添加到收藏分组", "为指定游戏选择现有可写收藏分组", "收藏分组", { legacy: true }],
     ["steam-batch-achievements", "achievements", "批量游戏成就翻译", "处理指定游戏尚无译文的成就", "游戏成就", { legacy: true }],
-  ].map(([id, provider, name, hint, group, { order, argument, account = false, legacy = false, fields, filter, replaced } = {}]) => {
+  ].map(([id, provider, name, hint, group, { order, argument, account = false, legacy = false, write = false, fields, filter, replaced } = {}]) => {
     fields ??= filter ? filterInputs(filter) : argument === "appId" ? [data.field("appId", "AppID", "number", 0)]
       : [data.field("taskArgs", "查询参数", "object", {})];
     return Object.freeze({ id, provider, argument, name, label: "ai_chat_tool_" + provider, hint, icon: "database",
-      category: "Steam 操作", chatAccess: legacy ? "steam-write" : "steam-read", chatAccount: account,
+      category: "Steam 操作", chatAccess: legacy || write ? "steam-write" : "steam-read", chatAccount: account,
       group, order, legacy, fields, filter, replaced, outputType: filter ? "list" : "object", outputName: filter ? "AppID 列表" : "查询结果" });
   });
   const providerQueries = Object.freeze(Object.fromEntries(providerDefinitions.map(definition => [definition.id, definition])));
@@ -514,8 +578,11 @@
               "workflow_error_unknown_action", { name: workflow.name, step: node.id, action: String(type(node)) });
           if (!target && (node.draftMissingStart || node.draftMissingEnd))
             throw configurationError("流程块起止指令不完整", "workflow_draft_incomplete_block");
-          if (!instructionAvailable(type(node), context))
-            throw configurationError("此处不能使用该指令", "workflow_error_tool_instruction");
+          if (!instructionAvailable(type(node), context, workflow.id)) {
+            const issue = directSteamInstructionIssue(node, workflow.id);
+            // 读取旧定义时保留原步骤，严格校验会定位需要修正的指令
+            if (!issue || !structureOnly) throw issue ?? configurationError("此处不能使用该指令", "workflow_error_tool_instruction");
+          }
           if (workflow.inputParameters && node.action === "receive")
             throw configurationError("请用「触发器传参」声明变量，再替换旧的「接收输入」指令", "workflow_parameter_replace_receive");
           if (node.disabled !== undefined && typeof node.disabled !== "boolean") throw configurationError("指令禁用状态无效", "workflow_error_disabled");
@@ -544,10 +611,13 @@
               output(node.output);
               continue;
             }
-            const required = actionFields(node)?.map(field => field.key).filter(key => node.action !== http.id || key !== "body" || hasHttpBody(node.method)) || { raise: ["value"], log: ["value"], wait: ["seconds"], notify: ["body"], "tool-return": ["value"] }[node.action] || [];
+            const fields = actionFields(node)?.filter(field => node.action !== http.id || field.key !== "body" || hasHttpBody(node.method));
+            const required = fields?.filter(field => !field.allowMissing).map(field => field.key) ??
+              ({ raise: ["value"], log: ["value"], wait: ["seconds"], notify: ["body"], "tool-return": ["value"] }[node.action] || []);
             if (required.some(key => !Object.hasOwn(node, key))) throw configurationError("指令缺少必填输入", "workflow_error_action_input");
             if (["break", "continue"].includes(node.action) && !depth) throw configurationError("该指令只能放在循环内", "workflow_error_loop");
-            for (const key of new Set([...required, "game", "source", "body"])) if (Object.hasOwn(node, key)) validateValue(node[key], vars);
+            const inputKeys = fields?.map(field => field.key) ?? required;
+            for (const key of new Set([...inputKeys, "game", "source", "body"])) if (Object.hasOwn(node, key)) validateValue(node[key], vars);
             if (workflow.inputParameters && required.includes("game")) {
               const value = activeValue(node.game);
               if (Object.hasOwn(value, "literal") && !gameAppId(value.literal))
@@ -935,9 +1005,23 @@
   const toolIds = node => node.action === "ai-call" ? node.toolIds || []
     : node.action === "tool-call" && node.toolMode === "registered" ? [node.toolId] : [];
   const instructionContext = workflow => isLibraryId(workflow.id) ? "library" : isToolId(workflow.id) ? "tool" : "workflow";
-  function instructionAvailable(key, context) {
+  function directSteamToolId(key) {
+    const provider = providerQueries[key]?.provider;
+    if (!provider) return null;
+    const ai = root.STAI, id = ai.PROVIDER_TOOL_IDS[provider];
+    return ai.isDirectSteamTool(id) ? id : null;
+  }
+  function directSteamInstructionIssue(node, workflowId) {
+    const ownerId = directSteamToolId(type(node));
+    if (ownerId && ownerId !== workflowId)
+      return Object.assign(configurationError("请在 AI 对话中直接调用对应的 Steam 工具", "workflow_error_direct_steam_tool"), { nodeId: node.id });
+    return null;
+  }
+  function instructionAvailable(key, context, workflowId) {
     const definition = instruction(key);
-    return !!definition && (!definition.context || definition.context === context);
+    if (!definition || definition.context && definition.context !== context) return false;
+    const ownerId = directSteamToolId(key);
+    return !ownerId || context === "tool" && workflowId === ownerId;
   }
   /** 输入值用于定位引用；求值时提供运行状态，以跳过明确配置为省略的未赋值项。 */
   function inputs(node, state) {
@@ -1384,7 +1468,7 @@
   }
   const previewable = node => node.kind === "if" || !!(data.byId[node.action] || effects[node.action]?.gameField || Object.hasOwn(providerQueries, node.action) || ["script", "ai-call", http.id].includes(node.action));
   root.STWorkflow = Object.freeze({ catalog: Object.freeze(catalog), definitions, actionFields, effects, providerQueries, outdatedQuery, queryDefaults, failable, previewable, names: Object.freeze(names), loops, markers, operations, clone, literal, constant, reference, isToolId, isProviderToolId, isLibraryId, instructionAvailable, toolIds,
-    instructions, instruction, entryInstruction, instructionContext,
+    instructions, instruction, entryInstruction, instructionContext, directSteamInstructionIssue,
     httpMethods, httpMaxTimeout, hasHttpBody, httpUrl, staticHttpOrigin, instructionPermission, permissionNotice, permissionDenial,
     numericId, variable, condition, comparison, multiple, unary, inputs, conditionInputs, inputValue, activeValue, references, nodeReferences, implicitToolInput, optionalRecordVariables, scopes, outputFields, evaluateValues, type, walk, createNode, validate, validateValue, validateCondition, read, write, matches, state, next, local, failed,
     complete, currentNode, raise, transfer, rows, insertionIndex, endMarker, foldPairs, foldLayout, entryRowLayout, entryPositionError, validateEntryPosition, validateLibraryOutputPosition, visitSequences, pathGet, errorData, errorObject, parameterVariableType, entryParameters, gameAppId });

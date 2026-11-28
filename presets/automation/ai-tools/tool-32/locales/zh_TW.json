@@ -1,0 +1,6 @@
+{
+  ".name": "兌換 Steam 錢包儲值碼",
+  ".note": "開啟擴充功能的獨立兌換頁面，輸入儲值碼並確認入帳的 Steam 帳號。",
+  ".description": "開啟擴充功能的獨立兌換頁面，輸入儲值碼並確認入帳的 Steam 帳號。",
+  ".variables.result": "結果"
+}

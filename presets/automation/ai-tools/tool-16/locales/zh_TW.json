@@ -1,0 +1,7 @@
+{
+  ".name": "查詢 Steam 個人檔案",
+  ".note": "透過 Steam Web API 依 SteamID64 讀取暱稱、頭像、個人頁面與可見的上線狀態。",
+  ".description": "透過 Steam Web API 依 SteamID64 讀取暱稱、頭像、個人頁面與可見的上線狀態。",
+  ".variables.result": "查詢結果",
+  ".parameters.steamId": "SteamID64 字串。省略時使用目前登入的 Steam 帳號。"
+}

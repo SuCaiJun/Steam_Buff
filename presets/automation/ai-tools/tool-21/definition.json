@@ -1,0 +1,105 @@
+{
+  "id": "tool-21",
+  "name": "$text:.name",
+  "note": "$text:.note",
+  "revision": 1,
+  "executionId": "00000000-0000-4000-8000-000000000003",
+  "enabled": true,
+  "description": "$text:.description",
+  "parameters": [
+    {
+      "name": "steamId",
+      "type": "string",
+      "required": true,
+      "description": "$text:.parameters.steamId",
+      "variableId": "var-steamId"
+    },
+    {
+      "name": "appId",
+      "type": "integer",
+      "required": true,
+      "description": "$text:.parameters.appId",
+      "variableId": "var-appId"
+    },
+    {
+      "name": "start",
+      "type": "integer",
+      "required": false,
+      "description": "$text:.parameters.start",
+      "variableId": "var-start"
+    },
+    {
+      "name": "limit",
+      "type": "integer",
+      "required": false,
+      "description": "$text:.parameters.limit",
+      "variableId": "var-limit"
+    }
+  ],
+  "variables": [
+    {
+      "id": "var-steamId",
+      "name": "steamId",
+      "type": "text"
+    },
+    {
+      "id": "var-appId",
+      "name": "appId",
+      "type": "number"
+    },
+    {
+      "id": "var-start",
+      "name": "start",
+      "type": "number"
+    },
+    {
+      "id": "var-limit",
+      "name": "limit",
+      "type": "number"
+    },
+    {
+      "id": "var-result",
+      "name": "$text:.variables.result",
+      "type": "object"
+    }
+  ],
+  "steps": [
+    {
+      "id": "step-query",
+      "kind": "action",
+      "action": "steam-friend-achievements",
+      "steamId": {
+        "source": "variable",
+        "id": "var-steamId",
+        "path": []
+      },
+      "appId": {
+        "source": "variable",
+        "id": "var-appId",
+        "path": []
+      },
+      "start": {
+        "source": "variable",
+        "id": "var-start",
+        "path": []
+      },
+      "limit": {
+        "source": "variable",
+        "id": "var-limit",
+        "path": []
+      },
+      "output": "var-result"
+    },
+    {
+      "id": "step-return",
+      "kind": "action",
+      "action": "tool-return",
+      "value": {
+        "source": "variable",
+        "id": "var-result",
+        "path": []
+      }
+    }
+  ],
+  "providerInputVersion": 1
+}

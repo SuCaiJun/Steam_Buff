@@ -33,6 +33,10 @@
 
   const numberField = (tag, value) => [tag * 8, ...integer(value)];
   const bytesField = (tag, value) => [tag * 8 + 2, ...integer(value.length), ...value];
+  const countryBytes = country => new TextEncoder().encode(country);
+  const removeBody = (country, lineId) => [...numberField(1, lineId), ...bytesField(2, countryBytes(country))];
+  const addBody = (country, items) => [...bytesField(1, countryBytes(country)),
+    ...items.flatMap(item => bytesField(2, numberField(item.kind === "bundle" ? 2 : 1, item.itemId)))];
 
   function fields(bytes) {
     const result = [];
@@ -63,11 +67,14 @@
     return result;
   }
 
-  function decode(bytes, field = 1) {
+  function decode(bytes, field = 1, details) {
     const carts = fields(Uint8Array.from(bytes)).filter(entry => entry.tag === field);
     if (carts.length !== 1 || carts[0].wire !== 2) throw new Error("Steam 未返回购物车清单");
     const lines = new Map();
-    for (const entry of fields(carts[0].value)) {
+    const contents = fields(carts[0].value);
+    const displayed = new Map();
+    for (const row of details || []) displayed.set(row.lineId, displayed.has(row.lineId) ? null : row);
+    for (const entry of contents) {
       if (entry.tag !== 1) continue;
       if (entry.wire !== 2) throw new TypeError("Steam 购物车行格式无效");
       const parts = fields(entry.value);
@@ -92,23 +99,46 @@
       const canRestore = !gift?.length && !activeFlags.length && !coupon;
       const identity = JSON.stringify([kind, itemId, String(read(2, 0) || 0n), String(coupon), Array.from(gift || []),
         activeFlags.map(flag => [flag.tag, flag.wire, flag.wire === 0 ? String(flag.value) : Array.from(flag.value)])]);
-      lines.set(lineId, { lineId, kind, itemId, key: `${kind}:${itemId}`, identity, canRestore });
+      const line = { lineId, kind, itemId, key: kind + ":" + itemId, identity, canRestore };
+      if (details) {
+        const row = displayed.get(lineId);
+        if (row?.kind === kind && row.itemId === itemId) {
+          if (row.name) line.name = row.name;
+          if (row.price) line.price = row.price;
+        }
+        const previousPrice = read(11, 2);
+        if (previousPrice) line.priceWhenAdded = decodeSubtotal(previousPrice);
+        if (gift?.length || activeFlags.some(flag => flag.tag === 1 && flag.value === 1n)) line.gift = true;
+        if (activeFlags.some(flag => flag.tag === 2 && flag.value === 1n)) line.privatePurchase = true;
+        if (coupon) line.coupon = true;
+      }
+      lines.set(lineId, line);
     }
-    return lines;
+    const subtotal = details && contents.find(entry => entry.tag === 2 && entry.wire === 2);
+    return { lines, ...(subtotal && { subtotal: decodeSubtotal(subtotal.value) }) };
+  }
+
+  function decodeSubtotal(bytes) {
+    const parts = fields(bytes);
+    const amount = parts.find(part => part.tag === 1 && part.wire === 0)?.value ?? 0n;
+    const currencyCode = Number(parts.find(part => part.tag === 2 && part.wire === 0)?.value);
+    const display = parts.find(part => part.tag === 3 && part.wire === 2)?.value;
+    if (amount > BigInt(Number.MAX_SAFE_INTEGER) || !Number.isSafeInteger(currencyCode) || currencyCode <= 0 || !display?.length) return undefined;
+    return { amount: Number(amount), currencyCode, formatted: new TextDecoder().decode(display) };
   }
 
   function sameLines(before, after) {
     return before.size === after.size && [...before].every(([id, line]) => after.get(id)?.identity === line.identity);
   }
 
-  async function requestCart(execScript, sender, account, signal, method, country, body, claimLegacy) {
+  async function requestCart(execScript, sender, account, signal, method, country, body, claimLegacy, commerce) {
     if (signal?.aborted) {
       throw Object.assign(new Error("购物车请求已取消", { cause: signal.reason }), { beforeRequest: true });
     }
     const [injection] = await execScript({
       target: { tabId: sender.tab.id, documentIds: [sender.documentId] }, world: "MAIN",
-      args: [origin, account, method ? methods[method] : null, country || null, body || null, claimLegacy],
-      func: async (expectedOrigin, account, path, country, body, claimLegacy) => {
+      args: [origin, account, method ? methods[method] : null, country || null, body || null, claimLegacy, commerce ?? null],
+      func: async (expectedOrigin, account, path, country, body, claimLegacy, commerce) => {
         const currentCountry = () => {
           const user = window.UserConfig;
           if (location.origin !== expectedOrigin || !/^\/cart\/?$/.test(location.pathname)
@@ -120,13 +150,26 @@
         if (!initialCountry || (country && country !== initialCountry)) return { changed: true, beforeRequest: true };
         if (!path) return { country: initialCountry };
         const options = { credentials: "same-origin", cache: "no-store", redirect: "error", signal: AbortSignal.timeout(8000) };
+        const proofKey = Symbol.for("SteamBuff.cart-preflight");
+        const steamSession = () => document.cookie.match(/(?:^|;\s*)sessionid=([^;]+)/)?.[1];
+        const initialSession = commerce && steamSession();
+        const binding = commerce && window[Symbol.for("SteamBuff.cart-commerce-session")];
+        const current = () => currentCountry() === initialCountry && (!commerce || binding?.id === commerce.binding &&
+          binding.current() && steamSession() === initialSession);
+        if (!current()) return { changed: true, beforeRequest: true };
         function sessionFailure(error) {
           // The injection result cannot carry an Error object. Keep its frames without copying response text.
           const message = error.name === "SyntaxError" ? "Steam 购物车会话格式无效" : error.message;
           return { beforeRequest: true, transportError: { name: error.name, message, frames: error.stack?.split("\n").slice(1) } };
         }
         let legacyProof = null;
-        {
+        if (commerce?.commit) {
+          const proof = window[proofKey];
+          if (!proof || proof.id !== commerce.commit || proof.path !== path || proof.body !== body.join(",") || Date.now() >= proof.expiresAt)
+            return { expired: true, beforeRequest: true };
+          delete window[proofKey];
+          if (!proof.current()) return { changed: true, beforeRequest: true };
+        } else {
           // UserConfig in a background tab can outlive a Steam sign-in change in another tab.
           const session = await (async () => {
             const page = await fetch(new URL("/cart/", expectedOrigin), {
@@ -138,7 +181,7 @@
           })().catch(sessionFailure);
           if (session.beforeRequest) return session;
           const { config } = session;
-          if (config?.steamid !== account || config.storeBrowseContext?.country?.toUpperCase() !== initialCountry) {
+          if (config?.steamid !== account || config.storeBrowseContext?.country?.toUpperCase() !== initialCountry || !current()) {
             return { changed: true, beforeRequest: true };
           }
           if (claimLegacy && typeof config.strWebAPIToken === "string" && config.strWebAPIToken) {
@@ -161,7 +204,25 @@
         if (!response.ok || response.headers.get("x-eresult") !== "1"
           || !response.headers.get("content-type")?.startsWith("application/octet-stream")) return { status: response.status };
         const bytes = Array.from(new Uint8Array(await response.arrayBuffer()));
-        return currentCountry() === initialCountry ? { bytes, country: initialCountry, legacyProof } : { changed: true };
+        if (!current()) return { changed: true };
+        if (commerce?.prepare) {
+          if (!initialSession) return { sessionRequired: true, beforeRequest: true };
+          const ttl = 5000, expiresAt = Date.now() + ttl;
+          const prep = commerce.prepare;
+          const proof = { id: prep.id, path: prep.path, body: prep.body.join(","), expiresAt, current };
+          Object.defineProperty(window, proofKey, { configurable: true, value: proof });
+          AbortSignal.timeout(ttl).addEventListener("abort", () => {
+            if (window[proofKey] === proof) delete window[proofKey];
+          }, { once: true });
+        }
+        const rows = commerce?.readRows && Array.from(
+          document.querySelectorAll("#StoreTemplate section.jGMVnjZbmZM- [data-st-cart-line-id]"), row => {
+            const { stCartLineId, stCartKind, stCartItemId, stCartName, stCartPrice, stCartCents } = row.dataset;
+            const amount = stCartCents === undefined ? null : Number(stCartCents);
+            return { lineId: stCartLineId, kind: stCartKind, itemId: stCartItemId, name: stCartName,
+              ...(stCartPrice && { price: { formatted: stCartPrice, amount: Number.isSafeInteger(amount) && amount >= 0 ? amount : null } }) };
+          });
+        return { bytes, country: initialCountry, legacyProof, rows };
       },
     });
     signal?.throwIfAborted();
@@ -172,11 +233,76 @@
       if (frames?.length) cause.stack = [`${name}: ${message}`, ...frames].join("\n");
       throw Object.assign(new Error("Steam 购物车会话读取失败", { cause }), { beforeRequest: true });
     }
-    if (reply?.changed) throw Object.assign(new Error("Steam 购物车账号或地区已变更"), { beforeRequest: reply.beforeRequest });
+    if (reply?.changed) throw Object.assign(new Error("Steam 购物车账号或地区已变更"), { beforeRequest: reply.beforeRequest, accountChanged: true });
+    if (reply?.expired) throw Object.assign(new Error("Steam 购物车预检已过期，请重新确认"), { beforeRequest: true, expired: true });
+    if (reply?.sessionRequired) throw Object.assign(new Error("Steam 购物车缺少当前登录会话，请刷新购物车页面"), { beforeRequest: true });
     if (!reply?.country || (method && !Array.isArray(reply.bytes))) {
       throw Object.assign(new Error("Steam 未确认购物车请求"), { status: reply?.status, beforeRequest: reply?.beforeRequest });
     }
-    return method ? { country: reply.country, lines: decode(reply.bytes, method === "add" ? 2 : 1), legacyProof: reply.legacyProof } : reply;
+    return method ? { country: reply.country, ...decode(reply.bytes, method === "add" ? 2 : 1, reply.rows), legacyProof: reply.legacyProof } : reply;
+  }
+
+  async function openForCommerce(execScript, expectedSteamId, signal) {
+    const [tab] = (await chrome.tabs.query({ url: origin + "/cart/*" })).sort((a, b) => Number(b.active) - Number(a.active));
+    signal.throwIfAborted();
+    if (!tab) return null;
+    const [injection] = await execScript({ target: { tabId: tab.id }, world: "MAIN", args: [origin], func: expectedOrigin => {
+      const user = window.UserConfig;
+      if (location.origin !== expectedOrigin || !/^\/cart\/?$/.test(location.pathname) || user?.logged_in !== true ||
+        typeof user.country_code !== "string") return null;
+      const steamId = user.steamid, country = user.country_code.toUpperCase();
+      const session = () => document.cookie.match(/(?:^|;\s*)sessionid=([^;]+)/)?.[1];
+      const original = session();
+      const key = Symbol.for("SteamBuff.cart-commerce-session");
+      if (!window[key]?.current()) {
+        const current = () => location.origin === expectedOrigin && /^\/cart\/?$/.test(location.pathname) &&
+          window.UserConfig?.logged_in === true && window.UserConfig.steamid === steamId &&
+          window.UserConfig.country_code?.toUpperCase() === country && session() === original;
+        Object.defineProperty(window, key, { configurable: true, value: { id: crypto.randomUUID(), current } });
+      }
+      return { steamId, country, binding: window[key].id };
+    } });
+    const { steamId, country, binding } = injection?.result ?? {};
+    if (!injection?.documentId || !binding || !cart.validAccount(steamId) || !/^[A-Z]{2}$/.test(country) ||
+      (expectedSteamId && expectedSteamId !== steamId)) return null;
+    const sender = { tab, documentId: injection.documentId };
+    const target = { tabId: tab.id, documentIds: [injection.documentId] };
+    const call = (method, body, options) => requestCart(execScript, sender, steamId, signal, method, country, body, false, { ...options, binding });
+    async function checkDocument(refresh) {
+      signal.throwIfAborted();
+      const [update] = await execScript({ target, world: "MAIN", args: [binding, refresh], func: (id, reload) => {
+        const current = window[Symbol.for("SteamBuff.cart-commerce-session")];
+        if (current?.id !== id || !current.current()) return false;
+        if (reload) location.reload();
+        return true;
+      } });
+      return update?.result === true;
+    }
+    return { steamId, country, binding, target,
+      read: prepare => call("get", null, { prepare, readRows: true }),
+      commit: transaction => call(transaction.method, transaction.body, { commit: transaction.id }),
+      isCurrent: () => checkDocument(false),
+      refresh: () => checkDocument(true),
+    };
+  }
+
+  function transaction(country, method, item) {
+    const body = method === "add" ? addBody(country, [item]) : removeBody(country, item.lineId);
+    return { id: crypto.randomUUID(), method, path: methods[method], body };
+  }
+
+  const accountBatches = (raw, account) => cart.records(raw[cart.KEY]).filter(batch => batch.accountSteamId === account);
+  async function holds(account) {
+    const raw = await chrome.storage.local.get(cart.KEY);
+    return accountBatches(raw, account).map(batch => ({ status: batch.state,
+      items: batch.items.filter(item => !["planned", "present"].includes(item.phase))
+        .map(({ kind, itemId, phase }) => ({ kind, itemId, phase })) }));
+  }
+
+  async function withAccount(account, run) {
+    if (running.has(account)) return { status: "busy" };
+    running.add(account);
+    try { return await run(); } finally { running.delete(account); }
   }
 
   function write(change) {
@@ -219,7 +345,7 @@
     const keys = [...snapshot.lines].sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0);
     const identity = JSON.stringify([snapshot.country, keys.map(([id, line]) => [id, line.identity])]);
     const hash = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(identity));
-    const batches = cart.records(raw[cart.KEY]).filter(batch => batch.accountSteamId === account);
+    const batches = accountBatches(raw, account);
     return {
       account,
       revision: Array.from(new Uint8Array(hash), byte => byte.toString(16).padStart(2, "0")).join(""),
@@ -286,7 +412,7 @@
         item.phase = "uncertain";
         attempting = item;
         await updateBatch(batch.id, batch);
-        const body = [...numberField(1, item.lineId), ...bytesField(2, new TextEncoder().encode(snapshot.country))];
+        const body = removeBody(snapshot.country, item.lineId);
         const actual = await call("remove", snapshot.country, body);
         expected.delete(item.lineId);
         item.phase = actual.lines.has(item.lineId) ? "present" : "removed";
@@ -353,8 +479,7 @@
         recoverable.delete(key);
       }
       if (missing.size) {
-        const body = [...bytesField(1, new TextEncoder().encode(snapshot.country))];
-        for (const item of missing.values()) body.push(...bytesField(2, numberField(item.kind === "bundle" ? 2 : 1, item.itemId)));
+        const body = addBody(snapshot.country, [...missing.values()]);
         // A timed-out Add may still complete. A later Restore must read it back before sending another Add.
         const checkpoint = (phaseOf) => write(stored => ({ [cart.KEY]: cart.records(stored[cart.KEY]).map(batch => {
           if (!ids.has(batch.id)) return batch;
@@ -403,10 +528,8 @@
       || url.origin !== origin || !/^\/cart\/?$/.test(url.pathname) || !cart.validAccount(account)) {
       throw new Error("Steam 购物车操作来源无效");
     }
-    if (running.has(account)) return { status: "busy" };
-    running.add(account);
     const call = (method, country, body, claimLegacy = false) => requestCart(execScript, sender, account, signal, method, country, body, claimLegacy);
-    try {
+    return withAccount(account, async () => {
       if (action === "toggle") {
         if (!cart.validLineId(lineId) || typeof checked !== "boolean") throw new TypeError("购物车勾选请求无效");
         await call();
@@ -433,10 +556,8 @@
       if (!["all", "none", "invert", "migrate", "reset-legacy"].includes(action)) throw new TypeError("购物车操作无效");
       await selection(account, snapshot, action);
       return { status: "saved", view: await view(account, snapshot) };
-    } finally {
-      running.delete(account);
-    }
+    });
   }
 
-  globalThis.STBackgroundCart = Object.freeze({ handle });
+  globalThis.STBackgroundCart = Object.freeze({ handle, openForCommerce, transaction, holds, withAccount, sameLines });
 })();

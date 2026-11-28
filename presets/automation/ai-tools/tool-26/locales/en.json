@@ -1,0 +1,6 @@
+{
+  ".name": "View Steam Cart",
+  ".note": "Read the signed-in account’s Steam cart and any held items. Open a signed-in Steam cart page first.",
+  ".description": "Read the signed-in account’s Steam cart and any held items. Open a signed-in Steam cart page first.",
+  ".variables.result": "Result"
+}

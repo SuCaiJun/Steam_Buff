@@ -11,15 +11,6 @@
 
 (() => {
     'use strict';
-    const script = document.currentScript;
-    const batchId = script.dataset.batchId;
-    const results = [];
-    const timeoutMs = 12_000;
-
-    function emit(type, data) {
-        document.dispatchEvent(new CustomEvent('STStoreFreeDLCClaim', { detail: { type, batchId, ...data } }));
-    }
-
     function diagnostic(error) {
         // Chromium 的 JSON 语法错误可能包含响应正文。保留错误类型、调用栈及对应操作。
         if (error.name === 'SyntaxError') {
@@ -31,8 +22,17 @@
     }
 
     // Steam 商店的 AddFreeLicense 对每个包提交一次；9 和 24 来自它的失败回调。
-    async function submit(subid, sessionid) {
-        const signal = AbortSignal.timeout(timeoutMs);
+    async function submit(subid, sessionid, approval) {
+        if (approval) {
+            const key = Symbol.for("SteamBuff.free-license-preflight");
+            const proof = window[key];
+            if (!proof || proof.id !== approval.id || proof.subid !== subid || !proof.current() || Date.now() >= proof.expiresAt) {
+                return { status: 'failed', labelId: 'stale', sent: false };
+            }
+            delete window[key];
+            sessionid = window.g_sessionID;
+        }
+        const signal = AbortSignal.timeout(12_000);
         let response;
         try {
             // ⚠️ 例外：免费 DLC 领取必须在页面主上下文携带 Steam sessionid。
@@ -56,11 +56,25 @@
             // Steam 的错误页可能是 HTML 或无效 JSON；HTTP 错误在下方照实返回。
             if (!(error instanceof SyntaxError && response && !response.ok)) {
                 if (!(error instanceof TypeError) && !signal.aborted) throw error;
-                return { status: 'unconfirmed', labelId: 'networkUnconfirmed', stop: true, error: diagnostic(error) };
+                return { status: 'unconfirmed', labelId: 'networkUnconfirmed', stop: true,
+                    error: { name: error.name, message: error.message, stack: error.stack } };
             }
         }
         return { status: response.status >= 500 ? 'unconfirmed' : 'failed', labelId: 'http',
             http: response.status, stop: response.status >= 500 || response.status === 401 };
+    }
+
+    if (typeof document === 'undefined') {
+        globalThis.STSteamFreeLicense = Object.freeze({ submit });
+        return;
+    }
+    const script = document.currentScript;
+    const batchId = script.dataset.batchId;
+    const results = [];
+    const timeoutMs = 12_000;
+
+    function emit(type, data) {
+        document.dispatchEvent(new CustomEvent('STStoreFreeDLCClaim', { detail: { type, batchId, ...data } }));
     }
 
     // 2xx 只说明提交已返回。批次结束时只读一次当前账户的包列表，按 subid 核对。

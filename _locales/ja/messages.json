@@ -1,4 +1,169 @@
 {
+  "ai_chat_tool_checkout_preview": {
+    "message": "Steam の購入内容をプレビュー"
+  },
+  "ai_chat_tool_wallet_checkout": {
+    "message": "Steam ウォレットで支払う"
+  },
+  "ai_chat_tool_wallet_redeem": {
+    "message": "Steam ウォレットコードを引き換える"
+  },
+  "ai_chat_approval_checkout_open": {
+    "message": "Steam カートへ"
+  },
+  "ai_chat_approval_checkout_estimate": {
+    "message": "概算小計"
+  },
+  "ai_chat_wallet_balance": {
+    "message": "Steam ウォレット残高"
+  },
+  "ai_chat_approval_checkout_read": {
+    "message": "現在のカートと Steam ウォレット残高を読み取る"
+  },
+  "ai_chat_approval_wallet_read": {
+    "message": "受取先の Steam アカウントとウォレットを確認する"
+  },
+  "ai_chat_approval_checkout_handoff": {
+    "message": "元のカートを開きます。商品、最終金額、支払い方法は Steam で確認してください"
+  },
+  "ai_chat_approval_checkout_items": {
+    "message": "カート内の商品を表示"
+  },
+  "ai_chat_wallet_currency": {
+    "message": "ウォレットの通貨"
+  },
+  "ai_chat_wallet_code": {
+    "message": "Steam ウォレットコード"
+  },
+  "ai_chat_wallet_review": {
+    "message": "引き換え内容を確認"
+  },
+  "ai_chat_wallet_code_ending": {
+    "message": "コードの末尾"
+  },
+  "ai_chat_wallet_amount_notice": {
+    "message": "上記のアカウントにコードの金額が追加されます。追加額は Steam で確定します。"
+  },
+  "ai_chat_wallet_edit": {
+    "message": "コードを編集"
+  },
+  "ai_chat_wallet_confirm": {
+    "message": "引き換えを確定"
+  },
+  "ai_chat_wallet_waiting": {
+    "message": "Steam ウォレットを確認中…"
+  },
+  "ai_chat_wallet_native_checkout": {
+    "message": "Steam のカートを開きました"
+  },
+  "ai_chat_wallet_follow_steam": {
+    "message": "Steam で続行"
+  },
+  "ai_chat_wallet_result_pending": {
+    "message": "結果を確認できません"
+  },
+  "ai_chat_wallet_empty_cart": {
+    "message": "カートは空です"
+  },
+  "ai_chat_wallet_redeemed": {
+    "message": "Steam が引き換えを確認しました"
+  },
+  "ai_chat_wallet_native_required": {
+    "message": "住所や CAPTCHA が必要な場合は Steam で確認を続けてください"
+  },
+  "ai_chat_wallet_unavailable": {
+    "message": "Steam 公式の引き換えページでウォレットを確認してから続行してください"
+  },
+  "ai_chat_wallet_refused": {
+    "message": "Steam が引き換えを拒否しました。アカウントとコードを確認してください"
+  },
+  "ai_chat_wallet_rate_limited": {
+    "message": "Steam がリクエスト頻度を制限しました"
+  },
+  "ai_chat_wallet_uncertain": {
+    "message": "引き換え結果を確認できません。Steam のアカウント履歴を確認してください"
+  },
+  "ai_chat_wallet_cancelled": {
+    "message": "引き換えをキャンセルしました"
+  },
+  "ai_chat_wallet_code_required": {
+    "message": "Steam ウォレットコードを 1 件入力してください"
+  },
+  "ai_chat_wallet_submitting": {
+    "message": "Steam が引き換えを処理中…"
+  },
+  "ai_chat_wallet_expired": {
+    "message": "引き換えの接続が終了しました。ツールを開き直してください"
+  },
+  "ai_chat_wallet_open_steam": {
+    "message": "Steam の引き換えページを開く"
+  },
+  "ai_chat_wallet_open_history": {
+    "message": "Steam の購入履歴を表示"
+  },
+  "ai_chat_wallet_currency_unverified": {
+    "message": "Steam は通貨コードを個別に表示しませんでした"
+  },
+  "ai_wallet_title": {
+    "message": "Steam ウォレットコードを引き換える"
+  },
+  "ai_chat_approval_cart_gift": {
+    "message": "ギフト"
+  },
+  "ai_chat_approval_cart_private": {
+    "message": "非公開の購入"
+  },
+  "ai_chat_approval_cart_coupon": {
+    "message": "クーポン適用済み"
+  },
+  "ai_chat_tool_cart_read": {
+    "message": "Steam カートを確認"
+  },
+  "ai_chat_tool_cart_change": {
+    "message": "Steam カートを変更"
+  },
+  "ai_chat_tool_free_eligibility": {
+    "message": "Steam 無料ライセンスの取得可否を確認"
+  },
+  "ai_chat_tool_free_claim": {
+    "message": "Steam 無料ライセンスを取得"
+  },
+  "ai_chat_approval_cart_add": {
+    "message": "カートへの追加を確定"
+  },
+  "ai_chat_approval_cart_remove": {
+    "message": "削除を確定"
+  },
+  "ai_chat_approval_cart_clear": {
+    "message": "カートを空にする"
+  },
+  "ai_chat_approval_free_claim": {
+    "message": "無料取得を確定"
+  },
+  "ai_chat_approval_store_region": {
+    "message": "ストアの地域"
+  },
+  "ai_chat_approval_cart_read": {
+    "message": "現在のアカウントのカートと一時保留の商品を読み取る"
+  },
+  "ai_chat_approval_free_read": {
+    "message": "指定したゲームとパッケージの所有状態を確認する"
+  },
+  "ai_chat_approval_bundle_id": {
+    "message": "バンドル ID"
+  },
+  "ai_chat_approval_package_id": {
+    "message": "パッケージ ID"
+  },
+  "ai_chat_approval_price_unavailable": {
+    "message": "現在の価格を確認できません"
+  },
+  "ai_chat_approval_cart_line": {
+    "message": "カートの行"
+  },
+  "ai_chat_approval_free_dlc": {
+    "message": "無料 DLC ライセンス"
+  },
   "extName": {
     "message": "Steam Buff"
   },
@@ -11148,6 +11313,48 @@
   "ai_chat_tool_wishlist_game": {
     "message": "Steam ウィッシュリストを一括照会"
   },
+  "ai_chat_tool_profile": {
+    "message": "Steam プロフィールを調べる"
+  },
+  "ai_chat_tool_friends": {
+    "message": "Steam フレンドを調べる"
+  },
+  "ai_chat_tool_badges": {
+    "message": "バッジとカード進捗を調べる"
+  },
+  "ai_chat_tool_friend_library": {
+    "message": "Steam フレンドのライブラリを調べる"
+  },
+  "ai_chat_tool_friend_achievements": {
+    "message": "Steam フレンドのゲーム実績を調べる"
+  },
+  "ai_chat_tool_game_batch": {
+    "message": "複数の Steam ゲーム情報を調べる"
+  },
+  "ai_chat_tool_reviews": {
+    "message": "Steam ユーザーレビューを調べる"
+  },
+  "ai_chat_tool_news": {
+    "message": "Steam ゲームニュースを調べる"
+  },
+  "ai_chat_tool_wishlist_change": {
+    "message": "Steam ウィッシュリストを変更する"
+  },
+  "ai_chat_approval_wishlist_membership": {
+    "message": "一覧にあるゲームのウィッシュリスト登録状況を確認"
+  },
+  "ai_chat_approval_wishlist_add": {
+    "message": "ウィッシュリストに追加"
+  },
+  "ai_chat_approval_wishlist_remove": {
+    "message": "ウィッシュリストから削除"
+  },
+  "ai_chat_approval_friend_nickname": {
+    "message": "フレンドの表示名"
+  },
+  "ai_chat_tool_licenses": {
+    "message": "自分の Steam ライセンス履歴を調べる"
+  },
   "workflow_query_app_ids": {
     "message": "AppID リスト"
   },
@@ -11428,6 +11635,9 @@
   "workflow_error_tool_instruction": {
     "message": "この指示はここでは使用できません。"
   },
+  "workflow_error_direct_steam_tool": {
+    "message": "AI チャットで対応する Steam ツールを直接呼び出してください。"
+  },
   "workflow_clipboard_context": {
     "message": "「$name$」は「$editor$」でのみ使用できます。",
     "placeholders": {
@@ -11568,7 +11778,7 @@
     "message": "フルアクセス"
   },
   "ai_chat_approval_full_description": {
-    "message": "Steam の変更、通信、スクリプトを含め、有効なツールを確認なしで実行します。"
+    "message": "Steam の変更、通信、スクリプトを含め、有効なツールを直接実行します。ウィッシュリストの変更は毎回確認します。"
   },
   "ai_chat_approval_title": {
     "message": "ツールの承認"
@@ -11598,6 +11808,9 @@
   },
   "ai_chat_approval_public": {
     "message": "この呼び出しでは Steam 関連の公開データを読み取れます"
+  },
+  "ai_chat_approval_steam_account_id": {
+    "message": "ログイン中の SteamID64"
   },
   "ai_chat_approval_wishlist": {
     "message": "現在の Steam アカウントのウィッシュリストを読み取り、価格を確認します"
@@ -12128,6 +12341,9 @@
   },
   "ai_chat_tool_running": {
     "message": "検索中"
+  },
+  "ai_chat_tool_partial": {
+    "message": "一部完了"
   },
   "ai_chat_tool_done": {
     "message": "完了"

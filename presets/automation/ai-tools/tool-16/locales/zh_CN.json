@@ -1,0 +1,7 @@
+{
+  ".name": "查询 Steam 档案",
+  ".note": "用 Steam Web API 按 SteamID64 读取昵称、头像、主页和可见的在线状态。",
+  ".description": "用 Steam Web API 按 SteamID64 读取昵称、头像、主页和可见的在线状态。",
+  ".variables.result": "查询结果",
+  ".parameters.steamId": "SteamID64 字符串，省略时使用当前登录的 Steam 账号。"
+}

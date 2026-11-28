@@ -1,5 +1,5 @@
 {
-  ".name": "筛选我的 Steam 愿望单",
+  ".name": "筛选 Steam 愿望单",
   ".note": "当前 Steam 账号的愿望单。按字段提供筛选条件。现价排行用 sortBy=currentPrice、direction=desc 或 asc。",
   ".description": "当前 Steam 账号的愿望单。按字段提供筛选条件。现价排行用 sortBy=currentPrice、direction=desc 或 asc。",
   ".variables.result": "AppID 列表",

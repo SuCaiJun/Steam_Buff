@@ -1,0 +1,6 @@
+{
+  ".name": "Use Steam Wallet at Checkout",
+  ".note": "Review the Steam cart and return to the original checkout flow. Confirm the final price and payment in Steam.",
+  ".description": "Review the Steam cart and return to the original checkout flow. Confirm the final price and payment in Steam.",
+  ".variables.result": "Result"
+}

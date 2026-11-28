@@ -1,0 +1,10 @@
+{
+  ".name": "查询好友单款游戏成就",
+  ".note": "按好友 SteamID64 和游戏 AppID 查询可见的成就进度。",
+  ".description": "查询指定好友在一款游戏内的可见成就。返回解锁数、成就总数、完成率和明细。只有好友昵称时先查 Steam 好友，有多个匹配时请用户确认。只有游戏名时先通过 Steam 商店搜索确认游戏 AppID。用 nextStart 继续查看明细。",
+  ".variables.result": "查询结果",
+  ".parameters.steamId": "目标好友的 SteamID64 字符串。",
+  ".parameters.appId": "单款 Steam 游戏的整数 AppID。",
+  ".parameters.start": "从 0 开始。继续查询时传上次返回的 nextStart。",
+  ".parameters.limit": "每页返回 1 到 100 条，默认 25 条。"
+}

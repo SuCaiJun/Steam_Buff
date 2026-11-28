@@ -1,0 +1,8 @@
+{
+  ".name": "Look up Steam game news",
+  ".note": "Get recent news for one Steam game, with headlines, dates, excerpts, sources, and original links.",
+  ".description": "Get recent news for one Steam game, with headlines, dates, excerpts, sources, and original links.",
+  ".variables.result": "Query result",
+  ".parameters.appId": "AppID of the Steam game.",
+  ".parameters.limit": "Return the latest 1 to 100 articles. Defaults to 10."
+}

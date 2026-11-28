@@ -1,0 +1,9 @@
+{
+  ".name": "领取 Steam 免费许可证",
+  ".note": "在 AI 对话中确认后提交可验证的免费套餐，并按套餐 ID 核对归属。",
+  ".description": "在 AI 对话中确认后提交可验证的免费套餐，并按套餐 ID 核对归属。",
+  ".variables.result": "结果",
+  ".parameters.appId": "整数 AppID。查询资格或领取时，AppID 和商品链接任选其一。",
+  ".parameters.url": "Steam 商店官方商品页面链接。",
+  ".parameters.packageId": "明确的 Steam 套餐 ID。"
+}

@@ -1,0 +1,7 @@
+{
+  ".name": "Look up a Steam profile",
+  ".note": "Use the Steam Web API to read a SteamID64's name, avatar, profile link, and visible presence.",
+  ".description": "Use the Steam Web API to read a SteamID64's name, avatar, profile link, and visible presence.",
+  ".variables.result": "Query result",
+  ".parameters.steamId": "SteamID64 as a string. Omit to use the signed-in Steam account."
+}

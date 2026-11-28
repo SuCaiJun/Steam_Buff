@@ -1,0 +1,11 @@
+{
+  ".name": "Steam ユーザーレビューを調べる",
+  ".note": "AppID で最近の Steam レビューを取得します。評価や言語で絞り込めます。既定では Steam 購入者の最新レビューを対象とし、無関係な活動を除外します。総合評価は全評価の最初のページに表示されます。同じ絞り込み条件で nextCursor を使って次のページを取得します。",
+  ".description": "AppID で最近の Steam レビューを取得します。評価や言語で絞り込めます。既定では Steam 購入者の最新レビューを対象とし、無関係な活動を除外します。総合評価は全評価の最初のページに表示されます。同じ絞り込み条件で nextCursor を使って次のページを取得します。",
+  ".variables.result": "取得結果",
+  ".parameters.appId": "対象の Steam ゲームの AppID。",
+  ".parameters.reviewType": "all、positive、negative のいずれか。既定は all。",
+  ".parameters.language": "japanese や english などの Steam API 言語コード。既定は all。",
+  ".parameters.cursor": "次のページは前回の nextCursor を指定します。最初のページでは省略します。",
+  ".parameters.limit": "1 ページあたり 1～100 件。既定は 20 件。"
+}

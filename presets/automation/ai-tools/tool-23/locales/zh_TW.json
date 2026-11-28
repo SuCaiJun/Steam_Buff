@@ -1,0 +1,11 @@
+{
+  ".name": "查詢 Steam 遊戲評論",
+  ".note": "按 AppID 查詢近期評論，可按好評、負評和語言篩選。預設讀取 Steam 購買玩家的最新評論並排除異常活動。總評分在全部評論的第一頁提供。取得 nextCursor 時可用相同篩選查看下一頁。",
+  ".description": "按 AppID 查詢近期評論，可按好評、負評和語言篩選。預設讀取 Steam 購買玩家的最新評論並排除異常活動。總評分在全部評論的第一頁提供。取得 nextCursor 時可用相同篩選查看下一頁。",
+  ".variables.result": "查詢結果",
+  ".parameters.appId": "要查詢的 Steam 遊戲 AppID。",
+  ".parameters.reviewType": "可填 all、positive 或 negative，預設 all。",
+  ".parameters.language": "Steam API 語言代碼，例如 tchinese、english。預設 all。",
+  ".parameters.cursor": "下一頁使用上次的 nextCursor。第一頁可省略。",
+  ".parameters.limit": "每頁 1 到 100 筆，預設 20 筆。"
+}

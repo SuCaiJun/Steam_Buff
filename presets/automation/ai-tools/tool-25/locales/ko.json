@@ -1,0 +1,8 @@
+{
+  ".name": "Steam 찜 목록 변경",
+  ".note": "AI 대화에서 AppID와 작업을 확인한 후 로그인한 Steam 계정의 찜 목록에 게임을 추가하거나 제거합니다. 로그인한 Steam 상점 게임 페이지를 열어 두세요. 항목별로 변경 결과를 확인합니다.",
+  ".description": "AI 대화에서 AppID와 작업을 확인한 후 로그인한 Steam 계정의 찜 목록에 게임을 추가하거나 제거합니다. 로그인한 Steam 상점 게임 페이지를 열어 두세요. 항목별로 변경 결과를 확인합니다.",
+  ".variables.result": "변경 결과",
+  ".parameters.appIds": "변경할 Steam AppID의 정수 목록입니다. 게임 이름만 알면 Steam 상점 검색에서 AppID를 확인하세요.",
+  ".parameters.operation": "찜 목록에 추가하려면 add, 제거하려면 remove를 입력하세요."
+}

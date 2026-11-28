@@ -1,0 +1,8 @@
+{
+  ".name": "修改 Steam 愿望单",
+  ".note": "在 AI 对话中确认 AppID 和操作后，向当前 Steam 愿望单添加或移出游戏。需要打开一个已登录的 Steam 商店游戏页面。每项会回读核对结果。",
+  ".description": "在 AI 对话中确认 AppID 和操作后，向当前 Steam 愿望单添加或移出游戏。需要打开一个已登录的 Steam 商店游戏页面。每项会回读核对结果。",
+  ".variables.result": "变更结果",
+  ".parameters.appIds": "要变更的整数 Steam AppID 列表。只有游戏名时，先用 Steam 商店搜索确认 AppID。",
+  ".parameters.operation": "填 add 将游戏加入愿望单，填 remove 将游戏移出愿望单。"
+}

@@ -1,0 +1,9 @@
+{
+  ".name": "Check Steam Free Claim Eligibility",
+  ".note": "Check which free license the current Steam account can claim. Open a signed-in Steam game page first.",
+  ".description": "Check which free license the current Steam account can claim. Open a signed-in Steam game page first.",
+  ".variables.result": "Result",
+  ".parameters.appId": "The numeric AppID. For a free license, provide the AppID or URL.",
+  ".parameters.url": "The official Steam Store app page URL.",
+  ".parameters.packageId": "A specific Steam package ID."
+}

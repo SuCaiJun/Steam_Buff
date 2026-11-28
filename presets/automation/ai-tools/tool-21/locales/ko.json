@@ -1,0 +1,10 @@
+{
+  ".name": "Steam 친구의 게임별 도전 과제 조회",
+  ".note": "친구의 SteamID64와 게임 AppID로 확인 가능한 도전 과제 진행도를 조회합니다.",
+  ".description": "지정한 친구의 한 게임에서 확인 가능한 도전 과제를 조회합니다. 해제 수, 전체 도전 과제 수, 완료율, 세부 정보를 반환합니다. 표시 이름만 알면 친구를 먼저 검색하고 후보가 여러 명이면 사용자에게 확인하세요. 게임 이름만 알면 Steam 상점 검색에서 AppID를 확인하세요. 다음 페이지는 nextStart를 사용합니다.",
+  ".variables.result": "조회 결과",
+  ".parameters.steamId": "대상 친구의 SteamID64 문자열입니다.",
+  ".parameters.appId": "Steam 게임 한 개의 정수 AppID입니다.",
+  ".parameters.start": "0부터 시작하는 위치입니다. 다음 페이지는 이전 결과의 nextStart를 사용합니다.",
+  ".parameters.limit": "페이지당 1~100개를 반환합니다. 기본값은 25개입니다."
+}

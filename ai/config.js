@@ -936,7 +936,11 @@
   const isToolAppId = id => Number.isSafeInteger(id) && id > 0 && id <= TOOL_APP_ID_MAX;
   const PROVIDER_TOOL_IDS = Object.freeze({ game: "tool-1", players: "tool-2", prices: "tool-3", search: "tool-4",
     rename: "tool-5", collections: "tool-6", achievements: "tool-7", library: "tool-8", library_game: "tool-9", wishlist: "tool-10",
-    custom_name: "tool-11", game_names: "tool-12", writable_collections: "tool-13", achievement_sources: "tool-14", wishlist_game: "tool-15" });
+    custom_name: "tool-11", game_names: "tool-12", writable_collections: "tool-13", achievement_sources: "tool-14", wishlist_game: "tool-15",
+    profile: "tool-16", friends: "tool-17", badges: "tool-18", licenses: "tool-19",
+    friend_library: "tool-20", friend_achievements: "tool-21", game_batch: "tool-22", reviews: "tool-23", news: "tool-24",
+    wishlist_change: "tool-25", cart_read: "tool-26", cart_change: "tool-27", free_eligibility: "tool-28", free_claim: "tool-29",
+    checkout_preview: "tool-30", wallet_checkout: "tool-31", wallet_redeem: "tool-32" });
   const STORE_SEARCH_TOOL_ID = PROVIDER_TOOL_IDS.search;
   const WEB_SEARCH_TOOL_ID = "web_search";
   const searchProvider = id => globalThis.STConfig.aiSearchProviders.find(provider => provider.id === id);
@@ -957,6 +961,10 @@
   const storeSearchProperties = () => globalThis.STWorkflowFields.storeSearchProperties;
   const idsProperty = { type: "array", minItems: 1, items: { type: "integer", minimum: 1, maximum: TOOL_APP_ID_MAX }, description: "Steam 游戏 AppID 列表，传整数。" };
   const pageProperty = { type: "integer", minimum: 0, description: "从 0 开始；翻页时使用上次返回的 nextStart。" };
+  const steamIdProperty = { type: "string", pattern: "^[0-9]{17}$", description: "SteamID64 字符串，省略时使用当前登录账号。" };
+  const friendIdProperty = { ...steamIdProperty, description: "目标好友的 SteamID64 字符串。只有昵称时，先查询 Steam 好友。" };
+  const accountPageSize = { type: "integer", minimum: 1, maximum: 100 };
+  const accountPage = { start: pageProperty, limit: accountPageSize };
   const appIdProperty = { type: "integer", minimum: 1, maximum: TOOL_APP_ID_MAX };
   const nonemptyText = { type: "string", minLength: 1 };
   const changeList = (properties, required = Object.keys(properties)) => ({ type: "array", minItems: 1,
@@ -980,7 +988,7 @@
     }, ["language", "changes"], true],
     ["library", "筛选我的 Steam 游戏库", "按条件筛选整个 Steam 游戏库，排序后返回 AppID 列表。查询玩得最久时按累计游戏时间降序排序。", () => globalThis.STWorkflowFields.query.schema("library"), []],
     ["library_game", "查询我的游戏详情", "按一个 AppID 查询当前账号 Steam 游戏库中的一条详情。", { appId: appIdProperty }, ["appId"]],
-    ["wishlist", "筛选我的 Steam 愿望单", "按条件筛选整个 Steam 愿望单，排序后返回 AppID 列表。", () => globalThis.STWorkflowFields.query.schema("wishlist"), []],
+    ["wishlist", "筛选 Steam 愿望单", "按条件筛选当前账号的 Steam 愿望单，排序后返回 AppID 列表。", () => globalThis.STWorkflowFields.query.schema("wishlist"), []],
     ["custom_name", "批量修改游戏自定义名称", "按 AppID 设置一款或多款游戏的 Steam Buff 独立自定义名称。", { ...nameFields, changes: nameChanges }, ["changes"], true],
     ["game_names", "读取游戏名称", "读取游戏官方名称和指定的当前名称字段。", {
       appIds: idsProperty, field: { type: "string", enum: ["sort", "custom"] },
@@ -990,20 +998,66 @@
       appId: appIdProperty, language: nonemptyText, start: pageProperty,
     }, ["appId", "language", "start"]],
     ["wishlist_game", "批量查询我的 Steam 愿望单", "按 AppID 列表逐项查询当前账号愿望单中的详情和报价。", { appId: appIdProperty, appIds: idsProperty }, ["appId"]],
-  ].map(([key, name, description, properties, required, writes = false]) => [key, Object.freeze({
+    ["profile", "查询 Steam 档案", "用 Steam Web API 按 SteamID64 查询档案。", { steamId: steamIdProperty }, [], false, true],
+    ["friends", "查询 Steam 好友", "分页读取好友和可见的在线状态，也可按 Steam 显示昵称搜索。存在多个匹配时，请用户确认好友。", {
+      steamId: steamIdProperty, nickname: nonemptyText, ...accountPage,
+    }, [], false, true],
+    ["badges", "查询徽章与卡牌进度", "读取徽章和等级，查询本人时可以读取社区卡牌进度。", {
+      steamId: steamIdProperty, ...accountPage, cardPage: { type: "integer", minimum: 1 },
+    }, [], false, true],
+    ["licenses", "查询我的许可证记录", "读取当前 Steam 商店账号的许可证取得记录。", accountPage, [], false, true],
+    ["friend_library", "查询好友游戏库", "读取指定好友可见的游戏及 Steam 返回的累计游玩分钟数，可按游戏名搜索或按时长降序排列。", {
+      steamId: friendIdProperty, term: nonemptyText, sortBy: { type: "string", enum: ["playtime"] }, ...accountPage,
+    }, ["steamId"], false, true],
+    ["friend_achievements", "查询好友单款游戏成就", "按好友 SteamID64 和游戏 AppID 查询可见成就，返回解锁数、总数和明细。", {
+      steamId: friendIdProperty, appId: appIdProperty, ...accountPage,
+    }, ["steamId", "appId"], false, true],
+  ].map(([key, name, description, properties, required, writes = false, steamWeb = false]) => [key, Object.freeze({
     id: PROVIDER_TOOL_IDS[key], label: "ai_chat_tool_" + key, name, description, required, writes,
+    ...(steamWeb && { steamWeb: key }),
     get properties() { return typeof properties === "function" ? properties() : properties; },
   })])));
   const CHAT_APPROVAL_MODES = Object.freeze(["ask", "read-only", "full"]);
   const CHAT_APPROVAL_VERSION = 2;
+  const freeOfferProperties = { appId: appIdProperty, url: nonemptyText, packageId: appIdProperty };
+  const STORE_TOOLS = Object.freeze(Object.fromEntries([
+    ["game_batch", "批量查询 Steam 游戏资料", "按 AppID 列表逐款读取 Steam 商店资料、DLC、平台、评分和当前报价。", {
+      appIds: idsProperty,
+    }, ["appIds"]],
+    ["reviews", "查询 Steam 游戏评测", "按 AppID 读取最新 Steam 评测，可按好评、差评和语言筛选，也可用游标翻页。", {
+      appId: appIdProperty, reviewType: { type: "string", enum: ["all", "positive", "negative"] },
+      language: { type: "string", pattern: "^[a-z][a-z_]+$" }, cursor: nonemptyText, limit: accountPageSize,
+    }, ["appId"]],
+    ["news", "查询 Steam 游戏新闻", "按 AppID 读取最近的 Steam 新闻标题、发布日期、摘要和原文链接。", {
+      appId: appIdProperty, limit: accountPageSize,
+    }, ["appId"]],
+    ["wishlist_change", "修改 Steam 愿望单", "在 AI 对话中确认对当前 Steam 账号的变更后，按 AppID 添加或移出愿望单。", {
+      appIds: idsProperty, operation: { type: "string", enum: ["add", "remove"] },
+    }, ["appIds", "operation"]],
+    ["cart_read", "查询 Steam 购物车", "读取当前账号的 Steam 购物车和单列的暂存信息。需要打开已登录的 Steam 购物车页面。", {}, [], "read"],
+    ["cart_change", "修改 Steam 购物车", "确认后加购、移除指定购物车行或清空。add 用 AppID、确定的套餐 ID 或捆绑包 ID，remove 用购物车行 ID 字符串，clear 逐行确认整个购物车。", {
+      operation: { type: "string", enum: ["add", "remove", "clear"] }, lineId: { type: "string", pattern: "^[1-9][0-9]{0,19}$" },
+      appId: appIdProperty, packageId: appIdProperty, bundleId: appIdProperty,
+    }, ["operation"], "write"],
+    ["free_eligibility", "查询 Steam 免费领取资格", "按单个 AppID 或 Steam 商店商品链接核对当前账号的免费领取资格和套餐。", freeOfferProperties, [], "read"],
+    ["free_claim", "领取 Steam 免费许可证", "按单个 AppID 或 Steam 商店商品链接核对免费许可证。只提交可验证且在 AI 对话中确认的免费套餐，提交后按套餐 ID 核对归属。", freeOfferProperties, [], "write"],
+    ["checkout_preview", "预览 Steam 结账", "查看当前购物车、预计小计、暂存商品和可核实的钱包余额。仅预览，不建单或扣款。", {}, [], "read", true],
+    ["wallet_checkout", "使用 Steam 钱包结账", "核对当前 Steam 购物车，确认后回到 Steam 原生结账，最终金额和扣款在 Steam 付款页确认。", {}, [], "write", true],
+    ["wallet_redeem", "兑换 Steam 钱包充值码", "打开独立的扩展兑换界面，由用户输入充值码、核对收款账号并确认。向模型返回脱敏结果。", {}, [], "write", true],
+  ].map(([kind, name, description, properties, required, commerce, checkout]) => [PROVIDER_TOOL_IDS[kind], Object.freeze({
+    id: PROVIDER_TOOL_IDS[kind], kind, label: "ai_chat_tool_" + kind, name, description, properties, required, commerce, ...(checkout && { checkout }),
+  })])));
+  const storeTool = id => Object.hasOwn(STORE_TOOLS, id) ? STORE_TOOLS[id] : undefined;
+  const isDirectSteamTool = id => id === PROVIDER_TOOL_IDS.wishlist_change || Boolean(storeTool(id)?.commerce);
   const CHAT_TOOLS = Object.freeze([
-    Object.freeze({ id: PROVIDER_TOOL_IDS.game, label: "ai_chat_tool_game", name: "Steam 游戏资料", description: "按 AppID 查询 Steam 商店公开游戏资料。" }),
+    Object.freeze({ id: PROVIDER_TOOL_IDS.game, label: "ai_chat_tool_game", name: "Steam 游戏资料", description: "按 AppID 查询 Steam 商店公开资料及可用的 DLC、平台、评分和当前报价。" }),
     Object.freeze({ id: PROVIDER_TOOL_IDS.players, label: "ai_chat_tool_players", name: "Steam 在线人数", description: "按 AppID 查询当前在线人数。" }),
     Object.freeze({ id: PROVIDER_TOOL_IDS.prices, label: "ai_chat_tool_prices", name: "ITAD 价格与史低", description: "按 AppID 查询配置地区的当前报价和历史最低价。" }),
     Object.freeze({ id: STORE_SEARCH_TOOL_ID, label: "ai_chat_tool_search", name: "Steam 商店搜索",
       description: '搜索 Steam 国区商店的游戏和商品，返回当前价、折扣、评测摘要及链接。全部参数可省略，无需 AppID。查 50 元以下、支持简中且正打折的游戏：{"types":["游戏"],"discountsOnly":true,"priceBelow":50,"languages":["schinese"]}。价格结果以分计，items 是本页命中，candidateTotal 是 Steam 候选总数，未扣除本页价格筛除的商品。nextStart 非空时可用原条件继续翻页。' +
         "\n\n按游戏名查 AppID 时，用 term 传游戏名，查本体可传 types 为 [\"游戏\"]。从 items 中选名称明确匹配且 type 为 app 的条目，将它的 id 作为后续工具的 appId。sub 和 bundle 的 id 不能用作 AppID。" }),
     ...Object.values(ACCOUNT_TOOLS),
+    ...Object.values(STORE_TOOLS),
   ]);
 
   function toolSchema(tool) {
@@ -1111,7 +1165,7 @@
     modelListIssue,
     hostPermissionPattern,
     chatRequest,
-    CHAT_TOOLS, CHAT_APPROVAL_MODES, CHAT_APPROVAL_VERSION, ACCOUNT_TOOLS, PROVIDER_TOOL_IDS, TOOL_APP_ID_MAX, isToolAppId, STORE_SEARCH_TOOL_ID, toolSchema,
+    CHAT_TOOLS, CHAT_APPROVAL_MODES, CHAT_APPROVAL_VERSION, ACCOUNT_TOOLS, PROVIDER_TOOL_IDS, TOOL_APP_ID_MAX, isToolAppId, STORE_SEARCH_TOOL_ID, toolSchema, storeTool, isDirectSteamTool,
     WEB_SEARCH_TOOL_ID, searchProvider, isSearchKey, searchSettingsState, normalizeSearchSettings,
     validateChatToolIds, chatToolsFromWorkflow,
     chatBody,

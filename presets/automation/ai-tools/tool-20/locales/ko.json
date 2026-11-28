@@ -1,0 +1,11 @@
+{
+  ".name": "Steam 친구의 게임 라이브러리 조회",
+  ".note": "SteamID64로 친구의 확인 가능한 게임을 조회합니다. 게임 이름 검색과 플레이 시간 정렬을 지원합니다.",
+  ".description": "친구의 SteamID64로 확인 가능한 게임 라이브러리를 조회합니다. AppID, 게임 이름, Steam이 반환한 누적 플레이 시간(분)을 반환합니다. 표시 이름만 알면 친구를 먼저 검색하고 후보가 여러 명이면 사용자에게 확인하세요. 게임 이름은 term으로 검색하고 플레이 시간 내림차순은 sortBy=playtime을 사용하세요. 시간이 제공되지 않으면 null입니다. 비공개 시간도 0으로 반환될 수 있습니다. unavailableNames는 Steam이 이름을 제공하지 않아 검색할 수 없는 게임 수입니다. 다음 페이지는 nextStart를 사용합니다.",
+  ".variables.result": "조회 결과",
+  ".parameters.steamId": "대상 친구의 SteamID64 문자열입니다.",
+  ".parameters.term": "대소문자를 구분하지 않고 게임 이름의 일부를 검색합니다.",
+  ".parameters.sortBy": "playtime을 입력하면 누적 플레이 시간(분) 내림차순으로 정렬합니다. 시간이 제공되지 않은 게임은 마지막에 표시합니다.",
+  ".parameters.start": "0부터 시작하는 위치입니다. 다음 페이지는 이전 결과의 nextStart를 사용합니다.",
+  ".parameters.limit": "페이지당 1~100개를 반환합니다. 기본값은 25개입니다."
+}

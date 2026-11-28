@@ -1,0 +1,122 @@
+{
+  "id": "tool-27",
+  "name": "$text:.name",
+  "note": "$text:.note",
+  "revision": 1,
+  "executionId": "00000000-0000-4000-8000-000000000003",
+  "enabled": true,
+  "description": "$text:.description",
+  "parameters": [
+    {
+      "name": "operation",
+      "type": "string",
+      "required": true,
+      "description": "$text:.parameters.operation",
+      "variableId": "var-operation"
+    },
+    {
+      "name": "appId",
+      "type": "integer",
+      "required": false,
+      "description": "$text:.parameters.appId",
+      "variableId": "var-appId"
+    },
+    {
+      "name": "packageId",
+      "type": "integer",
+      "required": false,
+      "description": "$text:.parameters.packageId",
+      "variableId": "var-packageId"
+    },
+    {
+      "name": "bundleId",
+      "type": "integer",
+      "required": false,
+      "description": "$text:.parameters.bundleId",
+      "variableId": "var-bundleId"
+    },
+    {
+      "name": "lineId",
+      "type": "string",
+      "required": false,
+      "description": "$text:.parameters.lineId",
+      "variableId": "var-lineId"
+    }
+  ],
+  "variables": [
+    {
+      "id": "var-operation",
+      "name": "operation",
+      "type": "text"
+    },
+    {
+      "id": "var-appId",
+      "name": "appId",
+      "type": "number"
+    },
+    {
+      "id": "var-packageId",
+      "name": "packageId",
+      "type": "number"
+    },
+    {
+      "id": "var-bundleId",
+      "name": "bundleId",
+      "type": "number"
+    },
+    {
+      "id": "var-lineId",
+      "name": "lineId",
+      "type": "text"
+    },
+    {
+      "id": "var-result",
+      "name": "$text:.variables.result",
+      "type": "object"
+    }
+  ],
+  "steps": [
+    {
+      "id": "step-query",
+      "kind": "action",
+      "action": "steam-cart-change",
+      "operation": {
+        "source": "variable",
+        "id": "var-operation",
+        "path": []
+      },
+      "appId": {
+        "source": "variable",
+        "id": "var-appId",
+        "path": []
+      },
+      "packageId": {
+        "source": "variable",
+        "id": "var-packageId",
+        "path": []
+      },
+      "bundleId": {
+        "source": "variable",
+        "id": "var-bundleId",
+        "path": []
+      },
+      "lineId": {
+        "source": "variable",
+        "id": "var-lineId",
+        "path": []
+      },
+      "output": "var-result"
+    },
+    {
+      "id": "step-return",
+      "kind": "action",
+      "action": "tool-return",
+      "value": {
+        "source": "variable",
+        "id": "var-result",
+        "path": []
+      }
+    }
+  ],
+  "providerInputVersion": 1
+}

@@ -1,0 +1,6 @@
+{
+  ".name": "Redeem a Steam Wallet Code",
+  ".note": "Open the extension’s private redemption page, enter the code there and confirm the Steam account.",
+  ".description": "Open the extension’s private redemption page, enter the code there and confirm the Steam account.",
+  ".variables.result": "Result"
+}

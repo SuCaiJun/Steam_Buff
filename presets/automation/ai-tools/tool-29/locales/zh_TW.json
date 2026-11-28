@@ -1,0 +1,9 @@
+{
+  ".name": "領取 Steam 免費授權",
+  ".note": "在 AI 對話中確認後提交可驗證的免費套件，並依套件 ID 核對擁有狀態。",
+  ".description": "在 AI 對話中確認後提交可驗證的免費套件，並依套件 ID 核對擁有狀態。",
+  ".variables.result": "結果",
+  ".parameters.appId": "整數 AppID。查詢資格或領取時，AppID 和商品連結擇一。",
+  ".parameters.url": "Steam 商店官方商品頁面連結。",
+  ".parameters.packageId": "明確的 Steam 套件 ID。"
+}

@@ -1,0 +1,10 @@
+{
+  ".name": "查詢 Steam 好友",
+  ".note": "分頁讀取 Steam 好友及可見狀態，也可按 Steam 顯示暱稱搜尋。",
+  ".description": "讀取 Steam 好友清單。按暱稱找人請傳入 nickname。從完整清單按 Steam 顯示暱稱搜尋，回傳 SteamID64 和可見狀態。有多筆符合時請使用者確認。unavailableNames 是 Steam 未提供暱稱的好友數。使用 nextStart 查下一頁。",
+  ".parameters.nickname": "按 Steam 顯示暱稱做不區分大小寫的部分比對。省略時列出好友。",
+  ".variables.result": "查詢結果",
+  ".parameters.steamId": "SteamID64 字串。省略時使用目前登入的 Steam 帳號。",
+  ".parameters.start": "從 0 開始。繼續查詢時傳入上次回傳的 nextStart。",
+  ".parameters.limit": "每頁 1 到 100 筆，預設 25 筆。"
+}

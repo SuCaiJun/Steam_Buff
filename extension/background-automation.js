@@ -1406,6 +1406,7 @@
   }
 
   const isToolQuery = node => Object.hasOwn(flow.providerQueries, node.action);
+  const steamWebQuery = node => root.STAI.ACCOUNT_TOOLS[flow.providerQueries[node?.action]?.provider]?.steamWeb;
   const providerSpec = id => Object.values(root.STAI.ACCOUNT_TOOLS).find(item => item.id === id);
   const filterTool = id => [root.STAI.PROVIDER_TOOL_IDS.library, root.STAI.PROVIDER_TOOL_IDS.wishlist].includes(id);
   const releasedQueryTool = id => filterTool(id) ||
@@ -1419,6 +1420,7 @@
     const args = {};
     for (const field of definition.fields) {
       if (field.key === "conditions" && node.conditionMode !== "custom") continue;
+      if (field.allowMissing && !Object.hasOwn(node, field.key)) continue;
       const value = flow.read(node[field.key], state, field.optional);
       if (!field.optional || hasQueryValue(value)) args[field.key] = value;
     }
@@ -1468,7 +1470,12 @@
       if (!error.aiToolFailure && !Number.isInteger(error.status) && error.name !== "TimeoutError" &&
         !["CHAT_TOOL_INVALID", "AI_TOOL_RESPONSE_INVALID", "NETWORK_REQUEST_FAILED"].includes(error.code)) throw error;
       const detail = resultError(error, error.code || "WORKFLOW_AI_TOOL_FAILED");
-      throw actionError(detail.reason, detail.code, error);
+      const failure = actionError(detail.reason, detail.code, error);
+      if (steamWebQuery(node) || root.STAI.storeTool(root.STAI.PROVIDER_TOOL_IDS[flow.providerQueries[node.action].provider])) {
+        failure.aiToolFailure = true;
+        if (Number.isInteger(error.status)) failure.status = error.status;
+      }
+      throw failure;
     }
   }
 
@@ -1570,6 +1577,7 @@
   }
   function approvalOperation(workflow, node, mode, describe = true) {
     const instruction = node && flow.instruction(node.action);
+    if (instruction && root.STAI.storeTool(root.STAI.PROVIDER_TOOL_IDS[instruction.provider])?.commerce) return null;
     const kind = node ? instruction?.chatAccess : "steam-read";
     if (!asksForToolAccess(mode, kind)) return null;
     if (kind === "network") return { key: kind + ":" + node.method + ":" + node.origin, kind, method: node.method, origin: node.origin };
@@ -1582,6 +1590,8 @@
     }
     const account = !node || instruction.chatAccount === true;
     const wishlist = ["steam-account-wishlist", "steam-account-wishlist-game"].includes(node?.action);
+    const steamData = steamWebQuery(node);
+    if (steamData) return { key: node.action, kind, steamData };
     return { key: wishlist ? "steam-wishlist" : account ? "steam-account-read" : "steam-read", kind, account, wishlist };
   }
   function approvalParameters(args) {
@@ -1589,6 +1599,8 @@
       ...(root.STAI.isToolAppId(args.appId) && { appIds: [args.appId] }),
       ...(Array.isArray(args.appIds) && args.appIds.length && args.appIds.every(root.STAI.isToolAppId) && { appIds: [...new Set(args.appIds)] }),
       ...(typeof args.term === "string" && args.term && { term: args.term }),
+      ...(typeof args.nickname === "string" && args.nickname && { nickname: args.nickname }),
+      ...(typeof args.steamId === "string" && /^\d{17}$/.test(args.steamId) && { steamId: args.steamId }),
     };
   }
 
@@ -1602,7 +1614,7 @@
   function prepareChatApproval(workflow, input, bundle, mode) {
     const available = new Map([...bundle.tools.filter(tool => tool.enabled), ...bundle.libraries ?? []].map(item => [item.id, item]));
     const definitions = new Map(), operations = new Map(), writes = new Map(), scanned = new Map(), planned = new Map();
-    let usesSteam = false;
+    let usesSteam = false, usesSteamWebAccount = false;
     const remember = (definition, node) => {
       const operation = approvalOperation(definition, node, mode);
       if (operation && !operations.has(operation.key)) operations.set(operation.key, operation);
@@ -1631,6 +1643,13 @@
       const state = flow.state(args, {}, definition), nextPath = [...path, definition.id];
       for (const node of entry.nodes) {
         if (entry.seen.size === 1) remember(definition, node);
+        const steamData = steamWebQuery(node);
+        if (steamData && !usesSteamWebAccount) {
+          const steamId = savedApprovalValue(node.steamId, state);
+          const page = savedApprovalValue(node.cardPage, state);
+          const cardPage = hasQueryValue(page) ? page : undefined;
+          usesSteamWebAccount = root.STBackgroundSteamRead.usesSession(steamData, { steamId, cardPage });
+        }
         if (writer && flow.instruction(node.action)?.chatAccess === "steam-write") {
           const key = JSON.stringify([writer.spec.id, writer.args]);
           if (!planned.has(key)) {
@@ -1665,7 +1684,7 @@
       }
       writes.set(spec.id, byApp);
     }
-    return { epoch: bundle.epoch, definitions, operations, writes, usesSteam };
+    return { epoch: bundle.epoch, definitions, operations, writes, usesSteam, usesSteamWebAccount };
   }
 
   const approvalFrame = async () => (await chrome.storage.session.get(FRAME_KEY))[FRAME_KEY];
@@ -1975,6 +1994,7 @@
       return latest;
     };
     check();
+    const webApproval = mode === "ask" && chatScope.usesSteamWebAccount ? await root.STBackgroundSteamRead.captureAccount(signal) : null;
     if (chatScope?.usesSteam) chat.account.approval = { frame: await approvalFrame(), epoch: steamAccountEpoch() };
     const items = chatScope ? approvalWriteItems(chatScope, chat) : [];
     if (chatScope?.writes.has(workflow.id) && !chatScope.writes.get(workflow.id).size)
@@ -1984,6 +2004,7 @@
       const operations = [...chatScope.operations.values()].map(({ key, ...details }) => details);
       const parameters = model.isPackagedProviderTool(workflow) && operations.some(operation => operation.kind === "steam-read")
         ? approvalParameters(input) : {};
+      if (webApproval) parameters.steamAccountId = webApproval.steamId;
       if (!await chat.requestApproval({ operations, parameters, items })) {
         check();
         throw actionError("用户拒绝了本次工具操作", "CHAT_TOOL_DECLINED");
@@ -1996,8 +2017,18 @@
     const id = "chat-account-tool-" + root.crypto.randomUUID();
     let writeUsed = false;
     const queryOptions = toolId => {
+      if (root.STAI.isDirectSteamTool(toolId)) {
+        if (toolId !== workflow.id || writeUsed)
+          throw actionError("请在 AI 对话中直接调用对应的 Steam 工具，每次调用只允许执行一次", "CHAT_TOOL_NOT_ALLOWED");
+        writeUsed = true;
+        const approval = { requestApproval: chat.requestApproval, checkDefinition, receipt: chat.receipt,
+          expectedSteamId: chat.steamSession?.binding?.owner };
+        if (toolId === root.STAI.PROVIDER_TOOL_IDS.wishlist_change)
+          return { wishlistChange: { ...approval, invalidateWishlist() { if (chat.steamSession) delete chat.steamSession.wishlist; } } };
+        return { commerce: { ...approval, mode } };
+      }
       const tool = Object.values(root.STAI.ACCOUNT_TOOLS).find(item => item.id === toolId);
-      if (!tool?.writes) return { checkFrame: chat.account?.checkFrame };
+      if (!tool?.writes) return { checkFrame: chat.account?.checkFrame, ...(mode === "ask" && tool?.steamWeb && { webApproval }) };
       if (toolId !== workflow.id || writeUsed) throw actionError("单次聊天工具调用只允许执行一次对应的批量修改指令", "CHAT_TOOL_NOT_ALLOWED");
       writeUsed = true;
       return { chat, scope: chatScope };
@@ -2729,6 +2760,12 @@
       const definition = section === "tools" || section === "workflows" ? model.workflowDefinitionKey :
         row => JSON.stringify({ ...row, note: undefined, entryRow: undefined, entryGroups: undefined, revision: 0, executionId: undefined });
       const same = old && definition(old) === definition(item);
+      if (!same && ["workflows", "tools", "libraries"].includes(section)) {
+        for (const node of flow.walk(item.steps)) {
+          const issue = flow.directSteamInstructionIssue(node, item.id);
+          if (issue) throw issue;
+        }
+      }
       if (section === "libraries" && !same) flow.validateLibraryOutputPosition(item);
       const packagedQuery = section === "tools" && includePresets && model.isOriginalProviderTool(item) &&
         (releasedQueryTool(item.id) || model.isParameterPreset(item));
@@ -2988,12 +3025,30 @@
       "277917a01e747ae8eea6490cfbbbeaed768998cd475886b552157187b126b486",
     ],
   };
+  // 第二阶段更新前的出厂工具。仅精确匹配旧定义时更新，保留原语言和启用状态。
+  const previousAccountDefinitions = {
+    "tool-10": [
+      "a8a4d801b16c98fba2d2bb844c0ec5e22ae30a1570e43814c54d8b66581ef54a",
+      "2502ed44a210d935fd7761ac844d3b568534eec07b35682e6cf60926455235ce",
+      "167c416ba5eb51db719d027ef632f97278cddcf0db30104cfc797c7ca5f12a29",
+      "84c9462e7431727db494579d9bff7973a6ba7de69cc547b1e08eb591b09f6423",
+      "9ba57a68d1c2987aebbd2a2f99207fc56bb074cb6c27ef41dc8d765cf1be55e4",
+    ],
+    "tool-17": [
+      "74e691238b29a2a2b428b5524f9370f9bc763c6b915c5842b7307dd16cc45c67",
+      "9cf002a94aa8a8eb0fdb95d99eb3fc5e89d9905446c3b7cb1dd24e851130597b",
+      "2a8b203f9f837c462bf53fe1550c260a4b1f14c73c497fcd05cb1c57125066c5",
+      "0db50a1ec253cafb5288fbed5041a7f651357821399a69753eea148cd63ee63b",
+      "82531726e2ec82ec6b6cb19ae6a9de193313c2ceba7a86a86b9fdaece29fef39",
+    ],
+  };
   async function previousFactoryLocale(item) {
     const known = previousFactoryDefinitions[item.id], parameters = previousParameterDefinitions[item.id];
-    if (!known && !parameters) return null;
+    const account = previousAccountDefinitions[item.id];
+    if (!known && !parameters && !account) return null;
     const { enabled, executionId, revision, ...content } = item;
     const digest = await jsonDigest(canonicalPreset(content));
-    return previousParameterLocales[parameters?.indexOf(digest)] ??
+    return previousParameterLocales[account?.indexOf(digest)] ?? previousParameterLocales[parameters?.indexOf(digest)] ??
       Object.keys(known ?? {}).find(locale => known[locale] === digest) ?? null;
   }
 
@@ -3039,7 +3094,8 @@
       const updatedQuery = releasedQueryTool(tool.id) &&
         [...flow.walk(tool.steps, true)].some(flow.outdatedQuery);
       const updatedWrite = providerSpec(tool.id)?.writes && !model.hasExplicitWrites(tool);
-      if (!updatedQuery && !updatedWrite && !Object.hasOwn(previousParameterDefinitions, tool.id)) return tool;
+      if (!updatedQuery && !updatedWrite && !Object.hasOwn(previousParameterDefinitions, tool.id) &&
+        !Object.hasOwn(previousAccountDefinitions, tool.id)) return tool;
       const language = await previousFactoryLocale(tool) ?? (updatedWrite ? await previousBatchLocale(tool) : null);
       if (!language) return tool;
       const original = (await packaged(language)).tools.find(item => item.id === tool.id);
@@ -3722,7 +3778,7 @@
           flow.validateEntryPosition(definition);
           const context = flow.isToolId(definition.id) ? "tool" : flow.isLibraryId(definition.id) ? "library" : "workflow";
           const unsupported = [...flow.walk(definition.steps, true)].find(node => flow.outdatedQuery(node) || !Object.hasOwn(flow.names, flow.type(node)) ||
-            !flow.instructionAvailable(flow.type(node), context) || context !== "workflow" && flow.implicitToolInput(node));
+            !flow.instructionAvailable(flow.type(node), context, definition.id) || context !== "workflow" && flow.implicitToolInput(node));
           if (unsupported) throw actionError(`「${definition.name}」的指令 ${unsupported.id} 已失效`, "WORKFLOW_SNAPSHOT_UNSUPPORTED");
         }
       } catch (error) {
@@ -3816,7 +3872,9 @@
         const current = await storage.getWorkflow();
         const missingPreset = (section, id) => !current[section].some(item => item.id === id) && !(current.deletedPresets?.[section] ?? []).includes(id);
         const includePresets = current.presetImportVersion !== chrome.runtime.getManifest().version ||
-          ["tool-11", "tool-12", "tool-13", "tool-14", "tool-15"].some(id => missingPreset("tools", id)) || missingPreset("workflows", "wf-5");
+          ["tool-11", "tool-12", "tool-13", "tool-14", "tool-15", "tool-16", "tool-17", "tool-18", "tool-19", "tool-20", "tool-21",
+            "tool-22", "tool-23", "tool-24", "tool-25", "tool-26", "tool-27", "tool-28", "tool-29", "tool-30", "tool-31", "tool-32"]
+            .some(id => missingPreset("tools", id)) || missingPreset("workflows", "wf-5");
         const patch = {};
         if (family.hasReleasedSchedule(previousVersion) && current.epoch === "initial" && current.revision === 1 &&
           !current.triggers.some(trigger => trigger.id === "trigger-0")) {

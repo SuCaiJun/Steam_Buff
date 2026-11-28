@@ -1,0 +1,11 @@
+{
+  ".name": "Look up a friend's Steam library",
+  ".note": "Read a friend's visible Steam games by SteamID64, with name search and playtime sorting.",
+  ".description": "Read a friend's visible library by SteamID64. Returns AppIDs, game names, and total minutes reported by Steam. If only a display name is known, look up Steam friends first and ask the user to confirm multiple matches. Use term to search names and sortBy=playtime for longest playtime first. Missing playtime is null. A reported zero may also indicate hidden playtime. unavailableNames counts games Steam did not provide names for. Use nextStart for the next page.",
+  ".variables.result": "Query result",
+  ".parameters.steamId": "The target friend's SteamID64 as a string.",
+  ".parameters.term": "Case-insensitive partial match on the game name.",
+  ".parameters.sortBy": "Pass playtime to sort by total minutes descending. Games with missing playtime appear last.",
+  ".parameters.start": "Zero-based offset. Continue with the previous result's nextStart.",
+  ".parameters.limit": "1 to 100 entries per page. The default is 25."
+}

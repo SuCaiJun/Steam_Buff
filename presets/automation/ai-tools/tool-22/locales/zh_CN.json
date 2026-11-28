@@ -1,0 +1,7 @@
+{
+  ".name": "批量查询 Steam 游戏资料",
+  ".note": "按 AppID 列表逐款查游戏资料、DLC、平台、评分和当前 Steam 报价。每款游戏单独返回结果或失败。",
+  ".description": "按 AppID 列表逐款查游戏资料、DLC、平台、评分和当前 Steam 报价。每款游戏单独返回结果或失败。",
+  ".variables.result": "查询结果",
+  ".parameters.appIds": "传入要查询的整数 AppID 列表。"
+}

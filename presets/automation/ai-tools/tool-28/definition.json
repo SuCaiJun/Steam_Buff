@@ -1,0 +1,88 @@
+{
+  "id": "tool-28",
+  "name": "$text:.name",
+  "note": "$text:.note",
+  "revision": 1,
+  "executionId": "00000000-0000-4000-8000-000000000003",
+  "enabled": true,
+  "description": "$text:.description",
+  "parameters": [
+    {
+      "name": "appId",
+      "type": "integer",
+      "required": false,
+      "description": "$text:.parameters.appId",
+      "variableId": "var-appId"
+    },
+    {
+      "name": "url",
+      "type": "string",
+      "required": false,
+      "description": "$text:.parameters.url",
+      "variableId": "var-url"
+    },
+    {
+      "name": "packageId",
+      "type": "integer",
+      "required": false,
+      "description": "$text:.parameters.packageId",
+      "variableId": "var-packageId"
+    }
+  ],
+  "variables": [
+    {
+      "id": "var-appId",
+      "name": "appId",
+      "type": "number"
+    },
+    {
+      "id": "var-url",
+      "name": "url",
+      "type": "text"
+    },
+    {
+      "id": "var-packageId",
+      "name": "packageId",
+      "type": "number"
+    },
+    {
+      "id": "var-result",
+      "name": "$text:.variables.result",
+      "type": "object"
+    }
+  ],
+  "steps": [
+    {
+      "id": "step-query",
+      "kind": "action",
+      "action": "steam-free-eligibility",
+      "appId": {
+        "source": "variable",
+        "id": "var-appId",
+        "path": []
+      },
+      "url": {
+        "source": "variable",
+        "id": "var-url",
+        "path": []
+      },
+      "packageId": {
+        "source": "variable",
+        "id": "var-packageId",
+        "path": []
+      },
+      "output": "var-result"
+    },
+    {
+      "id": "step-return",
+      "kind": "action",
+      "action": "tool-return",
+      "value": {
+        "source": "variable",
+        "id": "var-result",
+        "path": []
+      }
+    }
+  ],
+  "providerInputVersion": 1
+}

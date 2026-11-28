@@ -1,0 +1,7 @@
+{
+  ".name": "Steam 프로필 조회",
+  ".note": "Steam Web API에서 SteamID64로 이름, 아바타, 프로필 링크와 공개된 접속 상태를 조회합니다.",
+  ".description": "Steam Web API에서 SteamID64로 이름, 아바타, 프로필 링크와 공개된 접속 상태를 조회합니다.",
+  ".variables.result": "조회 결과",
+  ".parameters.steamId": "SteamID64 문자열입니다. 생략하면 로그인한 Steam 계정을 사용합니다."
+}

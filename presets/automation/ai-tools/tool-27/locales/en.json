@@ -1,0 +1,11 @@
+{
+  ".name": "Modify Steam Cart",
+  ".note": "Add a selected package or bundle, remove one exact line, or clear the current cart using the approval card.",
+  ".description": "Add a selected package or bundle, remove one exact line, or clear the current cart using the approval card.",
+  ".variables.result": "Result",
+  ".parameters.operation": "add to add a package or bundle, remove to remove one line, or clear to show and confirm all current lines.",
+  ".parameters.appId": "The numeric AppID. For a free license, provide the AppID or URL.",
+  ".parameters.packageId": "A specific Steam package ID.",
+  ".parameters.bundleId": "A specific Steam bundle ID.",
+  ".parameters.lineId": "The exact cart line ID returned by the cart tool, as a string."
+}

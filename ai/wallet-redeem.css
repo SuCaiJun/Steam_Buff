@@ -1,0 +1,47 @@
+/*
+ * Steam Buff
+ * @Author : 顾青离
+ * @Url    : sucaijun.com
+ */
+:root {
+  color-scheme: dark;
+  background: var(--st-dialog-surface-inset);
+  color: var(--st-color-text-primary);
+  font: 1rem/1.5 system-ui, sans-serif;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body {
+  margin: 0;
+  padding: clamp(12px, 4vw, 32px);
+}
+main {
+  display: grid;
+  gap: 1rem;
+  inline-size: min(100%, 31rem);
+  margin: clamp(0rem, 5vh, 3rem) auto;
+  padding: clamp(1rem, 4vw, 1.5rem);
+  border: 1px solid var(--st-dialog-border);
+  border-radius: var(--st-dialog-radius);
+  background: var(--st-dialog-surface);
+}
+h1, h2, p, dl, dd { margin: 0; }
+h1 { font-size: 1.25rem; }
+h2 { font-size: 1rem; }
+dl { display: grid; gap: .4rem; }
+dl > div {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: .25rem .75rem;
+}
+dt, p { color: var(--st-dialog-muted-color); }
+dd { font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+#enter-code, #review-code { display: grid; gap: .75rem; }
+#wallet-code { inline-size: 100%; }
+.actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: .5rem; }
+.actions > * { min-block-size: 2.5rem; font: inherit; }
+#wallet-status:empty { display: none; }
+@media (pointer: coarse) {
+  #wallet-code, .actions > * { min-block-size: 3rem; }
+}

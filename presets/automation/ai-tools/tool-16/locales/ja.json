@@ -1,0 +1,7 @@
+{
+  ".name": "Steam プロフィールを調べる",
+  ".note": "Steam Web API で SteamID64 を指定し、名前、アバター、プロフィールと公開されているオンライン状態を取得します。",
+  ".description": "Steam Web API で SteamID64 を指定し、名前、アバター、プロフィールと公開されているオンライン状態を取得します。",
+  ".variables.result": "検索結果",
+  ".parameters.steamId": "SteamID64 の文字列。省略するとログイン中の Steam アカウントを使用します。"
+}

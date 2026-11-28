@@ -1,0 +1,7 @@
+{
+  ".name": "Steam 게임 여러 개 조회",
+  ".note": "AppID 목록으로 상점 정보, DLC, 플랫폼, 평점, 현재 Steam 가격을 조회합니다. 게임마다 결과 또는 오류를 반환합니다.",
+  ".description": "AppID 목록으로 상점 정보, DLC, 플랫폼, 평점, 현재 Steam 가격을 조회합니다. 게임마다 결과 또는 오류를 반환합니다.",
+  ".variables.result": "조회 결과",
+  ".parameters.appIds": "조회할 Steam AppID의 정수 목록입니다."
+}

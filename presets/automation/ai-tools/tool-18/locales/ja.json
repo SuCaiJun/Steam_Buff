@@ -1,0 +1,10 @@
+{
+  ".name": "バッジとカード進捗を調べる",
+  ".note": "バッジとレベルを取得します。SteamID を省略するか自分のカードページを指定すると、カード進捗も取得します。",
+  ".description": "バッジとレベルを取得します。SteamID を省略するか自分のカードページを指定すると、カード進捗も取得します。",
+  ".variables.result": "検索結果",
+  ".parameters.steamId": "SteamID64 の文字列。省略するとログイン中の Steam アカウントを使用します。",
+  ".parameters.start": "0 始まりの取得位置。次のページには前回の nextStart を指定します。",
+  ".parameters.limit": "1 ページあたり 1～100 件。既定は 25 件です。",
+  ".parameters.cardPage": "ログイン中のアカウントのカード一覧ページ。1 から始まり、次のページは cards.nextPage で指定します。"
+}

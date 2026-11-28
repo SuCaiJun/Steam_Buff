@@ -1,0 +1,9 @@
+{
+  ".name": "查詢 Steam 免費領取資格",
+  ".note": "核對目前 Steam 帳號對指定遊戲的免費領取資格。請先開啟已登入的 Steam 商店遊戲頁面。",
+  ".description": "核對目前 Steam 帳號對指定遊戲的免費領取資格。請先開啟已登入的 Steam 商店遊戲頁面。",
+  ".variables.result": "結果",
+  ".parameters.appId": "整數 AppID。查詢資格或領取時，AppID 和商品連結擇一。",
+  ".parameters.url": "Steam 商店官方商品頁面連結。",
+  ".parameters.packageId": "明確的 Steam 套件 ID。"
+}

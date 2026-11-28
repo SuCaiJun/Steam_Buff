@@ -108,6 +108,13 @@
     network: ["workflow_ui_network", "网络"],
     script: ["workflow_ui_run_javascript", "运行 JavaScript"],
   };
+  const commerceActions = {
+    add: ["ai_chat_approval_cart_add", "确认加购"],
+    remove: ["ai_chat_approval_cart_remove", "确认移除"],
+    clear: ["ai_chat_approval_cart_clear", "确认清空购物车"],
+    claim: ["ai_chat_approval_free_claim", "确认免费领取"],
+    checkout: ["ai_chat_approval_checkout_open", "前往 Steam 购物车"],
+  };
   const atTranscriptEnd = () => transcript.scrollHeight - transcript.clientHeight - transcript.scrollTop < 40;
 
   function clearApproval() {
@@ -122,22 +129,52 @@
   }
   function approvalRows(message, category) {
     const rows = [];
-    const { appIds, term, searchProvider } = message.parameters;
+    const { appIds, term, nickname, searchProvider, steamId, steamAccountId, country, estimatedSubtotal, walletBalance } = message.parameters;
     if (searchProvider) rows.push([text("settings.ai.provider", "供应商"), searchProviderName(searchProvider)]);
     if (appIds?.length && !message.items.length) rows.push([text("ai_chat_approval_app_id", "当前查询 AppID"), appIds.join(", ")]);
     if (term) rows.push([text("ai_chat_approval_keyword", "搜索词"), term]);
+    if (nickname) rows.push([text("ai_chat_approval_friend_nickname", "好友昵称"), nickname]);
+    if (steamId) rows.push(["SteamID64", steamId]);
+    if (steamAccountId && steamAccountId !== steamId)
+      rows.push([text("ai_chat_approval_steam_account_id", "当前 SteamID64"), steamAccountId]);
+    if (country) rows.push([text("ai_chat_approval_store_region", "商店地区"), country]);
+    if (estimatedSubtotal) rows.push([text("ai_chat_approval_checkout_estimate", "预计小计"), estimatedSubtotal]);
+    if (walletBalance) rows.push([text("ai_chat_wallet_balance", "Steam 钱包余额"), walletBalance]);
     for (const operation of message.operations) {
       const title = operation.kind === category ? "" : text(...approvalLabels[operation.kind]);
       const detail = operation.kind === "network" ? operation.method + " " + operation.origin
         : operation.kind === "script" ? operation.owner
-          : operation.wishlist ? text("ai_chat_approval_wishlist", "读取当前 Steam 账号的愿望单并查询价格")
-            : operation.account ? text("ai_chat_approval_account", "本次调用可读取当前 Steam 账号的数据")
-            : text("ai_chat_approval_public", "本次调用可读取 Steam 相关公开数据");
+        : operation.commerceRead === "cart" ? text("ai_chat_approval_cart_read", "读取当前账号的购物车和暂存信息")
+        : operation.commerceRead === "license" ? text("ai_chat_approval_free_read", "核对当前账号对指定游戏与套餐的所有权")
+        : operation.commerceRead === "checkout" ? text("ai_chat_approval_checkout_read", "读取当前购物车和 Steam 钱包余额")
+        : operation.commerceRead === "wallet" ? text("ai_chat_approval_wallet_read", "核对收款账号和 Steam 钱包")
+        : operation.commerceRead === "checkoutHandoff" ? text("ai_chat_approval_checkout_handoff", "打开原购物车，在 Steam 核对实际结账商品、最终金额和支付方式")
+        : operation.steamData ? toolName(STAI.PROVIDER_TOOL_IDS[operation.steamData])
+          : operation.wishlistMembership ? text("ai_chat_approval_wishlist_membership", "核对所列游戏的愿望单状态")
+            : operation.wishlist ? text("ai_chat_approval_wishlist", "读取当前 Steam 账号的愿望单并查询价格")
+              : operation.account ? text("ai_chat_approval_account", "本次调用可读取当前 Steam 账号的数据")
+                : text("ai_chat_approval_public", "本次调用可读取 Steam 相关公开数据");
       rows.push([title, detail, operation.code]);
     }
     return rows;
   }
   function approvalWriteRow(item) {
+    if (item.commerceAction) {
+      const id = text(item.kind === "bundle" ? "ai_chat_approval_bundle_id" : "ai_chat_approval_package_id",
+        item.kind === "bundle" ? "捆绑包 ID" : "套餐 ID") + " " + item.itemId;
+      const priced = item.price?.formatted ? [item.price.formatted, item.price.currency].filter(Boolean).join(" ")
+        : text("ai_chat_approval_price_unavailable", "当前价格未能核实");
+      const detail = [item.name && id, item.appId && "AppID " + item.appId,
+        item.lineId && text("ai_chat_approval_cart_line", "购物车行") + " " + item.lineId,
+        item.gift && text("ai_chat_approval_cart_gift", "礼物"),
+        item.privatePurchase && text("ai_chat_approval_cart_private", "私密购买"),
+        item.coupon && text("ai_chat_approval_cart_coupon", "已用优惠券"),
+        item.licenseType === "free_dlc" && text("ai_chat_approval_free_dlc", "免费 DLC 许可证"),
+        priced].filter(Boolean).join(" · ");
+      return [item.name || id, detail];
+    }
+    if (item.wishlistAction) return ["AppID " + item.appId, item.wishlistAction === "add"
+      ? text("ai_chat_approval_wishlist_add", "添加到愿望单") : text("ai_chat_approval_wishlist_remove", "移出愿望单")];
     let detail;
     const after = item.customName ?? item.sortName;
     if (after !== undefined) {
@@ -177,7 +214,7 @@
     const card = document.createElement("article"), title = document.createElement("h2");
     const name = message.toolName ?? toolName(message.toolId);
     const kinds = new Set(message.operations.map(operation => operation.kind));
-    if (message.items.length) kinds.add("write");
+    if (message.items.length && message.checkoutAction !== "openCart") kinds.add("write");
     const kind = kinds.size === 1 ? kinds.values().next().value : "mixed";
     const header = document.createElement("header"), category = document.createElement("span");
     const body = document.createElement("div"), actions = document.createElement("footer");
@@ -196,7 +233,10 @@
     if (rows.length) body.append(approvalList(rows));
     if (writes.length > 4) {
       const details = document.createElement("details"), summary = document.createElement("summary");
-      summary.textContent = text("ai_chat_approval_write_details", "查看写入明细") + " (" + writes.length + ")";
+      details.open = message.items.some(item => item.wishlistAction || item.commerceAction);
+      const label = message.checkoutAction === "openCart" ? text("ai_chat_approval_checkout_items", "查看购物车商品")
+        : text("ai_chat_approval_write_details", "查看写入明细");
+      summary.textContent = label + " (" + writes.length + ")";
       details.append(summary, approvalList(writes));
       body.append(details);
       details.addEventListener("toggle", updateBodyFocus);
@@ -217,7 +257,7 @@
     }
     for (const [approved, label, shortcut] of [
       [false, text("ai_chat_approval_reject", "拒绝"), "Esc"],
-      [true, text("ai_chat_approval_once", "允许一次"), "↵"],
+      [true, text(...(commerceActions[message.items[0]?.commerceAction] ?? ["ai_chat_approval_once", "允许一次"])), "↵"],
     ]) {
       const button = document.createElement("button"), key = document.createElement("kbd");
       button.type = "button";
@@ -537,8 +577,10 @@
       field(text("settings.ai.provider", "供应商"), searchProviderName(step.search.provider));
       field(text("ai_chat_approval_keyword", "搜索词"), step.search.query);
     }
+    const change = step.facts?.wishlist ?? step.facts?.commerce;
+    if (change) field(text("ai_chat_tool_changed", "已修改"), change.saved.toLocaleString(STI18n.intlLocale()));
     if (step.state !== "done") {
-      if (step.errorCode) field(text("ai_chat_tool_result", "结果"), failureText(step.errorCode));
+      if (step.errorCode) field(text("ai_chat_tool_result", "结果"), change?.reason || failureText(step.errorCode));
       return facts;
     }
     const { source, facts: data } = step;
@@ -572,6 +614,7 @@
       field(text("ai_chat_tool_low", "历史最低价"), formatPrice(data.low));
       if (data.low) field(text("ai_chat_tool_low_at", "史低记录时间"), localeTime(data.lowAt));
     }
+    if (STAI.storeTool(step.id)) field(text("ai_chat_search_result_count", "结果数"), change?.count ?? data?.count);
     if (Object.values(STAI.ACCOUNT_TOOLS).some(tool => tool.id === step.id)) {
       field(text("ai_chat_tool_result", "结果"), data.count);
       field(text("ai_chat_tool_changed", "已修改"), data.changed);
@@ -597,6 +640,13 @@
     failed: ["common_failed", "失败"],
     stopped: ["ai_chat_tool_stopped", "已停止"],
   };
+  const walletStates = {
+    native_checkout: ["ai_chat_wallet_native_checkout", "已打开 Steam 购物车"],
+    native_required: ["ai_chat_wallet_follow_steam", "需在 Steam 继续"],
+    uncertain: ["ai_chat_wallet_result_pending", "结果待核实"],
+    redeemed: ["ai_chat_wallet_redeemed", "Steam 已确认兑换"],
+    empty_cart: ["ai_chat_wallet_empty_cart", "购物车为空"],
+  };
 
   function toolName(id) {
     if (id === STAI.WEB_SEARCH_TOOL_ID) return text("ai_chat_web_search", "联网搜索");
@@ -616,7 +666,10 @@
       tool.append(summary);
     }
     tool.dataset.state = step.state;
-    tool.firstChild.lastChild.textContent = text(...toolStates[step.state]);
+    const outcome = step.facts?.walletOutcome;
+    const label = step.state === "done" && Object.hasOwn(walletStates, outcome) ? walletStates[outcome] : toolStates[step.state];
+    tool.firstChild.lastChild.textContent = (step.facts?.wishlist ?? step.facts?.commerce)?.partial
+      ? text("ai_chat_tool_partial", "部分完成") : text(...label);
     if (tool.childElementCount > 1) tool.lastElementChild.remove();
     tool.append(toolFacts(step, sources));
     return tool;
@@ -1397,7 +1450,7 @@
     let failure;
     liveUsage = undefined;
     const request = { id: thread.id, revision: thread.revision, serviceId, serviceRevision, text: message, appId, approvalMode,
-      approvalVersion: STAI.CHAT_APPROVAL_VERSION,
+      approvalVersion: STAI.CHAT_APPROVAL_VERSION, supportsWishlistApproval: true, supportsCommerceApproval: true, supportsCheckoutApproval: true,
       reasoningProgress: true, searchEnabled, ...(provider && { searchProvider: provider }),
       ...(reasoning !== undefined && { reasoning }), ...(!thread.revision && preference && { composer: preference }),
       ...(images.length && { images }) };

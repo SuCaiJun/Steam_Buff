@@ -1,0 +1,10 @@
+{
+  ".name": "查询徽章与卡牌进度",
+  ".note": "分页读取徽章与等级。省略 SteamID 或指定本人卡牌页码时，同时查询当前账号的卡牌进度。",
+  ".description": "分页读取徽章与等级。省略 SteamID 或指定本人卡牌页码时，同时查询当前账号的卡牌进度。",
+  ".variables.result": "查询结果",
+  ".parameters.steamId": "SteamID64 字符串，省略时使用当前登录的 Steam 账号。",
+  ".parameters.start": "从 0 开始。继续查询时传上次返回的 nextStart。",
+  ".parameters.limit": "每页返回 1 到 100 条，默认 25 条。",
+  ".parameters.cardPage": "当前 Steam 账号的卡牌页码，从 1 开始，用 cards.nextPage 继续。"
+}

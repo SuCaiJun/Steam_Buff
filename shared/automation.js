@@ -462,7 +462,8 @@
     if (!parameterAccepts(property.type, value)) return false;
     if (property.enum && !property.enum.includes(value)) return false;
     if (property.type === "integer") return value >= (property.minimum ?? 0) && value <= (property.maximum ?? Number.MAX_SAFE_INTEGER);
-    if (property.type === "string") return !property.minLength || value.trim().length >= property.minLength;
+    if (property.type === "string") return (!property.minLength || value.trim().length >= property.minLength) &&
+      (!property.pattern || new RegExp(property.pattern).test(value));
     if (property.type === "array") return value.length >= (property.minItems ?? 0) && value.every(item => matchesToolProperty(item, property.items));
     if (property.type === "object") return property.required.every(key => Object.hasOwn(value, key)) &&
       Object.entries(value).every(([key, entry]) => Object.hasOwn(property.properties, key) && matchesToolProperty(entry, property.properties[key]));
@@ -507,6 +508,7 @@
       }
     }
     const spec = accountSpec(tool), ids = root.STAI.PROVIDER_TOOL_IDS;
+    const store = root.STAI.storeTool(tool.id);
     const explicit = hasExplicitWrites(tool);
     const direct = hasDirectWrites(tool);
     const kind = providerFilterKind(tool);
@@ -522,9 +524,9 @@
     for (const { name, type, required } of tool.parameters) {
       if (!Object.hasOwn(args, name)) { if (required) throw invalid(); continue; }
       if (parameterAccepts(type, args[name])) {
-        const property = explicit || tool.providerInputVersion === 1 &&
+        const property = store?.properties[name] ?? (spec?.steamWeb || explicit || tool.providerInputVersion === 1 &&
           (tool.id === ids.wishlist_game && name === "appIds" || tool.id === ids.writable_collections)
-          ? spec?.properties[name] : undefined;
+          ? spec?.properties[name] : undefined);
         if (property?.type === type && !matchesToolProperty(args[name], property)) throw invalid("工具参数无效：" + name);
         continue;
       }
@@ -557,7 +559,8 @@
   function toolSchema(tool) {
     const kind = providerFilterKind(tool);
     const preset = kind && !tool.parameters.some(parameter => parameter.name === "conditions") ? root.STWorkflowFields.query.schema(kind, true)
-      : tool.id === root.STAI.STORE_SEARCH_TOOL_ID ? root.STAI.STORE_SEARCH_PROPERTIES : accountSpec(tool)?.properties ?? {};
+      : tool.id === root.STAI.STORE_SEARCH_TOOL_ID ? root.STAI.STORE_SEARCH_PROPERTIES :
+        root.STAI.storeTool(tool.id)?.properties ?? accountSpec(tool)?.properties ?? {};
     return { type: "function", function: {
       name: tool.id, description: tool.description,
       parameters: { type: "object", additionalProperties: false,
@@ -867,6 +870,6 @@
   root.STAutomation = Object.freeze({ empty, KEY, ROUTE, CHANNEL, PREVIEW_CHANNEL, VERSION, DEFAULT_LANGUAGE, CHECK_INTERVAL_MS, isTriggerType,
     STEP_STATES, NOTICE_TYPES, RANGES, OPS, group, conditionFields,
     newWorkflow, newTrigger, newTool, newLibrary, validateTool, validateLibrary, libraryOutputs, libraryBindingIssue, parameterAccepts,
-    toolDiagnostics, toolParameters, toolArguments, toolSchema, toolTypes, hasExplicitWrites, writeArguments, workflowDefinitionKey, triggerEventPaths, triggerParameterIssue, inputBindingIssue, workflowArguments, isOriginalProviderTool, isPackagedProviderTool, isParameterPreset, TOOL_CREDENTIALS_KEY, presetSections, isPresetId, reserveUserId, assemblePresets, loadDefaults, restoreFamilySchedule, normalize, walkSteps, operators, validateCondition, match, matchAsync, dateWindow, inRange, triggered, nativeConfig, clone });
+    toolDiagnostics, toolParameters, toolArguments, toolSchema, toolTypes, matchesToolProperty, hasExplicitWrites, writeArguments, workflowDefinitionKey, triggerEventPaths, triggerParameterIssue, inputBindingIssue, workflowArguments, isOriginalProviderTool, isPackagedProviderTool, isParameterPreset, TOOL_CREDENTIALS_KEY, presetSections, isPresetId, reserveUserId, assemblePresets, loadDefaults, restoreFamilySchedule, normalize, walkSteps, operators, validateCondition, match, matchAsync, dateWindow, inRange, triggered, nativeConfig, clone });
 
 })(globalThis);

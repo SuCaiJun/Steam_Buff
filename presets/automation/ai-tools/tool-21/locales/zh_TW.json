@@ -1,0 +1,10 @@
+{
+  ".name": "查詢好友單款遊戲成就",
+  ".note": "按好友 SteamID64 和遊戲 AppID 查詢可見的成就進度。",
+  ".description": "查詢指定好友在一款遊戲內的可見成就。回傳解鎖數、成就總數、完成率和明細。只有好友暱稱時先查詢 Steam 好友，有多筆符合時請使用者確認。只有遊戲名稱時先透過 Steam 商店搜尋確認 AppID。使用 nextStart 繼續查看明細。",
+  ".variables.result": "查詢結果",
+  ".parameters.steamId": "目標好友的 SteamID64 字串。",
+  ".parameters.appId": "單款 Steam 遊戲的整數 AppID。",
+  ".parameters.start": "從 0 開始。繼續查詢時傳入上次回傳的 nextStart。",
+  ".parameters.limit": "每頁 1 到 100 筆，預設 25 筆。"
+}

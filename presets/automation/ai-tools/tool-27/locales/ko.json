@@ -1,0 +1,11 @@
+{
+  ".name": "Steam 장바구니 수정",
+  ".note": "승인 후 패키지나 번들을 추가하거나 지정 항목을 제거하거나 장바구니를 비웁니다.",
+  ".description": "승인 후 패키지나 번들을 추가하거나 지정 항목을 제거하거나 장바구니를 비웁니다.",
+  ".variables.result": "결과",
+  ".parameters.operation": "추가는 add, 지정 항목 제거는 remove, 장바구니 비우기는 clear를 입력하세요.",
+  ".parameters.appId": "숫자 AppID입니다. 무료 라이선스에는 AppID 또는 URL을 입력하세요.",
+  ".parameters.packageId": "특정 Steam 패키지 ID입니다.",
+  ".parameters.bundleId": "특정 Steam 번들 ID입니다.",
+  ".parameters.lineId": "장바구니 조회에서 반환된 정확한 항목 ID를 문자열로 입력하세요."
+}

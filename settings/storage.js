@@ -959,13 +959,18 @@
     return normalizeThirdPartyServices(out);
   }
 
-  /** 仅返回本机密钥的配置状态，读取失败由设置面板处理 */
-  async function hasSteamWebApiKey() {
+  /** 返回本机凭据，供后台 Steam Web API 请求使用 */
+  async function getSteamWebApiKey() {
     const values = await get([STEAM_WEB_API_KEY], { strict: true });
     const key = values[STEAM_WEB_API_KEY];
-    if (key === undefined) return false;
+    if (key === undefined) return "";
     if (typeof key !== "string") throw new TypeError("Steam Web API Key 存储格式错误");
-    return key !== "";
+    return key;
+  }
+
+  /** 设置面板只读取配置状态 */
+  async function hasSteamWebApiKey() {
+    return (await getSteamWebApiKey()) !== "";
   }
 
   function steamWebApiKeyData(value) {
@@ -1349,6 +1354,7 @@
     setAiSearch,
     writeAiSettings,
     getThirdPartyServices,
+    getSteamWebApiKey,
     hasSteamWebApiKey,
     setSteamWebApiKey,
     setThirdPartyServices,

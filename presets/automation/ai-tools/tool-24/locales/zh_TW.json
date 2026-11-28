@@ -1,0 +1,8 @@
+{
+  ".name": "查詢 Steam 遊戲新聞",
+  ".note": "按 AppID 查詢最新的遊戲新聞，回傳標題、日期、摘要、來源和原文連結。",
+  ".description": "按 AppID 查詢最新的遊戲新聞，回傳標題、日期、摘要、來源和原文連結。",
+  ".variables.result": "查詢結果",
+  ".parameters.appId": "要查詢的 Steam 遊戲 AppID。",
+  ".parameters.limit": "回傳最近 1 到 100 筆，預設 10 筆。"
+}

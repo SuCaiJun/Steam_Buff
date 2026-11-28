@@ -1,0 +1,8 @@
+{
+  ".name": "修改 Steam 願望清單",
+  ".note": "在 AI 對話中確認 AppID 和操作後，將遊戲加入或移出目前的 Steam 願望清單。請先開啟一個已登入的 Steam 商店遊戲頁面。每個項目都會讀回確認結果。",
+  ".description": "在 AI 對話中確認 AppID 和操作後，將遊戲加入或移出目前的 Steam 願望清單。請先開啟一個已登入的 Steam 商店遊戲頁面。每個項目都會讀回確認結果。",
+  ".variables.result": "變更結果",
+  ".parameters.appIds": "要變更的整數 Steam AppID 清單。只有遊戲名稱時，先使用 Steam 商店搜尋確認 AppID。",
+  ".parameters.operation": "填入 add 將遊戲加入願望清單，填入 remove 將遊戲移出願望清單。"
+}

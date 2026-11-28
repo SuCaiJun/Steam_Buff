@@ -1,0 +1,10 @@
+{
+  ".name": "Look up Steam friends",
+  ".note": "List Steam friends and visible online status, or find a friend by their Steam display name.",
+  ".description": "Read the Steam friend list. Pass nickname to search the full list by Steam display name. Returns SteamID64 and visible presence. Ask the user to confirm the friend when multiple matches exist. unavailableNames counts friends whose names Steam did not provide. Use nextStart for the next page.",
+  ".parameters.nickname": "Case-insensitive partial match on the Steam display name. Omit to list friends.",
+  ".variables.result": "Query result",
+  ".parameters.steamId": "SteamID64 as a string. Omit to use the signed-in Steam account.",
+  ".parameters.start": "Zero-based offset. Continue with the previous result's nextStart.",
+  ".parameters.limit": "1 to 100 entries per page. The default is 25."
+}

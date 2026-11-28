@@ -1,0 +1,11 @@
+{
+  ".name": "Steam 게임 평가 조회",
+  ".note": "AppID로 최근 Steam 평가를 조회합니다. 추천 여부와 언어로 필터링할 수 있습니다. 기본값은 Steam 구매자의 최신 평가이며 주제에서 벗어난 활동은 제외합니다. 전체 평점은 모든 평가의 첫 페이지에 표시됩니다. 같은 필터와 nextCursor로 다음 페이지를 조회하세요.",
+  ".description": "AppID로 최근 Steam 평가를 조회합니다. 추천 여부와 언어로 필터링할 수 있습니다. 기본값은 Steam 구매자의 최신 평가이며 주제에서 벗어난 활동은 제외합니다. 전체 평점은 모든 평가의 첫 페이지에 표시됩니다. 같은 필터와 nextCursor로 다음 페이지를 조회하세요.",
+  ".variables.result": "조회 결과",
+  ".parameters.appId": "조회할 Steam 게임의 AppID입니다.",
+  ".parameters.reviewType": "all, positive, negative 중 하나입니다. 기본값은 all입니다.",
+  ".parameters.language": "koreana, english 등의 Steam API 언어 코드입니다. 기본값은 all입니다.",
+  ".parameters.cursor": "다음 페이지에는 이전 nextCursor를 사용합니다. 첫 페이지에서는 생략합니다.",
+  ".parameters.limit": "페이지당 1~100개입니다. 기본값은 20개입니다."
+}

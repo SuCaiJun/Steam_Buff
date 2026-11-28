@@ -64,6 +64,13 @@
   importScripts(chrome.runtime.getURL("extension/background-messages.js"));
   importScripts(chrome.runtime.getURL("extension/background-update.js"));
   importScripts(chrome.runtime.getURL("extension/background-steam-account.js"));
+  importScripts(chrome.runtime.getURL("extension/background-steam-read.js"));
+  importScripts(chrome.runtime.getURL("extension/background-steam-store-tools.js"));
+  importScripts(chrome.runtime.getURL("extension/background-steam-wishlist.js"));
+  importScripts(chrome.runtime.getURL("store/page/dlc-freelicense-inject.js"));
+  importScripts(chrome.runtime.getURL("extension/background-steam-commerce.js"));
+  importScripts(chrome.runtime.getURL("extension/background-steam-wallet.js"));
+  importScripts(chrome.runtime.getURL("extension/background-steam-checkout.js"));
   importScripts(chrome.runtime.getURL("extension/background-account-tools.js"));
   importScripts(chrome.runtime.getURL("extension/background-family.js"));
   importScripts(chrome.runtime.getURL("extension/automation-store.js"));
@@ -4353,9 +4360,52 @@
     // DeepSeek 的思考模式要求回传所有历史思考文本。工具对话仅保存可见消息
     if (url.origin === deepSeek.base && deepSeek.models.includes(body.model)) body.thinking = { type: "disabled" };
   }
+  async function steamStoreCountry() {
+    return (await globalThis.STSettings.storage.getThirdPartyServices()).isthereanydeal.country;
+  }
+  function steamStorePrice(price, message) {
+    if (!/^[A-Z]{3}$/.test(price.currency) || !Number.isSafeInteger(price.initial) || !Number.isSafeInteger(price.final) ||
+        price.initial < 0 || price.final < 0 || !Number.isSafeInteger(price.discount_percent) || price.discount_percent < 0 || price.discount_percent > 100)
+      throw Object.assign(new Error(message), { code: "AI_TOOL_RESPONSE_INVALID" });
+    return { currency: price.currency, originalMinor: price.initial, currentMinor: price.final, discountPercent: price.discount_percent };
+  }
+  async function steamGameDetails(appId, signal, { country, extended = true } = {}) {
+    if (extended) country ??= await steamStoreCountry();
+    const filters = "basic,developers,publishers,release_date,dlc,platforms,metacritic,price_overview,recommendations";
+    const url = extended ? CFG.vendors.steamStore.appDetailsForCountry(appId, country, filters, "english")
+      : CFG.vendors.steamStore.appDetails(appId);
+    const { response, data } = await fetchDiagnosticText(url, { credentials: "omit", redirect: "error" }, STORE_FETCH_TIMEOUT_MS, signal);
+    if (!response.ok) throw Object.assign(new Error("Steam 游戏资料查询失败"), { status: response.status });
+    let game;
+    try { game = JSON.parse(data)?.[appId]; }
+    catch (error) {
+      if (error.name === "SyntaxError") {
+        globalThis.STLoggerSchema.markJsonError(error);
+        error.code = "AI_TOOL_RESPONSE_INVALID";
+      }
+      throw error;
+    }
+    if (game?.success === false) return { found: false };
+    if (game?.success !== true || typeof game.data?.name !== "string")
+      throw Object.assign(new TypeError("Steam 游戏资料响应异常"), { code: "AI_TOOL_RESPONSE_INVALID" });
+    const { name, type, short_description, developers, publishers, release_date } = game.data;
+    const result = { found: true, name, type, short_description, developers, publishers, release_date };
+    if (!extended) return result;
+    const { is_free, dlc, platforms, metacritic, recommendations, price_overview, steam_appid } = game.data;
+    if ((steam_appid !== undefined && steam_appid !== appId) ||
+        (dlc !== undefined && (!Array.isArray(dlc) || !dlc.every(globalThis.STAI.isToolAppId))) ||
+        (platforms !== undefined && !["windows", "mac", "linux"].every(platform => typeof platforms?.[platform] === "boolean")) ||
+        (metacritic !== undefined && (!Number.isSafeInteger(metacritic?.score) || metacritic.score < 0 || metacritic.score > 100)) ||
+        (recommendations !== undefined && (!Number.isSafeInteger(recommendations?.total) || recommendations.total < 0)))
+      throw Object.assign(new TypeError("Steam 游戏补充资料字段异常"), { code: "AI_TOOL_RESPONSE_INVALID" });
+    return { ...result, country, isFree: typeof is_free === "boolean" ? is_free : null, dlcAppIds: dlc ?? null,
+      platforms: platforms ? { windows: platforms.windows, mac: platforms.mac, linux: platforms.linux } : null,
+      metacriticScore: metacritic?.score ?? null, recommendations: recommendations?.total ?? null,
+      price: price_overview ? steamStorePrice(price_overview, "Steam 游戏报价字段异常") : null };
+  }
   const accountTools = globalThis.STBackgroundAccountTools.create({
     native: nativeAutomationCommand,
-    steamGame: (appId, signal) => aiTools.steamGame(appId, signal),
+    steamGame: (appId, signal) => steamGameDetails(appId, signal, { extended: false }),
     async wishlistPrices(ids, country, signal) {
       const url = CFG.vendors.steamStore.appDetailsForCountry(ids.join(","), country);
       const { response, data } = await fetchDiagnosticText(url, { credentials: "omit", redirect: "error" }, STORE_FETCH_TIMEOUT_MS, signal);
@@ -4367,10 +4417,7 @@
       for (const id of ids) {
         const price = results[id].success === true ? results[id].data?.price_overview : null;
         if (!price) continue;
-        if (!/^[A-Z]{3}$/.test(price.currency) || !Number.isSafeInteger(price.initial) || !Number.isSafeInteger(price.final) ||
-            price.initial < 0 || price.final < 0 || !Number.isSafeInteger(price.discount_percent) || price.discount_percent < 0 || price.discount_percent > 100)
-          throw Object.assign(new Error("Steam 愿望单价格字段异常"), { code: "AI_TOOL_RESPONSE_INVALID" });
-        prices[id] = { currency: price.currency, originalMinor: price.initial, currentMinor: price.final, discountPercent: price.discount_percent };
+        prices[id] = steamStorePrice(price, "Steam 愿望单价格字段异常");
       }
       return { status: "ok", prices };
     },
@@ -4386,6 +4433,13 @@
   });
   const aiTools = {
     accountTool: accountTools.execute,
+    steamRead: globalThis.STBackgroundSteamRead.execute,
+    steamStoreTool(tool, args, signal, options) {
+      if (tool.checkout) return globalThis.STBackgroundSteamCheckout.execute(tool, args, signal, options?.commerce, execScript);
+      if (tool.commerce) return globalThis.STBackgroundSteamCommerce.execute(tool, args, signal, options?.commerce, execScript);
+      if (tool.kind === "wishlist_change") return globalThis.STBackgroundSteamWishlist.execute(args, signal, options?.wishlistChange);
+      return globalThis.STBackgroundSteamStoreTools.execute(tool, args, signal, { game: aiTools.steamGame, storeCountry: steamStoreCountry });
+    },
     hasAiGatewayPermission,
     async round(service, messages, tools, signal, chat, reasoning) {
       const next = globalThis.STAI.chatRequest(service, messages);
@@ -4404,22 +4458,7 @@
         return fetchPreparedAi(next, url.href, AI_FETCH_TIMEOUT_MAX_MS, signal, chat);
       }, signal);
     },
-    async steamGame(appId, signal) {
-      const url = CFG.vendors.steamStore.appDetails(appId);
-      const { response, data } = await fetchDiagnosticText(url, { credentials: "omit", redirect: "error" }, STORE_FETCH_TIMEOUT_MS, signal);
-      if (!response.ok) throw Object.assign(new Error("Steam 游戏资料查询失败"), { status: response.status });
-      let game;
-      try { game = parseJson(data)?.[appId]; }
-      catch (error) {
-        if (error.name === "SyntaxError") error.code = "AI_TOOL_RESPONSE_INVALID";
-        throw error;
-      }
-      if (game?.success === false) return { found: false };
-      if (game?.success !== true || typeof game.data?.name !== "string")
-        throw Object.assign(new TypeError("Steam 游戏资料响应异常"), { code: "AI_TOOL_RESPONSE_INVALID" });
-      const { name, type, short_description, developers, publishers, release_date } = game.data;
-      return { found: true, name, type, short_description, developers, publishers, release_date };
-    },
+    steamGame: (appId, signal, country) => steamGameDetails(appId, signal, { country }),
     currentPlayers(appId, signal) {
       return fetchSteamCurrentPlayers({ signal }, appId);
     },
@@ -4444,6 +4483,7 @@
     },
   };
   chrome.runtime.onConnect.addListener(globalThis.STBackgroundAiChat.connect(aiTools));
+  chrome.runtime.onConnect.addListener(globalThis.STBackgroundSteamWallet.connect);
   globalThis.STBackgroundUpdate.start();
   globalThis.STBackgroundLifecycle.start();
   void globalThis.STSettings.storage.initializeDownloadToolbar().catch(error =>

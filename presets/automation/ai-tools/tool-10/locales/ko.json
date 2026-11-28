@@ -1,5 +1,5 @@
 {
-  ".name": "내 Steam 찜 목록 필터링",
+  ".name": "Steam 찜 목록 필터링",
   ".note": "현재 Steam 찜 목록을 필드별로 필터링합니다. 현재 가격 순위는 sortBy=currentPrice와 direction=asc 또는 desc를 사용합니다.",
   ".description": "현재 Steam 찜 목록을 필드별로 필터링합니다. 현재 가격 순위는 sortBy=currentPrice와 direction=asc 또는 desc를 사용합니다.",
   ".variables.result": "AppID 목록",

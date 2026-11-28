@@ -1,0 +1,11 @@
+{
+  ".name": "Look up Steam game reviews",
+  ".note": "Read recent Steam reviews for one AppID, optionally filtered by recommendation and language. By default, the sample uses Steam purchases and excludes off-topic activity. Overall scores appear on the first page of all reviews. Reuse the same filters when continuing with nextCursor.",
+  ".description": "Read recent Steam reviews for one AppID, optionally filtered by recommendation and language. By default, the sample uses Steam purchases and excludes off-topic activity. Overall scores appear on the first page of all reviews. Reuse the same filters when continuing with nextCursor.",
+  ".variables.result": "Query result",
+  ".parameters.appId": "AppID of the Steam game.",
+  ".parameters.reviewType": "Use all, positive, or negative. Defaults to all.",
+  ".parameters.language": "Steam API language code, such as english or schinese. Defaults to all.",
+  ".parameters.cursor": "Pass the previous nextCursor for the next page. Omit for the first page.",
+  ".parameters.limit": "1 to 100 reviews per page. Defaults to 20."
+}

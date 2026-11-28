@@ -12,7 +12,9 @@
   "use strict";
   const log = root.STLoggerFactory.createLogger("background", "steam-account");
   const runtime = crypto.randomUUID();
+  const changed = () => Object.assign(new Error("Steam 账号已切换，请重新发起查询"), { code: "ACCOUNT_CHANGED" });
   let owner = null, epoch = 0, accountOwner = null, accountEpoch = 0, pending = null;
+  let nextCheck = 0, latestCheck = 0, lastConflictingCheck = 0;
   async function request(url, authenticated, timeoutMs, parentSignal) {
     return root.STNetworkRequest.run(timeoutMs, async signal => {
       let response;
@@ -41,23 +43,55 @@
       if (accountOwner !== null) accountEpoch++;
       accountOwner = next;
     }
-    if (owner === next) return;
+    if (owner === next) return snapshot();
     owner = next; epoch++;
+    const binding = snapshot();
     try { await chrome.storage.local.set({ [root.STMessageCenter.IDENTITY_KEY]: crypto.randomUUID() }); }
     catch (error) { log.warn("steam-identity-signal-failed", "账号状态同步失败，保留已核验的会话结果", { error }); }
+    return binding;
   }
+  async function verifyAccount(checkId, timeoutMs, signal) {
+    const { accountSteamId } = await readSession(timeoutMs, signal);
+    signal?.throwIfAborted();
+    // 同账号的较新核验也能拦住乱序返回的旧账号
+    if (checkId < latestCheck) {
+      // 迟到的异号会话证明期间发生过切号，只使此前的工具授权失效
+      if (accountOwner !== null && accountOwner !== accountSteamId)
+        lastConflictingCheck = Math.max(lastConflictingCheck, checkId);
+      if (owner !== accountSteamId) throw changed();
+      return snapshot();
+    }
+    latestCheck = checkId;
+    const binding = await observe(accountSteamId);
+    signal?.throwIfAborted();
+    if (!current(binding)) throw changed();
+    return binding;
+  }
+
+  /** 核对当前会话并取得账号代次，已绑定的操作继续使用其原有快照 */
+  async function bindAccount(timeoutMs, signal) {
+    const accountCheck = ++nextCheck;
+    const binding = await verifyAccount(accountCheck, timeoutMs, signal);
+    signal?.throwIfAborted();
+    if (accountCheck <= lastConflictingCheck || !current(binding)) throw changed();
+    return { ...binding, accountCheck };
+  }
+
   function identity() {
     if (pending) return pending;
+    const checkId = ++nextCheck;
     pending = (async () => {
-      try {
-        const login = await readSession(6000);
-        await observe(login.accountSteamId);
-        return snapshot();
-      } catch (error) {
+      try { return await verifyAccount(checkId, 6000); }
+      catch (error) {
+        if (error.code === "ACCOUNT_CHANGED") return snapshot();
         if (!error.accountUnavailable) throw error;
-        await observe(null);
+        // 已由更新的会话核验确认身份时，过期的失败结果不能清空当前账号
+        if (checkId < latestCheck) return snapshot();
+        latestCheck = checkId;
+        const binding = await observe(null);
+        if (!current(binding)) return snapshot();
         log.warn("steam-identity-unavailable", "无法确认当前 Steam 账号，账号消息暂不可用", { error });
-        return { ...snapshot(),
+        return { ...binding,
           accountError: error.name === "SyntaxError" ? "Steam 响应格式异常，请稍后重试。" : error.message };
       }
     })().finally(() => { pending = null; });
@@ -68,7 +102,8 @@
   /** 仅校验期间是否实际观察到切号；操作归属必须经过本次首尾会话核验 */
   function accountCurrent(binding, actualOwner) {
     root.STFamilyLibrary.accountId(actualOwner);
-    return binding.accountEpoch === accountEpoch && (accountOwner === null || accountOwner === actualOwner);
+    return binding.accountEpoch === accountEpoch && (accountOwner === null || accountOwner === actualOwner) &&
+      (binding.accountCheck === undefined || binding.accountCheck > lastConflictingCheck);
   }
-  root.STBackgroundSteamAccount = Object.freeze({ request, readSession, identity, snapshot, current, accountCurrent });
+  root.STBackgroundSteamAccount = Object.freeze({ request, readSession, bindAccount, identity, snapshot, current, accountCurrent });
 })(globalThis);

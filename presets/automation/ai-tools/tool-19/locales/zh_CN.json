@@ -1,0 +1,8 @@
+{
+  ".name": "查询我的许可证记录",
+  ".note": "读取当前 Steam 商店账号的许可证日期、名称和取得方式。使用 nextStart 翻页。",
+  ".description": "读取当前 Steam 商店账号的许可证日期、名称和取得方式。使用 nextStart 翻页。",
+  ".variables.result": "查询结果",
+  ".parameters.start": "从 0 开始。继续查询时传上次返回的 nextStart。",
+  ".parameters.limit": "每页返回 1 到 100 条，默认 25 条。"
+}

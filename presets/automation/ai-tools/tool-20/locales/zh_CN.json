@@ -1,0 +1,11 @@
+{
+  ".name": "查询好友游戏库",
+  ".note": "按 SteamID64 读取好友可见的游戏，可按游戏名搜索或按累计游玩时长排序。",
+  ".description": "按好友 SteamID64 查询可见的游戏库，返回 AppID、游戏名和 Steam 提供的累计游玩分钟数。只有昵称时，先查 Steam 好友，有多个匹配时请用户确认。用 term 搜索游戏名，用 sortBy=playtime 按时长降序。未提供的时长为 null，Steam 返回的 0 也可能表示时长被隐藏。unavailableNames 是 Steam 未提供游戏名、无法纳入搜索的条目数。用 nextStart 继续翻页。",
+  ".variables.result": "查询结果",
+  ".parameters.steamId": "目标好友的 SteamID64 字符串。",
+  ".parameters.term": "按游戏名做不区分大小写的部分匹配。",
+  ".parameters.sortBy": "传 playtime 按累计游玩分钟数降序，未提供时长的条目排在最后。",
+  ".parameters.start": "从 0 开始。继续查询时传上次返回的 nextStart。",
+  ".parameters.limit": "每页返回 1 到 100 条，默认 25 条。"
+}

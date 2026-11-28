@@ -1,0 +1,6 @@
+{
+  ".name": "Steam カートを確認",
+  ".note": "ログイン中の Steam カートと一時保留の商品を確認します。Steam のカートページを開いてください。",
+  ".description": "ログイン中の Steam カートと一時保留の商品を確認します。Steam のカートページを開いてください。",
+  ".variables.result": "結果"
+}

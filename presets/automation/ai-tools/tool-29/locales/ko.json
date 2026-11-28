@@ -1,0 +1,9 @@
+{
+  ".name": "Steam 무료 라이선스 받기",
+  ".note": "승인 후 확인된 무료 패키지를 받은 뒤 소유 여부를 확인합니다.",
+  ".description": "승인 후 확인된 무료 패키지를 받은 뒤 소유 여부를 확인합니다.",
+  ".variables.result": "결과",
+  ".parameters.appId": "숫자 AppID입니다. 무료 라이선스에는 AppID 또는 URL을 입력하세요.",
+  ".parameters.url": "Steam 공식 상점 상품 페이지 URL입니다.",
+  ".parameters.packageId": "특정 Steam 패키지 ID입니다."
+}

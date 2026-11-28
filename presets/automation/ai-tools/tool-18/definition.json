@@ -1,0 +1,105 @@
+{
+  "id": "tool-18",
+  "name": "$text:.name",
+  "note": "$text:.note",
+  "revision": 1,
+  "executionId": "00000000-0000-4000-8000-000000000003",
+  "enabled": true,
+  "description": "$text:.description",
+  "parameters": [
+    {
+      "name": "steamId",
+      "type": "string",
+      "required": false,
+      "description": "$text:.parameters.steamId",
+      "variableId": "var-steamId"
+    },
+    {
+      "name": "start",
+      "type": "integer",
+      "required": false,
+      "description": "$text:.parameters.start",
+      "variableId": "var-start"
+    },
+    {
+      "name": "limit",
+      "type": "integer",
+      "required": false,
+      "description": "$text:.parameters.limit",
+      "variableId": "var-limit"
+    },
+    {
+      "name": "cardPage",
+      "type": "integer",
+      "required": false,
+      "description": "$text:.parameters.cardPage",
+      "variableId": "var-cardPage"
+    }
+  ],
+  "variables": [
+    {
+      "id": "var-steamId",
+      "name": "steamId",
+      "type": "text"
+    },
+    {
+      "id": "var-start",
+      "name": "start",
+      "type": "number"
+    },
+    {
+      "id": "var-limit",
+      "name": "limit",
+      "type": "number"
+    },
+    {
+      "id": "var-cardPage",
+      "name": "cardPage",
+      "type": "number"
+    },
+    {
+      "id": "var-result",
+      "name": "$text:.variables.result",
+      "type": "object"
+    }
+  ],
+  "steps": [
+    {
+      "id": "step-query",
+      "kind": "action",
+      "action": "steam-player-badges",
+      "steamId": {
+        "source": "variable",
+        "id": "var-steamId",
+        "path": []
+      },
+      "start": {
+        "source": "variable",
+        "id": "var-start",
+        "path": []
+      },
+      "limit": {
+        "source": "variable",
+        "id": "var-limit",
+        "path": []
+      },
+      "cardPage": {
+        "source": "variable",
+        "id": "var-cardPage",
+        "path": []
+      },
+      "output": "var-result"
+    },
+    {
+      "id": "step-return",
+      "kind": "action",
+      "action": "tool-return",
+      "value": {
+        "source": "variable",
+        "id": "var-result",
+        "path": []
+      }
+    }
+  ],
+  "providerInputVersion": 1
+}

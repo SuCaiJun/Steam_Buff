@@ -1,0 +1,6 @@
+{
+  ".name": "Steam 지갑으로 결제",
+  ".note": "장바구니를 확인한 뒤 Steam 결제로 돌아갑니다. 최종 금액과 결제는 Steam 페이지에서 확인하세요.",
+  ".description": "장바구니를 확인한 뒤 Steam 결제로 돌아갑니다. 최종 금액과 결제는 Steam 페이지에서 확인하세요.",
+  ".variables.result": "결과"
+}

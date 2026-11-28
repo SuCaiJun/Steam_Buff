@@ -1,4 +1,169 @@
 {
+  "ai_chat_tool_checkout_preview": {
+    "message": "預覽 Steam 結帳"
+  },
+  "ai_chat_tool_wallet_checkout": {
+    "message": "使用 Steam 錢包結帳"
+  },
+  "ai_chat_tool_wallet_redeem": {
+    "message": "兌換 Steam 錢包儲值碼"
+  },
+  "ai_chat_approval_checkout_open": {
+    "message": "前往 Steam 購物車"
+  },
+  "ai_chat_approval_checkout_estimate": {
+    "message": "預計小計"
+  },
+  "ai_chat_wallet_balance": {
+    "message": "Steam 錢包餘額"
+  },
+  "ai_chat_approval_checkout_read": {
+    "message": "讀取目前的購物車與 Steam 錢包餘額"
+  },
+  "ai_chat_approval_wallet_read": {
+    "message": "核對收款帳號與 Steam 錢包"
+  },
+  "ai_chat_approval_checkout_handoff": {
+    "message": "開啟原購物車，並在 Steam 核對結帳商品、最終金額及付款方式"
+  },
+  "ai_chat_approval_checkout_items": {
+    "message": "查看購物車商品"
+  },
+  "ai_chat_wallet_currency": {
+    "message": "錢包幣別"
+  },
+  "ai_chat_wallet_code": {
+    "message": "Steam 錢包儲值碼"
+  },
+  "ai_chat_wallet_review": {
+    "message": "核對兌換"
+  },
+  "ai_chat_wallet_code_ending": {
+    "message": "儲值碼末幾碼"
+  },
+  "ai_chat_wallet_amount_notice": {
+    "message": "此操作會將儲值碼充入上述帳號。實際入帳金額由 Steam 確認。"
+  },
+  "ai_chat_wallet_edit": {
+    "message": "返回修改"
+  },
+  "ai_chat_wallet_confirm": {
+    "message": "確認兌換"
+  },
+  "ai_chat_wallet_waiting": {
+    "message": "正在核對 Steam 錢包…"
+  },
+  "ai_chat_wallet_native_checkout": {
+    "message": "已開啟 Steam 購物車"
+  },
+  "ai_chat_wallet_follow_steam": {
+    "message": "需在 Steam 繼續"
+  },
+  "ai_chat_wallet_result_pending": {
+    "message": "結果待核實"
+  },
+  "ai_chat_wallet_empty_cart": {
+    "message": "購物車為空"
+  },
+  "ai_chat_wallet_redeemed": {
+    "message": "Steam 已確認兌換"
+  },
+  "ai_chat_wallet_native_required": {
+    "message": "請在 Steam 完成地址或驗證碼查驗"
+  },
+  "ai_chat_wallet_unavailable": {
+    "message": "請在 Steam 官方兌換頁核對目前錢包後繼續"
+  },
+  "ai_chat_wallet_refused": {
+    "message": "Steam 拒絕本次兌換，請核對帳號及儲值碼"
+  },
+  "ai_chat_wallet_rate_limited": {
+    "message": "Steam 限制了請求頻率"
+  },
+  "ai_chat_wallet_uncertain": {
+    "message": "兌換結果待確認，請查看 Steam 帳號紀錄"
+  },
+  "ai_chat_wallet_cancelled": {
+    "message": "已取消兌換"
+  },
+  "ai_chat_wallet_code_required": {
+    "message": "請輸入一組 Steam 錢包儲值碼"
+  },
+  "ai_chat_wallet_submitting": {
+    "message": "Steam 正在處理兌換…"
+  },
+  "ai_chat_wallet_expired": {
+    "message": "兌換連線已失效，請重新開啟兌換工具"
+  },
+  "ai_chat_wallet_open_steam": {
+    "message": "開啟 Steam 兌換頁面"
+  },
+  "ai_chat_wallet_open_history": {
+    "message": "查看 Steam 購買紀錄"
+  },
+  "ai_chat_wallet_currency_unverified": {
+    "message": "Steam 未單獨標示幣別"
+  },
+  "ai_wallet_title": {
+    "message": "兌換 Steam 錢包儲值碼"
+  },
+  "ai_chat_approval_cart_gift": {
+    "message": "禮物"
+  },
+  "ai_chat_approval_cart_private": {
+    "message": "私人購買"
+  },
+  "ai_chat_approval_cart_coupon": {
+    "message": "已使用折價券"
+  },
+  "ai_chat_tool_cart_read": {
+    "message": "查詢 Steam 購物車"
+  },
+  "ai_chat_tool_cart_change": {
+    "message": "修改 Steam 購物車"
+  },
+  "ai_chat_tool_free_eligibility": {
+    "message": "查詢 Steam 免費領取資格"
+  },
+  "ai_chat_tool_free_claim": {
+    "message": "領取 Steam 免費授權"
+  },
+  "ai_chat_approval_cart_add": {
+    "message": "確認加入購物車"
+  },
+  "ai_chat_approval_cart_remove": {
+    "message": "確認移除"
+  },
+  "ai_chat_approval_cart_clear": {
+    "message": "確認清空購物車"
+  },
+  "ai_chat_approval_free_claim": {
+    "message": "確認免費領取"
+  },
+  "ai_chat_approval_store_region": {
+    "message": "商店地區"
+  },
+  "ai_chat_approval_cart_read": {
+    "message": "讀取目前帳號的購物車與暫存資訊"
+  },
+  "ai_chat_approval_free_read": {
+    "message": "核對目前帳號對指定遊戲與套件的擁有狀態"
+  },
+  "ai_chat_approval_bundle_id": {
+    "message": "組合包 ID"
+  },
+  "ai_chat_approval_package_id": {
+    "message": "套件 ID"
+  },
+  "ai_chat_approval_price_unavailable": {
+    "message": "無法確認目前價格"
+  },
+  "ai_chat_approval_cart_line": {
+    "message": "購物車項目"
+  },
+  "ai_chat_approval_free_dlc": {
+    "message": "免費 DLC 授權"
+  },
   "extName": {
     "message": "Steam Buff"
   },
@@ -10882,7 +11047,7 @@
     "message": "按 AppID 查詢目前帳號的遊玩時間、成就總數和已解鎖數。"
   },
   "ai_chat_tool_wishlist": {
-    "message": "篩選我的 Steam 願望清單"
+    "message": "篩選 Steam 願望清單"
   },
   "workflow_command_steam_account_wishlist_hint": {
     "message": "查詢目前帳號願望清單的加入日期、區域價格、折扣與歷史最低價，可分頁查看。"
@@ -11147,6 +11312,48 @@
   },
   "ai_chat_tool_wishlist_game": {
     "message": "批次查詢我的 Steam 願望清單"
+  },
+  "ai_chat_tool_profile": {
+    "message": "查詢 Steam 個人檔案"
+  },
+  "ai_chat_tool_friends": {
+    "message": "查詢 Steam 好友"
+  },
+  "ai_chat_tool_badges": {
+    "message": "查詢徽章與卡牌進度"
+  },
+  "ai_chat_tool_friend_library": {
+    "message": "查詢好友遊戲庫"
+  },
+  "ai_chat_tool_friend_achievements": {
+    "message": "查詢好友單款遊戲成就"
+  },
+  "ai_chat_tool_game_batch": {
+    "message": "批次查詢 Steam 遊戲資料"
+  },
+  "ai_chat_tool_reviews": {
+    "message": "查詢 Steam 遊戲評論"
+  },
+  "ai_chat_tool_news": {
+    "message": "查詢 Steam 遊戲新聞"
+  },
+  "ai_chat_tool_wishlist_change": {
+    "message": "修改 Steam 願望清單"
+  },
+  "ai_chat_approval_wishlist_membership": {
+    "message": "核對所列遊戲的願望清單狀態"
+  },
+  "ai_chat_approval_wishlist_add": {
+    "message": "加入願望清單"
+  },
+  "ai_chat_approval_wishlist_remove": {
+    "message": "移出願望清單"
+  },
+  "ai_chat_approval_friend_nickname": {
+    "message": "好友暱稱"
+  },
+  "ai_chat_tool_licenses": {
+    "message": "查詢我的授權記錄"
   },
   "workflow_query_app_ids": {
     "message": "AppID 清單"
@@ -11428,6 +11635,9 @@
   "workflow_error_tool_instruction": {
     "message": "此處無法使用該指令"
   },
+  "workflow_error_direct_steam_tool": {
+    "message": "請在 AI 對話中直接呼叫對應的 Steam 工具"
+  },
   "workflow_clipboard_context": {
     "message": "「$name$」只能在「$editor$」中使用。",
     "placeholders": {
@@ -11568,7 +11778,7 @@
     "message": "完全存取"
   },
   "ai_chat_approval_full_description": {
-    "message": "直接執行已啟用的工具，包括修改 Steam 資料、網路請求和指令碼。"
+    "message": "直接執行已啟用的工具，包括修改 Steam 資料、網路請求和指令碼。願望清單變更仍會逐次確認。"
   },
   "ai_chat_approval_title": {
     "message": "工具授權"
@@ -11598,6 +11808,9 @@
   },
   "ai_chat_approval_public": {
     "message": "這次呼叫可讀取 Steam 相關公開資料"
+  },
+  "ai_chat_approval_steam_account_id": {
+    "message": "目前 SteamID64"
   },
   "ai_chat_approval_wishlist": {
     "message": "讀取目前 Steam 帳號的願望清單並查詢價格"
@@ -12128,6 +12341,9 @@
   },
   "ai_chat_tool_running": {
     "message": "查詢中"
+  },
+  "ai_chat_tool_partial": {
+    "message": "部分完成"
   },
   "ai_chat_tool_done": {
     "message": "已完成"

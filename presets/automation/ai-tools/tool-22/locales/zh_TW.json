@@ -1,0 +1,7 @@
+{
+  ".name": "批次查詢 Steam 遊戲資料",
+  ".note": "按 AppID 清單逐款查詢遊戲資料、DLC、平台、評分和目前 Steam 報價。每款遊戲分別回傳結果或失敗。",
+  ".description": "按 AppID 清單逐款查詢遊戲資料、DLC、平台、評分和目前 Steam 報價。每款遊戲分別回傳結果或失敗。",
+  ".variables.result": "查詢結果",
+  ".parameters.appIds": "輸入要查詢的整數 AppID 清單。"
+}

@@ -1,0 +1,9 @@
+{
+  ".name": "Steam 無料ライセンスを取得",
+  ".note": "承認後に確認済みの無料パッケージを取得し、所有状態を確認します。",
+  ".description": "承認後に確認済みの無料パッケージを取得し、所有状態を確認します。",
+  ".variables.result": "結果",
+  ".parameters.appId": "数値の AppID。無料ライセンスでは AppID または URL を指定します。",
+  ".parameters.url": "Steam ストアの公式商品ページの URL。",
+  ".parameters.packageId": "Steam のパッケージ ID。"
+}

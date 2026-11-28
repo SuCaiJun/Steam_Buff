@@ -1,0 +1,11 @@
+{
+  ".name": "修改 Steam 购物车",
+  ".note": "在 AI 对话中确认后，加购指定套餐或捆绑包，移除指定购物车行，或逐行确认并清空购物车。",
+  ".description": "在 AI 对话中确认后，加购指定套餐或捆绑包，移除指定购物车行，或逐行确认并清空购物车。",
+  ".variables.result": "结果",
+  ".parameters.operation": "填 add 加购，填 remove 移除指定的购物车行，填 clear 列出所有当前购物车行并确认清空。",
+  ".parameters.appId": "整数 AppID。查询资格或领取时，AppID 和商品链接任选其一。",
+  ".parameters.packageId": "明确的 Steam 套餐 ID。",
+  ".parameters.bundleId": "明确的 Steam 捆绑包 ID。",
+  ".parameters.lineId": "购物车查询返回的精确行 ID 字符串。"
+}

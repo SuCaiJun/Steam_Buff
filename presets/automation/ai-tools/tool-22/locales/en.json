@@ -1,0 +1,7 @@
+{
+  ".name": "Look up multiple Steam games",
+  ".note": "Read store details, DLC, platforms, scores, and current Steam prices for a list of AppIDs. Each game has its own result or error.",
+  ".description": "Read store details, DLC, platforms, scores, and current Steam prices for a list of AppIDs. Each game has its own result or error.",
+  ".variables.result": "Query result",
+  ".parameters.appIds": "List of integer Steam AppIDs."
+}

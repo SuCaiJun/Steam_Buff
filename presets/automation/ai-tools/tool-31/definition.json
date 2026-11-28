@@ -1,0 +1,36 @@
+{
+  "id": "tool-31",
+  "name": "$text:.name",
+  "note": "$text:.note",
+  "revision": 1,
+  "executionId": "00000000-0000-4000-8000-000000000003",
+  "enabled": true,
+  "description": "$text:.description",
+  "parameters": [],
+  "variables": [
+    {
+      "id": "var-result",
+      "name": "$text:.variables.result",
+      "type": "object"
+    }
+  ],
+  "steps": [
+    {
+      "id": "step-query",
+      "kind": "action",
+      "action": "steam-wallet-checkout",
+      "output": "var-result"
+    },
+    {
+      "id": "step-return",
+      "kind": "action",
+      "action": "tool-return",
+      "value": {
+        "source": "variable",
+        "id": "var-result",
+        "path": []
+      }
+    }
+  ],
+  "providerInputVersion": 1
+}

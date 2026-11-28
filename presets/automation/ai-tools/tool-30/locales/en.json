@@ -1,0 +1,6 @@
+{
+  ".name": "Preview Steam Checkout",
+  ".note": "Preview the current Steam cart, estimated subtotal, held items and verified wallet balance. Open a signed-in Steam cart first.",
+  ".description": "Preview the current Steam cart, estimated subtotal, held items and verified wallet balance. Open a signed-in Steam cart first.",
+  ".variables.result": "Result"
+}

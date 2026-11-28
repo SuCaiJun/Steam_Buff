@@ -1,4 +1,169 @@
 {
+  "ai_chat_tool_checkout_preview": {
+    "message": "Preview Steam Checkout"
+  },
+  "ai_chat_tool_wallet_checkout": {
+    "message": "Use Steam Wallet at Checkout"
+  },
+  "ai_chat_tool_wallet_redeem": {
+    "message": "Redeem a Steam Wallet Code"
+  },
+  "ai_chat_approval_checkout_open": {
+    "message": "Go to Steam Cart"
+  },
+  "ai_chat_approval_checkout_estimate": {
+    "message": "Estimated subtotal"
+  },
+  "ai_chat_wallet_balance": {
+    "message": "Steam Wallet balance"
+  },
+  "ai_chat_approval_checkout_read": {
+    "message": "Read the current cart and Steam Wallet balance"
+  },
+  "ai_chat_approval_wallet_read": {
+    "message": "Verify the receiving Steam account and wallet"
+  },
+  "ai_chat_approval_checkout_handoff": {
+    "message": "Open the original cart. Verify the actual items, final price and payment method in Steam"
+  },
+  "ai_chat_approval_checkout_items": {
+    "message": "View cart items"
+  },
+  "ai_chat_wallet_currency": {
+    "message": "Wallet currency"
+  },
+  "ai_chat_wallet_code": {
+    "message": "Steam Wallet code"
+  },
+  "ai_chat_wallet_review": {
+    "message": "Review redemption"
+  },
+  "ai_chat_wallet_code_ending": {
+    "message": "Code ending"
+  },
+  "ai_chat_wallet_amount_notice": {
+    "message": "The code value will be added to the account shown here. Steam determines the credited amount."
+  },
+  "ai_chat_wallet_edit": {
+    "message": "Edit code"
+  },
+  "ai_chat_wallet_confirm": {
+    "message": "Confirm redemption"
+  },
+  "ai_chat_wallet_waiting": {
+    "message": "Verifying Steam Wallet…"
+  },
+  "ai_chat_wallet_native_checkout": {
+    "message": "Steam cart opened"
+  },
+  "ai_chat_wallet_follow_steam": {
+    "message": "Continue in Steam"
+  },
+  "ai_chat_wallet_result_pending": {
+    "message": "Result unconfirmed"
+  },
+  "ai_chat_wallet_empty_cart": {
+    "message": "Cart is empty"
+  },
+  "ai_chat_wallet_redeemed": {
+    "message": "Steam confirmed the redemption"
+  },
+  "ai_chat_wallet_native_required": {
+    "message": "Continue verification in Steam if an address or CAPTCHA is required"
+  },
+  "ai_chat_wallet_unavailable": {
+    "message": "Check your wallet on Steam’s official redemption page to continue"
+  },
+  "ai_chat_wallet_refused": {
+    "message": "Steam refused this redemption. Check the account and code"
+  },
+  "ai_chat_wallet_rate_limited": {
+    "message": "Steam limited the request rate"
+  },
+  "ai_chat_wallet_uncertain": {
+    "message": "Redemption is unconfirmed. Check your Steam account records"
+  },
+  "ai_chat_wallet_cancelled": {
+    "message": "Redemption canceled"
+  },
+  "ai_chat_wallet_code_required": {
+    "message": "Enter one Steam Wallet code"
+  },
+  "ai_chat_wallet_submitting": {
+    "message": "Steam is processing the redemption…"
+  },
+  "ai_chat_wallet_expired": {
+    "message": "This redemption session ended. Open the redemption tool again"
+  },
+  "ai_chat_wallet_open_steam": {
+    "message": "Open Steam redemption page"
+  },
+  "ai_chat_wallet_open_history": {
+    "message": "View Steam purchase history"
+  },
+  "ai_chat_wallet_currency_unverified": {
+    "message": "Steam did not provide a separate currency code"
+  },
+  "ai_wallet_title": {
+    "message": "Redeem a Steam Wallet Code"
+  },
+  "ai_chat_approval_cart_gift": {
+    "message": "Gift"
+  },
+  "ai_chat_approval_cart_private": {
+    "message": "Private purchase"
+  },
+  "ai_chat_approval_cart_coupon": {
+    "message": "Coupon applied"
+  },
+  "ai_chat_tool_cart_read": {
+    "message": "View Steam Cart"
+  },
+  "ai_chat_tool_cart_change": {
+    "message": "Modify Steam Cart"
+  },
+  "ai_chat_tool_free_eligibility": {
+    "message": "Check Steam Free Claim Eligibility"
+  },
+  "ai_chat_tool_free_claim": {
+    "message": "Claim a Free Steam License"
+  },
+  "ai_chat_approval_cart_add": {
+    "message": "Confirm Add to Cart"
+  },
+  "ai_chat_approval_cart_remove": {
+    "message": "Confirm Removal"
+  },
+  "ai_chat_approval_cart_clear": {
+    "message": "Confirm Clear Cart"
+  },
+  "ai_chat_approval_free_claim": {
+    "message": "Confirm Free Claim"
+  },
+  "ai_chat_approval_store_region": {
+    "message": "Store region"
+  },
+  "ai_chat_approval_cart_read": {
+    "message": "Read the current account’s cart and held items"
+  },
+  "ai_chat_approval_free_read": {
+    "message": "Check ownership of the specified game and package"
+  },
+  "ai_chat_approval_bundle_id": {
+    "message": "Bundle ID"
+  },
+  "ai_chat_approval_package_id": {
+    "message": "Package ID"
+  },
+  "ai_chat_approval_price_unavailable": {
+    "message": "Current price unavailable"
+  },
+  "ai_chat_approval_cart_line": {
+    "message": "Cart line"
+  },
+  "ai_chat_approval_free_dlc": {
+    "message": "Free DLC license"
+  },
   "extName": {
     "message": "Steam Buff"
   },
@@ -10882,7 +11047,7 @@
     "message": "Look up your playtime, total achievements, and unlocked achievements for the supplied Steam AppIDs."
   },
   "ai_chat_tool_wishlist": {
-    "message": "Filter my Steam wishlist"
+    "message": "Filter Steam wishlist"
   },
   "workflow_command_steam_account_wishlist_hint": {
     "message": "List your Steam wishlist with dates added, regional price, discounts, and Steam historical lows. Use nextStart to advance."
@@ -11147,6 +11312,48 @@
   },
   "ai_chat_tool_wishlist_game": {
     "message": "Batch query my Steam wishlist"
+  },
+  "ai_chat_tool_profile": {
+    "message": "Look up a Steam profile"
+  },
+  "ai_chat_tool_friends": {
+    "message": "Look up Steam friends"
+  },
+  "ai_chat_tool_badges": {
+    "message": "Look up badges and card progress"
+  },
+  "ai_chat_tool_friend_library": {
+    "message": "Look up a friend's Steam library"
+  },
+  "ai_chat_tool_friend_achievements": {
+    "message": "Look up a friend's achievements for one Steam game"
+  },
+  "ai_chat_tool_game_batch": {
+    "message": "Look up multiple Steam games"
+  },
+  "ai_chat_tool_reviews": {
+    "message": "Look up Steam game reviews"
+  },
+  "ai_chat_tool_news": {
+    "message": "Look up Steam game news"
+  },
+  "ai_chat_tool_wishlist_change": {
+    "message": "Change Steam wishlist"
+  },
+  "ai_chat_approval_wishlist_membership": {
+    "message": "Check the wishlist status of the listed games"
+  },
+  "ai_chat_approval_wishlist_add": {
+    "message": "Add to wishlist"
+  },
+  "ai_chat_approval_wishlist_remove": {
+    "message": "Remove from wishlist"
+  },
+  "ai_chat_approval_friend_nickname": {
+    "message": "Friend's display name"
+  },
+  "ai_chat_tool_licenses": {
+    "message": "Look up my Steam licenses"
   },
   "workflow_query_app_ids": {
     "message": "AppID list"
@@ -11428,6 +11635,9 @@
   "workflow_error_tool_instruction": {
     "message": "This action is unavailable here."
   },
+  "workflow_error_direct_steam_tool": {
+    "message": "Call the corresponding Steam tool directly in AI chat."
+  },
   "workflow_clipboard_context": {
     "message": "“$name$” can only be used in $editor$.",
     "placeholders": {
@@ -11568,7 +11778,7 @@
     "message": "Full access"
   },
   "ai_chat_approval_full_description": {
-    "message": "Run enabled tools without prompts, including Steam changes, network requests, and scripts."
+    "message": "Run enabled tools directly, including Steam changes, network requests, and scripts. Each wishlist change still asks for confirmation."
   },
   "ai_chat_approval_title": {
     "message": "Tool approval"
@@ -11598,6 +11808,9 @@
   },
   "ai_chat_approval_public": {
     "message": "This call can read public Steam-related data"
+  },
+  "ai_chat_approval_steam_account_id": {
+    "message": "Signed-in SteamID64"
   },
   "ai_chat_approval_wishlist": {
     "message": "Read the current Steam account’s wishlist and check prices"
@@ -12128,6 +12341,9 @@
   },
   "ai_chat_tool_running": {
     "message": "Looking up"
+  },
+  "ai_chat_tool_partial": {
+    "message": "Partially completed"
   },
   "ai_chat_tool_done": {
     "message": "Complete"

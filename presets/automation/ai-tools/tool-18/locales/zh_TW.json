@@ -1,0 +1,10 @@
+{
+  ".name": "查詢徽章與卡牌進度",
+  ".note": "分頁讀取徽章與等級。省略 SteamID 或指定本人卡牌頁碼時，一併查詢目前帳號的卡牌進度。",
+  ".description": "分頁讀取徽章與等級。省略 SteamID 或指定本人卡牌頁碼時，一併查詢目前帳號的卡牌進度。",
+  ".variables.result": "查詢結果",
+  ".parameters.steamId": "SteamID64 字串。省略時使用目前登入的 Steam 帳號。",
+  ".parameters.start": "從 0 開始。繼續查詢時傳入上次回傳的 nextStart。",
+  ".parameters.limit": "每頁 1 到 100 筆，預設 25 筆。",
+  ".parameters.cardPage": "目前 Steam 帳號的卡牌頁碼，從 1 開始。用 cards.nextPage 繼續。"
+}

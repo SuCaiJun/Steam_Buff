@@ -1,0 +1,8 @@
+{
+  ".name": "Change Steam wishlist",
+  ".note": "Add or remove games from the signed-in Steam account's wishlist after confirming the AppIDs and action in chat. Open a signed-in Steam game store page first. Each change is checked against the wishlist.",
+  ".description": "Add or remove games from the signed-in Steam account's wishlist after confirming the AppIDs and action in chat. Open a signed-in Steam game store page first. Each change is checked against the wishlist.",
+  ".variables.result": "Change result",
+  ".parameters.appIds": "List of integer Steam AppIDs to change. Use Steam store search to identify AppIDs from game names.",
+  ".parameters.operation": "Use add to add games to the wishlist or remove to take them off."
+}

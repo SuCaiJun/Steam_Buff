@@ -1,5 +1,5 @@
 {
-  ".name": "篩選我的 Steam 願望清單",
+  ".name": "篩選 Steam 願望清單",
   ".note": "目前 Steam 帳號的願望清單。按欄位傳入條件。現價排行用 sortBy=currentPrice、direction=desc 或 asc。",
   ".description": "目前 Steam 帳號的願望清單。按欄位傳入條件。現價排行用 sortBy=currentPrice、direction=desc 或 asc。",
   ".variables.result": "AppID 清單",

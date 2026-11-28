@@ -1,0 +1,6 @@
+{
+  ".name": "使用 Steam 錢包結帳",
+  ".note": "核對目前購物車後前往 Steam 原生結帳，由 Steam 確認最終金額及付款。",
+  ".description": "核對目前購物車後前往 Steam 原生結帳，由 Steam 確認最終金額及付款。",
+  ".variables.result": "結果"
+}

@@ -1,0 +1,9 @@
+{
+  ".name": "Steam 무료 라이선스 받기 자격 확인",
+  ".note": "현재 Steam 계정의 무료 라이선스 자격을 확인합니다. 먼저 로그인한 Steam 상점 게임 페이지를 여세요.",
+  ".description": "현재 Steam 계정의 무료 라이선스 자격을 확인합니다. 먼저 로그인한 Steam 상점 게임 페이지를 여세요.",
+  ".variables.result": "결과",
+  ".parameters.appId": "숫자 AppID입니다. 무료 라이선스에는 AppID 또는 URL을 입력하세요.",
+  ".parameters.url": "Steam 공식 상점 상품 페이지 URL입니다.",
+  ".parameters.packageId": "특정 Steam 패키지 ID입니다."
+}

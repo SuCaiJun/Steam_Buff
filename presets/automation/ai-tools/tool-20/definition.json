@@ -1,0 +1,122 @@
+{
+  "id": "tool-20",
+  "name": "$text:.name",
+  "note": "$text:.note",
+  "revision": 1,
+  "executionId": "00000000-0000-4000-8000-000000000003",
+  "enabled": true,
+  "description": "$text:.description",
+  "parameters": [
+    {
+      "name": "steamId",
+      "type": "string",
+      "required": true,
+      "description": "$text:.parameters.steamId",
+      "variableId": "var-steamId"
+    },
+    {
+      "name": "term",
+      "type": "string",
+      "required": false,
+      "description": "$text:.parameters.term",
+      "variableId": "var-term"
+    },
+    {
+      "name": "sortBy",
+      "type": "string",
+      "required": false,
+      "description": "$text:.parameters.sortBy",
+      "variableId": "var-sortBy"
+    },
+    {
+      "name": "start",
+      "type": "integer",
+      "required": false,
+      "description": "$text:.parameters.start",
+      "variableId": "var-start"
+    },
+    {
+      "name": "limit",
+      "type": "integer",
+      "required": false,
+      "description": "$text:.parameters.limit",
+      "variableId": "var-limit"
+    }
+  ],
+  "variables": [
+    {
+      "id": "var-steamId",
+      "name": "steamId",
+      "type": "text"
+    },
+    {
+      "id": "var-term",
+      "name": "term",
+      "type": "text"
+    },
+    {
+      "id": "var-sortBy",
+      "name": "sortBy",
+      "type": "text"
+    },
+    {
+      "id": "var-start",
+      "name": "start",
+      "type": "number"
+    },
+    {
+      "id": "var-limit",
+      "name": "limit",
+      "type": "number"
+    },
+    {
+      "id": "var-result",
+      "name": "$text:.variables.result",
+      "type": "object"
+    }
+  ],
+  "steps": [
+    {
+      "id": "step-query",
+      "kind": "action",
+      "action": "steam-friend-library",
+      "steamId": {
+        "source": "variable",
+        "id": "var-steamId",
+        "path": []
+      },
+      "term": {
+        "source": "variable",
+        "id": "var-term",
+        "path": []
+      },
+      "sortBy": {
+        "source": "variable",
+        "id": "var-sortBy",
+        "path": []
+      },
+      "start": {
+        "source": "variable",
+        "id": "var-start",
+        "path": []
+      },
+      "limit": {
+        "source": "variable",
+        "id": "var-limit",
+        "path": []
+      },
+      "output": "var-result"
+    },
+    {
+      "id": "step-return",
+      "kind": "action",
+      "action": "tool-return",
+      "value": {
+        "source": "variable",
+        "id": "var-result",
+        "path": []
+      }
+    }
+  ],
+  "providerInputVersion": 1
+}

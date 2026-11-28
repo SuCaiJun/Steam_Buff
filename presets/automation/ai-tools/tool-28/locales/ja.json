@@ -1,0 +1,9 @@
+{
+  ".name": "Steam 無料ライセンスの取得可否を確認",
+  ".note": "現在の Steam アカウントが無料ライセンスを取得できるか確認します。ログイン済みのストアのゲームページを開いてください。",
+  ".description": "現在の Steam アカウントが無料ライセンスを取得できるか確認します。ログイン済みのストアのゲームページを開いてください。",
+  ".variables.result": "結果",
+  ".parameters.appId": "数値の AppID。無料ライセンスでは AppID または URL を指定します。",
+  ".parameters.url": "Steam ストアの公式商品ページの URL。",
+  ".parameters.packageId": "Steam のパッケージ ID。"
+}

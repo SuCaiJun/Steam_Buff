@@ -1,0 +1,8 @@
+{
+  ".name": "Steam 게임 뉴스 조회",
+  ".note": "AppID로 최근 뉴스의 제목, 날짜, 미리보기, 출처, 원문 링크를 조회합니다.",
+  ".description": "AppID로 최근 뉴스의 제목, 날짜, 미리보기, 출처, 원문 링크를 조회합니다.",
+  ".variables.result": "조회 결과",
+  ".parameters.appId": "조회할 Steam 게임의 AppID입니다.",
+  ".parameters.limit": "최근 기사 1~100개를 반환합니다. 기본값은 10개입니다."
+}

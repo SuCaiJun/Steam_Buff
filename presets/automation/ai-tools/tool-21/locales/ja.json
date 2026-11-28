@@ -1,0 +1,10 @@
+{
+  ".name": "Steam フレンドのゲーム実績を調べる",
+  ".note": "SteamID64 とゲームの AppID からフレンドの閲覧可能な実績進捗を取得します。",
+  ".description": "指定したフレンドの 1 つのゲームの実績を取得します。解除数、実績の総数、達成率と明細を返します。表示名しか分からない場合はフレンド一覧を検索し、候補が複数ならユーザーに確認してください。ゲーム名しか分からない場合は Steam ストアで AppID を確認してください。次のページには nextStart を使用します。",
+  ".variables.result": "検索結果",
+  ".parameters.steamId": "対象フレンドの SteamID64 を文字列で指定します。",
+  ".parameters.appId": "Steam ゲーム 1 本の AppID を整数で指定します。",
+  ".parameters.start": "0 始まりの取得位置。次のページには前回の nextStart を指定します。",
+  ".parameters.limit": "1 ページあたり 1～100 件。既定は 25 件です。"
+}

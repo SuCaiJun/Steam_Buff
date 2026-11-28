@@ -1,0 +1,10 @@
+{
+  ".name": "Steam フレンドを調べる",
+  ".note": "Steam フレンドと表示可能なオンライン状態を取得し、表示名でも検索できます。",
+  ".description": "Steam フレンド一覧を取得します。表示名で探す場合は nickname を指定します。一覧全体を検索し、SteamID64 と表示可能なオンライン状態を返します。複数の候補がある場合はユーザーに確認してください。unavailableNames は Steam から表示名を取得できなかった人数です。次のページには nextStart を使用します。",
+  ".parameters.nickname": "Steam の表示名を大文字と小文字を区別せず部分一致で検索します。省略するとフレンド一覧を表示します。",
+  ".variables.result": "検索結果",
+  ".parameters.steamId": "SteamID64 の文字列。省略するとログイン中の Steam アカウントを使用します。",
+  ".parameters.start": "0 始まりの取得位置。次のページには前回の nextStart を指定します。",
+  ".parameters.limit": "1 ページあたり 1～100 件。既定は 25 件です。"
+}

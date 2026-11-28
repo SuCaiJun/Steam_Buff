@@ -1,0 +1,71 @@
+{
+  "id": "tool-25",
+  "name": "$text:.name",
+  "note": "$text:.note",
+  "revision": 1,
+  "executionId": "00000000-0000-4000-8000-000000000003",
+  "enabled": true,
+  "description": "$text:.description",
+  "parameters": [
+    {
+      "name": "appIds",
+      "type": "array",
+      "required": true,
+      "description": "$text:.parameters.appIds",
+      "variableId": "var-appIds"
+    },
+    {
+      "name": "operation",
+      "type": "string",
+      "required": true,
+      "description": "$text:.parameters.operation",
+      "variableId": "var-operation"
+    }
+  ],
+  "variables": [
+    {
+      "id": "var-appIds",
+      "name": "appIds",
+      "type": "list"
+    },
+    {
+      "id": "var-operation",
+      "name": "operation",
+      "type": "text"
+    },
+    {
+      "id": "var-result",
+      "name": "$text:.variables.result",
+      "type": "object"
+    }
+  ],
+  "steps": [
+    {
+      "id": "step-query",
+      "kind": "action",
+      "action": "steam-wishlist-change",
+      "appIds": {
+        "source": "variable",
+        "id": "var-appIds",
+        "path": []
+      },
+      "operation": {
+        "source": "variable",
+        "id": "var-operation",
+        "path": []
+      },
+      "output": "var-result"
+    },
+    {
+      "id": "step-return",
+      "kind": "action",
+      "action": "tool-return",
+      "value": {
+        "source": "variable",
+        "id": "var-result",
+        "path": []
+      }
+    }
+  ],
+  "providerInputVersion": 1
+}

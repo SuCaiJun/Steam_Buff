@@ -1,0 +1,11 @@
+{
+  ".name": "修改 Steam 購物車",
+  ".note": "在 AI 對話中確認後，加入指定套件或組合包，移除指定購物車項目，或逐項確認並清空購物車。",
+  ".description": "在 AI 對話中確認後，加入指定套件或組合包，移除指定購物車項目，或逐項確認並清空購物車。",
+  ".variables.result": "結果",
+  ".parameters.operation": "輸入 add 加入購物車，輸入 remove 移除指定項目，輸入 clear 列出全部購物車項目並確認清空。",
+  ".parameters.appId": "整數 AppID。查詢資格或領取時，AppID 和商品連結擇一。",
+  ".parameters.packageId": "明確的 Steam 套件 ID。",
+  ".parameters.bundleId": "明確的 Steam 組合包 ID。",
+  ".parameters.lineId": "購物車查詢傳回的精確項目 ID 字串。"
+}

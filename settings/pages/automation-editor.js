@@ -707,15 +707,15 @@
     insertionRow.scrollIntoView({ block: "nearest" });
     root.STSearchCombo.openSearchCombo(insertionRow);
   }
-  function pickerCatalog(context) {
-    const catalog = editorCatalog(context), quick = new Set(["log", "comment"]);
+  function pickerCatalog(context, workflowId) {
+    const catalog = editorCatalog(context, workflowId), quick = new Set(["log", "comment"]);
     const commands = catalog.filter(item => !quick.has(item.id));
     const index = commands.findIndex(item => item.id === "get");
     commands.splice(index < 0 ? 0 : index, 0, ...catalog.filter(item => quick.has(item.id)));
     return commands;
   }
   function commandComboHtml(editor) {
-    const items = pickerCatalog(editor.context).map(item => {
+    const items = pickerCatalog(editor.context, editor.draft.id).map(item => {
       const label = instructions.name(item.id), category = instructions.schemaLabel(item.category), hint = instructions.hint(item.id);
       return { value: item.id, label, category, hint, search: [label, category, instructions.schemaLabel(item.group), hint, item.id].join(" ") };
     });
@@ -892,7 +892,8 @@
   }
   async function addInstruction(state, editor, key, drop) {
     const entry = key === tools.entryKey(editor.draft);
-    if (!flow.instructionAvailable(key, editor.context)) throw insertionError(tr("workflow_error_tool_instruction", "此处不能使用该指令"));
+    if (!flow.instructionAvailable(key, editor.context, editor.draft.id))
+      throw insertionError(tr("workflow_error_tool_instruction", "此处不能使用该指令"));
     const selected = editor.rows.find(row => row.key === editor.selected) || editor.rows.at(-1);
     const repairRow = drop ? editor.rows.find(row => row.key === drop.rowKey) : selected;
     if (isBlockBoundary(repairRow) && repairRow.node.draftMissingStart &&
@@ -943,11 +944,11 @@
       else { paintEditor(editor); focusSelection(editor); }
     }
   }
-  function editorCatalog(context) {
-    return instructions.catalog.filter(({ id }) => flow.instructionAvailable(id, context));
+  function editorCatalog(context, workflowId) {
+    return instructions.catalog.filter(({ id }) => flow.instructionAvailable(id, context, workflowId));
   }
-  function palette(context) {
-    const catalog = editorCatalog(context);
+  function palette(context, workflowId) {
+    const catalog = editorCatalog(context, workflowId);
     const commands = rows => rows.map(item => `<button type="button" class="aw-palette-entry" data-instruction="${item.id}" title="${esc(instructions.hint(item.id))}">${commandIcon(item.id)}<span>${esc(instructions.name(item.id))}${nameBadge(item.id)}</span></button>`).join("");
     const section = (name, symbol, content, type = "group") => `<details data-${type}="${esc(name)}"><summary>${icon("chevron-right", "aw-category-caret")}${icon(symbol, "aw-category-icon")}${esc(instructions.schemaLabel(name))}</summary>${content}</details>`;
     const categoryContent = category => {
@@ -2301,7 +2302,7 @@
             <div class="aw-editor-toolbar" role="toolbar" aria-label="${esc(tr("workflow_ui_workflow_tools", "工作流工具"))}" focusgroup="toolbar wrap">${itemNoteButton(draft.note)}${iconButton("expand-all", tr("workflow_ui_expand_all", "全部展开"), "chevrons-down")}${iconButton("collapse-all", tr("workflow_ui_collapse_all", "全部折叠"), "chevrons-up")}<span class="aw-tool-separator" role="separator" aria-orientation="vertical"></span>${iconButton("undo", tr("workflow_ui_undo", "撤销"), "arrow-back-up")}${iconButton("redo", tr("workflow_ui_redo", "重做"), "arrow-forward-up")}<span class="aw-tool-separator" role="separator" aria-orientation="vertical"></span>${iconButton("variables", tr("workflow_ui_variables", "变量列表"), "variable")}${iconButton("validate", tr("workflow_ui_validate_again", "重新校验"), "list-check", 'aria-controls="aw-inspector-panel"')}</div>
             ${button("editor-run", tr("workflow_ui_run", "运行"), 'class="aw-primary aw-editor-run"', "player-play")}
             </div><div class="aw-editor-main"><aside class="aw-palette" aria-label="${esc(tr("workflow_ui_action_library", "指令库"))}"><input type="search" data-search aria-label="${esc(tr("workflow_ui_search_actions", "搜索指令"))}" placeholder="${esc(tr("workflow_ui_search_actions", "搜索指令"))}">
-            ${palette(context)}
+            ${palette(context, draft.id)}
             </aside><div class="aw-canvas" role="listbox" aria-label="${esc(tr("workflow_ui_workflow_actions", "工作流指令"))}" aria-multiselectable="false"></div></div>
             <section class="aw-inspector" aria-label="${esc(tr("workflow_ui_workflow_checks", "工作流检查"))}"><div class="aw-inspector-head"><div class="aw-tabs" role="tablist" aria-label="${esc(tr("workflow_ui_workflow_checks_panel", "工作流检查面板"))}">
               <button type="button" role="tab" id="aw-inspector-debug" data-inspector-tab="debug" aria-controls="aw-inspector-panel">${esc(tr("workflow_ui_debug_log", "调试日志"))}</button>
@@ -2897,6 +2898,9 @@
       const output = workspace.variables.find(item => item.id === working.output);
       if (query.filter && output && !["list", "any"].includes(output.type))
         working.output = flow.variable(workspace, tr("workflow_query_app_ids", "AppID 列表"), "list");
+    }
+    for (const field of query?.fields ?? []) {
+      if (field.allowMissing && !Object.hasOwn(working, field.key)) working[field.key] = flow.literal(field.value);
     }
     if (query?.filter) {
       working.filterRows ??= {};

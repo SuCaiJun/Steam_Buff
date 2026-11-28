@@ -1,0 +1,122 @@
+{
+  "id": "tool-23",
+  "name": "$text:.name",
+  "note": "$text:.note",
+  "revision": 1,
+  "executionId": "00000000-0000-4000-8000-000000000003",
+  "enabled": true,
+  "description": "$text:.description",
+  "parameters": [
+    {
+      "name": "appId",
+      "type": "integer",
+      "required": true,
+      "description": "$text:.parameters.appId",
+      "variableId": "var-appId"
+    },
+    {
+      "name": "reviewType",
+      "type": "string",
+      "required": false,
+      "description": "$text:.parameters.reviewType",
+      "variableId": "var-reviewType"
+    },
+    {
+      "name": "language",
+      "type": "string",
+      "required": false,
+      "description": "$text:.parameters.language",
+      "variableId": "var-language"
+    },
+    {
+      "name": "cursor",
+      "type": "string",
+      "required": false,
+      "description": "$text:.parameters.cursor",
+      "variableId": "var-cursor"
+    },
+    {
+      "name": "limit",
+      "type": "integer",
+      "required": false,
+      "description": "$text:.parameters.limit",
+      "variableId": "var-limit"
+    }
+  ],
+  "variables": [
+    {
+      "id": "var-appId",
+      "name": "appId",
+      "type": "number"
+    },
+    {
+      "id": "var-reviewType",
+      "name": "reviewType",
+      "type": "text"
+    },
+    {
+      "id": "var-language",
+      "name": "language",
+      "type": "text"
+    },
+    {
+      "id": "var-cursor",
+      "name": "cursor",
+      "type": "text"
+    },
+    {
+      "id": "var-limit",
+      "name": "limit",
+      "type": "number"
+    },
+    {
+      "id": "var-result",
+      "name": "$text:.variables.result",
+      "type": "object"
+    }
+  ],
+  "steps": [
+    {
+      "id": "step-query",
+      "kind": "action",
+      "action": "steam-store-reviews",
+      "appId": {
+        "source": "variable",
+        "id": "var-appId",
+        "path": []
+      },
+      "reviewType": {
+        "source": "variable",
+        "id": "var-reviewType",
+        "path": []
+      },
+      "language": {
+        "source": "variable",
+        "id": "var-language",
+        "path": []
+      },
+      "cursor": {
+        "source": "variable",
+        "id": "var-cursor",
+        "path": []
+      },
+      "limit": {
+        "source": "variable",
+        "id": "var-limit",
+        "path": []
+      },
+      "output": "var-result"
+    },
+    {
+      "id": "step-return",
+      "kind": "action",
+      "action": "tool-return",
+      "value": {
+        "source": "variable",
+        "id": "var-result",
+        "path": []
+      }
+    }
+  ],
+  "providerInputVersion": 1
+}

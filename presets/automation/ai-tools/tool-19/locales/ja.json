@@ -1,0 +1,8 @@
+{
+  ".name": "自分の Steam ライセンス履歴を調べる",
+  ".note": "ログイン中の Steam ストアアカウントのライセンス取得日、名前と取得方法を取得します。次のページには nextStart を使用します。",
+  ".description": "ログイン中の Steam ストアアカウントのライセンス取得日、名前と取得方法を取得します。次のページには nextStart を使用します。",
+  ".variables.result": "検索結果",
+  ".parameters.start": "0 始まりの取得位置。次のページには前回の nextStart を指定します。",
+  ".parameters.limit": "1 ページあたり 1～100 件。既定は 25 件です。"
+}

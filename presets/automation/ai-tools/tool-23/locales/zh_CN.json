@@ -1,0 +1,11 @@
+{
+  ".name": "查询 Steam 游戏评测",
+  ".note": "按 AppID 查询 Steam 近期评测，可按好评、差评和语言筛选。默认读取 Steam 购买用户的最新评测，过滤异常活动。总评分仅在全部评测首屏可用，有 nextCursor 时用相同筛选继续。",
+  ".description": "按 AppID 查询 Steam 近期评测，可按好评、差评和语言筛选。默认读取 Steam 购买用户的最新评测，过滤异常活动。总评分仅在全部评测首屏可用，有 nextCursor 时用相同筛选继续。",
+  ".variables.result": "查询结果",
+  ".parameters.appId": "要查询的 Steam 游戏 AppID。",
+  ".parameters.reviewType": "可填 all、positive 或 negative，默认 all。",
+  ".parameters.language": "Steam API 语言代码，如 schinese、english。默认 all。",
+  ".parameters.cursor": "下一页传上次的 nextCursor，首屏省略。",
+  ".parameters.limit": "每页 1 到 100 条，默认 20 条。"
+}

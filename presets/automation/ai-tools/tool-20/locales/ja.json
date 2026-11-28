@@ -1,0 +1,11 @@
+{
+  ".name": "Steam フレンドのライブラリを調べる",
+  ".note": "SteamID64 でフレンドの閲覧可能なゲームを取得します。ゲーム名検索とプレイ時間順の表示が可能です。",
+  ".description": "フレンドの SteamID64 から閲覧可能なライブラリを取得します。AppID、ゲーム名、Steam が返した累計プレイ時間（分）を返します。表示名しか分からない場合はフレンド一覧を検索し、候補が複数ならユーザーに確認してください。ゲーム名検索には term、プレイ時間の降順には sortBy=playtime を指定します。時間が未提供なら null です。0 は非公開の場合もあります。unavailableNames は Steam からゲーム名を取得できず、検索できなかった件数です。次のページには nextStart を使用します。",
+  ".variables.result": "検索結果",
+  ".parameters.steamId": "対象フレンドの SteamID64 を文字列で指定します。",
+  ".parameters.term": "ゲーム名を大文字と小文字を区別せず部分一致で検索します。",
+  ".parameters.sortBy": "playtime を指定すると累計プレイ時間（分）の降順で表示します。時間が未提供の項目は末尾に置きます。",
+  ".parameters.start": "0 始まりの取得位置。次のページには前回の nextStart を指定します。",
+  ".parameters.limit": "1 ページあたり 1～100 件。既定は 25 件です。"
+}

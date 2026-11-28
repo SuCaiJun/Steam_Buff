@@ -1,4 +1,169 @@
 {
+  "ai_chat_tool_checkout_preview": {
+    "message": "预览 Steam 结账"
+  },
+  "ai_chat_tool_wallet_checkout": {
+    "message": "使用 Steam 钱包结账"
+  },
+  "ai_chat_tool_wallet_redeem": {
+    "message": "兑换 Steam 钱包充值码"
+  },
+  "ai_chat_approval_checkout_open": {
+    "message": "前往 Steam 购物车"
+  },
+  "ai_chat_approval_checkout_estimate": {
+    "message": "预计小计"
+  },
+  "ai_chat_wallet_balance": {
+    "message": "Steam 钱包余额"
+  },
+  "ai_chat_approval_checkout_read": {
+    "message": "读取当前购物车和 Steam 钱包余额"
+  },
+  "ai_chat_approval_wallet_read": {
+    "message": "核对收款账号和 Steam 钱包"
+  },
+  "ai_chat_approval_checkout_handoff": {
+    "message": "打开原购物车，在 Steam 核对实际结账商品、最终金额和支付方式"
+  },
+  "ai_chat_approval_checkout_items": {
+    "message": "查看购物车商品"
+  },
+  "ai_chat_wallet_currency": {
+    "message": "钱包币种"
+  },
+  "ai_chat_wallet_code": {
+    "message": "Steam 钱包充值码"
+  },
+  "ai_chat_wallet_review": {
+    "message": "核对兑换"
+  },
+  "ai_chat_wallet_code_ending": {
+    "message": "充值码尾号"
+  },
+  "ai_chat_wallet_amount_notice": {
+    "message": "此操作会把充值码充入上述账号。实际到账金额由 Steam 确认。"
+  },
+  "ai_chat_wallet_edit": {
+    "message": "返回修改"
+  },
+  "ai_chat_wallet_confirm": {
+    "message": "确认兑换"
+  },
+  "ai_chat_wallet_waiting": {
+    "message": "正在核对 Steam 钱包…"
+  },
+  "ai_chat_wallet_native_checkout": {
+    "message": "已打开 Steam 购物车"
+  },
+  "ai_chat_wallet_follow_steam": {
+    "message": "需在 Steam 继续"
+  },
+  "ai_chat_wallet_result_pending": {
+    "message": "结果待核实"
+  },
+  "ai_chat_wallet_empty_cart": {
+    "message": "购物车为空"
+  },
+  "ai_chat_wallet_redeemed": {
+    "message": "Steam 已确认兑换"
+  },
+  "ai_chat_wallet_native_required": {
+    "message": "请在 Steam 完成地址或验证码核验"
+  },
+  "ai_chat_wallet_unavailable": {
+    "message": "请在 Steam 官方兑换页核对当前钱包后继续"
+  },
+  "ai_chat_wallet_refused": {
+    "message": "Steam 拒绝了这次兑换，请核对账号和充值码"
+  },
+  "ai_chat_wallet_rate_limited": {
+    "message": "Steam 限制了请求频率"
+  },
+  "ai_chat_wallet_uncertain": {
+    "message": "兑换结果待核实，请查看 Steam 账户记录"
+  },
+  "ai_chat_wallet_cancelled": {
+    "message": "已取消兑换"
+  },
+  "ai_chat_wallet_code_required": {
+    "message": "请输入一个 Steam 钱包充值码"
+  },
+  "ai_chat_wallet_submitting": {
+    "message": "Steam 正在处理兑换…"
+  },
+  "ai_chat_wallet_expired": {
+    "message": "兑换连接已失效，请重新打开兑换工具"
+  },
+  "ai_chat_wallet_open_steam": {
+    "message": "打开 Steam 兑换页"
+  },
+  "ai_chat_wallet_open_history": {
+    "message": "查看 Steam 购买记录"
+  },
+  "ai_chat_wallet_currency_unverified": {
+    "message": "Steam 未单独显示币种"
+  },
+  "ai_wallet_title": {
+    "message": "兑换 Steam 钱包充值码"
+  },
+  "ai_chat_approval_cart_gift": {
+    "message": "礼物"
+  },
+  "ai_chat_approval_cart_private": {
+    "message": "私密购买"
+  },
+  "ai_chat_approval_cart_coupon": {
+    "message": "已用优惠券"
+  },
+  "ai_chat_tool_cart_read": {
+    "message": "查询 Steam 购物车"
+  },
+  "ai_chat_tool_cart_change": {
+    "message": "修改 Steam 购物车"
+  },
+  "ai_chat_tool_free_eligibility": {
+    "message": "查询 Steam 免费领取资格"
+  },
+  "ai_chat_tool_free_claim": {
+    "message": "领取 Steam 免费许可证"
+  },
+  "ai_chat_approval_cart_add": {
+    "message": "确认加购"
+  },
+  "ai_chat_approval_cart_remove": {
+    "message": "确认移除"
+  },
+  "ai_chat_approval_cart_clear": {
+    "message": "确认清空购物车"
+  },
+  "ai_chat_approval_free_claim": {
+    "message": "确认免费领取"
+  },
+  "ai_chat_approval_store_region": {
+    "message": "商店地区"
+  },
+  "ai_chat_approval_cart_read": {
+    "message": "读取当前账号的购物车和暂存信息"
+  },
+  "ai_chat_approval_free_read": {
+    "message": "核对当前账号对指定游戏与套餐的所有权"
+  },
+  "ai_chat_approval_bundle_id": {
+    "message": "捆绑包 ID"
+  },
+  "ai_chat_approval_package_id": {
+    "message": "套餐 ID"
+  },
+  "ai_chat_approval_price_unavailable": {
+    "message": "当前价格未能核实"
+  },
+  "ai_chat_approval_cart_line": {
+    "message": "购物车行"
+  },
+  "ai_chat_approval_free_dlc": {
+    "message": "免费 DLC 许可证"
+  },
   "extName": {
     "message": "Steam Buff"
   },
@@ -10882,7 +11047,7 @@
     "message": "按 AppID 查询当前账号在 Steam 库中的游戏详情、游玩时间、成就总数与已解锁数。"
   },
   "ai_chat_tool_wishlist": {
-    "message": "筛选我的 Steam 愿望单"
+    "message": "筛选 Steam 愿望单"
   },
   "workflow_command_steam_account_wishlist_hint": {
     "message": "查询当前账号的愿望单和添加时间，返回配置地区的 Steam 商店原价、现价、折扣和史低，并支持翻页。"
@@ -11147,6 +11312,48 @@
   },
   "ai_chat_tool_wishlist_game": {
     "message": "批量查询我的 Steam 愿望单"
+  },
+  "ai_chat_tool_profile": {
+    "message": "查询 Steam 档案"
+  },
+  "ai_chat_tool_friends": {
+    "message": "查询 Steam 好友"
+  },
+  "ai_chat_tool_badges": {
+    "message": "查询徽章与卡牌进度"
+  },
+  "ai_chat_tool_friend_library": {
+    "message": "查询好友游戏库"
+  },
+  "ai_chat_tool_friend_achievements": {
+    "message": "查询好友单款游戏成就"
+  },
+  "ai_chat_tool_game_batch": {
+    "message": "批量查询 Steam 游戏资料"
+  },
+  "ai_chat_tool_reviews": {
+    "message": "查询 Steam 游戏评测"
+  },
+  "ai_chat_tool_news": {
+    "message": "查询 Steam 游戏新闻"
+  },
+  "ai_chat_tool_wishlist_change": {
+    "message": "修改 Steam 愿望单"
+  },
+  "ai_chat_approval_wishlist_membership": {
+    "message": "核对所列游戏的愿望单状态"
+  },
+  "ai_chat_approval_wishlist_add": {
+    "message": "添加到愿望单"
+  },
+  "ai_chat_approval_wishlist_remove": {
+    "message": "移出愿望单"
+  },
+  "ai_chat_approval_friend_nickname": {
+    "message": "好友昵称"
+  },
+  "ai_chat_tool_licenses": {
+    "message": "查询我的许可证记录"
   },
   "workflow_query_app_ids": {
     "message": "AppID 列表"
@@ -11428,6 +11635,9 @@
   "workflow_error_tool_instruction": {
     "message": "此处不能使用该指令"
   },
+  "workflow_error_direct_steam_tool": {
+    "message": "请在 AI 对话中直接调用对应的 Steam 工具"
+  },
   "workflow_clipboard_context": {
     "message": "「$name$」只能在「$editor$」中使用。",
     "placeholders": {
@@ -11568,7 +11778,7 @@
     "message": "完全访问"
   },
   "ai_chat_approval_full_description": {
-    "message": "直接执行已启用的工具，包括 Steam 修改、网络请求和脚本。"
+    "message": "直接执行已启用的工具，包括 Steam 修改、网络请求和脚本。愿望单变更仍会逐次确认。"
   },
   "ai_chat_approval_title": {
     "message": "工具授权"
@@ -11598,6 +11808,9 @@
   },
   "ai_chat_approval_public": {
     "message": "本次调用可读取 Steam 相关公开数据"
+  },
+  "ai_chat_approval_steam_account_id": {
+    "message": "当前 SteamID64"
   },
   "ai_chat_approval_wishlist": {
     "message": "读取当前 Steam 账号的愿望单并查询价格"
@@ -12128,6 +12341,9 @@
   },
   "ai_chat_tool_running": {
     "message": "查询中"
+  },
+  "ai_chat_tool_partial": {
+    "message": "部分完成"
   },
   "ai_chat_tool_done": {
     "message": "已完成"

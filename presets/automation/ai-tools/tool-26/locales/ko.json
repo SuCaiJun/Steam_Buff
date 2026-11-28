@@ -1,0 +1,6 @@
+{
+  ".name": "Steam 장바구니 조회",
+  ".note": "로그인한 Steam 계정의 장바구니와 보류 항목을 조회합니다. 먼저 Steam 장바구니 페이지를 여세요.",
+  ".description": "로그인한 Steam 계정의 장바구니와 보류 항목을 조회합니다. 먼저 Steam 장바구니 페이지를 여세요.",
+  ".variables.result": "결과"
+}

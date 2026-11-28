@@ -1,0 +1,10 @@
+{
+  ".name": "Look up badges and card progress",
+  ".note": "Read a page of badges and the Steam level. Omit SteamID or specify your card page to also read your own card progress.",
+  ".description": "Read a page of badges and the Steam level. Omit SteamID or specify your card page to also read your own card progress.",
+  ".variables.result": "Query result",
+  ".parameters.steamId": "SteamID64 as a string. Omit to use the signed-in Steam account.",
+  ".parameters.start": "Zero-based offset. Continue with the previous result's nextStart.",
+  ".parameters.limit": "1 to 100 entries per page. The default is 25.",
+  ".parameters.cardPage": "Trading card page for the signed-in account, starting at 1. Continue with cards.nextPage."
+}

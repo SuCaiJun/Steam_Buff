@@ -1,0 +1,8 @@
+{
+  ".name": "查询 Steam 游戏新闻",
+  ".note": "按 AppID 查询最近的游戏新闻，返回标题、日期、摘要、来源和原文链接。",
+  ".description": "按 AppID 查询最近的游戏新闻，返回标题、日期、摘要、来源和原文链接。",
+  ".variables.result": "查询结果",
+  ".parameters.appId": "要查询的 Steam 游戏 AppID。",
+  ".parameters.limit": "返回最近 1 到 100 条，默认 10 条。"
+}

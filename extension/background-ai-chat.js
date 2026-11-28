@@ -288,8 +288,10 @@
       catch (cause) { throw Object.assign(new TypeError("AI 返回的工具参数无效", { cause }), { code: "CHAT_TOOL_INVALID" }); }
     }
     const account = accountSpec(name);
+    if (account?.steamWeb) return args;
     if (account) return root.STBackgroundAccountTools.argumentsFor(account, args);
     if (name === root.STAI.STORE_SEARCH_TOOL_ID) return root.STSteamStoreSearch.validate(args);
+    if (root.STAI.storeTool(name)) return root.STBackgroundSteamStoreTools.argumentsFor(root.STAI.storeTool(name), args);
     if (!args || typeof args !== "object" || Array.isArray(args) || Object.keys(args).length !== 1 || !root.STAI.isToolAppId(args.appId))
       throw fault("CHAT_TOOL_INVALID", "AI 返回的 Steam AppID 无效");
     return args;
@@ -298,8 +300,11 @@
   async function executeTool(deps, name, args, signal, options) {
     signal.throwIfAborted();
     const account = accountSpec(name);
+    if (account?.steamWeb) return deps.steamRead(account.steamWeb, args, signal, options);
     if (account) return deps.accountTool(account, args, signal, options);
     if (name === root.STAI.STORE_SEARCH_TOOL_ID) return deps.steamStoreSearch(args, signal);
+    const store = root.STAI.storeTool(name);
+    if (store) return deps.steamStoreTool(store, args, signal, options);
     const { appId } = args;
     if (name === root.STAI.PROVIDER_TOOL_IDS.prices) return deps.itadPrices(appId, signal);
     const source = "Steam";
@@ -334,6 +339,24 @@
     if (name === root.STAI.PROVIDER_TOOL_IDS.players) return { players: value?.players };
     if (name === root.STAI.STORE_SEARCH_TOOL_ID)
       return { term: value?.term, candidateTotal: value?.candidateTotal, matched: value?.items?.length };
+    if (name === root.STAI.PROVIDER_TOOL_IDS.wishlist_change && Array.isArray(value?.items))
+      return { wishlist: { count: value.items.length, saved: value.items.filter(item => item.status === "saved").length,
+        partial: value.status === "partial", reason: value.reason } };
+    const storeTool = root.STAI.storeTool(name);
+    if (storeTool?.kind === "wallet_checkout") {
+      const count = value?.items?.length;
+      const walletOutcome = value?.status === "native_checkout" ? "native_checkout" : count === 0 ? "empty_cart" : undefined;
+      return { count, walletOutcome };
+    }
+    if (storeTool?.kind === "wallet_redeem") {
+      const status = value?.status;
+      if (status === "native_required" || status === "uncertain") return { walletOutcome: status };
+      return status === "ok" && value.result === "redeemed" ? { walletOutcome: "redeemed" } : {};
+    }
+    if (storeTool?.commerce === "write" && Array.isArray(value?.items))
+      return { commerce: { count: value.items.length, saved: value.items.filter(item => item.status === "saved").length,
+        partial: value.status === "partial", reason: value.reason } };
+    if (storeTool) return { count: value?.items?.length };
     return {
       country: value?.country,
       current: priceFact(value?.current?.price),
@@ -445,8 +468,8 @@
     const selected = new Map(available.map(tool => [tool.id, tool]));
     const definitions = root.STAI.CHAT_TOOLS.filter(tool => selected.has(tool.id)).map(tool => model.toolSchema(selected.get(tool.id)));
     const explicitToolIds = available.filter(model.hasExplicitWrites).map(tool => tool.id);
-    const { library, wishlist, wishlist_game } = root.STAI.PROVIDER_TOOL_IDS;
-    const structuredToolIds = [...explicitToolIds, ...[library, wishlist, wishlist_game].filter(id => selected.has(id))];
+    const { library, wishlist, wishlist_game, game_batch, wishlist_change } = root.STAI.PROVIDER_TOOL_IDS;
+    const structuredToolIds = [...explicitToolIds, ...[library, wishlist, wishlist_game, game_batch, wishlist_change].filter(id => selected.has(id))];
     const canWriteExplicitly = explicitToolIds.length > 0;
     if (search) definitions.push(model.toolSchema(root.STBackgroundAiSearch.definition));
     const toolSize = JSON.stringify(definitions).length;
@@ -608,7 +631,7 @@
             if (hasReceipt) throw error;
             const approvalFailure = ["CHAT_APPROVAL_STALE", "CHAT_APPROVAL_SCOPE", "CHAT_TOOL_NOT_ALLOWED", "WORKFLOW_TOOL_UNAVAILABLE", "WORKFLOW_LIBRARY_UNAVAILABLE"].includes(error.code);
             const oldQuery = error.messageKey === "workflow_query_reconfigure";
-            if (!oldQuery && !approvalFailure && (!account || !error.aiToolFailure && !Number.isInteger(error.status) && error.name !== "TimeoutError" &&
+            if (!oldQuery && !approvalFailure && (!(account || root.STAI.storeTool(id)) || !error.aiToolFailure && !Number.isInteger(error.status) && error.name !== "TimeoutError" &&
               !["ACCOUNT_CHANGED", "AI_TOOL_RESPONSE_INVALID", "STEAM_LOGIN_REQUIRED", "STEAM_DATA_UNAVAILABLE", "CHAT_TOOL_INVALID",
                 "WORKFLOW_CONFIG_INVALID", "WORKFLOW_SCRIPT_TIMEOUT", "AUTOMATION_NAME_ACCESS"].includes(error.code))) throw error;
             value = { status: "failed", code: oldQuery ? "WORKFLOW_QUERY_RECONFIGURE" : error.code || "STEAM_DATA_UNAVAILABLE", reason: error.message };
@@ -651,7 +674,9 @@
           ...(search && { reference: sources.get(value.url)?.reference ?? sources.size + 1 }),
           ...(transientStoreSearch && { transient: true }) } : null;
         if (source?.url && !sources.has(source.url)) sources.set(source.url, source);
-        const step = { ...tool, state: value?.status === "failed" ? "failed" : value?.declined ? "blocked" : "done",
+        const failed = value?.status === "failed"
+          || value?.status === "partial" && (id === wishlist_change || root.STAI.storeTool(id)?.commerce === "write");
+        const step = { ...tool, state: failed ? "failed" : value?.declined ? "blocked" : "done",
           ...(source && { source }), ...(value?.code && { errorCode: value.code }), facts: toolFacts(id, value, queryResult) };
         if (transientStoreSearch) steps.push({ ...step, source: undefined, facts: { ...step.facts, term: undefined } });
         else steps.push(step);
@@ -860,8 +885,10 @@
           role: "user", content: userText, ...(images.length && { imageCount: images.length }),
         }, { role: "assistant", ...answer, ...(requests.length && { usage: turnUsage(service, requests) }),
           ...(receipts.size && { receipts: [...receipts.values()].map(({ toolId, items }) => ({
-            toolId, items: items.map(({ appId, status, savedCount, achievementResults }) =>
-              ({ appId, status, savedCount, ...(achievementResults && { achievementResults }) })),
+            toolId, items: items.map(({ appId, status, savedCount, achievementResults, wishlistAction, inWishlist, commerceAction, kind, itemId, lineId }) =>
+              ({ appId, status, savedCount, ...(achievementResults && { achievementResults }),
+                ...(wishlistAction && { wishlistAction, ...(typeof inWishlist === "boolean" && { inWishlist }) }),
+                ...(commerceAction && { commerceAction, kind, itemId, lineId }) })),
           })) }) }],
       });
       let saved;
@@ -876,7 +903,17 @@
         const rows = [...receipts.values()].flatMap(({ toolId, items }) => {
           const tool = root.STAI.CHAT_TOOLS.find(entry => entry.id === toolId);
           return items.map(item => {
-            const summary = `- ${tool.name} · AppID ${item.appId} · ${labels[item.status]}${item.savedCount ? `（已保存 ${item.savedCount} 项）` : ""}`;
+            if (item.commerceAction === "redeem") return "- Steam 钱包充值码兑换 · " +
+              (item.status === "saved" ? "已兑换" : labels[item.status]);
+            if (item.commerceAction) {
+              const actions = { add: "加购", remove: "移除购物车商品", clear: "清空购物车", claim: "领取免费许可证" };
+              const target = item.kind === "bundle" ? "捆绑包" : "套餐";
+              const line = item.lineId ? ` · 购物车行 ${item.lineId}` : "";
+              const app = item.appId ? ` · AppID ${item.appId}` : "";
+              return `- ${actions[item.commerceAction]} · ${target} ${item.itemId}${line}${app} · ${labels[item.status]}`;
+            }
+            const operation = item.wishlistAction === "add" ? "添加到愿望单" : item.wishlistAction === "remove" ? "移出愿望单" : tool.name;
+            const summary = `- ${operation} · AppID ${item.appId} · ${labels[item.status]}${item.savedCount ? `（已保存 ${item.savedCount} 项）` : ""}`;
             if (!item.achievementResults) return summary;
             const { saved, conflicts, pending, unconfirmed } = item.achievementResults;
             return [summary, ...[["已保存成就", saved], ["有冲突", conflicts], ["尚未提交", pending], ["待核实", unconfirmed]]
@@ -997,7 +1034,10 @@
           ? fault("CHAT_APPROVAL_TIMEOUT", "等待授权超时") : fault("CHAT_TIMEOUT", "AI 对话超时")), TURN_MS);
         const approve = (proposal, waiting) => new Promise((resolve, reject) => {
           controller.signal.throwIfAborted();
-          if (request.approvalVersion !== root.STAI.CHAT_APPROVAL_VERSION)
+          if (request.approvalVersion !== root.STAI.CHAT_APPROVAL_VERSION ||
+              proposal.items?.some(item => item.wishlistAction) && request.supportsWishlistApproval !== true ||
+              proposal.commerce && request.supportsCommerceApproval !== true ||
+              proposal.checkout && request.supportsCheckoutApproval !== true)
             throw fault("CHAT_APPROVAL_REOPEN", "请重新打开聊天以处理工具审批");
           const id = crypto.randomUUID();
           const clear = () => {

@@ -1,0 +1,11 @@
+{
+  ".name": "查詢好友遊戲庫",
+  ".note": "按 SteamID64 讀取好友可見的遊戲，可按遊戲名稱搜尋或按累計遊玩時間排序。",
+  ".description": "按好友 SteamID64 查詢可見的遊戲庫，回傳 AppID、遊戲名稱和 Steam 提供的累計遊玩分鐘數。只有暱稱時先查詢 Steam 好友，有多筆符合時請使用者確認。使用 term 搜尋遊戲名稱，使用 sortBy=playtime 按時長遞減排序。未提供的時長為 null，Steam 回傳的 0 也可能表示時長已隱藏。unavailableNames 是 Steam 未提供遊戲名稱、無法納入搜尋的項目數。使用 nextStart 查下一頁。",
+  ".variables.result": "查詢結果",
+  ".parameters.steamId": "目標好友的 SteamID64 字串。",
+  ".parameters.term": "按遊戲名稱做不區分大小寫的部分比對。",
+  ".parameters.sortBy": "傳入 playtime 按累計遊玩分鐘數遞減排序，未提供時長的項目排在最後。",
+  ".parameters.start": "從 0 開始。繼續查詢時傳入上次回傳的 nextStart。",
+  ".parameters.limit": "每頁 1 到 100 筆，預設 25 筆。"
+}

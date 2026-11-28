@@ -1,5 +1,5 @@
 {
-  ".name": "Filter my Steam wishlist",
+  ".name": "Filter Steam wishlist",
   ".note": "Filter the current Steam wishlist by individual fields. To rank by current price, use sortBy=currentPrice with direction=asc or desc. Missing prices are unknown.",
   ".description": "Filter the current Steam wishlist by individual fields. To rank by current price, use sortBy=currentPrice with direction=asc or desc. Missing prices are unknown.",
   ".variables.result": "AppID list",

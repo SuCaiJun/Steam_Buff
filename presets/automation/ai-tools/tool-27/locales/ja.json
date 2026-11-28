@@ -1,0 +1,11 @@
+{
+  ".name": "Steam カートを変更",
+  ".note": "承認後にパッケージやバンドルを追加し、指定行を削除するかカートを空にします。",
+  ".description": "承認後にパッケージやバンドルを追加し、指定行を削除するかカートを空にします。",
+  ".variables.result": "結果",
+  ".parameters.operation": "追加は add、指定行の削除は remove、カートを空にするには clear を指定します。",
+  ".parameters.appId": "数値の AppID。無料ライセンスでは AppID または URL を指定します。",
+  ".parameters.packageId": "Steam のパッケージ ID。",
+  ".parameters.bundleId": "Steam のバンドル ID。",
+  ".parameters.lineId": "カート照会で返された行 ID を文字列で指定します。"
+}

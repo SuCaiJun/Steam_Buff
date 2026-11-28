@@ -1,0 +1,8 @@
+{
+  ".name": "Steam ゲームニュースを調べる",
+  ".note": "AppID で最新ニュースの見出し、日付、抜粋、配信元、原文リンクを取得します。",
+  ".description": "AppID で最新ニュースの見出し、日付、抜粋、配信元、原文リンクを取得します。",
+  ".variables.result": "取得結果",
+  ".parameters.appId": "対象の Steam ゲームの AppID。",
+  ".parameters.limit": "最新の 1～100 件。既定は 10 件。"
+}

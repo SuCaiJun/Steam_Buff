@@ -1,0 +1,6 @@
+{
+  ".name": "查询 Steam 购物车",
+  ".note": "读取当前 Steam 账号的购物车，单列暂存信息。请先打开已登录的 Steam 购物车页面。",
+  ".description": "读取当前 Steam 账号的购物车，单列暂存信息。请先打开已登录的 Steam 购物车页面。",
+  ".variables.result": "结果"
+}

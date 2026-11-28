@@ -174,7 +174,11 @@
     const context = flow.instructionContext(workflow);
     for (const node of nodes) {
       const id = node.kind === "fold" ? "fold-" + node.edge : flow.type(node);
-      if (flow.instructionAvailable(id, context)) continue;
+      if (flow.instructionAvailable(id, context, workflow.id)) continue;
+      if (flow.directSteamInstructionIssue(node, workflow.id))
+        throw Object.assign(new Error(tr("workflow_error_direct_steam_tool", "请在 AI 对话中直接调用对应的 Steam 工具")), {
+          code: "WORKFLOW_CONFIG_INVALID",
+        });
       const definition = flow.instruction(id);
       if (!definition?.context)
         throw Object.assign(new Error(tr("workflow_error_tool_instruction", "此处不能使用该指令")), { code: "WORKFLOW_CONFIG_INVALID" });
