@@ -19,6 +19,8 @@
   const SCORED_FLAG = "__RickyStIndependentNameSearchScoredPatched";
   const SET_SEARCH_FLAG = "__RickyStIndependentNameSearchSetterPatched";
   const SEARCH_ATTRIBUTE = "data-steam-buff-user-name-search";
+  const SEARCH_START_TASK = `${ID}:search-start`;
+  const SEARCH_START_TIMEOUT_MS = 30000;
   const ORIGINAL_NAME = "__RickyStOriginalName";
   const SORT_NAME_LIB = "steam/shared/native-sort-name.js";
   const METADATA_LIB = "steam/shared/name-filter-metadata.js";
@@ -157,28 +159,30 @@
   }
 
   function filterBaseOwner(filter) {
-    const child = prototypeOwner(filter, "MatchesImpl");
-    let owner = child ? Object.getPrototypeOf(child) : null;
-    while (owner && !Object.prototype.hasOwnProperty.call(owner, "MatchesImpl")) {
-      owner = Object.getPrototypeOf(owner);
+    // 文本搜索直接使用基类，收藏筛选的派生类把文本匹配委托给同一个基类
+    for (let owner = prototypeOwner(filter, "MatchesImpl"); owner; owner = prototypeOwner(owner, "MatchesImpl")) {
+      if (typeof owner.MatchesImpl !== "function" || !Object.hasOwn(owner, "MatchesScoredImpl")
+        || typeof owner.MatchesScoredImpl !== "function") {
+        continue;
+      }
+      const source = String(owner.MatchesImpl);
+      if (source.includes("m_filterSpec") && source.includes("filterGroups") && source.includes("strSearchText")) {
+        return owner;
+      }
     }
-    if (!owner || typeof owner.MatchesScoredImpl !== "function") {
-      return null;
-    }
-    const source = String(owner.MatchesImpl || "");
-    // 只接受当前已实测的 Steam 基类结构，未知结构不猜测兼容。
-    if (!source.includes("m_filterSpec") || !source.includes("filterGroups") || !source.includes("strSearchText")) {
-      return null;
-    }
-    return owner;
+    return null;
   }
 
   function ensureSearchPatch(rt) {
     if (!rt?.scheduled) {
       return false;
     }
-    const filter = window.uiStore?.m_currentAppFilter;
-    const owner = filterBaseOwner(filter);
+    const store = window.uiStore;
+    const filter = store?.m_currentAppFilter;
+    // Steam 恢复库状态前尚无当前筛选器，临时构造的收藏筛选器与文本搜索共用匹配原型
+    const owner = filter
+      ? filterBaseOwner(filter)
+      : rt.searchOwner ?? filterBaseOwner(store?.InitializeAppFilter?.(undefined, false));
     if (!owner) {
       return false;
     }
@@ -246,6 +250,38 @@
       ensureSearchPatch(window[RT]);
       return result;
     });
+  }
+
+  function startSearch(rt, scope) {
+    const attach = () => {
+      hookSearchSetter(rt);
+      ensureSearchPatch(rt);
+    };
+    if (window.uiStore) {
+      attach();
+      return null;
+    }
+
+    const scheduler = window.STScheduler;
+    if (!scheduler) return null;
+    const deadline = Date.now() + SEARCH_START_TIMEOUT_MS;
+    let pending = true;
+    let handle;
+    const cancel = () => {
+      if (!pending) return;
+      pending = false;
+      if (handle) handle.dispose();
+      else scheduler.unregister(SEARCH_START_TASK);
+    };
+    // 等待只用于搜索挂接，批量编辑通道在此期间可以照常收取消息
+    scheduler.register(SEARCH_START_TASK, () => {
+      cancel();
+      if (!rt.scheduled) return;
+      if (window.uiStore) attach();
+      else log.warn("independent-name-search-start-timeout", "等待 Steam 库搜索初始化超时");
+    }, () => Boolean(window.uiStore) || Date.now() >= deadline, { intervalMs: 1000 });
+    handle = scope?.schedulerTask?.("search-start", SEARCH_START_TASK);
+    return cancel;
   }
 
   function refreshSearch() {
@@ -498,8 +534,7 @@
       rt.ch.addEventListener("message", rt.onMessage);
     }
 
-    hookSearchSetter(rt);
-    ensureSearchPatch(rt);
+    const cancelSearchStart = startSearch(rt, scope);
     observeSearchIndex(rt);
 
     rt.stop = () => {
@@ -507,6 +542,7 @@
       for (const pending of rt.pendingSort.values()) pending.cancelled = true;
       rt.pendingSort.clear();
       rt.scheduled = false;
+      cancelSearchStart?.();
       rt.searchObserver?.disconnect?.();
       rt.searchObserver = null;
       restorePatches();
